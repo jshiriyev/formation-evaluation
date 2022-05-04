@@ -1,0 +1,11 @@
+# Data
+*.csv
+*.db
+*.inc
+*.txt
+*.xlsx
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
