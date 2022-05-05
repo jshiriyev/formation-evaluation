@@ -4,6 +4,8 @@ from datetime import datetime
 from dateutil import parser
 from dateutil import relativedelta
 
+from difflib import SequenceMatcher
+
 import math
 import os
 import re
@@ -60,25 +62,36 @@ class DirBase():
         else:
             return os.path.normpath(os.path.join(self.filepath,path))
 
-    def get_filenames(self,dirpath=None,prefix=None,extension=None):
+    def get_filenames(self,dirpath=None,directory=False,prefix=None,extension=None):
 
         if dirpath is not None and not os.path.isdir(dirpath):
             dirpath = os.path.dirname(dirpath)
 
         if dirpath is not None and not os.path.isabs(dirpath):
-            dirpath = os.path.normpath(os.path.join(self.homepath,dirpath))
+            dirpath = os.path.normpath(os.path.join(self.filepath,dirpath))
 
         if dirpath is not None:
             filenames = os.listdir(dirpath)
         else:
             filenames = os.listdir(self.filepath)
 
-        if prefix is None and extension is None:
-            return filenames
+        filepaths = []
+
+        for filename in filenames:
+            filepaths.append(self.get_filepathabs(filename,homeFlag=False))
+
+        if directory:
+            return [filename for (filename,filepath) in zip(filenames,filepaths) if os.path.isdir(filepath)]
+
+        elif prefix is None and extension is None:
+            return [filename for (filename,filepath) in zip(filenames,filepaths) if not os.path.isdir(filepath)]
+
         elif prefix is None and extension is not None:
             return [filename for filename in filenames if filename.endswith(extension)]
+
         elif prefix is not None and extension is None:
             return [filename for filename in filenames if filename.startswith(prefix)]
+
         else:
             return [filename for filename in filenames if filename.startswith(prefix) and filename.endswith(extension)]
 
@@ -254,15 +267,24 @@ class DataFrame(DirBase):
 
     def astype(self,header_index=None,header=None,dtype=None,nonetozero=False,datestring=False,shiftmonths=0):
 
+        def shifting(string):
+
+            date = parser.parse(string)+relativedelta.relativedelta(months=shiftmonths)
+            days = calendar.monthrange(date.year,date.month)[1]
+
+            return datetime(date.year,date.month,days)
+
+        def tryconvert(string):
+
+            try:
+                return dtype(str(string).replace(",","."))
+            except ValueError:
+                return np.nan
+
         if header_index is None:
             header_index = self._headers.index(header)
 
         if datestring:
-
-            def shifting(string):
-                date = parser.parse(string)+relativedelta.relativedelta(months=shiftmonths)
-                days = calendar.monthrange(date.year,date.month)[1]
-                return datetime(date.year,date.month,days)
 
             if dtype is None:
                 if shiftmonths != 0:
@@ -279,9 +301,21 @@ class DataFrame(DirBase):
 
             if nonetozero:
                 vdate = np.vectorize(lambda x: dtype(x) if x is not None else dtype(0))
+            elif dtype==float:
+                vdate = np.vectorize(lambda x: tryconvert(x))
+            elif dtype==int:
+                vdate = np.vectorize(lambda x: dtype(round(float(str(x).replace(",",".")))))
             else:
                 vdate = np.vectorize(lambda x: dtype(x))
             
+        self._running[header_index] = vdate(self._running[header_index])
+
+        self.running[header_index] = np.asarray(self._running[header_index])
+
+    def edit_datecolumn(self,header_index):
+
+        vdate = np.vectorize(lambda x: x if x is isinstance(x,datetime) else datetime.today())
+
         self._running[header_index] = vdate(self._running[header_index])
 
         self.running[header_index] = np.asarray(self._running[header_index])
@@ -296,6 +330,26 @@ class DataFrame(DirBase):
         self._running[header_index] = editor(self._running[header_index])
 
         self.running[header_index] = np.asarray(self._running[header_index])
+
+    def fill_nones(self,col_indices=None,inplace=False):
+
+        if col_indices is None:
+            col_indices = range(len(self._running))
+
+        for col_index in col_indices:
+
+            column = self._running[col_index]
+
+            row_indices = [row_index for row_index,val in enumerate(column) if val is None]
+
+            for row_index in row_indices:
+                column[row_index] = column[row_index-1]
+
+            if inplace:
+                self._running[col_index] = column
+                self.running[col_index] = np.asarray(column)
+            else:
+                self.running[col_index] = np.asarray(column)
 
     def upper(self,header_index=None,header=None):
 
@@ -393,26 +447,6 @@ class DataFrame(DirBase):
             self.running = [np.asarray(column) for column in self._running]
         else:
             self.running = [np.asarray(column[keep_index]) for column in self._running]
-
-    def fill_nones(self,col_indices=None,inplace=False):
-
-        if col_indices is None:
-            col_indices = range(len(self._running))
-
-        for col_index in col_indices:
-
-            column = self._running[col_index]
-
-            row_indices = [row_index for row_index,val in enumerate(column) if val is None]
-
-            for row_index in row_indices:
-                column[row_index] = column[row_index-1]
-
-            if inplace:
-                self._running[col_index] = column
-                self.running[col_index] = np.asarray(column)
-            else:
-                self.running[col_index] = np.asarray(column)
             
     def sort(self,header_indices=None,headers=None,reverse=False,inplace=False,returnFlag=False):
 
@@ -437,7 +471,7 @@ class DataFrame(DirBase):
         if returnFlag:
             return sort_index
 
-    def filter(self,header_index=None,header=None,keywords=None,regex=None,inplace=False):
+    def filter(self,header_index=None,header=None,keywords=None,regex=None,year=None,inplace=False):
 
         if header_index is None:
             header_index = self._headers.index(header)
@@ -445,9 +479,12 @@ class DataFrame(DirBase):
         if keywords is not None:
             match_array = np.array(keywords).reshape((-1,1))
             match_index = np.any(self._running[header_index]==match_array,axis=0)
-        else:
+        elif regex is not None:
             match_vectr = np.vectorize(lambda x: bool(re.compile(regex).match(x)))
             match_index = match_vectr(self._running[header_index])
+        elif year is not None:
+            match_vectr = np.vectorize(lambda x: x.year==year)
+            match_index = match_vectr(self._running[header_index].tolist())
 
         if inplace:
             self._running = [column[match_index] for column in self._running]
@@ -477,14 +514,16 @@ class DataFrame(DirBase):
 
 class Excel(DataFrame):
 
-    def __init__(self,homepath=None,filepaths=None,headers=None):
+    def __init__(self,homepath=None,filepath=None,headers=None):
 
-        super().__init__(homepath=homepath,headers=headers)
+        super().__init__(homepath=homepath,filepath=filepath,headers=headers)
 
         self.files = []
+        self.books = []
 
-        if filepaths is not None:
-            [self.add_file(filepath) for filepath in filepaths]
+    def add_filebatch(self,filepaths):
+
+        [self.add_file(filepath) for filepath in filepaths]
 
     def add_file(self,filepath):
 
@@ -516,7 +555,7 @@ class Excel(DataFrame):
 
         super().set_headers(headers=headers,initRunningFlag=True)
 
-    def read(self,sheetname,min_row=1,min_col=1,max_row=None,max_col=None,fileID=None):
+    def read(self,sheetname=None,min_row=1,min_col=1,max_row=None,max_col=None,fileID=None):
 
         if fileID is None:
             fileIDs = range(len(self.files))
@@ -532,12 +571,48 @@ class Excel(DataFrame):
 
         for fileID in fileIDs:
 
-            rows = list(self.files[fileID][sheetname].iter_rows(
+            wsname = self.files[fileID].sheetnames[0] if sheetname is None else sheetname
+
+            rows = self.files[fileID][wsname].iter_rows(
                 min_row=min_row,min_col=min_col,
                 max_row=max_row,max_col=max_col,
-                values_only=True))
+                values_only=True)
 
-            self.set_rows(rows)
+            rows = [row for row in list(rows) if any(row)]
+
+            self.books.append(rows)
+
+    def merge(self,header_rows=1):
+
+        for i,book in enumerate(self.books):
+
+            for j in range(1,header_rows):
+
+                self.books[i][0] = [h0 if hj is None else hj for (h0,hj) in zip(book[0],book[j])]
+
+            for j in range(1,header_rows):
+
+                del self.books[i][1]
+
+            col_indices = []
+
+            for header in self._headers:
+
+                scores = []
+
+                for header_read in self.books[i][0]:
+
+                    score = SequenceMatcher(None,header,header_read).ratio() if isinstance(header_read,str) else 0
+                    
+                    scores.append(score)
+
+                col_indices.append(scores.index(max(scores)))
+
+            for j,row in enumerate(self.books[i]):
+
+                self.books[i][j] = [row[k] for k in col_indices]
+
+            self.set_rows(self.books[i][1:])
 
     def write(self,filepath,title):
 

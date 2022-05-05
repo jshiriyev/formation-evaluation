@@ -5,7 +5,7 @@ path = __file__
 
 while True:
 
-    if os.path.basename(path)=="terrapy": break
+    if os.path.basename(path)=="petepy": break
     
     path = os.path.dirname(path)
 
