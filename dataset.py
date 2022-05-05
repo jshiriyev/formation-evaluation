@@ -139,6 +139,18 @@ class DataFrame(DirBase):
             self._running = [np.array([])]*num_cols
             self.running = [np.asarray(column) for column in self._running]
 
+    def set_running(self,*args,initHeadersFlag=False):
+
+        if initHeadersFlag:
+            self.set_headers(num_cols=len(args),initRunningFlag=False)
+        
+        self._running = [np.asarray(arg) for arg in args]
+
+        self.running = [np.asarray(column) for column in self._running]
+
+        if len(self._running)!=len(self._headers):
+            print("ERROR")
+
     def read(self,skiplines=0,headerline=None,comment="--",endline="/",endfile="END"):
 
         # While looping inside the file it does not read lines:
@@ -492,7 +504,23 @@ class DataFrame(DirBase):
         else:
             self.running = [np.asarray(column[match_index]) for column in self._running]
 
-    def filter_invert(self):
+    def unique(self,header_indices,inplace=False):
+
+        Z = np.empty((self._running[0].size,len(header_indices)),dtype=str)
+
+        for index,header_index in enumerate(header_indices):
+
+            Z[:,index] = self._running[header_index].astype(str)
+
+        _,indices = np.unique(Z,axis=0,return_index=True)
+
+        if inplace:
+            self._running = [column[indices] for column in self._running]
+            self.running = [np.asarray(column) for column in self._running]
+        else:
+            self.running = [np.asarray(column[indices]) for column in self._running]
+
+    def invert(self):
 
         self.running = [np.asarray(column) for column in self._running]
 
@@ -1248,4 +1276,8 @@ class AlphabetAze():
 
 if __name__ == "__main__":
 
-    import petepy.tests
+    import unittest
+
+    from tests import datatest
+
+    unittest.main(datatest)
