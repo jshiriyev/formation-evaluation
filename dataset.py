@@ -53,7 +53,7 @@ class DirBase():
         else:
             self.filepath = os.path.normpath(os.path.join(self.homepath,path))
 
-    def get_filepathabs(self,path,homeFlag=True):
+    def get_abspath(self,path,homeFlag=True):
 
         if os.path.isabs(path):
             return path
@@ -700,7 +700,7 @@ class VTKit(DirBase):
 
         pass
 
-class History(DataFrame):
+class WSchedule(DataFrame):
 
     # KEYWORDS: DATES,COMPDATMD,COMPORD,WCONHIST,WCONINJH,WEFAC,WELOPEN 
 
