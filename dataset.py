@@ -332,12 +332,17 @@ class DataFrame(DirBase):
 
         self.running[header_index] = np.asarray(self._running[header_index])
 
-    def edit_strcolumn(self,fstring,header_index=None,header=None):
+    def edit_strcolumn(self,fstring,header_index=None,header=None,zfill=None):
 
         if header_index is None:
             header_index = self._headers.index(header)
 
-        editor = np.vectorize(lambda x: fstring.format(x))
+        if zfill is None:
+            string = lambda x: str(x)
+        else:
+            string = lambda x: str(x).zfill(zfill)
+
+        editor = np.vectorize(lambda x: fstring.format(string(x)))
 
         self._running[header_index] = editor(self._running[header_index])
 
@@ -485,6 +490,8 @@ class DataFrame(DirBase):
 
     def filter(self,header_index=None,header=None,keywords=None,regex=None,year=None,inplace=False):
 
+        ## It should allow multiple header indices filtering
+
         if header_index is None:
             header_index = self._headers.index(header)
 
@@ -506,19 +513,17 @@ class DataFrame(DirBase):
 
     def unique(self,header_indices,inplace=False):
 
-        Z = np.empty((self._running[0].size,len(header_indices)),dtype=str)
+        Z = [self._running[index].astype(str) for index in header_indices]
 
-        for index,header_index in enumerate(header_indices):
+        Z = np.array(Z,dtype=str).T
 
-            Z[:,index] = self._running[header_index].astype(str)
-
-        _,indices = np.unique(Z,axis=0,return_index=True)
+        _,row_indices = np.unique(Z,axis=0,return_index=True)
 
         if inplace:
-            self._running = [column[indices] for column in self._running]
+            self._running = [column[row_indices] for column in self._running]
             self.running = [np.asarray(column) for column in self._running]
         else:
-            self.running = [np.asarray(column[indices]) for column in self._running]
+            self.running = [np.asarray(column[row_indices]) for column in self._running]
 
     def invert(self):
 
@@ -539,6 +544,19 @@ class DataFrame(DirBase):
             wfile.write(header_fstring.format(*self._headers))
             for line in vprint(*self._running):
                 wfile.write(line)
+
+    def print(self,cols=None,rows=None):
+
+        if cols is None:
+            cols = list(range(len(self.running)))
+
+        if rows is None:
+            rows = list(range(self.running[0].size))
+
+        fstr = "{}\t"*len(cols)
+
+        for row in rows:
+            print(fstr.format(*[self.running[col][row] for col in cols]))
 
 class Excel(DataFrame):
 
@@ -640,7 +658,9 @@ class Excel(DataFrame):
 
                 self.books[i][j] = [row[k] for k in col_indices]
 
-            self.set_rows(self.books[i][1:])
+            rows = [row for row in self.books[i][1:] if any(row)]
+
+            self.set_rows(rows)
 
     def write(self,filepath,title):
 
