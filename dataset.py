@@ -21,15 +21,15 @@ if __name__ == "__main__":
 
 class DirBase():
 
-    def __init__(self,homepath=None,filepath=None):
+    def __init__(self,homedir=None,filedir=None):
 
-        # homepath is the directory to put outputs
-        # filepath is the directory to get inputs
+        # homedir is the directory to put outputs
+        # filedir is the directory to get inputs
 
-        self.set_homepath(homepath)
-        self.set_filepath(filepath)
+        self.set_homedir(homedir)
+        self.set_filedir(filedir)
 
-    def set_homepath(self,path=None):
+    def set_homedir(self,path=None):
 
         if path is None:
             path = os.getcwd()
@@ -37,30 +37,30 @@ class DirBase():
             path = os.path.dirname(path)
 
         if os.path.isabs(path):
-            self.homepath = path
+            self.homedir = path
         else:
-            self.homepath = os.path.normpath(os.path.join(os.getcwd(),path))
+            self.homedir = os.path.normpath(os.path.join(os.getcwd(),path))
 
-    def set_filepath(self,path=None):
+    def set_filedir(self,path=None):
 
         if path is None:
-            path = self.homepath
+            path = self.homedir
         elif not os.path.isdir(path):
             path = os.path.dirname(path)
 
         if os.path.isabs(path):
-            self.filepath = path
+            self.filedir = path
         else:
-            self.filepath = os.path.normpath(os.path.join(self.homepath,path))
+            self.filedir = os.path.normpath(os.path.join(self.homedir,path))
 
     def get_abspath(self,path,homeFlag=True):
 
         if os.path.isabs(path):
             return path
         elif homeFlag:
-            return os.path.normpath(os.path.join(self.homepath,path))
+            return os.path.normpath(os.path.join(self.homedir,path))
         else:
-            return os.path.normpath(os.path.join(self.filepath,path))
+            return os.path.normpath(os.path.join(self.filedir,path))
 
     def get_filenames(self,dirpath=None,directory=False,prefix=None,extension=None):
 
@@ -68,17 +68,17 @@ class DirBase():
             dirpath = os.path.dirname(dirpath)
 
         if dirpath is not None and not os.path.isabs(dirpath):
-            dirpath = os.path.normpath(os.path.join(self.filepath,dirpath))
+            dirpath = os.path.normpath(os.path.join(self.filedir,dirpath))
 
         if dirpath is not None:
             filenames = os.listdir(dirpath)
         else:
-            filenames = os.listdir(self.filepath)
+            filenames = os.listdir(self.filedir)
 
         filepaths = []
 
         for filename in filenames:
-            filepaths.append(self.get_filepathabs(filename,homeFlag=False))
+            filepaths.append(self.get_abspath(filename,homeFlag=False))
 
         if directory:
             return [filename for (filename,filepath) in zip(filenames,filepaths) if os.path.isdir(filepath)]
@@ -101,11 +101,25 @@ class DataFrame(DirBase):
 
     # Main Data Structure DataFrame
 
-    def __init__(self,homepath=None,filepath=None,headers=None):
+    def __init__(self,filepath=None,headers=None,homedir=None,filedir=None):
 
-        super().__init__(homepath,filepath)
-        
+        super().__init__(homedir,filedir)
+
+        if filepath is not None:
+            self.filepath = filepath
+
         DataFrame.set_headers(self,headers=headers,initRunningFlag=True)
+
+        self.files = []
+        self.books = []
+
+    def set_filebatch(self):
+
+        pass
+
+    def set_filepath(self):
+
+        pass
 
     def set_headers(self,headers=None,header_indices=None,num_cols=None,initRunningFlag=False):
 
@@ -202,7 +216,7 @@ class DataFrame(DirBase):
         if skiplines==0:
             self.set_headers(num_cols=num_cols,initRunningFlag=False)
         elif skiplines!=0:
-            self.set_headers(headers=self.title[self.headerline],initRunningFlag=False)
+            self.set_headers(headers=self.title[headerline],initRunningFlag=False)
 
         nparray = np.array(_running).T
 
@@ -560,9 +574,9 @@ class DataFrame(DirBase):
 
 class Excel(DataFrame):
 
-    def __init__(self,homepath=None,filepath=None,headers=None):
+    def __init__(self,homedir=None,filepath=None,headers=None):
 
-        super().__init__(homepath=homepath,filepath=filepath,headers=headers)
+        super().__init__(homedir=homedir,filepath=filepath,headers=headers)
 
         self.files = []
         self.books = []

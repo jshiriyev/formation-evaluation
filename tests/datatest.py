@@ -37,6 +37,24 @@ class TestDirBase(unittest.TestCase):
 
 class TestDataFrame(unittest.TestCase):
 
+    def test_init_none(self):
+
+        pass
+
+    def test_init_filepath(self):
+
+        df = DataFrame(filepath="datatest")
+
+        df.read(skiplines=1)
+
+    def test_init_headers(self):
+
+        pass
+
+    def test_init_filepath_headers(self):
+
+        pass
+
     def test_unique(self):
 
         df = DataFrame()
