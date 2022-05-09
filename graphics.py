@@ -27,12 +27,12 @@ if __name__ == "__main__":
 
     import setup
 
-from petepy.dataset import DataFrame
-from petepy.dataset import Excel
-from petepy.dataset import VTKit
-from petepy.dataset import History
-from petepy.dataset import LogASCII
-from petepy.dataset import NpText
+from dataset import DataFrame
+from dataset import Excel
+from dataset import VTKit
+from dataset import WSchedule
+from dataset import LogASCII
+from dataset import NpText
 
 # AUXILIARY FUNCTIONS TO CHOOSE INHERITANCE PATH
 
@@ -1101,6 +1101,14 @@ def LogView(data=None):
                     plt.setp(self.axes[indexI].subax[indexJ].xaxis.get_majorticklabels()[0],ha="left")
                     plt.setp(self.axes[indexI].subax[indexJ].xaxis.get_majorticklabels()[-1],ha="right")
 
+        def set_DepthViewLine(self,xvals,depth,indexI,indexJ):
+
+            # indexI index of axis in the plot
+            # indexJ index of line in the axis
+
+            self.axes[indexI].subax[indexJ].plot(xvals,depth,
+                color=self.lineColors[indexJ],linestyle="--")
+
         def get_yticks(self):
 
             ymin = np.floor(self.top/20)*20
@@ -1222,6 +1230,48 @@ def LogView(data=None):
 
             return GRcut
 
+        def get_shaleVolumeGR(self,GRline,GRmin=None,GRmax=None,model=None):
+
+            xvals = self.files[GRline[0]][GRline[1]]
+
+            if GRmin is None:
+                GRmin = np.nanmin(xvals)
+
+            if GRmax is None:
+                GRmax = np.nanmax(xvals)
+
+            Ish = (xvals-GRmin)/(GRmax-GRmin)
+
+            if model is None or model=="linear":
+                Vsh = Ish
+
+            return Vsh
+
+        def get_shaleVolumeSP(self,SPline,SPsand,SPshale):
+
+            xvals = self.files[SPline[0]][SPline[1]]
+
+            Vsh = (xvals-SPsand)/(SPshale-SPsand)
+
+            return Vsh
+
+        def set_DepthViewNeuPorCorr(self,NeuPorLine,indexI,indexJ,Vsh,NeuPorShale):
+
+            # indexI index of Neutron Porosity containing axis in the plot
+            # indexJ index of Neutron Porosity containing line in the axis
+
+            try:
+                depth = self.files[NeuPorLine[0]]["MD"]
+            except KeyError:
+                depth = self.files[NeuPorLine[0]]["DEPT"]
+
+            xvals = self.files[NeuPorLine[0]][NeuPorLine[1]]
+
+            NeuPorCorr = xvals-Vsh*NeuPorShale
+
+            self.axes[indexI].subax[indexJ].plot(NeuPorCorr,depth,
+                color=self.lineColors[indexJ],linestyle="--")
+
         def set_DepthViewResistivityCut(self,ResLine,indexI,indexJ,ohmm_cut=10):
 
             # indexI index of Resistivity containing axis in the plot
@@ -1266,6 +1316,28 @@ def LogView(data=None):
 
             self.axes[indexI].subax[0].fill_betweenx(
                 depth,xvals4,x2=xvals3,where=xvals3<=xvals4,color=self.color_HC)
+
+        def set_DepthViewPerfs(self,indexI,indexJ,*args):
+
+            xtick = self.axes[indexI].subax[indexJ].get_xticks()
+
+            pfgun = xtick.min()
+
+            for arg in args:
+
+                depths = np.arange(arg[0],arg[1]+1/2,1.)
+
+                for index,depth in enumerate(depths):
+
+                    if index==0:
+                        marker,size = 11,10
+                    elif index==len(depths)-1:
+                        marker,size = 10,10
+                    else:
+                        marker,size = 9,10
+
+                    self.axes[indexI].subax[indexJ].plot(pfgun,depth,
+                        marker=marker,color='orange',markersize=size,markerfacecolor='black')
 
         def set_GammaSpectralCP(self):
 

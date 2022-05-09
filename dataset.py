@@ -873,7 +873,7 @@ class LogASCII(DirBase):
 
     def add_file(self,filepath):
 
-        filepath = self.get_filepathabs(filepath)
+        filepath = self.get_abspath(filepath)
 
         las = lasio.read(filepath)
 
