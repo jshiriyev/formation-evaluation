@@ -1351,8 +1351,7 @@ def LogView(data=None):
 
             self.fig_sdcp,self.axis_sdcp = plt.subplots()
 
-        def set_SonNeuCP(
-            self,
+        def set_SonNeuCP(self,
             porLine,
             sonLine,
             a_SND=+0.00,
@@ -1477,6 +1476,7 @@ def LogView(data=None):
             xmax=None,
             ymin=None,
             ymax=None,
+            GRconds=None,
             ):
 
             if returnSwFlag:
@@ -1507,7 +1507,11 @@ def LogView(data=None):
                     yaxis_min = min((yaxis_min,yaxis.min()))
                     yaxis_max = max((yaxis_max,yaxis.max()))
 
-                    self.axis_pcp.scatter(xaxis,yaxis,s=1,label=depth[0])
+                    if GRconds is not None:
+                        self.axis_pcp.scatter(xaxis[GRconds],yaxis[GRconds],s=1,label="{} clean".format(depth[0]))
+                        self.axis_pcp.scatter(xaxis[~GRconds],yaxis[~GRconds],s=1,label="{} shaly".format(depth[0]))
+                    else:
+                        self.axis_pcp.scatter(xaxis,yaxis,s=1,label=depth[0])
 
                 self.axis_pcp.legend(scatterpoints=10)
 
@@ -1580,6 +1584,17 @@ def LogView(data=None):
         def set_HingleCP(self):
 
             self.fig_hcp,self.axis_hcp = plt.subplots()
+
+        def get_GRcut(self,GRline,depth=("None",None,None),perc_cut=40):
+
+            xvals = self.get_interval(*depth[1:],fileID=GRline[0],curveID=GRline[1])[0]
+
+            GRmin = np.nanmin(xvals)
+            GRmax = np.nanmax(xvals)
+
+            GRcut = (GRmin+(GRmax-GRmin)*perc_cut/100)
+
+            return GRcut
 
     return LogViewClass
 
