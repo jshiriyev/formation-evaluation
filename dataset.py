@@ -22,14 +22,17 @@ if __name__ == "__main__":
 class DirBase():
 
     def __init__(self,homedir=None,filedir=None):
+        """
+        DirBase(homedir,filedir)
 
-        # homedir is the directory to put outputs
-        # filedir is the directory to get inputs
+        Directory class to get and write files in the input/output directory.
+        """
 
         self.set_homedir(homedir)
         self.set_filedir(filedir)
 
     def set_homedir(self,path=None):
+        """Sets home directory to put outputs."""
 
         if path is None:
             path = os.getcwd()
@@ -42,6 +45,7 @@ class DirBase():
             self.homedir = os.path.normpath(os.path.join(os.getcwd(),path))
 
     def set_filedir(self,path=None):
+        """Sets file directory to get inputs."""
 
         if path is None:
             path = self.homedir
@@ -53,7 +57,8 @@ class DirBase():
         else:
             self.filedir = os.path.normpath(os.path.join(self.homedir,path))
 
-    def get_abspath(self,path,homeFlag=True):
+    def get_abspath(self,path,homeFlag=False):
+        """Returns absolute path for a given relative path."""
 
         if os.path.isabs(path):
             return path
@@ -62,38 +67,68 @@ class DirBase():
         else:
             return os.path.normpath(os.path.join(self.filedir,path))
 
-    def get_filenames(self,dirpath=None,directory=False,prefix=None,extension=None):
+    def get_dirpath(self,path,homeFlag=False):
+        """Returns absolute directory path for a given relative path."""
 
-        if dirpath is not None and not os.path.isdir(dirpath):
-            dirpath = os.path.dirname(dirpath)
+        path = self.get_abspath(path,homeFlag=homeFlag)
 
-        if dirpath is not None and not os.path.isabs(dirpath):
-            dirpath = os.path.normpath(os.path.join(self.filedir,dirpath))
-
-        if dirpath is not None:
-            filenames = os.listdir(dirpath)
+        if os.path.isdir(path):
+            return path
         else:
-            filenames = os.listdir(self.filedir)
+            return os.path.dirname(path)
 
-        filepaths = []
+    def get_fnames(self,path=None,prefix=None,extension=None,returnAbsFlag=False,returnDirsFlag=False):
+        """Return folder(directory)/file names for a given relative path."""
 
-        for filename in filenames:
-            filepaths.append(self.get_abspath(filename,homeFlag=False))
-
-        if directory:
-            return [filename for (filename,filepath) in zip(filenames,filepaths) if os.path.isdir(filepath)]
-
-        elif prefix is None and extension is None:
-            return [filename for (filename,filepath) in zip(filenames,filepaths) if not os.path.isdir(filepath)]
-
-        elif prefix is None and extension is not None:
-            return [filename for filename in filenames if filename.endswith(extension)]
-
-        elif prefix is not None and extension is None:
-            return [filename for filename in filenames if filename.startswith(prefix)]
-
+        if path is None:
+            path = self.filedir
         else:
-            return [filename for filename in filenames if filename.startswith(prefix) and filename.endswith(extension)]
+            path = self.get_dirpath(path)
+
+        fnames = os.listdir(path)
+
+        fpaths = [self.get_abspath(fname,homeFlag=False) for fname in fnames]
+
+        if returnDirsFlag:
+
+            foldernames = [fname for (fname,fpath) in zip(fnames,fpaths) if os.path.isdir(fpath)]
+            folderpaths = [fpath for fpath in fpaths if os.path.isdir(fpath)]
+
+            if prefix is None:
+                if returnAbsFlag:
+                    return folderpaths
+                else:
+                    return foldernames
+            else:
+                if returnAbsFlag:
+                    return [folderpath for (folderpath,foldername) in zip(folderpaths,foldernames) if foldername.startswith(prefix)]
+                else:
+                    return [foldername for foldername in foldernames if foldername.startswith(prefix)]
+        else:
+
+            filenames = [fname for (fname,fpath) in zip(fnames,fpaths) if not os.path.isdir(fpath)]
+            filepaths = [fpath for fpath in fpaths if not os.path.isdir(fpath)]
+
+            if prefix is None and extension is None:
+                if returnAbsFlag:
+                    return filepaths
+                else:
+                    return filenames
+            elif prefix is None and extension is not None:
+                if returnAbsFlag:
+                    return [filepath for (filepath,filename) in zip(filepaths,filenames) if filename.endswith(extension)]
+                else:
+                    return [filename for filename in filenames if filename.endswith(extension)]
+            elif prefix is not None and extension is None:
+                if returnAbsFlag:
+                    return [filepath for (filepath,filename) in zip(filepaths,filenames) if filename.startswith(prefix)]
+                else:
+                    return [filename for filename in filenames if filename.startswith(prefix)]
+            else:
+                if returnAbsFlag:
+                    return [filepath for (filepath,filename) in zip(filepaths,filenames) if filename.startswith(prefix) and filename.endswith(extension)]
+                else:
+                    return [filename for filename in filenames if filename.startswith(prefix) and filename.endswith(extension)]
 
 # Collective Data Input/Output Classes
 
