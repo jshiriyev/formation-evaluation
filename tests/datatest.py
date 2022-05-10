@@ -1,3 +1,5 @@
+import os
+
 import unittest
 
 import numpy as np
@@ -17,23 +19,40 @@ class TestDirBase(unittest.TestCase):
 
     def test_init(self):
 
-        pass
+        db = DirBase()
 
-    def test_set_homepath(self):
+        db.homedir
+        db.filedir
 
-        pass
+    def test_set_homedir(self):
 
-    def test_set_filepath(self):
+        db = DirBase()
 
-        pass
+        db.set_homedir(__file__)
+
+        db.homedir
+
+    def test_set_filedir(self):
+
+        db = DirBase()
+
+        db.set_filedir(__file__)
+
+        db.filedir
 
     def test_get_abspath(self):
 
-        pass
+        DirBase().get_abspath(__file__)
 
-    def test_get_filenames(self):
+    def test_get_dirpath(self):
 
-        pass
+        DirBase().get_dirpath(__file__)
+
+    def test_get_fnames(self):
+
+        db = DirBase()
+
+        db.get_fnames(__file__,returnAbsFlag=True)
 
 class TestDataFrame(unittest.TestCase):
 

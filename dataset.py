@@ -20,13 +20,10 @@ if __name__ == "__main__":
 # Main Directory Class
 
 class DirBase():
+    """Base directory class to manage files in the input & output directories."""
 
     def __init__(self,homedir=None,filedir=None):
-        """
-        DirBase(homedir,filedir)
-
-        Directory class to get and write files in the input/output directory.
-        """
+        """Initializes base directory class with home & file directories."""
 
         self.set_homedir(homedir)
         self.set_filedir(filedir)
