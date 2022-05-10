@@ -1,3 +1,5 @@
+import logging
+
 import os
 
 import unittest
@@ -9,11 +11,12 @@ if __name__ == "__main__":
 
 from dataset import DirBase
 from dataset import DataFrame
-from dataset import Excel
-from dataset import VTKit
-from dataset import WSchedule
+from dataset import RegText
 from dataset import LogASCII
-from dataset import NpText
+from dataset import Excel
+from dataset import IrrText
+from dataset import WSchedule
+from dataset import VTKit
 
 class TestDirBase(unittest.TestCase):
 
@@ -62,9 +65,7 @@ class TestDataFrame(unittest.TestCase):
 
     def test_init_filepath(self):
 
-        df = DataFrame(filepath="datatest")
-
-        df.read(skiplines=1)
+        df = DataFrame(filepath="datatest",filedir=__file__)
 
     def test_init_headers(self):
 
@@ -92,7 +93,31 @@ class TestDataFrame(unittest.TestCase):
         np.testing.assert_array_equal(df.running[1],
             np.array(['A','B','B','C','C','C','D','E','F']),err_msg="DataFrame.unique() has an issue!")
 
+class TestRegText(unittest.TestCase):
+
+    def test_init(self):
+
+        rt = RegText(filepath="datatest",filedir=__file__)
+
+class TestLogASCII(unittest.TestCase):
+
+    def test_init(self):
+
+        pass
+
 class TestExcel(unittest.TestCase):
+
+    def test_init(self):
+
+        pass
+
+class IrrText(unittest.TestCase):
+
+    def test_init(self):
+
+        pass
+
+class TestWSchedule(unittest.TestCase):
 
     def test_init(self):
 
@@ -103,25 +128,9 @@ class TestVTKit(unittest.TestCase):
     def test_init(self):
 
         pass
-
-class TestWellSched(unittest.TestCase):
-
-    def test_init(self):
-
-        pass
-
-class TestLogASCII(unittest.TestCase):
-
-    def test_init(self):
-
-        pass
-
-class TestNpText(unittest.TestCase):
-
-    def test_init(self):
-
-        pass
                        
 if __name__ == "__main__":
+
+    logging.basicConfig(level=logging.DEBUG)
 
     unittest.main()
