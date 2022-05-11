@@ -75,7 +75,7 @@ class DirBase():
             return os.path.dirname(path)
 
     def get_fnames(self,path=None,prefix=None,extension=None,returnAbsFlag=False,returnDirsFlag=False):
-        """Return folder(directory)/file names for a given relative path."""
+        """Return directory(folder)/file names for a given relative path."""
 
         if path is None:
             path = self.filedir
@@ -130,9 +130,9 @@ class DirBase():
 class DataFrame(DirBase):
     """It stores equal-size one-dimensional numpy arrays in a list."""
 
-    def __init__(self,headers=None,homedir=None,filedir=None):
+    def __init__(self,headers=None,*kwargs):
         
-        super().__init__(homedir,filedir)
+        super().__init__(*kwargs)
 
         DataFrame.set_headers(self,headers=headers,initRunningFlag=True)
 
@@ -178,7 +178,7 @@ class DataFrame(DirBase):
         self.running = [np.asarray(column) for column in self._running]
 
         if len(self._running)!=len(self._headers):
-            print("ERROR")
+            logging.warning("The DataFrame has headers and columns different in size.")
 
     def texttocolumn(self,header_index=None,header=None,deliminator=None,maxsplit=None):
 
