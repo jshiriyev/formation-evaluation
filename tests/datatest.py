@@ -61,19 +61,23 @@ class TestDataFrame(unittest.TestCase):
 
     def test_init_none(self):
 
-        pass
-
-    def test_init_filepath(self):
-
-        df = DataFrame(filepath="datatest",filedir=__file__)
+        df = DataFrame()
 
     def test_init_headers(self):
 
-        pass
+        df = DataFrame("col1","col2",filedir=__file__)
 
-    def test_init_filepath_headers(self):
+    def test_set_running(self):
 
-        pass
+        df = DataFrame("col0","col1")
+
+        print(df.running)
+        print(df.headers)
+
+        df.set_running(np.array([1,2,3]),np.array([4,5,6]),np.array([4,5,6]),init=False)
+
+        print(df.running)
+        print(df.headers)
 
     def test_unique(self):
 
@@ -83,7 +87,7 @@ class TestDataFrame(unittest.TestCase):
 
         B = np.array(["A","A","B","B","C","C","C","C","C","D","E","F","F","F"])
 
-        df.set_running(A,B,initHeadersFlag=True)
+        df.set_running(A,B,init=True)
 
         df.unique(header_indices=[0,1],inplace=True)
 
@@ -97,7 +101,7 @@ class TestRegText(unittest.TestCase):
 
     def test_init(self):
 
-        rt = RegText(filepath="datatest",filedir=__file__)
+        rt = RegText(filedir=__file__)
 
 class TestLogASCII(unittest.TestCase):
 

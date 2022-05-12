@@ -130,55 +130,92 @@ class DirBase():
 class DataFrame(DirBase):
     """It stores equal-size one-dimensional numpy arrays in a list."""
 
-    def __init__(self,headers=None,*kwargs):
-        
-        super().__init__(*kwargs)
+    def __init__(self,*args,**kwargs):
+        """Initializes DataFrame with headers & running and parent class DirBase."""
 
-        DataFrame.set_headers(self,headers=headers,initRunningFlag=True)
+        super().__init__(**kwargs)
+        if len(args)==0:
+            DataFrame.set_headers(self,colnum=0,init=True)
+        elif isinstance(args[0],np.ndarray):
+            DataFrame.set_running(self,*args,init=True)
+        else:
+            DataFrame.set_headers(self,*args,init=True)
 
-    def set_headers(self,headers=None,header_indices=None,num_cols=None,initRunningFlag=False):
+    def set_headers(self,*args,colIDs=None,colnum=None,init=False):
+        """Set headers and running based on one or more inputs."""
 
-        if headers is None and header_indices is None:
-            num_cols = num_cols if num_cols is not None else 0
-            self._headers = ["Col #{}".format(index) for index in range(num_cols)]
-        elif headers is None and header_indices is not None:
-            num_cols = max(header_indices)+1
-            self._headers = ["Col #{}".format(index) for index in range(num_cols)]
-        elif headers is not None and header_indices is None:
-            num_cols = len(headers)
-            self._headers = headers
-        elif headers is not None and header_indices is not None:
-            if hasattr(self,"_headers"):
-                if max(header_indices)>len(self._headers):
-                    num_cols = max(header_indices)+1
-                    num_cols_initial = len(self._headers)
-                    num_cols_to_add = num_cols-num_cols_initial
-                    [self._headers.append("Col #{}".format(num_cols_initial+index)) for index in range(num_cols_to_add)]
-                else:
-                    num_cols = len(self._headers)
-            else:
-                num_cols = max(header_indices)+1
-                self._headers = ["Col #{}".format(index) for index in range(num_cols)]
-            for (header,header_index) in zip(headers,header_indices):
-                self._headers[header_index] = header
+        if init:
+            self._headers = []
+            self._running = []
 
-        self.headers = self._headers
+        colnum0 = len(self._headers)
 
-        if initRunningFlag:
-            self._running = [np.array([])]*num_cols
-            self.running = [np.asarray(column) for column in self._running]
+        if colIDs is None and colnum is None:
+            [self._headers.append(arg) for arg in args]
+            [self._running.append(np.array([])) for arg in args]
 
-    def set_running(self,*args,initHeadersFlag=False):
+        if colnum is not None:
+            indices = range(colnum0,colnum0+colnum)
+            [self._headers.append("Col #{}".format(index)) for index in indices]
+            [self._running.append(np.array([])) for index in indices]
 
-        if initHeadersFlag:
-            self.set_headers(num_cols=len(args),initRunningFlag=False)
-        
-        self._running = [np.asarray(arg) for arg in args]
-
-        self.running = [np.asarray(column) for column in self._running]
+        if colIDs is not None:
+            if len(args)!=len(colIDs):
+                logging.critical("Length of colIDs is not equal to number of provided arguments.")
+            for (index,arg) in zip(colIDs,args):
+                self._headers[index] = arg      
 
         if len(self._running)!=len(self._headers):
             logging.warning("The DataFrame has headers and columns different in size.")
+
+        rownum = np.array([column.size for column in self._running])
+
+        if np.unique(rownum).size>1:
+            logging.warning("The DataFrame has columns with different size.")
+
+        self.headers = self._headers
+        self.running = [np.asarray(column) for column in self._running]
+
+    def set_running(self,*args,colIDs=None,colnum=None,init=False):
+        """Set running and headers based on one or more inputs."""
+
+        if init:
+            self._headers = []
+            self._running = []
+
+        colnum0 = len(self._running)
+
+        if colIDs is None and colnum is None:
+            indices = range(colnum0,colnum0+len(args))
+            [self._headers.append("Col #{}".format(index)) for index in indices]
+            [self._running.append(arg) for arg in args]
+
+        if colnum is not None:
+            indices = range(colnum0,colnum0+colnum)
+            [self._headers.append("Col #{}".format(index)) for index in indices]
+            [self._running.append(np.array([])) for index in indices]
+
+        if colIDs is not None:
+            if len(args)!=len(colIDs):
+                logging.critical("Length of colIDs is not equal to number of provided arguments.")
+            for (index,arg) in zip(colIDs,args):
+                if isinstance(arg,np.ndarray):
+                    self._running[index] = arg
+                elif hasattr(arg,"__len__"):
+                    self._running[index] = np.array(arg)
+                else:
+                    self._running[index] = np.array([arg])
+
+        if len(self._running)!=len(self._headers):
+            logging.warning("The DataFrame has headers and columns different in size.")
+
+        rownum = np.array([column.size for column in self._running])
+
+        if np.unique(rownum).size!=1:
+            logging.warning("The DataFrame has columns with different size.")
+
+        self.headers = self._headers
+        self.running = [np.asarray(column) for column in self._running]
 
     def texttocolumn(self,header_index=None,header=None,deliminator=None,maxsplit=None):
 
@@ -968,7 +1005,7 @@ class Excel(DataFrame):
         for index,header in enumerate(headers):
             headers[index] = re.sub(r"[^\w]","",header)
 
-        super().set_headers(headers=headers,initRunningFlag=True)
+        super().set_headers(headers=headers,init=True)
 
     def read(self,sheetname=None,min_row=1,min_col=1,max_row=None,max_col=None,fileID=None):
 
@@ -980,9 +1017,9 @@ class Excel(DataFrame):
         if len(self._headers)==0:
 
             if len(self._running)==0: 
-                super().set_headers(num_cols=max_col-min_col+1,initRunningFlag=True)
+                super().set_headers(num_cols=max_col-min_col+1,init=True)
             else:
-                super().set_headers(num_cols=max_col-min_col+1,initRunningFlag=False)
+                super().set_headers(num_cols=max_col-min_col+1,init=False)
 
         for fileID in fileIDs:
 
@@ -1117,9 +1154,9 @@ class IrrText(DataFrame):
         num_cols = len(_running[0])
 
         if skiplines==0:
-            self.set_headers(num_cols=num_cols,initRunningFlag=False)
+            self.set_headers(num_cols=num_cols,init=False)
         elif skiplines!=0:
-            self.set_headers(headers=self.title[headerline],initRunningFlag=False)
+            self.set_headers(headers=self.title[headerline],init=False)
 
         nparray = np.array(_running).T
 
