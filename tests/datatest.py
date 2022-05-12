@@ -71,13 +71,42 @@ class TestDataFrame(unittest.TestCase):
 
         df = DataFrame("col0","col1")
 
-        print(df.running)
-        print(df.headers)
-
         df.set_running(np.array([1,2,3]),np.array([4,5,6]),np.array([4,5,6]),init=False)
 
-        print(df.running)
-        print(df.headers)
+    def test_texttocolumn(self):
+
+        full_names = np.array(["elthon\tsmith","bill\tgates\tshir"])
+
+        df = DataFrame(full_names)
+
+        df.texttocolumn(0,deliminator="\t")
+
+    def test_columntotext(self):
+
+        names = np.array(["elthon","john"])
+        nicks = np.array(["smith","verdin"])
+
+        df = DataFrame(names,nicks)
+        
+        df.columntotext([0,1])
+
+    def test_edit_nones(self):
+
+        A = np.array([1,2,3,4,None,6])
+        B = np.array([0,1,2,None,3,4])
+
+        df = DataFrame(A,B)
+
+        df.edit_nones([0],replace=50)
+        df.edit_nones()
+
+    def test_edit_strings(self):
+
+        names = np.array(["elthon","john","1"])
+
+        df = DataFrame(names)
+
+        df.edit_strings(0,zfill=3)
 
     def test_unique(self):
 

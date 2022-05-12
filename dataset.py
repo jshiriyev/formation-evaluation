@@ -217,45 +217,48 @@ class DataFrame(DirBase):
         self.headers = self._headers
         self.running = [np.asarray(column) for column in self._running]
 
-    def texttocolumn(self,header_index=None,header=None,deliminator=None,maxsplit=None):
+    def texttocolumn(self,colID=None,header=None,deliminator=None,maxsplit=None):
 
-        if header_index is None:
-            header_index = self._headers.index(header)
+        colID = colID if colID is not None else self._headers.index(header)
 
-        header_string = self._headers[header_index]
+        header_string = self._headers[colID]
         # header_string = re.sub(deliminator+'+',deliminator,header_string)
+        column_string = np.asarray(self._running[colID])
 
         headers = header_string.split(deliminator)
+        columns = column_string[0].split(deliminator)
 
-        if maxsplit is not None:
-            for index in range(maxsplit):
-                if len(headers)<index+1:
-                    headers.append("col ##"+string(header_index+index))
+        if maxsplit is None:
+            maxsplit = max(len(headers),len(columns))
 
-        column_to_split = np.asarray(self._running[header_index])
+        headers = header_string.split(deliminator,maxsplit=maxsplit-1)
+
+        if maxsplit>len(headers):
+            indices = range(maxsplit-len(headers))
+            [headers.append("Col ##{}".format(index)) for index in indices]
 
         running = []
 
-        for index,string in enumerate(column_to_split):
+        for index,string in enumerate(column_string):
 
             # string = re.sub(deliminator+'+',deliminator,string)
-            row = np.char.split(string,deliminator).tolist()
+            row = string.split(deliminator,maxsplit=maxsplit-1)
 
-            if maxsplit is not None:
-                while len(row)<maxsplit:
-                    row.append("")
+            if len(row)<maxsplit:
+                indices = range(maxsplit-len(row))
+                [row.append("") for index in indices]
 
             running.append(row)
 
         running = np.array(running,dtype=str).T
 
-        self._headers.pop(header_index)
-        self._running.pop(header_index)
+        self._headers.pop(colID)
+        self._running.pop(colID)
 
         for header,column in zip(headers,running):
-            self._headers.insert(header_index,header)
-            self._running.insert(header_index,column)
-            header_index += 1
+            self._headers.insert(colID,header)
+            self._running.insert(colID,column)
+            colID += 1
 
         # line = re.sub(r"[^\w]","",line)
         # line = "_"+line if line[0].isnumeric() else line
@@ -264,19 +267,22 @@ class DataFrame(DirBase):
         self.headers = self._headers
         self.running = [np.asarray(column) for column in self._running]
 
-    def columntotext(self,header_new,header_indices=None,headers=None,string=None):
+    def columntotext(self,colIDs=None,headers=None,header_new=None,fstring=None):
 
-        if header_indices is None:
-            header_indices = [self._headers.index(header) for header in headers]
+        if colIDs is None:
+            colIDs = [self._headers.index(header) for header in headers]
 
-        if string is None:
-            string = ("{} "*len(header_indices)).strip()
+        if fstring is None:
+            fstring = ("{} "*len(colIDs)).strip()
 
-        vprint = np.vectorize(lambda *args: string.format(*args))
+        vprint = np.vectorize(lambda *args: fstring.format(*args))
 
-        column_new = [np.asarray(self._running[index]) for index in header_indices]
+        column_new = [np.asarray(self._running[index]) for index in colIDs]
 
         column_new = vprint(*column_new)
+
+        if header_new is None:
+            header_new = fstring.format(*[self._headers[index] for index in colIDs])
 
         self._headers.append(header_new)
         self._running.append(column_new)
@@ -331,73 +337,65 @@ class DataFrame(DirBase):
 
         self.running[header_index] = np.asarray(self._running[header_index])
 
-    def edit_datecolumn(self,header_index):
+    def edit_nones(self,colIDs=None,headers=None,replace=None):
 
-        vdate = np.vectorize(lambda x: x if x is isinstance(x,datetime) else datetime.today())
+        if colIDs is None:
+            if headers is None:
+                colIDs = range(len(self._running))
+            else:
+                colIDs = [self._headers.index(header) for header in headers]
 
-        self._running[header_index] = vdate(self._running[header_index])
+        for index in colIDs:
 
-        self.running[header_index] = np.asarray(self._running[header_index])
-
-    def edit_strcolumn(self,fstring,header_index=None,header=None,zfill=None):
-
-        if header_index is None:
-            header_index = self._headers.index(header)
-
-        if zfill is None:
-            string = lambda x: str(x)
-        else:
-            string = lambda x: str(x).zfill(zfill)
-
-        editor = np.vectorize(lambda x: fstring.format(string(x)))
-
-        self._running[header_index] = editor(self._running[header_index])
-
-        self.running[header_index] = np.asarray(self._running[header_index])
-
-    def fill_nones(self,col_indices=None,inplace=False):
-
-        if col_indices is None:
-            col_indices = range(len(self._running))
-
-        for col_index in col_indices:
-
-            column = self._running[col_index]
+            column = self._running[index]
 
             row_indices = [row_index for row_index,val in enumerate(column) if val is None]
 
             for row_index in row_indices:
-                column[row_index] = column[row_index-1]
+                if replace is None:
+                    column[row_index] = column[row_index-1]
+                else:
+                    column[row_index] = replace
 
-            if inplace:
-                self._running[col_index] = column
-                self.running[col_index] = np.asarray(column)
-            else:
-                self.running[col_index] = np.asarray(column)
+            self._running[index] = column
+            self.running[index] = np.asarray(column)
 
-    def upper(self,header_index=None,header=None):
+    def edit_dates(self,colID=None,header=None):
 
-        if header_index is None:
-            header_index = self._headers.index(header)
+        if colID is None:
+            colID = self._headers.index(header)
 
-        self._running[header_index] = np.char.upper(self._running[header_index])
+        vdate = np.vectorize(lambda x: x if x is isinstance(x,datetime) else datetime.today())
 
-    def set_columns(self,columns,header_indices=None,headers=None):
+        self._running[colID] = vdate(self._running[colID])
 
-        if headers is None:
-            if header_indices is None:
-                headers = ["Col ##{}".format(i) for i in range(len(columns))]
-        
-        if header_indices is None:
-            for header,column in zip(headers,columns):
-                self._headers.append(header)
-                self._running.append(column)
+        self.running[colID] = np.asarray(self._running[colID])
+
+    def edit_strings(self,colID=None,header=None,fstring=None,upper=False,lower=False,zfill=None):
+
+        if colID is None:
+            colID = self._headers.index(header)
+
+        if fstring is None:
+            fstring = "{}"
+
+        if upper:
+            case = lambda x: str(x).upper()
+        elif lower:
+            case = lambda x: str(x).lower()
         else:
-            for index,column in zip(header_indices,columns):
-                self._running[index] = column
+            case = lambda x: str(x)
 
-        self.headers = self._headers
-        self.running = [np.asarray(column) for column in self._running]
+        if zfill is None:
+            string = lambda x: case(x)
+        else:
+            string = lambda x: case(x).zfill(zfill)
+
+        editor = np.vectorize(lambda x: fstring.format(string(x)))
+
+        self._running[colID] = editor(self._running[colID])
+
+        self.running[colID] = np.asarray(self._running[colID])
 
     def set_rows(self,rows,row_indices=None):
         
@@ -429,6 +427,25 @@ class DataFrame(DirBase):
         
         return rows
 
+    def del_rows(self,row_indices=None,noneColIndex=None,inplace=False):
+
+        all_rows = np.array([np.arange(self._running[0].size)])
+
+        if row_indices is None:
+            row_indices = [index for index,val in enumerate(self.running[noneColIndex]) if val is None]
+        
+        row_indices = np.array(row_indices).reshape((-1,1))
+
+        comp_mat = all_rows==row_indices
+
+        keep_index = ~np.any(comp_mat,axis=0)
+
+        if inplace:
+            self._running = [column[keep_index] for column in self._running]
+            self.running = [np.asarray(column) for column in self._running]
+        else:
+            self.running = [np.asarray(column[keep_index]) for column in self._running]
+
     def get_columns(self,header_indices=None,headers=None,match=None,inplace=False,returnFlag=False):
 
         if header_indices is None:
@@ -452,25 +469,6 @@ class DataFrame(DirBase):
                 self.running = [np.asarray(self._running[index][conditional]) for index in header_indices]
             else:
                 return [self._running[index][conditional] for index in header_indices]
-
-    def del_rows(self,row_indices=None,noneColIndex=None,inplace=False):
-
-        all_rows = np.array([np.arange(self._running[0].size)])
-
-        if row_indices is None:
-            row_indices = [index for index,val in enumerate(self.running[noneColIndex]) if val is None]
-        
-        row_indices = np.array(row_indices).reshape((-1,1))
-
-        comp_mat = all_rows==row_indices
-
-        keep_index = ~np.any(comp_mat,axis=0)
-
-        if inplace:
-            self._running = [column[keep_index] for column in self._running]
-            self.running = [np.asarray(column) for column in self._running]
-        else:
-            self.running = [np.asarray(column[keep_index]) for column in self._running]
             
     def sort(self,header_indices=None,headers=None,reverse=False,inplace=False,returnFlag=False):
 
@@ -544,10 +542,10 @@ class DataFrame(DirBase):
         if rows is None:
             rows = list(range(self.running[0].size))
 
-        fstr = "{}\t"*len(cols)
+        fstring = "{}\t"*len(cols)
 
         for row in rows:
-            print(fstr.format(*[self.running[col][row] for col in cols]))
+            print(fstring.format(*[self.running[col][row] for col in cols]))
 
     def write(self,filepath,fstring=None,**kwargs):
 
