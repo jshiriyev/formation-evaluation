@@ -28,11 +28,12 @@ if __name__ == "__main__":
     import setup
 
 from dataset import DataFrame
-from dataset import Excel
-from dataset import VTKit
-from dataset import WSchedule
+from dataset import RegText
 from dataset import LogASCII
-from dataset import NpText
+from dataset import Excel
+from dataset import IrrText
+from dataset import WSchedule
+from dataset import VTKit
 
 # AUXILIARY FUNCTIONS TO CHOOSE INHERITANCE PATH
 
@@ -46,12 +47,12 @@ def getdata(data=None):
         dbase = Excel
     elif data=="vtkit":
         dbase = VTKit
-    elif data=="history":
-        dbase = History
+    elif data=="wschedule":
+        dbase = WSchedule
     elif data=="logascii":
         dbase = LogASCII
     elif data=="nptext":
-        dbase = NpText
+        dbase = RegText
 
     return dbase
 
@@ -1230,7 +1231,18 @@ def LogView(data=None):
 
             return GRcut
 
-        def get_shaleVolumeGR(self,GRline,GRmin=None,GRmax=None,model=None):
+        def get_GRcut(self,GRline,depth=("None",None,None),perc_cut=40):
+
+            xvals = self.get_interval(*depth[1:],fileID=GRline[0],curveID=GRline[1])[0]
+
+            GRmin = np.nanmin(xvals)
+            GRmax = np.nanmax(xvals)
+
+            GRcut = (GRmin+(GRmax-GRmin)*perc_cut/100)
+
+            return GRcut
+
+        def get_ShaleVolumeGR(self,GRline,GRmin=None,GRmax=None,model=None):
 
             xvals = self.files[GRline[0]][GRline[1]]
 
@@ -1247,7 +1259,7 @@ def LogView(data=None):
 
             return Vsh
 
-        def get_shaleVolumeSP(self,SPline,SPsand,SPshale):
+        def get_ShaleVolumeSP(self,SPline,SPsand,SPshale):
 
             xvals = self.files[SPline[0]][SPline[1]]
 
@@ -1338,6 +1350,11 @@ def LogView(data=None):
 
                     self.axes[indexI].subax[indexJ].plot(pfgun,depth,
                         marker=marker,color='orange',markersize=size,markerfacecolor='black')
+
+        def set_DepthViewCasing(self):
+            """It creates an axis to include casing set depths"""
+
+            pass
 
         def set_GammaSpectralCP(self):
 
@@ -1584,17 +1601,6 @@ def LogView(data=None):
         def set_HingleCP(self):
 
             self.fig_hcp,self.axis_hcp = plt.subplots()
-
-        def get_GRcut(self,GRline,depth=("None",None,None),perc_cut=40):
-
-            xvals = self.get_interval(*depth[1:],fileID=GRline[0],curveID=GRline[1])[0]
-
-            GRmin = np.nanmin(xvals)
-            GRmax = np.nanmax(xvals)
-
-            GRcut = (GRmin+(GRmax-GRmin)*perc_cut/100)
-
-            return GRcut
 
     return LogViewClass
 

@@ -635,9 +635,10 @@ class LogASCII(DataFrame):
 
         super().__init__(**kwargs)
 
-        self.files = []
+        self.pages = []
 
-        self.headers = []
+        """Self.files will be depreciated soon."""
+        self.files = []
 
         if filepaths is not None:
             for filepath in filepaths:
@@ -651,7 +652,82 @@ class LogASCII(DataFrame):
 
         self.files.append(las)
 
-        self.headers.append(las.keys())
+    def add_file_mystyle(self,filepath,comments="#",sections="~",curves=None):
+
+        filepath = self.get_abspath(filepath)
+
+        lastHeader = "{}ASCII".format(sections)
+
+        skiplines = 1
+
+        page = Page()
+
+        with open(filepath,"r") as text:
+
+            line = next(text).strip()
+
+            while line[:2]!=lastHeader[:2]:
+
+                if line[0]==sections:
+
+                    title = line[1:].split()[0].lower()
+
+                    mnemonics = []
+                    units = []
+                    values = []
+                    descriptions = []
+
+                elif line=="":
+
+                    pass
+
+                elif line[0]==comments:
+
+                    pass
+
+                else:
+
+                    mnemonic,rest = line.split(".",maxsplit=1)
+                    rest,description = rest.split(":",maxsplit=1)
+
+                    if rest[0]==" ":
+                        unit = ""
+                        value = rest.strip()
+                    elif rest[-1]==" ":
+                        value = ""
+                        unit = rest.strip()
+                    else:
+                        unit,value = rest.split(" ",maxsplit=1)
+
+                    mnemonics.append(mnemonic.strip())
+                    units.append(unit.strip())
+                    values.append(value.strip())
+                    descriptions.append(description.strip())
+
+                skiplines += 1
+
+                line = next(text).strip()
+
+                if line[0]==sections:
+
+                    if title=="curve":
+                        page.addItems(headers=mnemonics)
+                        page.addItems(units=units)
+                        page.addItems(descriptions=descriptions)
+                    else:
+                        page.addChildItems(title,mnemonics=mnemonics)
+                        page.addChildItems(title,units=units)
+                        page.addChildItems(title,values=values)
+                        page.addChildItems(title,descriptions=descriptions)
+
+        if curves is None:
+            usecols = None
+        else:
+            usecols = [page.headers.index(curve) for curve in curves]
+
+        page.running = np.loadtxt(filepath,comments=comments,skiprows=skiplines,usecols=usecols)
+
+        return page
 
     def print_well_info(self,index=None):
 
@@ -1324,6 +1400,24 @@ class VTKit(DirBase):
         pass
 
 # Supporting String Classes
+
+class Page():
+
+    def __init__(self,**kwargs):
+
+        self.addItems(**kwargs)
+
+    def addItems(self,**kwargs):
+
+        [setattr(self,key,value) for key,value in kwargs.items()]
+
+    def addChildItems(self,parent,**kwargs):
+
+        if not hasattr(self,parent):
+            class Section(): pass
+            setattr(self,parent,Section())
+
+        [setattr(getattr(self,parent),key,value) for key,value in kwargs.items()]
 
 class Alphabet():
 
