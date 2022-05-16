@@ -637,26 +637,22 @@ class LogASCII(DataFrame):
 
         self.pages = []
 
-        """Self.files will be depreciated soon."""
-        self.files = []
-
         if filepaths is not None:
-            for filepath in filepaths:
-                self.add_file(filepath)
+            [self.add_page(filepath) for filepath in filepaths]
 
-    def add_file(self,filepath):
+    def add_page_LASIO(self,filepath):
 
         filepath = self.get_abspath(filepath)
 
         las = lasio.read(filepath)
 
-        self.files.append(las)
+        self.pages.append(las)
 
-    def add_file_mystyle(self,filepath,comments="#",sections="~",curves=None):
+    def add_page(self,filepath,headers=None):
 
         filepath = self.get_abspath(filepath)
 
-        lastHeader = "{}ASCII".format(sections)
+        datasection = "{}ASCII".format("~")
 
         skiplines = 1
 
@@ -666,34 +662,40 @@ class LogASCII(DataFrame):
 
             line = next(text).strip()
 
-            while line[:2]!=lastHeader[:2]:
+            while not line.startswith(datasection[:2]):
 
-                if line[0]==sections:
+                if line.startswith("~"):
 
                     title = line[1:].split()[0].lower()
 
-                    mnemonics = []
-                    units = []
-                    values = []
-                    descriptions = []
+                    mnemonics,units,values,descriptions = [],[],[],[]
 
-                elif line=="":
-
+                elif len(line)<1:
                     pass
 
-                elif line[0]==comments:
+                elif line.startswith("#"):
+                    pass
 
+                elif line.find(".")<0:
+                    pass
+
+                elif line.find(":")<0:
+                    pass
+
+                elif line.index(".")>line.index(":"):
                     pass
 
                 else:
 
-                    mnemonic,rest = line.split(".",maxsplit=1)
-                    rest,description = rest.split(":",maxsplit=1)
+                    line = re.sub(r'[^\x00-\x7F]+','',line)
 
-                    if rest[0]==" ":
+                    mnemonic,rest = line.split(".",maxsplit=1)
+                    rest,descrptn = rest.split(":",maxsplit=1)
+
+                    if rest.startswith(" "):
                         unit = ""
                         value = rest.strip()
-                    elif rest[-1]==" ":
+                    elif rest.endswith(" "):
                         value = ""
                         unit = rest.strip()
                     else:
@@ -702,32 +704,50 @@ class LogASCII(DataFrame):
                     mnemonics.append(mnemonic.strip())
                     units.append(unit.strip())
                     values.append(value.strip())
-                    descriptions.append(description.strip())
+                    descriptions.append(descrptn.strip())
 
                 skiplines += 1
 
                 line = next(text).strip()
 
-                if line[0]==sections:
+                if line.startswith("~"):
 
-                    if title=="curve":
+                    if title=="version":
+
+                        vnumb = "LAS {}".format(values[mnemonics.index("VERS")])
+                        vinfo = descriptions[mnemonics.index("VERS")]
+                        mtype = "Un-wrapped" if values[mnemonics.index("WRAP")]=="NO" else "Wrapped"
+                        minfo = descriptions[mnemonics.index("WRAP")]
+
+                        page.addItems(info=vnumb)
+                        page.addItems(infodetail=vinfo)
+                        page.addItems(mode=mtype)
+                        page.addItems(modedetail=minfo)
+
+                    elif title=="curve":
+
                         page.addItems(headers=mnemonics)
                         page.addItems(units=units)
-                        page.addItems(descriptions=descriptions)
-                    else:
-                        page.addChildItems(title,mnemonics=mnemonics)
-                        page.addChildItems(title,units=units)
-                        page.addChildItems(title,values=values)
-                        page.addChildItems(title,descriptions=descriptions)
+                        page.addItems(details=descriptions)
 
-        if curves is None:
+                    else:
+
+                        if len(mnemonics)>0:
+                            page.addChildItems(title,mnemonics=mnemonics)
+                            page.addChildItems(title,units=units)
+                            page.addChildItems(title,values=values)
+                            page.addChildItems(title,descriptions=descriptions)
+
+        if headers is None:
             usecols = None
         else:
-            usecols = [page.headers.index(curve) for curve in curves]
+            usecols = [page.headers.index(header) for header in headers]
 
-        page.running = np.loadtxt(filepath,comments=comments,skiprows=skiplines,usecols=usecols)
+        logdata = np.loadtxt(filepath,comments="#",skiprows=skiplines,usecols=usecols)
 
-        return page
+        page.running = [column for column in logdata.transpose()]
+
+        self.pages.append(page)
 
     def print_well_info(self,index=None):
 
