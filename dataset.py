@@ -217,6 +217,18 @@ class DataFrame(DirBase):
         self.headers = self._headers
         self.running = [np.asarray(column) for column in self._running]
 
+    def additems(self,**kwargs):
+
+        [setattr(self,key,value) for key,value in kwargs.items()]
+
+    def addchilditems(self,parent,**kwargs):
+
+        if not hasattr(self,parent):
+            class Section(): pass
+            setattr(self,parent,Section())
+
+        [setattr(getattr(self,parent),key,value) for key,value in kwargs.items()]
+
     def texttocolumn(self,colID=None,header=None,deliminator=None,maxsplit=None):
 
         colID = colID if colID is not None else self._headers.index(header)
@@ -571,63 +583,54 @@ class RegText(DataFrame):
 
         super().__init__(**kwargs)
 
-        self.add_filebatch(filepaths)
+        self.pages = []
 
-    def add_filebatch(self,filenames,comments="#",getname=None):
+        self.add_pages(filepaths)
 
-        self.files = []
+    def add_pages(self,filepaths,**kwargs):
 
-        if filenames is None:
+        if filepaths is None:
             return
 
-        if getname is not None:
-            self.itemnames = []
-
-        for filename in filenames:
-            filepath = self.get_filepathabs(filename,homeFlag=False)
-            self.add_file(filepath,comments,getname)
+        for filepath in filepaths:
+            self.add_page(filepath,**kwargs)
             print("Loaded {}...".format(filepath))
 
-    def add_file(self,filepath,comments="#",getname=None):
+    def add_page(self,filepath,delimiter="\t",comments="#",skiprows=None,nondigitflag=False):
 
-        skiplines = 0
+        filepath = self.get_abspath(filepath)
 
-        with open(filepath,"r") as text:
+        page = DataFrame(filedir=filepath)
 
-            line = next(text)
+        with open(filepath,mode="r",encoding="latin1") as text:
 
-            while not line.strip()[0].isdigit():
+            if skiprows is None:
+                skiprows = 0
+                line = next(text).split("\n")[0]
+                while not line.split(delimiter)[0].isdigit():
+                    skiprows += 1
+                    print(line)
+                    line = next(text).split("\n")[0]
+            else:
+                for _ in range(skiprows):
+                    line = next(text)
 
-                if line.strip()[0]!=comments:
+            line = next(text).split("\n")[0]
 
-                    headers_read = re.sub('\\s+',' ',line.strip()).split(" ")
+        if nondigitflag:
+            row = line.split(delimiter)
+            dtypes = [float if column.isdigit() else str for column in row]
+            columns = []
+            for index,dtype in enumerate(dtypes):
+                column = np.loadtxt(filepath,dtype=dtype,delimiter=delimiter,skiprows=skiprows,usecols=[index],encoding="latin1")
+                columns.append(column)
+        else:
+            data = np.loadtxt(filepath,comments="#",delimiter=delimiter,skiprows=skiprows,encoding="latin1")
+            columns = [column for column in data.transpose()]
 
-                elif getname is not None:
+        page.set_running(*columns,init=True)
 
-                    matchphrase = re.sub(r"[^\w]","",getname)
-
-                    readphrase = re.sub(r"[^\w]","",line)
-
-                    if readphrase[:len(matchphrase)]==matchphrase:
-
-                        key,name = line.split(":")
-
-                        if re.sub(r"[^\w]","",key)==matchphrase:
-                            itemname = name.strip()
-                        else:
-                            itemname = ""
-
-                        self.itemnames.append(itemname)
-
-                skiplines += 1
-
-                line = next(text)
-
-        usecols = [headers_read.index(header) for header in self._headers]
-
-        data = np.loadtxt(filepath,comments=comments,skiprows=skiplines,usecols=usecols)
-
-        self.files.append(data)
+        self.pages.append(page)
 
 class LogASCII(DataFrame):
 
@@ -640,25 +643,17 @@ class LogASCII(DataFrame):
         if filepaths is not None:
             [self.add_page(filepath) for filepath in filepaths]
 
-    def add_page_LASIO(self,filepath):
-
-        filepath = self.get_abspath(filepath)
-
-        las = lasio.read(filepath)
-
-        self.pages.append(las)
-
     def add_page(self,filepath,headers=None):
 
         filepath = self.get_abspath(filepath)
 
         datasection = "{}ASCII".format("~")
 
-        skiplines = 1
+        skiprows = 1
 
-        page = Page()
+        page = DataFrame(filedir=filepath)
 
-        with open(filepath,"r") as text:
+        with open(filepath,"r",encoding="latin1") as text:
 
             line = next(text).strip()
 
@@ -706,7 +701,7 @@ class LogASCII(DataFrame):
                     values.append(value.strip())
                     descriptions.append(descrptn.strip())
 
-                skiplines += 1
+                skiprows += 1
 
                 line = next(text).strip()
 
@@ -719,31 +714,31 @@ class LogASCII(DataFrame):
                         mtype = "Un-wrapped" if values[mnemonics.index("WRAP")]=="NO" else "Wrapped"
                         minfo = descriptions[mnemonics.index("WRAP")]
 
-                        page.addItems(info=vnumb)
-                        page.addItems(infodetail=vinfo)
-                        page.addItems(mode=mtype)
-                        page.addItems(modedetail=minfo)
+                        page.additems(info=vnumb)
+                        page.additems(infodetail=vinfo)
+                        page.additems(mode=mtype)
+                        page.additems(modedetail=minfo)
 
                     elif title=="curve":
 
-                        page.addItems(headers=mnemonics)
-                        page.addItems(units=units)
-                        page.addItems(details=descriptions)
+                        page.additems(headers=mnemonics)
+                        page.additems(units=units)
+                        page.additems(details=descriptions)
 
                     else:
 
                         if len(mnemonics)>0:
-                            page.addChildItems(title,mnemonics=mnemonics)
-                            page.addChildItems(title,units=units)
-                            page.addChildItems(title,values=values)
-                            page.addChildItems(title,descriptions=descriptions)
+                            page.addchilditems(title,mnemonics=mnemonics)
+                            page.addchilditems(title,units=units)
+                            page.addchilditems(title,values=values)
+                            page.addchilditems(title,descriptions=descriptions)
 
         if headers is None:
             usecols = None
         else:
             usecols = [page.headers.index(header) for header in headers]
 
-        logdata = np.loadtxt(filepath,comments="#",skiprows=skiplines,usecols=usecols)
+        logdata = np.loadtxt(filepath,comments="#",skiprows=skiprows,usecols=usecols,encoding="latin1")
 
         page.running = [column for column in logdata.transpose()]
 
@@ -1067,7 +1062,7 @@ class Excel(DataFrame):
         self.files = []
         self.books = []
 
-    def add_filebatch(self,filepaths):
+    def add_pages(self,filepaths):
 
         [self.add_file(filepath) for filepath in filepaths]
 
@@ -1199,7 +1194,7 @@ class IrrText(DataFrame):
 
         self.filepaths = filepaths
 
-    def read(self,skiplines=0,headerline=None,comment="--",endline="/",endfile="END"):
+    def read(self,skiprows=0,headerline=None,comment="--",endline="/",endfile="END"):
 
         # While looping inside the file it does not read lines:
         # - starting with comment phrase, e.g., comment = "--"
@@ -1207,11 +1202,11 @@ class IrrText(DataFrame):
         # - after the end of file keyword e.g., endfile = "END"
 
         if headerline is None:
-            headerline = skiplines-1
-        elif headerline<skiplines:
+            headerline = skiprows-1
+        elif headerline<skiprows:
             headerline = headerline
         else:
-            headerline = skiplines-1
+            headerline = skiprows-1
 
         _running = []
 
@@ -1242,14 +1237,14 @@ class IrrText(DataFrame):
 
         self.title = []
 
-        for _ in range(skiplines):
+        for _ in range(skiprows):
             self.title.append(_running.pop(0))
 
         num_cols = len(_running[0])
 
-        if skiplines==0:
+        if skiprows==0:
             self.set_headers(num_cols=num_cols,init=False)
-        elif skiplines!=0:
+        elif skiprows!=0:
             self.set_headers(headers=self.title[headerline],init=False)
 
         nparray = np.array(_running).T
@@ -1420,24 +1415,6 @@ class VTKit(DirBase):
         pass
 
 # Supporting String Classes
-
-class Page():
-
-    def __init__(self,**kwargs):
-
-        self.addItems(**kwargs)
-
-    def addItems(self,**kwargs):
-
-        [setattr(self,key,value) for key,value in kwargs.items()]
-
-    def addChildItems(self,parent,**kwargs):
-
-        if not hasattr(self,parent):
-            class Section(): pass
-            setattr(self,parent,Section())
-
-        [setattr(getattr(self,parent),key,value) for key,value in kwargs.items()]
 
 class Alphabet():
 
