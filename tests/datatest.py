@@ -67,11 +67,38 @@ class TestDataFrame(unittest.TestCase):
 
         df = DataFrame("col1","col2",filedir=__file__)
 
+    def test_set_headers(self):
+
+        df = DataFrame()
+
+        df.set_headers("col1","col2","col3")
+
+        self.assertEqual(len(df.headers),3,"Initialization of DataFrame Headers is failed!")
+        self.assertEqual(len(df.running),3,"Initialization of DataFrame Headers is failed!")
+
     def test_set_running(self):
 
         df = DataFrame("col0","col1")
 
-        df.set_running(np.array([1,2,3]),np.array([4,5,6]),np.array([4,5,6]),init=False)
+        a = np.array([1,2,3])
+        b = np.array([4,5,6])
+
+        df.set_running(a,b,cols=(0,1),init=False)
+
+        self.assertCountEqual(df._headers,["col0","col1"],"Initialization of DataFrame Running is failed!")
+
+    def test_columns(self):
+
+        df = DataFrame("col0","col1")
+
+        a = np.random.randint(0,100,10)
+        b = np.random.randint(0,100,10)
+
+        df.set_running(a,b,cols=(0,1),headers=["a","b"])
+
+        self.assertCountEqual(df.headers,["a","b"],"Initialization of DataFrame Running is failed!")
+
+        np.testing.assert_array_equal(df.columns("b"),df.columns(1))
 
     def test_texttocolumn(self):
 
@@ -125,6 +152,17 @@ class TestDataFrame(unittest.TestCase):
 
         np.testing.assert_array_equal(df.running[1],
             np.array(['A','B','B','C','C','C','D','E','F']),err_msg="DataFrame.unique() has an issue!")
+
+    def test_print(self):
+
+        df = DataFrame("col0","col1")
+
+        a = np.random.randint(0,100,20)
+        b = np.random.randint(0,100,20)
+
+        df.set_running(a,b,cols=(0,1),headers=["a","b"])
+
+        df.print()
 
 class TestRegText(unittest.TestCase):
 

@@ -134,6 +134,7 @@ class DataFrame(DirBase):
         """Initializes DataFrame with headers & running and parent class DirBase."""
 
         super().__init__(**kwargs)
+
         if len(args)==0:
             DataFrame.set_headers(self,colnum=0,init=True)
         elif isinstance(args[0],np.ndarray):
@@ -141,8 +142,11 @@ class DataFrame(DirBase):
         else:
             DataFrame.set_headers(self,*args,init=True)
 
-    def set_headers(self,*args,colIDs=None,colnum=None,init=False):
+    def set_headers(self,*args,cols=None,colnum=None,init=False):
         """Set headers and running based on one or more inputs."""
+
+        if isinstance(cols,int):
+            cols = (cols,)
 
         if init:
             self._headers = []
@@ -150,7 +154,7 @@ class DataFrame(DirBase):
 
         colnum0 = len(self._headers)
 
-        if colIDs is None and colnum is None:
+        if cols is None and colnum is None:
             [self._headers.append(arg) for arg in args]
             [self._running.append(np.array([])) for arg in args]
 
@@ -159,10 +163,10 @@ class DataFrame(DirBase):
             [self._headers.append("Col #{}".format(index)) for index in indices]
             [self._running.append(np.array([])) for index in indices]
 
-        if colIDs is not None:
-            if len(args)!=len(colIDs):
-                logging.critical("Length of colIDs is not equal to number of provided arguments.")
-            for (index,arg) in zip(colIDs,args):
+        if cols is not None:
+            if len(args)!=len(cols):
+                logging.critical("Length of cols is not equal to number of provided arguments.")
+            for (index,arg) in zip(cols,args):
                 self._headers[index] = arg      
 
         if len(self._running)!=len(self._headers):
@@ -176,8 +180,11 @@ class DataFrame(DirBase):
         self.headers = self._headers
         self.running = [np.asarray(column) for column in self._running]
 
-    def set_running(self,*args,colIDs=None,colnum=None,init=False):
+    def set_running(self,*args,cols=None,colnum=None,headers=None,init=False):
         """Set running and headers based on one or more inputs."""
+
+        if isinstance(cols,int):
+            cols = (cols,)
 
         if init:
             self._headers = []
@@ -185,26 +192,48 @@ class DataFrame(DirBase):
 
         colnum0 = len(self._running)
 
-        if colIDs is None and colnum is None:
-            indices = range(colnum0,colnum0+len(args))
-            [self._headers.append("Col #{}".format(index)) for index in indices]
+        if cols is None and colnum is None:
+
+            if headers is None:
+                indices = range(colnum0,colnum0+len(args))
+                headers = ("Col #{}".format(index) for index in indices)
+            elif not isinstance(headers,list) and not isinstance(headers,tuple):
+                headers = (str(headers),)
+            
+            [self._headers.append(header) for header in headers]
             [self._running.append(arg) for arg in args]
 
         if colnum is not None:
-            indices = range(colnum0,colnum0+colnum)
-            [self._headers.append("Col #{}".format(index)) for index in indices]
+
+            if headers is None:
+                indices = range(colnum0,colnum0+colnum)
+                headers = ("Col #{}".format(index) for index in indices)
+            elif not isinstance(headers,list) and not isinstance(headers,tuple):
+                headers = (str(headers),)
+                
+            [self._headers.append(header) for header in headers]
             [self._running.append(np.array([])) for index in indices]
 
-        if colIDs is not None:
-            if len(args)!=len(colIDs):
-                logging.critical("Length of colIDs is not equal to number of provided arguments.")
-            for (index,arg) in zip(colIDs,args):
+        if cols is not None:
+
+            if len(args)!=len(cols):
+                logging.critical("Length of cols is not equal to number of provided arguments.")
+
+            for (index,arg) in zip(cols,args):
                 if isinstance(arg,np.ndarray):
                     self._running[index] = arg
                 elif hasattr(arg,"__len__"):
                     self._running[index] = np.array(arg)
                 else:
                     self._running[index] = np.array([arg])
+
+            if headers is None:
+                pass
+            elif not isinstance(headers,list) and not isinstance(headers,tuple):
+                headers = (str(headers),)
+                self.set_headers(*headers,cols=cols)
+            elif headers is not None:
+                self.set_headers(*headers,cols=cols)
 
         if len(self._running)!=len(self._headers):
             logging.warning("The DataFrame has headers and columns different in size.")
@@ -216,6 +245,51 @@ class DataFrame(DirBase):
 
         self.headers = self._headers
         self.running = [np.asarray(column) for column in self._running]
+
+    def columns(self,cols=None,match=None,inplace=False,returnflag=True):
+        """Set or returns columns in running"""
+
+        if cols is None:
+            colsnew = tuple(range(len(self._running)))
+        elif isinstance(cols,int):
+            colsnew = (cols,)
+        elif isinstance(cols,str):
+            colsnew = (self._headers.index(cols),)
+        elif isinstance(cols,list) or isinstance(cols,tuple):
+            if isinstance(cols[0],int):
+                colsnew = cols
+            elif isinstance(cols[0],str):
+                colsnew = [self._headers.index(col) for col in cols]
+            else:
+                logging.critical(f"Expected cols is the list or tuple of integer or string; input, however, is {cols}")
+        else:
+            logging.critical(f"Other than None, expected cols is integer or string or their list or tuples; input, however, is {cols}")
+
+        cols = colsnew
+
+        if match is None:
+            conditional = np.full(self._running[0].shape,True)
+        else:
+            conditional = self._running[match[0]]==match[1]
+
+        if inplace:
+
+            self._headers = [self._headers[index] for index in cols]
+            self._running = [self._running[index][conditional] for index in cols]
+
+            self.headers = self._headers
+            self.running = [np.asarray(column) for column in self._running]
+
+        else:
+
+            if returnflag:
+                if len(cols)==1:
+                    return self._running[cols[0]]
+                else:
+                    return [self._running[index][conditional] for index in cols]
+            else:
+                self.headers = [self._headers[index] for index in cols]
+                self.running = [np.asarray(self._running[index][conditional]) for index in cols]
 
     def additems(self,**kwargs):
 
@@ -457,30 +531,6 @@ class DataFrame(DirBase):
             self.running = [np.asarray(column) for column in self._running]
         else:
             self.running = [np.asarray(column[keep_index]) for column in self._running]
-
-    def get_columns(self,header_indices=None,headers=None,match=None,inplace=False,returnFlag=False):
-
-        if header_indices is None:
-            header_indices = [self._headers.index(header) for header in headers]
-
-        if match is None:
-            conditional = np.full(self._running[0].shape,True)
-        else:
-            conditional = self._running[match[0]]==match[1]
-
-        if inplace:
-            self._headers = [self._headers[index] for index in header_indices]
-            self._running = [self._running[index][conditional] for index in header_indices]
-
-            self.headers = self._headers
-            self.running = [np.asarray(column) for column in self._running]
-
-        else:
-            if not returnFlag:
-                self.headers = [self._headers[index] for index in header_indices]
-                self.running = [np.asarray(self._running[index][conditional]) for index in header_indices]
-            else:
-                return [self._running[index][conditional] for index in header_indices]
             
     def sort(self,header_indices=None,headers=None,reverse=False,inplace=False,returnFlag=False):
 
@@ -546,18 +596,44 @@ class DataFrame(DirBase):
 
         self.running = [np.asarray(column) for column in self._running]
 
-    def print(self,cols=None,rows=None):
+    def print(self,cols=None,rows=None,rlim=20):
+        """It prints to the console limited number of rows with headers."""
+
+        rlim = int(rlim)
 
         if cols is None:
             cols = list(range(len(self.running)))
 
-        if rows is None:
-            rows = list(range(self.running[0].size))
-
         fstring = "{}\t"*len(cols)
 
-        for row in rows:
-            print(fstring.format(*[self.running[col][row] for col in cols]))
+        headers = [self.headers[col] for col in cols]
+        unlines = ["-"*len(self.headers[col]) for col in cols]
+
+        if rows is None:
+            if self.running[0].size<=rlim:
+                rows = list(range(self.running[0].size))
+                print("\n",fstring.format(*headers))
+                print(fstring.format(*unlines))
+                for row in rows:
+                    print(fstring.format(*[self.running[col][row] for col in cols]))
+            else:
+                rows1 = list(range(int(rlim/2)))
+                rows2 = list(range(-1,-int(rlim/2)-1,-1))
+                print("\nHEAD DATA...")
+                print(fstring.format(*headers))
+                print(fstring.format(*unlines))
+                for row in rows1:
+                    print(fstring.format(*[self.running[col][row] for col in cols]))
+                print("\nFOOT DATA...")
+                print(fstring.format(*headers))
+                print(fstring.format(*unlines))
+                for row in rows2:
+                    print(fstring.format(*[self.running[col][row] for col in cols]))
+        else:
+            print("\n",fstring.format(*headers))
+            print(fstring.format(*unlines))
+            for row in rows:
+                print(fstring.format(*[self.running[col][row] for col in cols]))
 
     def write(self,filepath,fstring=None,**kwargs):
 
@@ -583,24 +659,26 @@ class RegText(DataFrame):
 
         super().__init__(**kwargs)
 
-        self.pages = []
+        self.frames = []
 
-        self.add_pages(filepaths)
+        self.add_frames(filepaths,**kwargs)
 
-    def add_pages(self,filepaths,**kwargs):
+    def add_frames(self,filepaths,**kwargs):
 
         if filepaths is None:
             return
+        if not isinstance(filepaths,list) and not isinstance(filepaths,tuple):
+            filepaths = (filepaths,)
 
         for filepath in filepaths:
-            self.add_page(filepath,**kwargs)
-            print("Loaded {}...".format(filepath))
+            self.frames.append(self.read(filepath,**kwargs))
+            logging.info(f"Loaded {filepath} as expected.")
 
-    def add_page(self,filepath,delimiter="\t",comments="#",skiprows=None,nondigitflag=False):
+    def read(self,filepath,delimiter="\t",comments="#",skiprows=None,nondigitflag=False):
 
         filepath = self.get_abspath(filepath)
 
-        page = DataFrame(filedir=filepath)
+        frame = DataFrame(filedir=filepath)
 
         with open(filepath,mode="r",encoding="latin1") as text:
 
@@ -628,9 +706,9 @@ class RegText(DataFrame):
             data = np.loadtxt(filepath,comments="#",delimiter=delimiter,skiprows=skiprows,encoding="latin1")
             columns = [column for column in data.transpose()]
 
-        page.set_running(*columns,init=True)
+        frame.set_running(*columns,init=True)
 
-        self.pages.append(page)
+        return frame
 
 class LogASCII(DataFrame):
 
@@ -638,12 +716,22 @@ class LogASCII(DataFrame):
 
         super().__init__(**kwargs)
 
-        self.pages = []
+        self.frames = []
 
-        if filepaths is not None:
-            [self.add_page(filepath) for filepath in filepaths]
+        self.add_frames(filepaths,**kwargs)
 
-    def add_page(self,filepath,headers=None):
+    def add_frames(filepaths,**kwargs):
+
+        if filepaths is None:
+            return
+        if not isinstance(filepaths,list) and not isinstance(filepaths,tuple):
+            filepaths = (filepaths,)
+
+        for filepath in filepaths:
+            self.frames.append(self.read(filepath,**kwargs))
+            logging.info(f"Loaded {filepath} as expected.")
+
+    def read(self,filepath,headers=None):
 
         filepath = self.get_abspath(filepath)
 
@@ -651,7 +739,7 @@ class LogASCII(DataFrame):
 
         skiprows = 1
 
-        page = DataFrame(filedir=filepath)
+        frame = DataFrame(filedir=filepath)
 
         with open(filepath,"r",encoding="latin1") as text:
 
@@ -698,7 +786,16 @@ class LogASCII(DataFrame):
 
                     mnemonics.append(mnemonic.strip())
                     units.append(unit.strip())
-                    values.append(value.strip())
+
+                    try:
+                        value = int(value.strip())
+                    except ValueError:
+                        try:
+                            value = float(value.strip())
+                        except ValueError:
+                            value = value.strip()
+
+                    values.append(value)
                     descriptions.append(descrptn.strip())
 
                 skiprows += 1
@@ -714,102 +811,128 @@ class LogASCII(DataFrame):
                         mtype = "Un-wrapped" if values[mnemonics.index("WRAP")]=="NO" else "Wrapped"
                         minfo = descriptions[mnemonics.index("WRAP")]
 
-                        page.additems(info=vnumb)
-                        page.additems(infodetail=vinfo)
-                        page.additems(mode=mtype)
-                        page.additems(modedetail=minfo)
+                        frame.additems(info=vnumb)
+                        frame.additems(infodetail=vinfo)
+                        frame.additems(mode=mtype)
+                        frame.additems(modedetail=minfo)
 
                     elif title=="curve":
 
-                        page.additems(headers=mnemonics)
-                        page.additems(units=units)
-                        page.additems(details=descriptions)
+                        frame.set_headers(*mnemonics)
+                        frame.additems(units=units)
+                        frame.additems(details=descriptions)
 
                     else:
 
                         if len(mnemonics)>0:
-                            page.addchilditems(title,mnemonics=mnemonics)
-                            page.addchilditems(title,units=units)
-                            page.addchilditems(title,values=values)
-                            page.addchilditems(title,descriptions=descriptions)
+                            frame.addchilditems(title,mnemonics=mnemonics)
+                            frame.addchilditems(title,units=units)
+                            frame.addchilditems(title,values=values)
+                            frame.addchilditems(title,descriptions=descriptions)
 
         if headers is None:
             usecols = None
         else:
-            usecols = [page.headers.index(header) for header in headers]
+            usecols = [frame.headers.index(header) for header in headers]
 
         logdata = np.loadtxt(filepath,comments="#",skiprows=skiprows,usecols=usecols,encoding="latin1")
 
-        page.running = [column for column in logdata.transpose()]
+        nullvalue = frame.well.values[frame.well.mnemonics.index("NULL")]
 
-        self.pages.append(page)
+        logdata[logdata==nullvalue] = np.nan
 
-    def print_well_info(self,index=None):
+        columns = [column for column in logdata.transpose()]
 
-        if index is not None:
-            print("\n\tWELL #{}".format(self.files[index].well.WELL.value))
-            for item in self.files[index].sections["Well"]:
-                print(f"{item.descr} ({item.mnemonic}):\t\t{item.value}")
-        else:
-            for las in self.files:
-                print("\n\tWELL #{}".format(las.well.WELL.value))
-                for item in las.sections["Well"]:
-                    print(f"{item.descr} ({item.mnemonic}):\t\t{item.value}")
+        frame.set_running(*columns,cols=range(len(columns)))
 
-    def print_curve_info(self,index=None,mnemonic_space=33,tab_space=8):
+        return frame
 
-        with open('terrapy_LogASCII.out','w') as file:
+    def printwells(self,idframes=None):
 
-            def print_func(index):
-                las = self.files[index]
-                file.write("\n\tLOG NUMBER {}\n".format(index))
-                # print("\n\tLOG NUMBER {}".format(index))
-                for count,curve in enumerate(las.curves):
-                    minXval = np.nanmin(curve.data)
-                    maxXval = np.nanmax(curve.data)
-                    tab_num = math.ceil((mnemonic_space-len(curve.mnemonic))/tab_space)
-                    tab_spc = "\t"*tab_num if tab_num>0 else "\t"
-                    file.write("Curve: {}{}Units: {}\tMin: {}\tMax: {}\tDescription: {}\n".format(
-                        curve.mnemonic,tab_spc,curve.unit,minXval,maxXval,curve.descr))
-                    # print("Curve: {}{}Units: {}\tMin: {}\tMax: {}\tDescription: {}".format(
-                    #     curve.mnemonic,tab_spc,curve.unit,minXval,maxXval,curve.descr))
+        if idframes is None:
+            idframes = tuple(range(len(self.frames)))
+        elif isinstance(idframes,int):
+            idframes = (idframes,)
 
-            if index is not None:
-                print_func(index)
-            else:
-                [print_func(index) for index in range(len(self.files))]
+        for index in idframes:
 
-    def flip(self,fileID):
+            frame = self.frames[index]
 
-        for index,curve in enumerate(self.files[fileID].curves):
+            print("\n\tWELL #{}".format(frame.well.values[frame.well.mnemonics.index("WELL")]))
 
-            self.files[fileID].curves[index].data = np.flip(curve.data)
+            iterator = zip(frame.well.mnemonics,frame.well.units,frame.well.values,frame.well.descriptions)
+
+            for mnem,unit,value,descr in iterator:
+                print(f"{descr} ({mnem}):\t\t{value} [{unit}]")
+
+    def printcurves(self,idframes=None,mnemonic_space=33,tab_space=8):
+
+        if idframes is None:
+            idframes = tuple(range(len(self.frames)))
+        elif isinstance(idframes,int):
+            idframes = (idframes,)
+
+        for index in idframes:
+
+            frame = self.frames[index]
+
+            iterator = zip(frame.headers,frame.units,frame.details,frame.running)
+
+            # file.write("\n\tLOG NUMBER {}\n".format(idframes))
+            print("\n\tLOG NUMBER {}".format(index))
+
+            for header,unit,detail,column in iterator:
+
+                minXval = np.nanmin(column)
+                maxXval = np.nanmax(column)
+
+                tab_num = math.ceil((mnemonic_space-len(header))/tab_space)
+                tab_spc = "\t"*tab_num if tab_num>0 else "\t"
+
+                # file.write("Curve: {}{}Units: {}\tMin: {}\tMax: {}\tDescription: {}\n".format(
+                #     curve.mnemonic,tab_spc,curve.unit,minXval,maxXval,curve.descr))
+                print("Curve: {}{}Units: {}\tMin: {}\tMax: {}\tDescription: {}".format(
+                    header,tab_spc,unit,minXval,maxXval,detail))
+
+    def flip(self,idframes=None):
+
+        if idframes is None:
+            idframes = tuple(range(len(self.frames)))
+        elif isinstance(idframes,int):
+            idframes = (idframes,)
+
+        for index in idframes:
+
+            columns = [np.flip(column) for column in self.frames[index].running]
+
+            self.frames[index].set_running(*columns,cols=range(len(columns)))
             
-    def set_interval(self,top,bottom,fileID=None):
+    def set_interval(self,top,bottom,idframes=None):
 
-        if fileID is None:
-            fileIDs = range(len(self.files))
-        else:
-            fileIDs = range(fileID,fileID+1)
+        if idframes is None:
+            idframes = tuple(range(len(self.frames)))
+        elif isinstance(idframes,int):
+            idframes = (idframes,)
 
         self.top = top
         self.bottom = bottom
 
         self.gross_thickness = self.bottom-self.top
 
-        for fileID in fileIDs:
+        for index in idframes:
 
-            las = self.files[fileID]
+            frame = self.frames[index]
 
             try:
-                depth = las["MD"]
-            except KeyError:
-                depth = las["DEPT"]
+                depth = frame.columns("MD")
+            except ValueError:
+                depth = frame.columns("DEPT")
 
             depth_cond = np.logical_and(depth>self.top,depth<self.bottom)
 
-            for curveID,curve in enumerate(las.curves):
-                self.files[fileID].curves[curveID].data = curve.data[depth_cond]
+            columns = [column[depth_cond] for column in self.frame[index].running]
+
+            self.frames[index].set_running(*columns,cols=range(len(columns)))
 
     def get_interval(self,top,bottom,fileID=None,curveID=None):
 
@@ -1062,7 +1185,7 @@ class Excel(DataFrame):
         self.files = []
         self.books = []
 
-    def add_pages(self,filepaths):
+    def add_frames(self,filepaths):
 
         [self.add_file(filepath) for filepath in filepaths]
 

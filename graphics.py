@@ -892,23 +892,31 @@ def LogView(data=None):
 
             super().__init__(**kwargs)
 
-        def set_histogram(self,fileID,curveID=None,curveName=None,logscale=False):
+        def set_histogram(self,idframe,idcol,logscale=False):
 
             self.fig_hist,self.axis_hist = plt.subplots()
 
-            las = self.files[fileID]
+            las = self.frames[idframe]
 
-            if curveID is None:
-                curveID = las.curves.keys().index(curveName)
-
-            curve = las.curves[curveID]
+            yaxis = las.running[idcol]
 
             if logscale:
-                xlabel = "log10({}) [{}]".format(curve.descr,curve.unit)
-                yaxis = np.log10(curve.data[np.nonzero(curve.data)[0]])
+                yaxis = np.log10(yaxis[np.nonzero(yaxis)[0]])
+
+            try:
+                unit = las.units[idcol]
+            except IndexError:
+                unit = "not-defined"
+
+            try:
+                descr = las.details[idcol]
+            except IndexError:
+                descr = las.headers[idcol]
+
+            if logscale:
+                xlabel = "log10(nonzero-{}) [{}]".format(descr,unit)
             else:
-                xlabel = "{} [{}]".format(curve.descr,curve.unit)
-                yaxis = curve.data
+                xlabel = "{} [{}]".format(descr,unit)
 
             self.axis_hist.hist(yaxis,density=True,bins=30)  # density=False would make counts
             self.axis_hist.set_ylabel("Probability")
@@ -918,7 +926,7 @@ def LogView(data=None):
 
             self.fig_nan,self.axis_nan = plt.subplots()
 
-            las = self.files[fileID]
+            las = self.frames[fileID]
 
             yvals = []
             zvals = []
@@ -928,7 +936,7 @@ def LogView(data=None):
             except KeyError:
                 depth = las["DEPT"]
 
-            for index,curve in enumerate(las.curves):
+            for index,curve in enumerate(las.running):
 
                 isnan = np.isnan(curve.data)
 
@@ -956,13 +964,13 @@ def LogView(data=None):
                 self.axis_nan.step(np.where(qvals==zval.reshape((-1,1)))[1],yval)
 
             self.axis_nan.set_xlim((-1,qvals.size))
-            self.axis_nan.set_ylim((-1,len(las.curves)))
+            self.axis_nan.set_ylim((-1,len(las.running)))
 
             self.axis_nan.set_xticks(np.arange(qvals.size))
             self.axis_nan.set_xticklabels(depth[qvals],rotation=90)
 
-            self.axis_nan.set_yticks(np.arange(len(las.curves)))
-            self.axis_nan.set_yticklabels([curve.mnemonic for curve in las.curves])
+            self.axis_nan.set_yticks(np.arange(len(las.running)))
+            self.axis_nan.set_yticklabels([curve.mnemonic for curve in las.running])
 
             self.axis_nan.grid(True,which="both",axis='x')
 
@@ -1022,16 +1030,16 @@ def LogView(data=None):
                 for indexJ,line in enumerate(axdict["lines"]):
                 
                     try:
-                        depth = self.files[line[0]]["MD"]
+                        depth = self.frames[line[0]]["MD"]
                     except KeyError:
-                        depth = self.files[line[0]]["DEPT"]
+                        depth = self.frames[line[0]]["DEPT"]
                         
-                    xvals = self.files[line[0]][line[1]]
+                    xvals = self.frames[line[0]][line[1]]
 
-                    indexK = self.files[line[0]].curves.keys().index(line[1])
+                    indexK = self.frames[line[0]].headers.index(line[1])
 
-                    mnem = self.files[line[0]].curves[indexK].mnemonic
-                    unit = self.files[line[0]].curves[indexK].unit
+                    mnem = self.frames[line[0]].running[indexK].mnemonic
+                    unit = self.frames[line[0]].running[indexK].unit
 
                     linestyle = "-" if indexJ==0 else "--"
 
@@ -1181,11 +1189,11 @@ def LogView(data=None):
             # indexJ index of GR containing line in the axis
 
             try:
-                depth = self.files[GRline[0]]["MD"]
+                depth = self.frames[GRline[0]]["MD"]
             except KeyError:
-                depth = self.files[GRline[0]]["DEPT"]
+                depth = self.frames[GRline[0]]["DEPT"]
 
-            xvals = self.files[GRline[0]][GRline[1]]
+            xvals = self.frames[GRline[0]][GRline[1]]
 
             GRmin = np.nanmin(xvals)
             GRmax = np.nanmax(xvals)
@@ -1244,7 +1252,7 @@ def LogView(data=None):
 
         def get_ShaleVolumeGR(self,GRline,GRmin=None,GRmax=None,model=None):
 
-            xvals = self.files[GRline[0]][GRline[1]]
+            xvals = self.frames[GRline[0]][GRline[1]]
 
             if GRmin is None:
                 GRmin = np.nanmin(xvals)
@@ -1261,7 +1269,7 @@ def LogView(data=None):
 
         def get_ShaleVolumeSP(self,SPline,SPsand,SPshale):
 
-            xvals = self.files[SPline[0]][SPline[1]]
+            xvals = self.frames[SPline[0]][SPline[1]]
 
             Vsh = (xvals-SPsand)/(SPshale-SPsand)
 
@@ -1273,11 +1281,11 @@ def LogView(data=None):
             # indexJ index of Neutron Porosity containing line in the axis
 
             try:
-                depth = self.files[NeuPorLine[0]]["MD"]
+                depth = self.frames[NeuPorLine[0]]["MD"]
             except KeyError:
-                depth = self.files[NeuPorLine[0]]["DEPT"]
+                depth = self.frames[NeuPorLine[0]]["DEPT"]
 
-            xvals = self.files[NeuPorLine[0]][NeuPorLine[1]]
+            xvals = self.frames[NeuPorLine[0]][NeuPorLine[1]]
 
             NeuPorCorr = xvals-Vsh*NeuPorShale
 
@@ -1290,11 +1298,11 @@ def LogView(data=None):
             # indexJ index of Resistivity containing line in the axis
 
             try:
-                depth = self.files[ResLine[0]]["MD"]
+                depth = self.frames[ResLine[0]]["MD"]
             except KeyError:
-                depth = self.files[ResLine[0]]["DEPT"]
+                depth = self.frames[ResLine[0]]["DEPT"]
 
-            xvals = self.files[ResLine[0]][ResLine[1]]
+            xvals = self.frames[ResLine[0]][ResLine[1]]
 
             cut_line = ohmm_cut*np.ones(depth.shape)
 
@@ -1307,9 +1315,9 @@ def LogView(data=None):
             # indexI index of NMR containing axis in the plot
 
             try:
-                depth = self.files[NMRline]["MD"]
+                depth = self.frames[NMRline]["MD"]
             except KeyError:
-                depth = self.files[NMRline]["DEPT"]
+                depth = self.frames[NMRline]["DEPT"]
 
             xvals0 = np.zeros(water_clay.shape)
             xvals1 = water_clay
@@ -1498,8 +1506,8 @@ def LogView(data=None):
 
             if returnSwFlag:
 
-                xvalsR = self.files[resLine[0]][resLine[1]]
-                xvalsP = self.files[phiLine[0]][phiLine[1]]
+                xvalsR = self.frames[resLine[0]][resLine[1]]
+                xvalsP = self.frames[phiLine[0]][phiLine[1]]
 
                 return ((a*Rw)/(xvalsR*xvalsP**m))**(1/n)
 
@@ -1532,14 +1540,14 @@ def LogView(data=None):
 
                 self.axis_pcp.legend(scatterpoints=10)
 
-                indexR = self.files[resLine[0]].curves.keys().index(resLine[1])
-                indexP = self.files[phiLine[0]].curves.keys().index(phiLine[1])
+                indexR = self.frames[resLine[0]].headers.index(resLine[1])
+                indexP = self.frames[phiLine[0]].headers.index(phiLine[1])
 
-                mnemR = self.files[resLine[0]].curves[indexR].mnemonic
-                unitR = self.files[resLine[0]].curves[indexR].unit
+                mnemR = self.frames[resLine[0]].running[indexR].mnemonic
+                unitR = self.frames[resLine[0]].running[indexR].unit
 
-                mnemP = self.files[phiLine[0]].curves[indexP].mnemonic
-                unitP = self.files[phiLine[0]].curves[indexP].unit
+                mnemP = self.frames[phiLine[0]].running[indexP].mnemonic
+                unitP = self.frames[phiLine[0]].running[indexP].unit
 
                 xaxis_min = xmin if xmin is not None else xaxis_min
                 xaxis_max = xmax if xmax is not None else xaxis_max
@@ -2055,7 +2063,7 @@ def TreeView(data=None):
             while True:
 
                 try:
-                    root,dirs,files = next(iterator)
+                    root,dirs,frames = next(iterator)
                 except StopIteration:
                     break
 
@@ -2074,7 +2082,7 @@ def TreeView(data=None):
                     parents_name.append(os.path.join(root,directory))
                     parents_link.append(link)
 
-                for file in files:            
+                for file in frames:            
                     self.tree.insert(parent,'end',iid=counter,text=file)
                     counter += 1
 
