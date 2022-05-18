@@ -80,12 +80,20 @@ class TestDataFrame(unittest.TestCase):
 
         df = DataFrame("col0","col1")
 
-        a = np.array([1,2,3])
-        b = np.array([4,5,6])
+        a = np.array([1,2,3.])
+        b = np.array([4,5,6.])
 
         df.set_running(a,b,cols=(0,1),init=False)
 
         self.assertCountEqual(df._headers,["col0","col1"],"Initialization of DataFrame Running is failed!")
+
+        df.set_running(b,a,cols=(0,1))
+
+        np.testing.assert_array_equal(df.columns("col0")[:3],a)
+        np.testing.assert_array_equal(df.columns("col0")[3:],b)
+
+        np.testing.assert_array_equal(df.columns("col1")[:3],b)
+        np.testing.assert_array_equal(df.columns("col1")[3:],a)
 
     def test_columns(self):
 

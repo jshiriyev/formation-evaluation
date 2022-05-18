@@ -221,11 +221,14 @@ class DataFrame(DirBase):
 
             for (index,arg) in zip(cols,args):
                 if isinstance(arg,np.ndarray):
-                    self._running[index] = arg
+                    self._running[index] = np.append(self._running[index],arg)
+                    # self._running[index] = arg
                 elif hasattr(arg,"__len__"):
-                    self._running[index] = np.array(arg)
+                    self._running[index] = np.append(self._running[index],np.array(arg))
+                    # self._running[index] = np.array(arg)
                 else:
-                    self._running[index] = np.array([arg])
+                    self._running[index] = np.append(self._running[index],np.array([arg]))
+                    # self._running[index] = np.array([arg])
 
             if headers is None:
                 pass
@@ -1227,6 +1230,7 @@ class Excel(DataFrame):
         self.add_books(filepaths)
 
     def add_books(self,filepaths):
+        """It adds excel workbooks with the filepaths specified to the self.books."""
 
         if filepaths is None:
             return
@@ -1244,7 +1248,7 @@ class Excel(DataFrame):
 
     def add_sheets(self,idbooks=None,keyword=None,**kwargs):
         """It add frames from the sheetname the most similar to the keyword.
-        If keyweord is none first sheet is read"""
+        If keyword is none the first sheet is read."""
 
         if idbooks is None:
             idbooks = tuple(range(len(self.books)))
@@ -1268,21 +1272,21 @@ class Excel(DataFrame):
             self.frames.append(frame)
 
     def read(self,sheet,min_row=1,min_col=1,max_row=None,max_col=None):
+        """It reads and excel worksheet and returns it as a DataFrame."""
 
         idbook,sheetname = sheet
 
         frame = DataFrame()
 
-        frame.sheetname = sheetname
-
         if sheetname is None:
-
             sheetname = self.books[idbook].sheetnames[0]
 
         rows = self.books[idbook][sheetname].iter_rows(
             min_row=min_row,min_col=min_col,
             max_row=max_row,max_col=max_col,
             values_only=True)
+
+        frame.sheetname = sheetname
 
         rows = [row for row in list(rows) if any(row)]
 
@@ -1292,21 +1296,31 @@ class Excel(DataFrame):
 
         return frame
 
-    def get_headers(self,idframe=0,skiprows=1):
+    def get_headers(self,idframe=0,skiprows=1,mode=None):
 
         headers_rows = self.frames[idframe].get_rows(idrows=tuple(range(skiprows)))
 
-        for idrow,headers in enumerate(headers_rows):
+        self.frames[idframes].del_rows(idrows=tuple(range(skiprows)))
 
-            for idcol,header in enumerate(headers):
-                if isinstance(header,str):
-                    headers_rows[idrow][idcol] = re.sub(r"[^\w]","",header)
+        # for idrow,headers in enumerate(headers_rows):
+
+        #     for idcol,header in enumerate(headers):
+        #         if isinstance(header,str):
+        #             headers_rows[idrow][idcol] = re.sub(r"[^\w]","",header)
 
         return headers_rows
 
-    def merge(self,idcols=None):
+    def merge(self,idframes=None,idcols=None):
+        """It merges all the frames as a single DataFrame under the Excel class."""
 
-        for idframe,frame in enumerate(self.frames):
+        if idframes is None:
+            idframes = tuple(range(len(self.frames)))
+        elif isinstance(idframes,int):
+            idframes = (idframes,)
+
+        for idframe in idframes:
+
+            frame = self.frames[idframe]
 
             if idcols is None:
 
@@ -1321,9 +1335,9 @@ class Excel(DataFrame):
 
                 print(idcols)
 
-            rows = frame.get_rows(idcols=idcols)
+            columns = frame.columns(idcols=idcols)
 
-            self.set_rows(rows)
+            self.set_running(*columns,cols=tuple(range(len(idcols))))
 
     def write(self,filepath,title):
 
