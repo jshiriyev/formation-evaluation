@@ -27,13 +27,13 @@ if __name__ == "__main__":
 
     import setup
 
-from dataset import DataFrame
-from dataset import RegText
-from dataset import LogASCII
-from dataset import Excel
-from dataset import IrrText
-from dataset import WSchedule
-from dataset import VTKit
+from textio import DataFrame
+from textio import RegText
+from textio import LogASCII
+from textio import Excel
+from textio import IrrText
+from textio import WSchedule
+from textio import VTKit
 
 # AUXILIARY FUNCTIONS TO CHOOSE INHERITANCE PATH
 

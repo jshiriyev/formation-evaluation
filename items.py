@@ -15,25 +15,26 @@ import numpy as np
 if __name__ == "__main__":
     import setup
 
-from petepy.dataset import DataFrame
-from petepy.dataset import Excel
-from petepy.dataset import VTKit
-from petepy.dataset import History
-from petepy.dataset import LogASCII
-from petepy.dataset import NpText
+from textio import DataFrame
+from textio import RegText
+from textio import LogASCII
+from textio import Excel
+from textio import IrrText
+from textio import WSchedule
+from textio import VTKit
 
-from petepy.graphics import TimeView
-from petepy.graphics import LogView
-from petepy.graphics import PerfView
-from petepy.graphics import View3D
-from petepy.graphics import TableView
-from petepy.graphics import TreeView
+from graphics import TimeView
+from graphics import LogView
+from graphics import PerfView
+from graphics import View3D
+from graphics import TableView
+from graphics import TreeView
 
-from petepy.geometries import Line 
-from petepy.geometries import Rectangle 
-from petepy.geometries import Ellipse 
-from petepy.geometries import Cuboid 
-from petepy.geometries import Cylinder
+from geometries import Line 
+from geometries import Rectangle 
+from geometries import Ellipse 
+from geometries import Cuboid 
+from geometries import Cylinder
 
 # AUXILIARY FUNCTIONS TO CHOOSE INHERITANCE PATH
 
@@ -602,11 +603,6 @@ def Wells(graph=None,data=None):
             self.number = number                # number of wells
 
             self.wnamefstr = "Well-{}" if wnamefstr is None else wnamefstr
-
-            self.Trajectory = Trajectory()()
-            self.Completion = Completion()()
-            self.Logging    = Logging()()
-            self.Production = Production()()
 
         def set_names(self,*args,wnamefstr=None,sortFlag=False):
 
@@ -1350,9 +1346,9 @@ def Production(graph=None,data=None):
 
         headersOPT = ["WELL","DATE","DAYS","OPTYPE","ROIL","RWATER","RGAS","TOIL","TWATER","TGAS",]
         
-        def __init__(self,**kwargs):
+        def __init__(self,*args,**kwargs):
 
-            super().__init__(**kwargs)
+            super().__init__(*args,**kwargs)
 
         def get_wellnames(self):
 

@@ -3,7 +3,7 @@ import numpy as np
 if __name__ == "__main__":
     import setup
 
-from petepy.graphics import View3D
+from graphics import View3D
 
 ## BASIC GEOMETRIES
 

@@ -9,14 +9,14 @@ import numpy as np
 if __name__ == "__main__":
     import setup
 
-from dataset import DirBase
-from dataset import DataFrame
-from dataset import RegText
-from dataset import LogASCII
-from dataset import Excel
-from dataset import IrrText
-from dataset import WSchedule
-from dataset import VTKit
+from textio import DirBase
+from textio import DataFrame
+from textio import RegText
+from textio import LogASCII
+from textio import Excel
+from textio import IrrText
+from textio import WSchedule
+from textio import VTKit
 
 class TestDirBase(unittest.TestCase):
 
@@ -100,22 +100,22 @@ class TestDataFrame(unittest.TestCase):
 
         np.testing.assert_array_equal(df.columns("b"),df.columns(1))
 
-    def test_texttocolumn(self):
+    def test_str2col(self):
 
         full_names = np.array(["elthon\tsmith","bill\tgates\tshir"])
 
         df = DataFrame(full_names)
 
-        df.texttocolumn(0,deliminator="\t")
+        df.str2col(0,deliminator="\t")
 
-    def test_columntotext(self):
+    def test_col2str(self):
 
         names = np.array(["elthon","john"])
         nicks = np.array(["smith","verdin"])
 
         df = DataFrame(names,nicks)
         
-        df.columntotext([0,1])
+        df.col2str([0,1])
 
     def test_edit_nones(self):
 

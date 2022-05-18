@@ -303,7 +303,7 @@ class DataFrame(DirBase):
 
         [setattr(getattr(self,parent),key,value) for key,value in kwargs.items()]
 
-    def texttocolumn(self,colID=None,header=None,deliminator=None,maxsplit=None):
+    def str2col(self,colID=None,header=None,deliminator=None,maxsplit=None):
 
         colID = colID if colID is not None else self._headers.index(header)
 
@@ -353,7 +353,7 @@ class DataFrame(DirBase):
         self.headers = self._headers
         self.running = [np.asarray(column) for column in self._running]
 
-    def columntotext(self,colIDs=None,headers=None,header_new=None,fstring=None):
+    def col2str(self,colIDs=None,headers=None,header_new=None,fstring=None):
 
         if colIDs is None:
             colIDs = [self._headers.index(header) for header in headers]
@@ -423,28 +423,28 @@ class DataFrame(DirBase):
 
         self.running[header_index] = np.asarray(self._running[header_index])
 
-    def edit_nones(self,colIDs=None,headers=None,replace=None):
+    def edit_nones(self,idcols=None,headers=None,replace=None):
 
-        if colIDs is None:
+        if idcols is None:
             if headers is None:
-                colIDs = range(len(self._running))
+                idcols = range(len(self._running))
             else:
-                colIDs = [self._headers.index(header) for header in headers]
+                idcols = [self._headers.index(header) for header in headers]
 
-        for index in colIDs:
+        for idcol in idcols:
 
-            column = self._running[index]
+            column = self._running[idcol]
 
-            row_indices = [row_index for row_index,val in enumerate(column) if val is None]
+            idrows = [idrow for idrow,val in enumerate(column) if val is None]
 
-            for row_index in row_indices:
+            for idrow in idrows:
                 if replace is None:
-                    column[row_index] = column[row_index-1]
+                    column[idrow] = column[idrow-1]
                 else:
-                    column[row_index] = replace
+                    column[idrow] = replace
 
-            self._running[index] = column
-            self.running[index] = np.asarray(column)
+            self._running[idcol] = column
+            self.running[idcol] = np.asarray(column)
 
     def edit_dates(self,colID=None,header=None):
 
@@ -483,61 +483,89 @@ class DataFrame(DirBase):
 
         self.running[colID] = np.asarray(self._running[colID])
 
-    def set_rows(self,rows,row_indices=None):
+    def set_rows(self,rows,idrows=None):
         
         for row in rows:
 
-            if row_indices is None:
+            if idrows is None:
                 for col_index,column in enumerate(self._running):
                     self._running[col_index] = np.append(column,row[col_index])
             else:
                 for col_index, _ in enumerate(self._running):
-                    self._running[col_index][row_indices] = row[col_index]
+                    self._running[col_index][idrows] = row[col_index]
 
             self.running = [np.asarray(column) for column in self._running]
 
-    def get_rows(self,row_indices=None,match=None):
+    def get_rows(self,idrows=None,idcols=None,match=None):
 
-        if row_indices is None:
+        if idrows is None:
+
             if match is None:
-                row_indices = range(self._running[0].size)
+                idrows = range(self._running[0].size)
             else:
                 column_index,phrase = match
                 conditional = self._running[column_index]==phrase
-                row_indices = np.arange(self._running[0].size)[conditional]
+                idrows = np.arange(self._running[0].size)[conditional]
+                idrows = idrows.tolist()
 
-        elif type(row_indices)==int:
-            row_indices = [row_indices]
+        elif isinstance(idrows,int):
+            idrows = (idrows,)
 
-        rows = [[column[index] for column in self._running] for index in row_indices]
+        if idcols is None:
+            idcols = tuple(range(len(self._running)))
+        elif isinstance(idcols,int):
+            idcols = (idcols,)
+
+        rows = [[self._running[idcol][index] for idcol in idcols] for index in idrows]
         
         return rows
 
-    def del_rows(self,row_indices=None,noneColIndex=None,inplace=False):
+    def del_rows(self,idrows=None,nonecol=None,inplace=False):
 
-        all_rows = np.array([np.arange(self._running[0].size)])
+        idrows_all = np.array([np.arange(self._running[0].size)])
 
-        if row_indices is None:
-            row_indices = [index for index,val in enumerate(self.running[noneColIndex]) if val is None]
+        if idrows is None:
+
+            if nonecol is None:
+                logging.critical("Either idrows or nonecol should be provided.")
+            elif isinstance(nonecol,int):
+                pass
+            elif isinstance(nonecol,str):
+                nonecol = (self._headers.index(nonecol),)
+            else:
+                logging.critical(f"Expected nonecol is integer or string; input type, however, is {type(nonecol)}.")
+
+            idrows = [index for index,val in enumerate(self._running[nonecol]) if val is None]
         
-        row_indices = np.array(row_indices).reshape((-1,1))
+        idrows = np.array(idrows).reshape((-1,1))
 
-        comp_mat = all_rows==row_indices
-
-        keep_index = ~np.any(comp_mat,axis=0)
+        boolrows_keep = ~np.any(idrows_all==idrows,axis=0)
 
         if inplace:
-            self._running = [column[keep_index] for column in self._running]
+            self._running = [column[boolrows_keep] for column in self._running]
             self.running = [np.asarray(column) for column in self._running]
         else:
-            self.running = [np.asarray(column[keep_index]) for column in self._running]
+            self.running = [np.asarray(column[boolrows_keep]) for column in self._running]
             
-    def sort(self,header_indices=None,headers=None,reverse=False,inplace=False,returnFlag=False):
+    def sort(self,cols=None,reverse=False,inplace=False,returnFlag=False):
 
-        if header_indices is None:
-            header_indices = [self.headers.index(header) for header in headers]
+        if cols is None:
+            idcols = tuple(range(len(self._running)))
+        elif isinstance(cols,int):
+            idcols = (cols,)
+        elif isinstance(cols,str):
+            idcols = (self._headers.index(cols),)
+        elif isinstance(cols,list) or isinstance(cols,tuple):
+            if isinstance(cols[0],int):
+                idcols = cols
+            elif isinstance(cols[0],str):
+                idcols = [self._headers.index(col) for col in cols]
+            else:
+                logging.critical(f"Expected cols is the list or tuple of integer or string; input, however, is {cols}")
+        else:
+            logging.critical(f"Other than None, expected cols is integer or string or their list or tuples; input, however, is {cols}")
 
-        columns = [self._running[index] for index in header_indices]
+        columns = [self._running[idcol] for idcol in idcols]
 
         columns.reverse()
 
@@ -584,13 +612,13 @@ class DataFrame(DirBase):
 
         Z = np.array(Z,dtype=str).T
 
-        _,row_indices = np.unique(Z,axis=0,return_index=True)
+        _,idrows = np.unique(Z,axis=0,return_index=True)
 
         if inplace:
-            self._running = [column[row_indices] for column in self._running]
+            self._running = [column[idrows] for column in self._running]
             self.running = [np.asarray(column) for column in self._running]
         else:
-            self.running = [np.asarray(column[row_indices]) for column in self._running]
+            self.running = [np.asarray(column[idrows]) for column in self._running]
 
     def invert(self):
 
@@ -611,27 +639,36 @@ class DataFrame(DirBase):
 
         if rows is None:
             if self.running[0].size<=rlim:
+
                 rows = list(range(self.running[0].size))
+
                 print("\n",fstring.format(*headers))
                 print(fstring.format(*unlines))
+
                 for row in rows:
                     print(fstring.format(*[self.running[col][row] for col in cols]))
+
             else:
+
                 rows1 = list(range(int(rlim/2)))
                 rows2 = list(range(-1,-int(rlim/2)-1,-1))
-                print("\nHEAD DATA...")
+
                 print(fstring.format(*headers))
                 print(fstring.format(*unlines))
+
                 for row in rows1:
                     print(fstring.format(*[self.running[col][row] for col in cols]))
-                print("\nFOOT DATA...")
-                print(fstring.format(*headers))
-                print(fstring.format(*unlines))
+
+                print("...{}".format("\n..."*2))
+
                 for row in rows2:
                     print(fstring.format(*[self.running[col][row] for col in cols]))
+
         else:
+
             print("\n",fstring.format(*headers))
             print(fstring.format(*unlines))
+
             for row in rows:
                 print(fstring.format(*[self.running[col][row] for col in cols]))
 
@@ -724,6 +761,7 @@ class LogASCII(DataFrame):
 
         if filepaths is None:
             return
+
         if not isinstance(filepaths,list) and not isinstance(filepaths,tuple):
             filepaths = (filepaths,)
 
@@ -1178,105 +1216,112 @@ class LogASCII(DataFrame):
 
 class Excel(DataFrame):
 
-    def __init__(self,homedir=None,filepath=None,headers=None):
+    def __init__(self,filepaths=None,**kwargs):
 
-        super().__init__(homedir=homedir,filepath=filepath,headers=headers)
+        super().__init__(**kwargs)
 
-        self.files = []
         self.books = []
+        self.sheets = []
+        self.frames = []
 
-    def add_frames(self,filepaths):
+        self.add_books(filepaths)
 
-        [self.add_file(filepath) for filepath in filepaths]
+    def add_books(self,filepaths):
 
-    def add_file(self,filepath):
+        if filepaths is None:
+            return
 
-        filepath = self.get_filepathabs(filepath)
+        if not isinstance(filepaths,list) and not isinstance(filepaths,tuple):
+            filepaths = (filepaths,)
 
-        self.files.append(opxl.load_workbook(filepath,read_only=True,data_only=True))
+        for filepath in filepaths:
 
-    def get_sheetname(self,keyword,fileID=0):
+            filepath = self.get_abspath(filepath)
 
-        # This method supposed to return sheetname similar to the keyword
+            self.books.append(opxl.load_workbook(filepath,read_only=True,data_only=True))
 
-        for sheetname in self.files[fileID].sheetnames:
-            if sheetname[:len(keyword)]==keyword:
-                return sheetname
+            logging.info(f"Loaded {filepath} as expected.")
 
-        print("No good match for sheetname was found!")
+    def add_sheets(self,idbooks=None,keyword=None,**kwargs):
+        """It add frames from the sheetname the most similar to the keyword.
+        If keyweord is none first sheet is read"""
 
-    def set_headers(self,sheetname,row_index,min_col=None,max_col=None,fileID=0):
+        if idbooks is None:
+            idbooks = tuple(range(len(self.books)))
+        elif not isinstance(idbooks,list) and not isinstance(idbooks,tuple):
+            idbooks = (idbooks,)
 
-        headers = self.files[fileID][sheetname].iter_rows(
-            min_row=row_index,min_col=min_col,
-            max_row=row_index,max_col=max_col,
+        for idbook in idbooks:
+
+            if keyword is None:
+                idsheet = 0
+            else:
+                scores = []
+                for sheetname in self.books[idbook].sheetnames:
+                    scores.append(SequenceMatcher(None,sheetname,keyword).ratio())
+                idsheet = scores.index(max(scores))
+
+            sheetname = self.books[idbook].sheetnames[idsheet]
+
+            frame = self.read((idbook,sheetname),**kwargs)
+
+            self.frames.append(frame)
+
+    def read(self,sheet,min_row=1,min_col=1,max_row=None,max_col=None):
+
+        idbook,sheetname = sheet
+
+        frame = DataFrame()
+
+        frame.sheetname = sheetname
+
+        if sheetname is None:
+
+            sheetname = self.books[idbook].sheetnames[0]
+
+        rows = self.books[idbook][sheetname].iter_rows(
+            min_row=min_row,min_col=min_col,
+            max_row=max_row,max_col=max_col,
             values_only=True)
 
-        headers = list(list(headers)[0])
+        rows = [row for row in list(rows) if any(row)]
 
-        for index,header in enumerate(headers):
-            headers[index] = re.sub(r"[^\w]","",header)
+        frame.set_headers(colnum=len(rows[0]),init=True)
 
-        super().set_headers(headers=headers,init=True)
+        frame.set_rows(rows)
 
-    def read(self,sheetname=None,min_row=1,min_col=1,max_row=None,max_col=None,fileID=None):
+        return frame
 
-        if fileID is None:
-            fileIDs = range(len(self.files))
-        else:
-            fileIDs = range(fileID,fileID+1)
+    def get_headers(self,idframe=0,skiprows=1):
 
-        if len(self._headers)==0:
+        headers_rows = self.frames[idframe].get_rows(idrows=tuple(range(skiprows)))
 
-            if len(self._running)==0: 
-                super().set_headers(num_cols=max_col-min_col+1,init=True)
-            else:
-                super().set_headers(num_cols=max_col-min_col+1,init=False)
+        for idrow,headers in enumerate(headers_rows):
 
-        for fileID in fileIDs:
+            for idcol,header in enumerate(headers):
+                if isinstance(header,str):
+                    headers_rows[idrow][idcol] = re.sub(r"[^\w]","",header)
 
-            wsname = self.files[fileID].sheetnames[0] if sheetname is None else sheetname
+        return headers_rows
 
-            rows = self.files[fileID][wsname].iter_rows(
-                min_row=min_row,min_col=min_col,
-                max_row=max_row,max_col=max_col,
-                values_only=True)
+    def merge(self,idcols=None):
 
-            rows = [row for row in list(rows) if any(row)]
+        for idframe,frame in enumerate(self.frames):
 
-            self.books.append(rows)
+            if idcols is None:
 
-    def merge(self,header_rows=1):
+                idcols = []
 
-        for i,book in enumerate(self.books):
+                for header in self._headers:
+                    scores = []
+                    for header_read in frame._headers:
+                        score = SequenceMatcher(None,header,header_read).ratio() if isinstance(header_read,str) else 0
+                        scores.append(score)
+                    idcols.append(scores.index(max(scores)))
 
-            for j in range(1,header_rows):
+                print(idcols)
 
-                self.books[i][0] = [h0 if hj is None else hj for (h0,hj) in zip(book[0],book[j])]
-
-            for j in range(1,header_rows):
-
-                del self.books[i][1]
-
-            col_indices = []
-
-            for header in self._headers:
-
-                scores = []
-
-                for header_read in self.books[i][0]:
-
-                    score = SequenceMatcher(None,header,header_read).ratio() if isinstance(header_read,str) else 0
-                    
-                    scores.append(score)
-
-                col_indices.append(scores.index(max(scores)))
-
-            for j,row in enumerate(self.books[i]):
-
-                self.books[i][j] = [row[k] for k in col_indices]
-
-            rows = [row for row in self.books[i][1:] if any(row)]
+            rows = frame.get_rows(idcols=idcols)
 
             self.set_rows(rows)
 
@@ -1294,15 +1339,15 @@ class Excel(DataFrame):
 
         wb.save(filepath)
 
-    def close(self,fileID=None):
+    def close(self,idbooks=None):
 
-        if fileID is None:
-            fileIDs = range(len(self.files))
-        else:
-            fileIDs = range(fileID,fileID+1)
+        if idbooks is None:
+            idbooks = tuple(range(len(self.books)))
+        elif isinstance(idbooks,int):
+            idbooks = (idbooks,)
 
-        for fileID in fileIDs:
-            self.files[fileID]._archive.close()
+        for idbook in idbooks:
+            self.books[idbook]._archive.close()
 
 class IrrText(DataFrame):
 
