@@ -139,13 +139,15 @@ class DataFrame(DirBase):
             DataFrame.set_headers(self,colnum=0,init=True)
         elif isinstance(args[0],np.ndarray):
             DataFrame.set_running(self,*args,init=True)
-        else:
+        elif isinstance(args[0],str):
             DataFrame.set_headers(self,*args,init=True)
+        else:
+            logging.critical(f"Expected positional arguments is either a string or numpy array; input is {type(args[0])}")
 
     def set_headers(self,*args,cols=None,colnum=None,init=False):
         """Set headers and running based on one or more inputs."""
 
-        if isinstance(cols,int):
+        if isinstance(cols,int) or isinstance(cols,str):
             cols = (cols,)
 
         if init:
@@ -166,8 +168,12 @@ class DataFrame(DirBase):
         if cols is not None:
             if len(args)!=len(cols):
                 logging.critical("Length of cols is not equal to number of provided arguments.")
-            for (index,arg) in zip(cols,args):
-                self._headers[index] = arg      
+            for (col,arg) in zip(cols,args):
+                if isinstance(col,str):
+                    idcol = self._headers.index(col)
+                elif isinstance(col,int):
+                    idcol = col
+                self._headers[idcol] = arg      
 
         if len(self._running)!=len(self._headers):
             logging.warning("The DataFrame has headers and columns different in size.")
@@ -197,8 +203,14 @@ class DataFrame(DirBase):
             if headers is None:
                 indices = range(colnum0,colnum0+len(args))
                 headers = ("Col #{}".format(index) for index in indices)
-            elif not isinstance(headers,list) and not isinstance(headers,tuple):
-                headers = (str(headers),)
+            elif isinstance(headers,str):
+                headers = (headers,)
+            elif isinstacne(headers,list):
+                pass
+            elif isinstance(headers,tuple):
+                pass
+            else:
+                logging.critical(f"Expected headers is list or tuple; input is {type(headers)}")
             
             [self._headers.append(header) for header in headers]
             [self._running.append(arg) for arg in args]
@@ -295,25 +307,41 @@ class DataFrame(DirBase):
                 self.headers = [self._headers[index] for index in idcols]
                 self.running = [np.asarray(self._running[index][conditional]) for index in idcols]
 
-    def additems(self,**kwargs):
+    def add_attrs(self,**kwargs):
 
-        [setattr(self,key,value) for key,value in kwargs.items()]
+        for key,value in kwargs.items():
+            if hasattr(self,key):
+                logging.warning(f"{type(self).__name__} has {key} attribute.")
+            else:
+                setattr(self,key,value)
 
-    def addchilditems(self,parent,**kwargs):
+    def add_childattrs(self,parent,**kwargs):
 
-        if not hasattr(self,parent):
+        if hasattr(self,parent):
+            logging.warning(f"{type(self).__name__} has {parent} attribute.")
+        else:
             class Section(): pass
+
             setattr(self,parent,Section())
 
-        [setattr(getattr(self,parent),key,value) for key,value in kwargs.items()]
+        for key,value in kwargs.items():
+            if hasattr(getattr(self,parent),key):
+                logging.warning(f"{type(self).__name__} has {key} attribute under {parent}.")
+            else:
+                setattr(getattr(self,parent),key,value)
 
-    def str2col(self,colID=None,header=None,deliminator=None,maxsplit=None):
+    def str2cols(self,col=None,deliminator=None,maxsplit=None):
 
-        colID = colID if colID is not None else self._headers.index(header)
+        if isinstance(col,int):
+            idcol = col
+        elif isinstance(col,str):
+            idcol = self._headers.index(col)
+        else:
+            logging.critical(f"Excpected col is int or string, input is {type(col)}")
 
-        header_string = self._headers[colID]
+        header_string = self._headers[idcol]
         # header_string = re.sub(deliminator+'+',deliminator,header_string)
-        column_string = np.asarray(self._running[colID])
+        column_string = np.asarray(self._running[idcol])
 
         headers = header_string.split(deliminator)
         columns = column_string[0].split(deliminator)
@@ -342,13 +370,13 @@ class DataFrame(DirBase):
 
         running = np.array(running,dtype=str).T
 
-        self._headers.pop(colID)
-        self._running.pop(colID)
+        self._headers.pop(idcol)
+        self._running.pop(idcol)
 
         for header,column in zip(headers,running):
-            self._headers.insert(colID,header)
-            self._running.insert(colID,column)
-            colID += 1
+            self._headers.insert(idcol,header)
+            self._running.insert(idcol,column)
+            idcol += 1
 
         # line = re.sub(r"[^\w]","",line)
         # line = "_"+line if line[0].isnumeric() else line
@@ -357,22 +385,35 @@ class DataFrame(DirBase):
         self.headers = self._headers
         self.running = [np.asarray(column) for column in self._running]
 
-    def col2str(self,colIDs=None,headers=None,header_new=None,fstring=None):
+    def cols2str(self,cols=None,header_new=None,fstring=None):
 
-        if colIDs is None:
-            colIDs = [self._headers.index(header) for header in headers]
+        if cols is None:
+            idcols = tuple(range(len(self._running)))
+        elif isinstance(cols,int):
+            idcols = (cols,)
+        elif isinstance(cols,str):
+            idcols = (self._headers.index(cols),)
+        elif isinstance(cols,list) or isinstance(cols,tuple):
+            if isinstance(cols[0],int):
+                idcols = cols
+            elif isinstance(cols[0],str):
+                idcols = [self._headers.index(col) for col in cols]
+            else:
+                logging.critical(f"Expected cols is the list or tuple of integer or string; input is {cols}")
+        else:
+            logging.critical(f"Other than None, expected cols is integer or string or their list or tuples; input is {cols}")
 
         if fstring is None:
-            fstring = ("{} "*len(colIDs)).strip()
+            fstring = ("{} "*len(idcols)).strip()
 
         vprint = np.vectorize(lambda *args: fstring.format(*args))
 
-        column_new = [np.asarray(self._running[index]) for index in colIDs]
+        column_new = [np.asarray(self._running[index]) for index in idcols]
 
         column_new = vprint(*column_new)
 
         if header_new is None:
-            header_new = fstring.format(*[self._headers[index] for index in colIDs])
+            header_new = fstring.format(*[self._headers[index] for index in idcols])
 
         self._headers.append(header_new)
         self._running.append(column_new)
@@ -646,7 +687,9 @@ class DataFrame(DirBase):
 
                 rows = list(range(self.running[0].size))
 
-                print("\n",fstring.format(*headers))
+                print("\n")
+
+                print(fstring.format(*headers))
                 print(fstring.format(*unlines))
 
                 for row in rows:
@@ -670,13 +713,23 @@ class DataFrame(DirBase):
 
         else:
 
-            print("\n",fstring.format(*headers))
+            print("\n")
+
+            print(fstring.format(*headers))
             print(fstring.format(*unlines))
 
             for row in rows:
                 print(fstring.format(*[self.running[col][row] for col in cols]))
 
+    def read(self,filepath):
+        """It reads the DataFrame from text files."""
+        pass
+
+    def readb(self,filepath):
+        """It reads the binary form of DataFrame."""
+
     def write(self,filepath,fstring=None,**kwargs):
+        
 
         header_fstring = ("{}\t"*len(self._headers))[:-1]+"\n"
 
@@ -691,6 +744,10 @@ class DataFrame(DirBase):
             wfile.write(header_fstring.format(*self._headers))
             for line in vprint(*self._running):
                 wfile.write(line)
+
+    def writeb(self):
+        """It writes binary form of DataFrame."""
+        pass
 
 # Collective Data Input/Output Classes
 

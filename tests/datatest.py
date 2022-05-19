@@ -108,22 +108,53 @@ class TestDataFrame(unittest.TestCase):
 
         np.testing.assert_array_equal(df.columns("b"),df.columns(1))
 
-    def test_str2col(self):
+    def test_add_attrs(self):
+
+        df = DataFrame("col0","col1")
+
+        df.add_attrs(name="raw_data")
+        
+        name1 = df.name
+
+        df.add_attrs(name="raw_data_2")
+
+        name2 = df.name
+
+        self.assertEqual(name1,name2)
+        self.assertEqual(name1,"raw_data")
+        self.assertEqual(name2,"raw_data")
+
+    def test_add_childattrs(self):
+
+        df = DataFrame("A","B")
+
+        df.add_childattrs("child",name1="john",name2="smith")
+
+        df.add_childattrs("child",name1="tomy")
+
+        self.assertEqual(df.child.name1,"john")
+
+    def test_str2cols(self):
 
         full_names = np.array(["elthon\tsmith","bill\tgates\tshir"])
 
         df = DataFrame(full_names)
 
-        df.str2col(0,deliminator="\t")
+        df.set_headers("first name\tlast name",cols=(0,))
 
-    def test_col2str(self):
+        df.str2cols(0,deliminator="\t")
+
+        self.assertCountEqual(df._headers,["first name","last name"],
+            "Splitting headers while splitting column has failed!")
+
+    def test_cols2str(self):
 
         names = np.array(["elthon","john"])
         nicks = np.array(["smith","verdin"])
 
         df = DataFrame(names,nicks)
         
-        df.col2str([0,1])
+        df.cols2str([0,1])
 
     def test_edit_nones(self):
 
@@ -169,8 +200,6 @@ class TestDataFrame(unittest.TestCase):
         b = np.random.randint(0,100,20)
 
         df.set_running(a,b,cols=(0,1),headers=["a","b"])
-
-        df.print()
 
 class TestRegText(unittest.TestCase):
 
