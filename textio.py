@@ -220,15 +220,18 @@ class DataFrame(DirBase):
                 logging.critical("Length of cols is not equal to number of provided arguments.")
 
             for (index,arg) in zip(cols,args):
+
                 if isinstance(arg,np.ndarray):
-                    self._running[index] = np.append(self._running[index],arg)
-                    # self._running[index] = arg
+                    arr = arg
                 elif hasattr(arg,"__len__"):
-                    self._running[index] = np.append(self._running[index],np.array(arg))
-                    # self._running[index] = np.array(arg)
+                    arr = np.array(arg)
                 else:
-                    self._running[index] = np.append(self._running[index],np.array([arg]))
-                    # self._running[index] = np.array([arg])
+                    arr = np.array([arg])
+
+                if self._running[index].size==0:
+                    self._running[index] = self._running[index].astype(arg.dtype)
+
+                self._running[index] = np.append(self._running[index],arg)
 
             if headers is None:
                 pass
@@ -253,22 +256,20 @@ class DataFrame(DirBase):
         """Set or returns columns in running"""
 
         if cols is None:
-            colsnew = tuple(range(len(self._running)))
+            idcols = tuple(range(len(self._running)))
         elif isinstance(cols,int):
-            colsnew = (cols,)
+            idcols = (cols,)
         elif isinstance(cols,str):
-            colsnew = (self._headers.index(cols),)
+            idcols = (self._headers.index(cols),)
         elif isinstance(cols,list) or isinstance(cols,tuple):
             if isinstance(cols[0],int):
-                colsnew = cols
+                idcols = cols
             elif isinstance(cols[0],str):
-                colsnew = [self._headers.index(col) for col in cols]
+                idcols = [self._headers.index(col) for col in cols]
             else:
                 logging.critical(f"Expected cols is the list or tuple of integer or string; input, however, is {cols}")
         else:
             logging.critical(f"Other than None, expected cols is integer or string or their list or tuples; input, however, is {cols}")
-
-        cols = colsnew
 
         if match is None:
             conditional = np.full(self._running[0].shape,True)
@@ -277,8 +278,8 @@ class DataFrame(DirBase):
 
         if inplace:
 
-            self._headers = [self._headers[index] for index in cols]
-            self._running = [self._running[index][conditional] for index in cols]
+            self._headers = [self._headers[index] for index in idcols]
+            self._running = [self._running[index][conditional] for index in idcols]
 
             self.headers = self._headers
             self.running = [np.asarray(column) for column in self._running]
@@ -286,13 +287,13 @@ class DataFrame(DirBase):
         else:
 
             if returnflag:
-                if len(cols)==1:
-                    return self._running[cols[0]]
+                if len(idcols)==1:
+                    return self._running[idcols[0]]
                 else:
-                    return [self._running[index][conditional] for index in cols]
+                    return [self._running[index][conditional] for index in idcols]
             else:
-                self.headers = [self._headers[index] for index in cols]
-                self.running = [np.asarray(self._running[index][conditional]) for index in cols]
+                self.headers = [self._headers[index] for index in idcols]
+                self.running = [np.asarray(self._running[index][conditional]) for index in idcols]
 
     def additems(self,**kwargs):
 
@@ -460,10 +461,10 @@ class DataFrame(DirBase):
 
         self.running[colID] = np.asarray(self._running[colID])
 
-    def edit_strings(self,colID=None,header=None,fstring=None,upper=False,lower=False,zfill=None):
+    def edit_strings(self,idcol=None,header=None,fstring=None,upper=False,lower=False,zfill=None):
 
-        if colID is None:
-            colID = self._headers.index(header)
+        if idcol is None:
+            idcol = self._headers.index(header)
 
         if fstring is None:
             fstring = "{}"
@@ -482,9 +483,9 @@ class DataFrame(DirBase):
 
         editor = np.vectorize(lambda x: fstring.format(string(x)))
 
-        self._running[colID] = editor(self._running[colID])
+        self._running[idcol] = editor(self._running[idcol])
 
-        self.running[colID] = np.asarray(self._running[colID])
+        self.running[idcol] = np.asarray(self._running[idcol])
 
     def set_rows(self,rows,idrows=None):
         
@@ -1246,69 +1247,57 @@ class Excel(DataFrame):
 
             logging.info(f"Loaded {filepath} as expected.")
 
-    def add_sheets(self,idbooks=None,keyword=None,**kwargs):
-        """It add frames from the sheetname the most similar to the keyword.
-        If keyword is none the first sheet is read."""
+    def add_sheets(self,sheets=None,**kwargs):
+        """It add frames from the excel worksheet."""
 
-        if idbooks is None:
-            idbooks = tuple(range(len(self.books)))
-        elif not isinstance(idbooks,list) and not isinstance(idbooks,tuple):
-            idbooks = (idbooks,)
+        if sheets is None:
+            sheets = [(idbook,0) for idbook in range(len(self.books))]
 
-        for idbook in idbooks:
+        for sheet in sheets:
 
-            if keyword is None:
-                idsheet = 0
-            else:
-                scores = []
-                for sheetname in self.books[idbook].sheetnames:
-                    scores.append(SequenceMatcher(None,sheetname,keyword).ratio())
-                idsheet = scores.index(max(scores))
+            idbook,page = sheet
 
-            sheetname = self.books[idbook].sheetnames[idsheet]
-
-            frame = self.read((idbook,sheetname),**kwargs)
+            frame = self.read((idbook,page),**kwargs)
 
             self.frames.append(frame)
 
-    def read(self,sheet,min_row=1,min_col=1,max_row=None,max_col=None):
-        """It reads and excel worksheet and returns it as a DataFrame."""
+    def read(self,sheet,hrows=0,min_row=1,min_col=1,max_row=None,max_col=None):
+        """It reads excel worksheet and returns it as a DataFrame."""
 
-        idbook,sheetname = sheet
+        idbook,page = sheet
 
         frame = DataFrame()
 
-        if sheetname is None:
-            sheetname = self.books[idbook].sheetnames[0]
+        if page is None:
+            idsheet = 0
+        elif isinstance(page,str):
+            scores = []
+            for sheetname in self.books[idbook].sheetnames:
+                scores.append(SequenceMatcher(None,sheetname,page).ratio())
+            idsheet = scores.index(max(scores))
+        elif isinstance(page,int):
+            idsheet = page
+        else:
+            logging.critical(f"Expected sheet[1] is either none, str or int, but the input type is {type(sheet[1])}.")
+
+        sheetname = self.books[idbook].sheetnames[idsheet]
+
+        frame.sheetname = sheetname
 
         rows = self.books[idbook][sheetname].iter_rows(
             min_row=min_row,min_col=min_col,
             max_row=max_row,max_col=max_col,
             values_only=True)
 
-        frame.sheetname = sheetname
-
         rows = [row for row in list(rows) if any(row)]
 
         frame.set_headers(colnum=len(rows[0]),init=True)
 
-        frame.set_rows(rows)
+        frame.hrows = rows[:hrows]
+
+        frame.set_rows(rows[hrows:])
 
         return frame
-
-    def get_headers(self,idframe=0,skiprows=1,mode=None):
-
-        headers_rows = self.frames[idframe].get_rows(idrows=tuple(range(skiprows)))
-
-        self.frames[idframes].del_rows(idrows=tuple(range(skiprows)))
-
-        # for idrow,headers in enumerate(headers_rows):
-
-        #     for idcol,header in enumerate(headers):
-        #         if isinstance(header,str):
-        #             headers_rows[idrow][idcol] = re.sub(r"[^\w]","",header)
-
-        return headers_rows
 
     def merge(self,idframes=None,idcols=None):
         """It merges all the frames as a single DataFrame under the Excel class."""
@@ -1333,9 +1322,7 @@ class Excel(DataFrame):
                         scores.append(score)
                     idcols.append(scores.index(max(scores)))
 
-                print(idcols)
-
-            columns = frame.columns(idcols=idcols)
+            columns = frame.columns(cols=idcols)
 
             self.set_running(*columns,cols=tuple(range(len(idcols))))
 
