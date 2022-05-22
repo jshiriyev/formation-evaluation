@@ -127,8 +127,47 @@ class DirBase():
                 else:
                     return [filename for filename in filenames if filename.startswith(prefix) and filename.endswith(extension)]
 
+class Column(np.ndarray):
+    """It is a numpy array of shape (N,) with additional attributes"""
+
+    def __new__(cls,values=None,shape=None):
+        """Returns a modified numpy array."""
+
+        if values is None:
+
+            if shape is None:
+                shape = (0,)
+            elif isinstance(shape,int):
+                shape = (shape,)
+            elif isinstance(shape,list) or isinstance(shape,tuple):
+                pass
+            else:
+                logging.warning(f"Unexpected shape type, {type(shape)}")
+
+            if len(shape)>1:
+                logging.warning(f"It is not allowed to have dimensions larger than unity.")
+
+            values = np.zeros(shape)
+
+        else:
+
+            if isinstance(values,np.ndarray):
+                pass
+            elif isinstance(values,int) or isinstance(values,float):
+                values = np.array([values])
+            elif isinstance(values,list) or isinstance(values,tuple):
+                values = np.array(values)
+
+        self = super().__new__(cls,shape=values.shape,buffer=values,dtype=values.dtype)
+
+        return self
+
 class DataFrame(DirBase):
     """It stores equal-size one-dimensional numpy arrays in a list."""
+
+    print_cols = None
+    print_rows = None
+    print_rlim = 20
 
     def __init__(self,*args,**kwargs):
         """Initializes DataFrame with headers & running and parent class DirBase."""
@@ -205,7 +244,7 @@ class DataFrame(DirBase):
                 headers = ("Col #{}".format(index) for index in indices)
             elif isinstance(headers,str):
                 headers = (headers,)
-            elif isinstacne(headers,list):
+            elif isinstance(headers,list):
                 pass
             elif isinstance(headers,tuple):
                 pass
@@ -268,7 +307,7 @@ class DataFrame(DirBase):
         """Set or returns columns in running"""
 
         if cols is None:
-            idcols = tuple(range(len(self._running)))
+            idcols = range(len(self._running))
         elif isinstance(cols,int):
             idcols = (cols,)
         elif isinstance(cols,str):
@@ -388,7 +427,7 @@ class DataFrame(DirBase):
     def cols2str(self,cols=None,header_new=None,fstring=None):
 
         if cols is None:
-            idcols = tuple(range(len(self._running)))
+            idcols = range(len(self._running))
         elif isinstance(cols,int):
             idcols = (cols,)
         elif isinstance(cols,str):
@@ -557,7 +596,7 @@ class DataFrame(DirBase):
             idrows = (idrows,)
 
         if idcols is None:
-            idcols = tuple(range(len(self._running)))
+            idcols = range(len(self._running))
         elif isinstance(idcols,int):
             idcols = (idcols,)
 
@@ -595,7 +634,7 @@ class DataFrame(DirBase):
     def sort(self,cols=None,reverse=False,inplace=False,returnFlag=False):
 
         if cols is None:
-            idcols = tuple(range(len(self._running)))
+            idcols = range(len(self._running))
         elif isinstance(cols,int):
             idcols = (cols,)
         elif isinstance(cols,str):
@@ -628,22 +667,34 @@ class DataFrame(DirBase):
         if returnFlag:
             return sort_index
 
-    def filter(self,header_index=None,header=None,keywords=None,regex=None,year=None,inplace=False):
+    def filter(self,cols=None,keywords=None,regex=None,year=None,inplace=False):
+        """It should allow multiple header indices filtering"""
 
-        ## It should allow multiple header indices filtering
-
-        if header_index is None:
-            header_index = self._headers.index(header)
+        if cols is None:
+            return
+        elif isinstance(cols,int):
+            idcols = (cols,)
+        elif isinstance(cols,str):
+            idcols = (self._headers.index(cols),)
+        elif isinstance(cols,list) or isinstance(cols,tuple):
+            if isinstance(cols[0],int):
+                idcols = cols
+            elif isinstance(cols[0],str):
+                idcols = [self._headers.index(col) for col in cols]
+            else:
+                logging.critical(f"Expected cols is the list or tuple of integer or string; input is {cols}")
+        else:
+            logging.critical(f"Expected cols is integer or string or their list or tuples; input is {cols}")
 
         if keywords is not None:
             match_array = np.array(keywords).reshape((-1,1))
-            match_index = np.any(self._running[header_index]==match_array,axis=0)
+            match_index = np.any(self._running[idcols[0]]==match_array,axis=0)
         elif regex is not None:
             match_vectr = np.vectorize(lambda x: bool(re.compile(regex).match(x)))
-            match_index = match_vectr(self._running[header_index])
+            match_index = match_vectr(self._running[idcols[0]])
         elif year is not None:
             match_vectr = np.vectorize(lambda x: x.year==year)
-            match_index = match_vectr(self._running[header_index].tolist())
+            match_index = match_vectr(self._running[idcols[0]].tolist())
 
         if inplace:
             self._running = [column[match_index] for column in self._running]
@@ -669,57 +720,64 @@ class DataFrame(DirBase):
 
         self.running = [np.asarray(column) for column in self._running]
 
-    def print(self,cols=None,rows=None,rlim=20):
+    def __str__(self):
         """It prints to the console limited number of rows with headers."""
 
-        rlim = int(rlim)
+        if self.print_cols is None:
+            cols = range(len(self.running))
+        else:
+            cols = self.print_cols
 
-        if cols is None:
-            cols = list(range(len(self.running)))
-
-        fstring = "{}\t"*len(cols)
+        fstring = "{}\n".format("{}\t"*len(cols))
 
         headers = [self.headers[col] for col in cols]
         unlines = ["-"*len(self.headers[col]) for col in cols]
 
-        if rows is None:
-            if self.running[0].size<=rlim:
+        string = ""
 
-                rows = list(range(self.running[0].size))
+        if self.print_rows is None:
 
-                print("\n")
+            if self.running[0].size<=int(self.print_rlim):
 
-                print(fstring.format(*headers))
-                print(fstring.format(*unlines))
+                rows = range(self.running[0].size)
+
+                string += "\n\n"
+
+                string += fstring.format(*headers)
+                string += fstring.format(*unlines)
 
                 for row in rows:
-                    print(fstring.format(*[self.running[col][row] for col in cols]))
+                    string += fstring.format(*[self.running[col][row] for col in cols])
 
             else:
 
-                rows1 = list(range(int(rlim/2)))
-                rows2 = list(range(-1,-int(rlim/2)-1,-1))
+                rows1 = list(range(int(self.print_rlim/2)))
+                rows2 = list(range(-1,-int(self.print_rlim/2)-1,-1))
 
-                print(fstring.format(*headers))
-                print(fstring.format(*unlines))
+                rows2.reverse()
+
+                string += fstring.format(*headers)
+                string += fstring.format(*unlines)
 
                 for row in rows1:
-                    print(fstring.format(*[self.running[col][row] for col in cols]))
+                    string += fstring.format(*[self.running[col][row] for col in cols])
 
-                print("...{}".format("\n..."*2))
+                string += "...\n"*3
 
                 for row in rows2:
-                    print(fstring.format(*[self.running[col][row] for col in cols]))
+                    string += fstring.format(*[self.running[col][row] for col in cols])
 
         else:
 
-            print("\n")
+            string += "\n\n"
 
-            print(fstring.format(*headers))
-            print(fstring.format(*unlines))
+            string += fstring.format(*headers)
+            string += fstring.format(*unlines)
 
-            for row in rows:
-                print(fstring.format(*[self.running[col][row] for col in cols]))
+            for row in self.print_rows:
+                string += fstring.format(*[self.running[col][row] for col in cols])
+
+        return string
 
     def read(self,filepath):
         """It reads the DataFrame from text files."""
@@ -728,8 +786,9 @@ class DataFrame(DirBase):
     def readb(self,filepath):
         """It reads the binary form of DataFrame."""
 
+        pass
+
     def write(self,filepath,fstring=None,**kwargs):
-        
 
         header_fstring = ("{}\t"*len(self._headers))[:-1]+"\n"
 
@@ -747,7 +806,38 @@ class DataFrame(DirBase):
 
     def writeb(self):
         """It writes binary form of DataFrame."""
+
         pass
+
+def loadtxt(path,classname=None,**kwargs):
+
+    if classname is None:
+        if path.lower().endswith(".txt"):
+            obj = RegText()
+        elif path.lower().endswith(".las"):
+            obj = LogASCII()
+        elif path.lower().endswith(".xlsx"):
+            obj = Excel()
+        elif path.lower().endswith(".vtk"):
+            obj = VTKit()
+        else:
+            obj = IrrText()
+    elif classname.lower()=="regtext":
+        obj = RegText()
+    elif classname.lower()=="logascii":
+        obj = LogASCII()
+    elif classname.lower()=="excel":
+        obj = Excel()
+    elif classname.lower()=="irrtext":
+        obj = IrrText()
+    elif classname.lower()=="wschedule":
+        obj = WSchedule()
+    elif classname.lower()=="vtkit":
+        obj = VTKit()
+
+    frame = obj.read(path,**kwargs)
+
+    return frame
 
 # Collective Data Input/Output Classes
 
@@ -778,6 +868,8 @@ class RegText(DataFrame):
 
         frame = DataFrame(filedir=filepath)
 
+        frame.filepath = filepath
+
         with open(filepath,mode="r",encoding="latin1") as text:
 
             if skiprows is None:
@@ -785,7 +877,6 @@ class RegText(DataFrame):
                 line = next(text).split("\n")[0]
                 while not line.split(delimiter)[0].isdigit():
                     skiprows += 1
-                    print(line)
                     line = next(text).split("\n")[0]
             else:
                 for _ in range(skiprows):
@@ -818,7 +909,7 @@ class LogASCII(DataFrame):
 
         self.add_frames(filepaths,**kwargs)
 
-    def add_frames(filepaths,**kwargs):
+    def add_frames(self,filepaths,**kwargs):
 
         if filepaths is None:
             return
@@ -910,24 +1001,24 @@ class LogASCII(DataFrame):
                         mtype = "Un-wrapped" if values[mnemonics.index("WRAP")]=="NO" else "Wrapped"
                         minfo = descriptions[mnemonics.index("WRAP")]
 
-                        frame.additems(info=vnumb)
-                        frame.additems(infodetail=vinfo)
-                        frame.additems(mode=mtype)
-                        frame.additems(modedetail=minfo)
+                        frame.add_attrs(info=vnumb)
+                        frame.add_attrs(infodetail=vinfo)
+                        frame.add_attrs(mode=mtype)
+                        frame.add_attrs(modedetail=minfo)
 
                     elif title=="curve":
 
                         frame.set_headers(*mnemonics)
-                        frame.additems(units=units)
-                        frame.additems(details=descriptions)
+                        frame.add_attrs(units=units)
+                        frame.add_attrs(details=descriptions)
 
                     else:
 
                         if len(mnemonics)>0:
-                            frame.addchilditems(title,mnemonics=mnemonics)
-                            frame.addchilditems(title,units=units)
-                            frame.addchilditems(title,values=values)
-                            frame.addchilditems(title,descriptions=descriptions)
+                            frame.add_childattrs(title,mnemonics=mnemonics)
+                            frame.add_childattrs(title,units=units)
+                            frame.add_childattrs(title,values=values)
+                            frame.add_childattrs(title,descriptions=descriptions)
 
         if headers is None:
             usecols = None
@@ -949,7 +1040,7 @@ class LogASCII(DataFrame):
     def printwells(self,idframes=None):
 
         if idframes is None:
-            idframes = tuple(range(len(self.frames)))
+            idframes = range(len(self.frames))
         elif isinstance(idframes,int):
             idframes = (idframes,)
 
@@ -967,7 +1058,7 @@ class LogASCII(DataFrame):
     def printcurves(self,idframes=None,mnemonic_space=33,tab_space=8):
 
         if idframes is None:
-            idframes = tuple(range(len(self.frames)))
+            idframes = range(len(self.frames))
         elif isinstance(idframes,int):
             idframes = (idframes,)
 
@@ -982,8 +1073,12 @@ class LogASCII(DataFrame):
 
             for header,unit,detail,column in iterator:
 
-                minXval = np.nanmin(column)
-                maxXval = np.nanmax(column)
+                if np.all(np.isnan(column)):
+                    minXval = np.nan
+                    maxXval = np.nan
+                else:
+                    minXval = np.nanmin(column)
+                    maxXval = np.nanmax(column)
 
                 tab_num = math.ceil((mnemonic_space-len(header))/tab_space)
                 tab_spc = "\t"*tab_num if tab_num>0 else "\t"
@@ -996,7 +1091,7 @@ class LogASCII(DataFrame):
     def flip(self,idframes=None):
 
         if idframes is None:
-            idframes = tuple(range(len(self.frames)))
+            idframes = range(len(self.frames))
         elif isinstance(idframes,int):
             idframes = (idframes,)
 
@@ -1006,10 +1101,10 @@ class LogASCII(DataFrame):
 
             self.frames[index].set_running(*columns,cols=range(len(columns)))
             
-    def set_interval(self,top,bottom,idframes=None):
+    def set_interval(self,top,bottom,idframes=None,inplace=False):
 
         if idframes is None:
-            idframes = tuple(range(len(self.frames)))
+            idframes = range(len(self.frames))
         elif isinstance(idframes,int):
             idframes = (idframes,)
 
@@ -1020,31 +1115,31 @@ class LogASCII(DataFrame):
 
         for index in idframes:
 
-            frame = self.frames[index]
-
             try:
-                depth = frame.columns("MD")
+                depth = self.frames[index].columns("MD")
             except ValueError:
-                depth = frame.columns("DEPT")
+                depth = self.frames[index].columns("DEPT")
 
             depth_cond = np.logical_and(depth>self.top,depth<self.bottom)
 
-            columns = [column[depth_cond] for column in self.frame[index].running]
+            if inplace:
+                self.frames[index]._running = [column[depth_cond] for column in self.frames[index]._running]
+                self.frames[index].running = [np.asarray(column) for column in self.frames[index]._running]
+            else:
+                self.frames[index].running = [np.asarray(column[depth_cond]) for column in self.frames[index]._running]
 
-            self.frames[index].set_running(*columns,cols=range(len(columns)))
-
-    def get_interval(self,top,bottom,fileID=None,curveID=None):
+    def get_interval(self,top,bottom,idfiles=None,curveID=None):
 
         returningList = []
 
-        if fileID is None:
-            fileIDs = range(len(self.files))
-        else:
-            fileIDs = range(fileID,fileID+1)
+        if idfiles is None:
+            idfiles = range(len(self.files))
+        elif isinstance(idfiles,int):
+            idfiles = (idfiles,)
 
-        for indexI in fileIDs:
+        for idfile in idfiles:
 
-            las = self.files[indexI]
+            las = self.files[idfile]
 
             try:
                 depth = las["MD"]
@@ -1360,7 +1455,7 @@ class Excel(DataFrame):
         """It merges all the frames as a single DataFrame under the Excel class."""
 
         if idframes is None:
-            idframes = tuple(range(len(self.frames)))
+            idframes = range(len(self.frames))
         elif isinstance(idframes,int):
             idframes = (idframes,)
 
@@ -1381,7 +1476,7 @@ class Excel(DataFrame):
 
             columns = frame.columns(cols=idcols)
 
-            self.set_running(*columns,cols=tuple(range(len(idcols))))
+            self.set_running(*columns,cols=range(len(idcols)))
 
     def write(self,filepath,title):
 
@@ -1400,7 +1495,7 @@ class Excel(DataFrame):
     def close(self,idbooks=None):
 
         if idbooks is None:
-            idbooks = tuple(range(len(self.books)))
+            idbooks = range(len(self.books))
         elif isinstance(idbooks,int):
             idbooks = (idbooks,)
 

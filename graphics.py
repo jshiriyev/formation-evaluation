@@ -888,9 +888,9 @@ def LogView(data=None):
 
         spinerelpos = (0,0.1,0.2,0.3)
 
-        def __init__(self,**kwargs):
+        def __init__(self,filepaths=None,**kwargs):
 
-            super().__init__(**kwargs)
+            super().__init__(filepaths=filepaths,**kwargs)
 
         def set_histogram(self,idframe,idcol,logscale=False):
 
@@ -922,26 +922,26 @@ def LogView(data=None):
             self.axis_hist.set_ylabel("Probability")
             self.axis_hist.set_xlabel(xlabel)
 
-        def set_nangraph(self,fileID):
+        def set_nangraph(self,idframe):
 
             self.fig_nan,self.axis_nan = plt.subplots()
 
-            las = self.frames[fileID]
+            las = self.frames[idframe]
 
             yvals = []
             zvals = []
 
             try:
-                depth = las["MD"]
-            except KeyError:
-                depth = las["DEPT"]
+                depth = las.columns("MD")
+            except ValueError:
+                depth = las.columns("DEPT")
 
-            for index,curve in enumerate(las.running):
+            for index,column in enumerate(las.running):
 
-                isnan = np.isnan(curve.data)
+                isnan = np.isnan(column)
 
-                L_shift = np.ones(curve.data.shape,dtype=bool)
-                R_shift = np.ones(curve.data.shape,dtype=bool)
+                L_shift = np.ones(column.shape,dtype=bool)
+                R_shift = np.ones(column.shape,dtype=bool)
 
                 L_shift[:-1] = isnan[1:]
                 R_shift[1:] = isnan[:-1]
@@ -970,7 +970,7 @@ def LogView(data=None):
             self.axis_nan.set_xticklabels(depth[qvals],rotation=90)
 
             self.axis_nan.set_yticks(np.arange(len(las.running)))
-            self.axis_nan.set_yticklabels([curve.mnemonic for curve in las.running])
+            self.axis_nan.set_yticklabels(las.headers)
 
             self.axis_nan.grid(True,which="both",axis='x')
 
@@ -1030,16 +1030,16 @@ def LogView(data=None):
                 for indexJ,line in enumerate(axdict["lines"]):
                 
                     try:
-                        depth = self.frames[line[0]]["MD"]
-                    except KeyError:
-                        depth = self.frames[line[0]]["DEPT"]
+                        depth = self.frames[line[0]].columns("MD")
+                    except ValueError:
+                        depth = self.frames[line[0]].columns("DEPT")
                         
-                    xvals = self.frames[line[0]][line[1]]
+                    xvals = self.frames[line[0]].columns(line[1])
 
                     indexK = self.frames[line[0]].headers.index(line[1])
 
-                    mnem = self.frames[line[0]].running[indexK].mnemonic
-                    unit = self.frames[line[0]].running[indexK].unit
+                    mnem = self.frames[line[0]].headers[indexK]
+                    unit = self.frames[line[0]].units[indexK]
 
                     linestyle = "-" if indexJ==0 else "--"
 
@@ -1298,11 +1298,11 @@ def LogView(data=None):
             # indexJ index of Resistivity containing line in the axis
 
             try:
-                depth = self.frames[ResLine[0]]["MD"]
-            except KeyError:
-                depth = self.frames[ResLine[0]]["DEPT"]
+                depth = self.frames[ResLine[0]].columns("MD")
+            except ValueError:
+                depth = self.frames[ResLine[0]].columns("DEPT")
 
-            xvals = self.frames[ResLine[0]][ResLine[1]]
+            xvals = self.frames[ResLine[0]].columns(ResLine[1])
 
             cut_line = ohmm_cut*np.ones(depth.shape)
 
