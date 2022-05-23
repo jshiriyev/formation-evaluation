@@ -128,10 +128,19 @@ class DirBase():
                     return [filename for filename in filenames if filename.startswith(prefix) and filename.endswith(extension)]
 
 class Column(np.ndarray):
-    """It is a numpy array of shape (N,) with additional attributes"""
+    """It is a numpy array of shape (N,) with additional attributes of head, unit and info."""
 
-    def __new__(cls,values=None,shape=None):
+    def __new__(cls,head=None,unit=None,info=None,values=None,shape=None):
         """Returns a modified numpy array."""
+
+        if head is None:
+            head = "n.d."
+
+        if unit is None:
+            unit = "n.d."
+
+        if info is None:
+            info = "n.d."
 
         if values is None:
 
@@ -160,7 +169,24 @@ class Column(np.ndarray):
 
         self = super().__new__(cls,shape=values.shape,buffer=values,dtype=values.dtype)
 
+        self.head = head
+        self.unit = unit
+        self.info = info
+
+        self.values = values.__str__()
+
         return self
+
+    def __str__(self):
+
+        string = ""
+
+        string += f"head\t: {self.head}\n"
+        string += f"unit\t: {self.unit}\n"
+        string += f"info\t: {self.info}\n"
+        string += f"values\t: {self.values}\n"
+
+        return string
 
 class DataFrame(DirBase):
     """It stores equal-size one-dimensional numpy arrays in a list."""
@@ -447,12 +473,12 @@ class DataFrame(DirBase):
 
         vprint = np.vectorize(lambda *args: fstring.format(*args))
 
-        column_new = [np.asarray(self._running[index]) for index in idcols]
+        column_new = [np.asarray(self._running[idcol]) for idcol in idcols]
 
         column_new = vprint(*column_new)
 
         if header_new is None:
-            header_new = fstring.format(*[self._headers[index] for index in idcols])
+            header_new = fstring.format(*[self._headers[idcol] for idcol in idcols])
 
         self._headers.append(header_new)
         self._running.append(column_new)
@@ -460,60 +486,117 @@ class DataFrame(DirBase):
         self.headers = self._headers
         self.running = [np.asarray(column) for column in self._running]
 
-    def astype(self,header_index=None,header=None,dtype=None,nonetozero=False,datestring=False,shiftmonths=0):
+    def astype(self,col=None,dtype=None,none=None):
 
-        def shifting(string):
+        if isinstance(col,int):
+            idcol = col
+        elif isinstance(col,str):
+            idcol = self._headers.index(col)
+        else:
+            logging.critical(f"Excpected col is int or string, input is {type(col)}")
 
-            date = parser.parse(string)+relativedelta.relativedelta(months=shiftmonths)
-            days = calendar.monthrange(date.year,date.month)[1]
+        if none is None:
 
-            return datetime(date.year,date.month,days)
+            if dtype is str:
+                none = ""
+            elif dtype is int:
+                none = 0
+            elif dtype is float:
+                none = np.nan
+            elif dtype is np.datetime64:
+                none = np.datetime64('today')
+                # none = np.datetime64('NaT')
+            elif dtype is datetime:
+                none = datetime.today()
 
-        def tryconvert(string):
+        column = self._running[idcol]
 
-            try:
-                return dtype(str(string).replace(",","."))
-            except ValueError:
-                return np.nan
+        if column.dtype.type is np.object_:
 
-        if header_index is None:
-            header_index = self._headers.index(header)
+            vnone = np.vectorize(lambda x: x if x is not None else none)
 
-        if datestring:
+            column = vnone(column)
 
-            if dtype is None:
-                if shiftmonths != 0:
-                    vdate = np.vectorize(lambda x: shifting(x))
-                else:
-                    vdate = np.vectorize(lambda x: parser.parse(x))
-            else:
-                if shiftmonths != 0:
-                    vdate = np.vectorize(lambda x: dtype(shifting(x)))
-                else:
-                    vdate = np.vectorize(lambda x: dtype(parser.parse(x)))
-            
+            column = column.astype(dtype)
+
+        elif column.dtype.type is np.str_:
+
+            vnone = np.vectorize(lambda x: x if x!='' and x!='None' else str(none))
+
+            column = vnone(column)
+
+            if dtype is str:
+                return
+            elif dtype is int:
+                try:
+                    column = column.astype(dtype)
+                except ValueError:
+                    vformat = np.vectorize(lambda x: round(float(x.replace(",","."))))
+                    column = vformat(column).astype(dtype)
+            elif dtype is float:
+                try:
+                    column = column.astype(dtype)
+                except ValueError:
+                    vformat = np.vectorize(lambda x: x.replace(",","."))
+                    column = vformat(column).astype(dtype)
+            elif dtype is np.datetime64:
+                try:
+                    column = column.astype(dtype)
+                except ValueError:
+                    vformat = np.vectorize(lambda x: parser.parse(x))
+                    column = vformat(column).astype(dtype)
+            elif dtype is datetime:
+                vformat = np.vectorize(lambda x: parser.parse(x))
+                column = vformat(column).astype(dtype)
+
+        elif column.dtype.type is np.int32:
+
+            column = column.astype(dtype)
+
+        elif column.dtype.type is np.float64:
+
+            bools = np.isnan(column)
+
+            if dtype is int:
+                column = np.round_(column)
+
+            column = column.astype(dtype)
+
+            column[bools] = none
+
+        elif column.dtype.type is np.datetime64:
+
+            bools = np.isnat(column)
+
+            column = column.astype(dtype)
+
+            column[bools] = none
+
         else:
 
-            if nonetozero:
-                vdate = np.vectorize(lambda x: dtype(x) if x is not None else dtype(0))
-            elif dtype==float:
-                vdate = np.vectorize(lambda x: tryconvert(x))
-            elif dtype==int:
-                vdate = np.vectorize(lambda x: dtype(round(float(str(x).replace(",",".")))))
+            logging.warning(f"Unknown {column.dtype.type=}.")
+
+        self._running[idcol] = column
+
+        self.running[idcol] = np.asarray(self._running[idcol])
+
+    def edit_nones(self,cols=None,none=None):
+
+        if cols is None:
+            idcols = range(len(self._running))
+        elif isinstance(cols,int):
+            idcols = (cols,)
+        elif isinstance(cols,str):
+            idcols = (self._headers.index(cols),)
+        elif isinstance(cols,list) or isinstance(cols,tuple):
+            if isinstance(cols[0],int):
+                idcols = cols
+            elif isinstance(cols[0],str):
+                idcols = [self._headers.index(col) for col in cols]
             else:
-                vdate = np.vectorize(lambda x: dtype(x))
-            
-        self._running[header_index] = vdate(self._running[header_index])
-
-        self.running[header_index] = np.asarray(self._running[header_index])
-
-    def edit_nones(self,idcols=None,headers=None,replace=None):
-
-        if idcols is None:
-            if headers is None:
-                idcols = range(len(self._running))
-            else:
-                idcols = [self._headers.index(header) for header in headers]
+                logging.critical(f"Expected cols is the list or tuple of integer or string; input is {cols}")
+        else:
+            logging.critical(f"Other than None, expected cols is integer or string or their list or tuples; input is {cols}")
 
         for idcol in idcols:
 
@@ -521,30 +604,75 @@ class DataFrame(DirBase):
 
             idrows = [idrow for idrow,val in enumerate(column) if val is None]
 
-            for idrow in idrows:
-                if replace is None:
+            if none is None:
+                for idrow in idrows:
                     column[idrow] = column[idrow-1]
-                else:
-                    column[idrow] = replace
+            else:
+                column[idrows] = none
 
             self._running[idcol] = column
             self.running[idcol] = np.asarray(column)
 
-    def edit_dates(self,colID=None,header=None):
+    def edit_dates(self,col=None,shiftyears=0,shiftmonths=0,shiftdays=0,startofmonth=False,endofmonth=False):
 
-        if colID is None:
-            colID = self._headers.index(header)
+        if isinstance(col,int):
+            idcol = col
+        elif isinstance(col,str):
+            idcol = self._headers.index(col)
+        else:
+            logging.critical(f"Excpected col is int or string, input is {type(col)}")
 
-        vdate = np.vectorize(lambda x: x if x is isinstance(x,datetime) else datetime.today())
+        column = self._running[idcol]
 
-        self._running[colID] = vdate(self._running[colID])
+        def add_years(date):
 
-        self.running[colID] = np.asarray(self._running[colID])
+            date += relativedelta.relativedelta(years=shiftyears)
 
-    def edit_strings(self,idcol=None,header=None,fstring=None,upper=False,lower=False,zfill=None):
+            if startofmonth:
+                day = 1
+            elif endofmonth:
+                day = calendar.monthrange(date.year,date.month)[1]
+            else:
+                day = date.day
 
-        if idcol is None:
-            idcol = self._headers.index(header)
+            return datetime(date.year,date.month,day)
+
+        def add_months(date):
+
+            date += relativedelta.relativedelta(months=shiftmonths)
+
+            if startofmonth:
+                day = 1
+            elif endofmonth:
+                day = calendar.monthrange(date.year,date.month)[1]
+            else:
+                day = date.day
+
+            return datetime(date.year,date.month,day)
+
+        if shiftyears!=0:
+            vshift = np.vectorize(add_years)
+            column = vshift(column.tolist()).astype(np.datetime64)
+
+        if shiftmonths!=0:
+            vshift = np.vectorize(add_months)
+            column = vshift(column.tolist()).astype(np.datetime64)
+
+        if shiftdays!=0:
+            column += np.timedelta64(shiftdays,'D')
+
+        self._running[idcol] = column
+
+        self.running[idcol] = np.asarray(self._running[idcol])
+
+    def edit_strings(self,col=None,fstring=None,upper=False,lower=False,zfill=None):
+
+        if isinstance(col,int):
+            idcol = col
+        elif isinstace(col,str):
+            idcol = self._headers.index(col)
+        else:
+            logging.critical(f"Excpected col is int or string, input is {type(col)}")
 
         if fstring is None:
             fstring = "{}"
@@ -580,7 +708,7 @@ class DataFrame(DirBase):
 
             self.running = [np.asarray(column) for column in self._running]
 
-    def get_rows(self,idrows=None,idcols=None,match=None):
+    def get_rows(self,idrows=None,cols=None,match=None):
 
         if idrows is None:
 
@@ -595,10 +723,21 @@ class DataFrame(DirBase):
         elif isinstance(idrows,int):
             idrows = (idrows,)
 
-        if idcols is None:
+        if cols is None:
             idcols = range(len(self._running))
-        elif isinstance(idcols,int):
-            idcols = (idcols,)
+        elif isinstance(cols,int):
+            idcols = (cols,)
+        elif isinstance(cols,str):
+            idcols = (self._headers.index(cols),)
+        elif isinstance(cols,list) or isinstance(cols,tuple):
+            if isinstance(cols[0],int):
+                idcols = cols
+            elif isinstance(cols[0],str):
+                idcols = [self._headers.index(col) for col in cols]
+            else:
+                logging.critical(f"Expected cols is the list or tuple of integer or string; input is {cols}")
+        else:
+            logging.critical(f"Other than None, expected cols is integer or string or their list or tuples; input is {cols}")
 
         rows = [[self._running[idcol][index] for idcol in idcols] for index in idrows]
         
@@ -702,9 +841,23 @@ class DataFrame(DirBase):
         else:
             self.running = [np.asarray(column[match_index]) for column in self._running]
 
-    def unique(self,header_indices,inplace=False):
+    def unique(self,cols,inplace=False):
 
-        Z = [self._running[index].astype(str) for index in header_indices]
+        if isinstance(cols,int):
+            idcols = (cols,)
+        elif isinstance(cols,str):
+            idcols = (self._headers.index(cols),)
+        elif isinstance(cols,list) or isinstance(cols,tuple):
+            if isinstance(cols[0],int):
+                idcols = cols
+            elif isinstance(cols[0],str):
+                idcols = [self._headers.index(col) for col in cols]
+            else:
+                logging.critical(f"Expected cols is the list or tuple of integer or string; input is {cols}")
+        else:
+            logging.critical(f"Expected cols is integer or string or their list or tuples; input is {cols}")
+
+        Z = [self._running[idcol].astype(str) for idcol in idcols]
 
         Z = np.array(Z,dtype=str).T
 
@@ -735,11 +888,16 @@ class DataFrame(DirBase):
 
         string = ""
 
+        try:
+            nrows = self.running[0].size
+        except IndexError:
+            nrows = 0
+
         if self.print_rows is None:
 
-            if self.running[0].size<=int(self.print_rlim):
+            if nrows<=int(self.print_rlim):
 
-                rows = range(self.running[0].size)
+                rows = range(nrows)
 
                 string += "\n\n"
 
@@ -779,15 +937,6 @@ class DataFrame(DirBase):
 
         return string
 
-    def read(self,filepath):
-        """It reads the DataFrame from text files."""
-        pass
-
-    def readb(self,filepath):
-        """It reads the binary form of DataFrame."""
-
-        pass
-
     def write(self,filepath,fstring=None,**kwargs):
 
         header_fstring = ("{}\t"*len(self._headers))[:-1]+"\n"
@@ -804,10 +953,22 @@ class DataFrame(DirBase):
             for line in vprint(*self._running):
                 wfile.write(line)
 
-    def writeb(self):
+    def writeb(self,filepath):
         """It writes binary form of DataFrame."""
 
-        pass
+        filepath = self.get_abspath(filepath)
+
+        # self.cols2str()
+
+        # for column in self._running:
+        #     np.save(filepath,column)
+
+        running_fstring = ("{}\t"*len(self._headers))[:-1]+"\n"
+
+        with open("text.txt","w") as wfile:
+            for i in range(len(self._running[0])):
+                rows = self.get_rows(i)
+                wfile.write(running_fstring.format(*rows[0]))
 
 def loadtxt(path,classname=None,**kwargs):
 
@@ -1721,7 +1882,7 @@ class WSchedule(DataFrame):
                         wfile.write("\n")
                     wfile.write("/\n\n")
 
-class VTKit(DirBase):
+class VTKit(DataFrame):
 
     def __init__(self):
 

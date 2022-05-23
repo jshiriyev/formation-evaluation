@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import logging
 
 import os
@@ -10,6 +12,7 @@ if __name__ == "__main__":
     import setup
 
 from textio import DirBase
+from textio import Column
 from textio import DataFrame
 from textio import RegText
 from textio import LogASCII
@@ -56,6 +59,12 @@ class TestDirBase(unittest.TestCase):
         db = DirBase()
 
         db.get_fnames(__file__,returnAbsFlag=True)
+
+class TestColumn(unittest.TestCase):
+
+    def test_init(self):
+
+        column = Column(np.array([1,2,3,4]),unit="m")
 
 class TestDataFrame(unittest.TestCase):
 
@@ -156,6 +165,31 @@ class TestDataFrame(unittest.TestCase):
         
         df.cols2str([0,1])
 
+    def test_astype(self):
+
+        a = np.array([1,2,3,4,5])
+        b = np.array([1.,3.4,np.nan,4.7,8])
+        c = np.array([datetime.today(),datetime(2022,2,2),datetime(2022,1,2),datetime(2021,12,2),None])
+        d = np.array(["1.","","5.7","6","None"])
+        e = c.astype(np.datetime64)
+
+        df = DataFrame(a,b,c,d,e)
+
+        for dtype in (int,str,float,object):
+            df.astype(0,dtype)
+
+        for dtype in (int,str,float,object):
+            df.astype(1,dtype)
+
+        for dtype in (str,datetime,np.datetime64):
+            df.astype(2,dtype)
+
+        for dtype in (str,int,float):
+            df.astype(3,dtype)
+
+        for dtype in (str,datetime,np.datetime64):
+            df.astype(4,np.datetime64)
+
     def test_edit_nones(self):
 
         A = np.array([1,2,3,4,None,6])
@@ -163,8 +197,18 @@ class TestDataFrame(unittest.TestCase):
 
         df = DataFrame(A,B)
 
-        df.edit_nones([0],replace=50)
-        df.edit_nones()
+        df.edit_nones(0,none=50)
+        df.edit_nones(1)
+
+    def test_edit_dates(self):
+
+        c = np.array([datetime.today(),datetime(2022,2,2),datetime(2022,1,2),datetime(2021,12,2),None])
+
+        df = DataFrame(c)
+
+        df.astype(0,np.datetime64)
+
+        df.edit_dates(0,shiftyears=-2,shiftmonths=-3,shiftdays=10)
 
     def test_edit_strings(self):
 
@@ -184,7 +228,7 @@ class TestDataFrame(unittest.TestCase):
 
         df.set_running(A,B,init=True)
 
-        df.unique(header_indices=[0,1],inplace=True)
+        df.unique(cols=(0,1),inplace=True)
 
         np.testing.assert_array_equal(df.running[0],
             np.array([1,1,2,2,3,4,5,6,6]),err_msg="DataFrame.unique() has an issue!")
@@ -201,11 +245,42 @@ class TestDataFrame(unittest.TestCase):
 
         df.set_running(a,b,cols=(0,1),headers=["a","b"])
 
+    def test_write(self):
+
+        pass
+
+    def test_writeb(self):
+
+        df = DataFrame("col0","col1")
+
+        a = np.random.randint(0,100,20)
+        b = np.random.randint(0,100,20)
+
+        df.set_running(a,b,cols=(0,1),headers=["a","b"])
+
 class TestRegText(unittest.TestCase):
 
     def test_init(self):
 
-        rt = RegText(filedir=__file__)
+        rt = RegText()
+
+        rt.set_headers("WELL","DATE","OIL","WATER","GAS")
+        
+        well = np.array([
+            "A01","A01","A01","A01","A01","A01","A01","A01",
+            "A01","A01","A01","A01","B02","B02","B02","B02",
+            "B02","B02","B02","B02","B02","B02","B02","B02"])
+
+        date    = np.array([1,2,3,4,5,6,7,8,9,10,11,12,1,2,3,4,5,6,7,8,9,10,11,12])
+        oil     = np.array([12,11,10,9,8,7,6,5,4,3,2,1,8,8,8,8,8,8,8,8,8,8,8,8])
+        water   = np.array([24,23,22,21,20,19,18,17,16,16,14,13,15,15,15,15,15,15,15,15,15,15,15,15])
+        gas     = np.array([36,35,34,33,32,31,30,29,28,27,26,25,25,25,25,25,25,25,25,25,25,25,25,25])
+
+        rt.set_running(well,date,oil,water,gas,cols=(0,1,2,3,4))
+
+        rt.print_rlim = 30
+
+        text = rt.__str__()
 
 class TestLogASCII(unittest.TestCase):
 
@@ -219,7 +294,7 @@ class TestExcel(unittest.TestCase):
 
         pass
 
-class IrrText(unittest.TestCase):
+class TestIrrText(unittest.TestCase):
 
     def test_init(self):
 
