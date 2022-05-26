@@ -16,6 +16,8 @@ from matplotlib.ticker import ScalarFormatter
 
 import numpy as np
 
+from PIL import ImageTk, Image
+
 class LogView():
 
 	lineColors = (
@@ -46,6 +48,19 @@ class LogView():
 		self.scrollbar.config(command=self.canvas.yview)
 
 		self.canvas.bind_all("<MouseWheel>",self._on_mousewheel)
+
+	def set_image(self):
+
+		img = ImageTk.PhotoImage(Image.open("FS.png"))
+
+		label = tk.Label(master=self.canvas,image=img)
+		label.image = img
+
+		# self.canvas.config(scrollregion=self.canvas.bbox(tk.constants.ALL),width=300,height=300)
+
+		label.pack(side=tk.LEFT)
+
+		self.canvas.config(scrollregion=self.canvas.bbox(tk.constants.ALL),width=300,height=300)
 
 	def set_figure(self,numaxes=1,winch=3,hinch=128,dpi=100.):
 
@@ -236,13 +251,17 @@ if __name__ == "__main__":
 
 	las = LogView(root)
 
-	Y = np.arange(500)
-	X = np.random.random(500)
+	las.set_image()
 
-	las.set_figure(3)
-	las.set_axes((1,2,1))
-	las.set_axis(0,0,xvals=X,yvals=Y)
-	las.set_axis(1,0,xvals=X,yvals=Y)
-	las.set_axis(1,1,xvals=np.random.random(500),yvals=Y)
+	# # Y = np.arange(500)
+	# # X = np.random.random(500)
+
+	# # las.set_figure(3)
+	# # las.set_axes((1,2,1))
+	# # las.set_axis(0,0,xvals=X,yvals=Y)
+	# # las.set_axis(1,0,xvals=X,yvals=Y)
+	# # las.set_axis(1,1,xvals=np.random.random(500),yvals=Y)
+
+	# root.geometry("750x270")
 
 	tk.mainloop()
