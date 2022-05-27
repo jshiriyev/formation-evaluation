@@ -18,9 +18,18 @@ import numpy as np
 
 from PIL import ImageTk, Image
 
-class LogView():
+"""
+1. DepthView should be a frame that can be added to any parent frame.
+2. Axis and line numbers should not be predefined.
+3. Adding axis should not affect previous axes.
+4. Adding line should not affect previous lines.
+5. DepthView should be added to graphics and inherit from the textio.
+"""
+
+class DepthView():
 
 	def __init__(self,root):
+		"""It initializes the DepthView with listbox and figure canvas."""
 
 		self.root = root
 
@@ -28,11 +37,15 @@ class LogView():
 
 		self.root.iconbitmap('rockpy.ico')
 
+		#
+
 		self.framelist = tk.Frame(root,width=31*8)
 		self.framelist.pack(side=tk.LEFT,fill=tk.Y,expand=0)
 
 		self.listbox = tk.Listbox(self.framelist,width=31)
 		self.listbox.pack(side=tk.LEFT,fill=tk.BOTH,expand=1)
+
+		#
 
 		self.framefigs = tk.Frame(root)
 		self.framefigs.pack(side=tk.LEFT,fill=tk.BOTH,expand=1)
@@ -58,6 +71,10 @@ class LogView():
 
 		self.canvas.bind_all("<MouseWheel>",self._on_mousewheel)
 
+		#
+
+		self.colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+
 	def set_figure(self,numaxes=1,width=3,height=32,dpi=100.):
 
 		self.figure = plt.figure(dpi=dpi)
@@ -65,96 +82,99 @@ class LogView():
 		self.figure.set_figwidth(width*numaxes)
 		self.figure.set_figheight(height)
 
-		self.grids = gridspec.GridSpec(1,numaxes)
-		self.grids.update(wspace=0)
+		self.fgspec = gridspec.GridSpec(1,numaxes)
+		self.fgspec.update(wspace=0)
 
 		self.axes = []
 
-		for idaxis,grid in enumerate(self.grids):
+		for idaxis in range(numaxes):
+			self.add_axis(idaxis)
 
-			axes = []
+	def add_axis(self,idaxis,numsubaxis=1):
 
-			axis = plt.subplot(grid)
+		axes = []
 
-			axis.set_xticks([])
-			axis.set_yticks((0,1))
+		axis = plt.subplot(self.fgspec[idaxis])
 
-			axis.set_ylim((1,0))
+		axis.set_xticks([])
+		axis.set_yticks((0,1))
 
-			axis.spines["top"].set_visible(False)
+		axis.set_ylim((1,0))
 
-			axis.grid(True,which="both",axis='y')
+		axis.spines["top"].set_visible(False)
 
-			plt.setp(axis.get_yticklines(),visible=False)
-			# axis.tick_params(axis='y',which='major',length=0)
+		axis.grid(True,which="both",axis='y')
 
-			if idaxis>0:
-				plt.setp(axis.get_yticklabels(),visible=False)
+		plt.setp(axis.get_yticklines(),visible=False)
+		# axis.tick_params(axis='y',which='major',length=0)
 
-			axes.append(axis)
+		if idaxis>0:
+			plt.setp(axis.get_yticklabels(),visible=False)
 
-			axsub = axis.twiny()
+		axes.append(axis)
 
-			axsub.set_xticks((0,1))
 
-			axsub.set_ylim(axis.get_ylim())
 
-			axsub.spines["left"].set_visible(False)
-			axsub.spines["right"].set_visible(False)
-			axsub.spines["bottom"].set_visible(False)
 
-			plt.setp(axsub.xaxis.get_majorticklabels()[0],ha="left")
-			plt.setp(axsub.xaxis.get_majorticklabels()[-1],ha="right")
-			
-			axes.append(axsub)
+		axsub = axis.twiny()
 
-			self.axes.append(axes)
+		axsub.set_xticks((0,1))
+		axsub.set_ylim(axis.get_ylim())
+
+		axsub.spines["left"].set_visible(False)
+		axsub.spines["right"].set_visible(False)
+		axsub.spines["bottom"].set_visible(False)
+
+		plt.setp(axsub.xaxis.get_majorticklabels()[0],ha="left")
+		plt.setp(axsub.xaxis.get_majorticklabels()[-1],ha="right")
+		
+		axes.append(axsub)
+
+		self.axes.append(axes)
 
 	def set_axis(self,idaxis=0,numsubaxis=2):
 
 		if numsubaxis<2:
 			return
 
+		for idline in range(1,numsubaxis+1):
+			flaglastsub = False if idline<numsubaxis else True
+			self.add_subaxis(idaxis,idline,flaglastsub)
+
+	def add_subaxis(self,idaxis,idline,flaglastsub=False):
+
 		axis = self.axes[idaxis][0]
 
-		colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+		axsub = axis.twiny()
 
-		for idline in range(1,numsubaxis+1):
+		axsub.set_xticks((0,1))
+		axsub.set_ylim(axis.get_ylim())
 
-			axsub = axis.twiny()
+		spinepos = 1+0.4*idline/self.figure.get_figheight()
 
-			if idline<numsubaxis:
-				axsub.set_xticks((0,1))
-				axsub.set_ylim(axis.get_ylim())
+		axsub.spines["top"].set_position(("axes",spinepos))
+		axsub.spines["top"].set_color(self.colors[idline-1])
 
-			spinepos = 1+0.4*idline/self.figure.get_figheight()
+		axsub.spines["left"].set_visible(False)
+		axsub.spines["right"].set_visible(False)
+		axsub.spines["bottom"].set_visible(False)
 
-			axsub.spines["top"].set_position(("axes",spinepos))
+		axsub.tick_params(axis='x',
+			color=self.colors[idline-1],
+			labelcolor=self.colors[idline-1])
 
-			if idline<numsubaxis:
-				axsub.spines["top"].set_color(colors[idline-1])
+		plt.setp(axsub.xaxis.get_majorticklabels()[0],ha="left")
+		plt.setp(axsub.xaxis.get_majorticklabels()[-1],ha="right")
 
-			if idline==numsubaxis:
-				axsub.spines["top"].set_visible(False)
+		if flaglastsub:
+			axsub.spines["top"].set_visible(False)
+			plt.setp(axsub.get_xticklines(),visible=False)
+			plt.setp(axsub.get_xticklabels(),color=self.figure.get_facecolor())
+			return
 
-			axsub.spines["left"].set_visible(False)
-			axsub.spines["right"].set_visible(False)
-			axsub.spines["bottom"].set_visible(False)
+		self.axes[idaxis].append(axsub)
 
-			if idline==numsubaxis:
-				plt.setp(axsub.get_xticklines(),visible=False)
-				plt.setp(axsub.get_xticklabels(),color=self.figure.get_facecolor())
-
-			if idline<numsubaxis:
-				axsub.tick_params(axis='x',color=colors[idline-1],labelcolor=colors[idline-1])
-
-				plt.setp(axsub.xaxis.get_majorticklabels()[0],ha="left")
-				plt.setp(axsub.xaxis.get_majorticklabels()[-1],ha="right")
-
-			if idline<numsubaxis:
-				self.axes[idaxis].append(axsub)
-
-	def set_subaxis(self,idaxis,idline,xvals,yvals):
+	def set_lines(self,idaxis,idline,xvals,yvals):
 
 		axis = self.axes[idaxis][idline]
 
@@ -318,7 +338,7 @@ if __name__ == "__main__":
 
 	root = tk.Tk()
 
-	las = LogView(root)
+	las = DepthView(root)
 
 	Y = np.arange(500)
 	X = np.random.random(500)
@@ -326,9 +346,9 @@ if __name__ == "__main__":
 	las.set_figure(2)
 	las.set_axis(0,2)
 	# las.set_axis(1,4)
-	# las.set_subaxis(0,0,xvals=X,yvals=Y)
-	# las.set_subaxis(1,0,xvals=X,yvals=Y)
-	# las.set_subaxis(1,1,xvals=np.random.random(500),yvals=Y)
+	# las.set_lines(0,0,xvals=X,yvals=Y)
+	# las.set_lines(1,0,xvals=X,yvals=Y)
+	# las.set_lines(1,1,xvals=np.random.random(500),yvals=Y)
 
 	las.set_image()
 
