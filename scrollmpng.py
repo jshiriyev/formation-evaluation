@@ -5,7 +5,7 @@ import tkinter as tk
 from matplotlib import gridspec
 from matplotlib import pyplot as plt
 
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+# from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 from matplotlib.ticker import AutoMinorLocator
 from matplotlib.ticker import LogFormatter
@@ -20,15 +20,6 @@ from PIL import ImageTk, Image
 
 class LogView():
 
-	lineColors = (
-		"black",
-		"crimson",
-		"blue",
-		"sienna",
-		)
-
-	spinerelpos = (0,0.1,0.2,0.3)
-
 	def __init__(self,root):
 
 		self.root = root
@@ -37,21 +28,27 @@ class LogView():
 
 		self.root.iconbitmap('rockpy.ico')
 
-		self.frame = tk.Frame(root)
-		self.frame.pack(side=tk.LEFT,fill=tk.BOTH,expand=1)
+		self.framelist = tk.Frame(root,width=31*8)
+		self.framelist.pack(side=tk.LEFT,fill=tk.Y,expand=0)
 
-		self.canvas = tk.Canvas(self.frame)
+		self.listbox = tk.Listbox(self.framelist,width=31)
+		self.listbox.pack(side=tk.LEFT,fill=tk.BOTH,expand=1)
+
+		self.framefigs = tk.Frame(root)
+		self.framefigs.pack(side=tk.LEFT,fill=tk.BOTH,expand=1)
+
+		self.canvas = tk.Canvas(self.framefigs)
 
 		self.canvas.grid(row=0,column=0,sticky=tk.NSEW)
 
-		self.hscroll = tk.Scrollbar(self.frame,orient=tk.HORIZONTAL)
-		self.vscroll = tk.Scrollbar(self.frame,orient=tk.VERTICAL)
+		self.hscroll = tk.Scrollbar(self.framefigs,orient=tk.HORIZONTAL)
+		self.vscroll = tk.Scrollbar(self.framefigs,orient=tk.VERTICAL)
 
 		self.hscroll.grid(row=1,column=0,sticky=tk.EW)
 		self.vscroll.grid(row=0,column=1,sticky=tk.NS)
 
-		self.frame.rowconfigure(0,weight=1)
-		self.frame.columnconfigure(0,weight=1)
+		self.framefigs.rowconfigure(0,weight=1)
+		self.framefigs.columnconfigure(0,weight=1)
 
 		self.canvas.config(xscrollcommand=self.hscroll.set)
 		self.canvas.config(yscrollcommand=self.vscroll.set)
@@ -61,67 +58,124 @@ class LogView():
 
 		self.canvas.bind_all("<MouseWheel>",self._on_mousewheel)
 
-	def set_figure(self,numaxes=1,winch=3,hinch=128,dpi=100.):
+	def set_figure(self,numaxes=1,width=3,height=32,dpi=100.):
 
-		zmult = int((500-0)/20.)
+		self.figure = plt.figure(dpi=dpi)
 
-		self.spinepos = [1+x/zmult for x in self.spinerelpos]
-
-		self.figure = plt.figure(figsize=(winch*numaxes,hinch),dpi=dpi)
+		self.figure.set_figwidth(width*numaxes)
+		self.figure.set_figheight(height)
 
 		self.grids = gridspec.GridSpec(1,numaxes)
 		self.grids.update(wspace=0)
 
-		# self.figcanvas = FigureCanvasTkAgg(self.figure,self.canvas)
-
-		# canwin = self.canvas.create_window(0,0,window=self.figcanvas.get_tk_widget(),anchor=tk.constants.NW)
-
-		# self.figcanvas.get_tk_widget().config(width=winch*numaxes*dpi,height=hinch*dpi)
-
-		# self.canvas.itemconfigure(canwin,width=winch*numaxes*dpi,height=hinch*dpi)
-		# self.canvas.config(scrollregion=self.canvas.bbox(tk.constants.ALL),width=winch*dpi,height=winch*dpi)
-
-		# self.figure.canvas.draw()
-
-		self.figure.set_tight_layout(True)
-
-	def set_axes(self,numsubaxes=None):
-
-		if numsubaxes is None:
-			numsubaxes = (1,)*len(self.grids)
-
 		self.axes = []
 
-		for idaxis,(numsubaxis,grid) in enumerate(zip(numsubaxes,self.grids)):
+		for idaxis,grid in enumerate(self.grids):
 
-			axisM = plt.subplot(grid)
+			axes = []
 
-			axisM.set_xticks([])
+			axis = plt.subplot(grid)
 
-			axisM.grid(True,which="both",axis='y')
+			axis.set_xticks([])
+			axis.set_yticks((0,1))
 
-			for tic in axisM.yaxis.get_major_ticks():
-				if idaxis>0:
-					tic.label1.set_visible(False)
-				tic.tick1line.set_visible(False)
+			axis.set_ylim((1,0))
 
-			axisS = [axisM.twiny() for _ in range(numsubaxis)]
+			axis.spines["top"].set_visible(False)
 
-			for axis in axisS:
-				axis.set_xticks([0,1])
-				plt.setp(axis.xaxis.get_majorticklabels()[0],ha="left")
-				plt.setp(axis.xaxis.get_majorticklabels()[-1],ha="right")
+			axis.grid(True,which="both",axis='y')
 
-			self.axes.append(axisS)
+			plt.setp(axis.get_yticklines(),visible=False)
+			# axis.tick_params(axis='y',which='major',length=0)
 
-	def set_axis(self,idaxis,idline,xvals,yvals):
+			if idaxis>0:
+				plt.setp(axis.get_yticklabels(),visible=False)
+
+			axes.append(axis)
+
+			axsub = axis.twiny()
+
+			axsub.set_xticks((0,1))
+
+			axsub.set_ylim(axis.get_ylim())
+
+			axsub.spines["left"].set_visible(False)
+			axsub.spines["right"].set_visible(False)
+			axsub.spines["bottom"].set_visible(False)
+
+			plt.setp(axsub.xaxis.get_majorticklabels()[0],ha="left")
+			plt.setp(axsub.xaxis.get_majorticklabels()[-1],ha="right")
+			
+			axes.append(axsub)
+
+			self.axes.append(axes)
+
+	def set_axis(self,idaxis=0,numsubaxis=2):
+
+		if numsubaxis<2:
+			return
+
+		axis = self.axes[idaxis][0]
+
+		colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+
+		for idline in range(1,numsubaxis+1):
+
+			axsub = axis.twiny()
+
+			if idline<numsubaxis:
+				axsub.set_xticks((0,1))
+				axsub.set_ylim(axis.get_ylim())
+
+			spinepos = 1+0.4*idline/self.figure.get_figheight()
+
+			axsub.spines["top"].set_position(("axes",spinepos))
+
+			if idline<numsubaxis:
+				axsub.spines["top"].set_color(colors[idline-1])
+
+			if idline==numsubaxis:
+				axsub.spines["top"].set_visible(False)
+
+			axsub.spines["left"].set_visible(False)
+			axsub.spines["right"].set_visible(False)
+			axsub.spines["bottom"].set_visible(False)
+
+			if idline==numsubaxis:
+				plt.setp(axsub.get_xticklines(),visible=False)
+				plt.setp(axsub.get_xticklabels(),color=self.figure.get_facecolor())
+
+			if idline<numsubaxis:
+				axsub.tick_params(axis='x',color=colors[idline-1],labelcolor=colors[idline-1])
+
+				plt.setp(axsub.xaxis.get_majorticklabels()[0],ha="left")
+				plt.setp(axsub.xaxis.get_majorticklabels()[-1],ha="right")
+
+			if idline<numsubaxis:
+				self.axes[idaxis].append(axsub)
+
+	def set_subaxis(self,idaxis,idline,xvals,yvals):
 
 		axis = self.axes[idaxis][idline]
 
-		axis.plot(xvals,yvals,color=self.lineColors[idline])
+		colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+		# colors = ("black","crimson","blue","sienna")
+
+		zmult = int((500-0)/20.)
+
+		spinepos = [1+x/zmult for x in (0,0.1,0.2,0.3)]
+
+		axis.plot(xvals,yvals,color=colors[idline])
 
 		xticks = self.get_xticks(xvals)
 		yticks = self.get_yticks(yvals)
+
+		figheight_temp = (yticks.max()-yticks.min())/128
+
+		if figheight_temp>self.figure.get_figheight():
+			self.figure.set_figheight(figheight_temp)
+
+		# figheight = max(self.figure.get_figheight(),figheight_temp)
 
 		axis.set_xlim([xticks.min(),xticks.max()])
 		axis.set_xticks(xticks)
@@ -140,9 +194,9 @@ class LogView():
 		if idline==0:
 			axis.grid(True,which="major",axis='x')
 		else:
-			axis.spines["top"].set_position(("axes",self.spinepos[idline]))
-			axis.spines["top"].set_color(self.lineColors[idline])
-			axis.tick_params(axis='x',color=self.lineColors[idline],labelcolor=self.lineColors[idline])
+			axis.spines["top"].set_position(("axes",spinepos[idline]))
+			axis.spines["top"].set_color(colors[idline])
+			axis.tick_params(axis='x',color=colors[idline],labelcolor=colors[idline])
 
 		axis.xaxis.set_major_formatter(ScalarFormatter())
 		# axis.xaxis.set_major_formatter(LogFormatter())
@@ -164,14 +218,7 @@ class LogView():
 
 	def set_image(self):
 
-		# img = ImageTk.PhotoImage(Image.open("FS.png"))
-
-		# label = tk.Label(master=self.canvas,image=img)
-		# label.image = img
-
-		# self.canvas.config(scrollregion=self.canvas.bbox(tk.constants.ALL),width=300,height=300)
-
-		# label.pack(side=tk.LEFT)
+		self.figure.set_tight_layout(True)
 
 		buff = io.BytesIO()
 
@@ -184,10 +231,6 @@ class LogView():
 		self.canvas.create_image(0,0,anchor=tk.NW,image=self.image)
 
 		self.canvas.config(scrollregion=self.canvas.bbox('all'))
-
-		# self.canvas.create_image(0,0,anchor=tk.NW,image=image)
-
-		# self.canvas.config(scrollregion=self.canvas.bbox(tk.constants.ALL),width=300,height=300)
 
 	def get_xticks(self,xvals,xmin=None,xmax=None,xscale="normal",xdelta=None,xdelta_count=11):
 
@@ -280,14 +323,15 @@ if __name__ == "__main__":
 	Y = np.arange(500)
 	X = np.random.random(500)
 
-	las.set_figure(3)
-	las.set_axes((1,2,1))
-	las.set_axis(0,0,xvals=X,yvals=Y)
-	las.set_axis(1,0,xvals=X,yvals=Y)
-	las.set_axis(1,1,xvals=np.random.random(500),yvals=Y)
+	las.set_figure(2)
+	las.set_axis(0,2)
+	# las.set_axis(1,4)
+	# las.set_subaxis(0,0,xvals=X,yvals=Y)
+	# las.set_subaxis(1,0,xvals=X,yvals=Y)
+	# las.set_subaxis(1,1,xvals=np.random.random(500),yvals=Y)
 
 	las.set_image()
 
 	# root.geometry("750x270")
 
-	root.mainloop()
+	tk.mainloop()
