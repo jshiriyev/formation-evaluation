@@ -1,6 +1,6 @@
-import tkinter as tk
+import io
 
-from tkinter import ttk
+import tkinter as tk
 
 from matplotlib import gridspec
 from matplotlib import pyplot as plt
@@ -35,32 +35,31 @@ class LogView():
 
 		self.root.title("RockPy")
 
+		self.root.iconbitmap('rockpy.ico')
+
 		self.frame = tk.Frame(root)
-		self.frame.pack(side=tk.TOP,fill=tk.BOTH,expand=1)
+		self.frame.pack(side=tk.LEFT,fill=tk.BOTH,expand=1)
 
 		self.canvas = tk.Canvas(self.frame)
-		self.canvas.pack(side=tk.LEFT,fill=tk.BOTH,expand=1)
 
-		self.scrollbar = tk.Scrollbar(self.frame) #,orient=tk.VERTICAL
-		self.scrollbar.pack(side=tk.LEFT,fill=tk.Y)
+		self.canvas.grid(row=0,column=0,sticky=tk.NSEW)
 
-		self.canvas.config(yscrollcommand=self.scrollbar.set)
-		self.scrollbar.config(command=self.canvas.yview)
+		self.hscroll = tk.Scrollbar(self.frame,orient=tk.HORIZONTAL)
+		self.vscroll = tk.Scrollbar(self.frame,orient=tk.VERTICAL)
+
+		self.hscroll.grid(row=1,column=0,sticky=tk.EW)
+		self.vscroll.grid(row=0,column=1,sticky=tk.NS)
+
+		self.frame.rowconfigure(0,weight=1)
+		self.frame.columnconfigure(0,weight=1)
+
+		self.canvas.config(xscrollcommand=self.hscroll.set)
+		self.canvas.config(yscrollcommand=self.vscroll.set)
+
+		self.hscroll.config(command=self.canvas.xview)
+		self.vscroll.config(command=self.canvas.yview)
 
 		self.canvas.bind_all("<MouseWheel>",self._on_mousewheel)
-
-	def set_image(self):
-
-		img = ImageTk.PhotoImage(Image.open("FS.png"))
-
-		label = tk.Label(master=self.canvas,image=img)
-		label.image = img
-
-		# self.canvas.config(scrollregion=self.canvas.bbox(tk.constants.ALL),width=300,height=300)
-
-		label.pack(side=tk.LEFT)
-
-		self.canvas.config(scrollregion=self.canvas.bbox(tk.constants.ALL),width=300,height=300)
 
 	def set_figure(self,numaxes=1,winch=3,hinch=128,dpi=100.):
 
@@ -73,16 +72,16 @@ class LogView():
 		self.grids = gridspec.GridSpec(1,numaxes)
 		self.grids.update(wspace=0)
 
-		self.figcanvas = FigureCanvasTkAgg(self.figure,self.canvas)
+		# self.figcanvas = FigureCanvasTkAgg(self.figure,self.canvas)
 
-		canwin = self.canvas.create_window(0,0,window=self.figcanvas.get_tk_widget(),anchor=tk.constants.NW)
+		# canwin = self.canvas.create_window(0,0,window=self.figcanvas.get_tk_widget(),anchor=tk.constants.NW)
 
-		self.figcanvas.get_tk_widget().config(width=winch*numaxes*dpi,height=hinch*dpi)
+		# self.figcanvas.get_tk_widget().config(width=winch*numaxes*dpi,height=hinch*dpi)
 
-		self.canvas.itemconfigure(canwin,width=winch*numaxes*dpi,height=hinch*dpi)
-		self.canvas.config(scrollregion=self.canvas.bbox(tk.constants.ALL),width=winch*dpi,height=winch*dpi)
+		# self.canvas.itemconfigure(canwin,width=winch*numaxes*dpi,height=hinch*dpi)
+		# self.canvas.config(scrollregion=self.canvas.bbox(tk.constants.ALL),width=winch*dpi,height=winch*dpi)
 
-		self.figure.canvas.draw()
+		# self.figure.canvas.draw()
 
 		self.figure.set_tight_layout(True)
 
@@ -162,6 +161,33 @@ class LogView():
 
 		plt.setp(axis.xaxis.get_majorticklabels()[0],ha="left")
 		plt.setp(axis.xaxis.get_majorticklabels()[-1],ha="right")
+
+	def set_image(self):
+
+		# img = ImageTk.PhotoImage(Image.open("FS.png"))
+
+		# label = tk.Label(master=self.canvas,image=img)
+		# label.image = img
+
+		# self.canvas.config(scrollregion=self.canvas.bbox(tk.constants.ALL),width=300,height=300)
+
+		# label.pack(side=tk.LEFT)
+
+		buff = io.BytesIO()
+
+		self.figure.savefig(buff,format='png')
+
+		buff.seek(0)
+
+		self.image = ImageTk.PhotoImage(Image.open(buff))
+
+		self.canvas.create_image(0,0,anchor=tk.NW,image=self.image)
+
+		self.canvas.config(scrollregion=self.canvas.bbox('all'))
+
+		# self.canvas.create_image(0,0,anchor=tk.NW,image=image)
+
+		# self.canvas.config(scrollregion=self.canvas.bbox(tk.constants.ALL),width=300,height=300)
 
 	def get_xticks(self,xvals,xmin=None,xmax=None,xscale="normal",xdelta=None,xdelta_count=11):
 
@@ -251,17 +277,17 @@ if __name__ == "__main__":
 
 	las = LogView(root)
 
+	Y = np.arange(500)
+	X = np.random.random(500)
+
+	las.set_figure(3)
+	las.set_axes((1,2,1))
+	las.set_axis(0,0,xvals=X,yvals=Y)
+	las.set_axis(1,0,xvals=X,yvals=Y)
+	las.set_axis(1,1,xvals=np.random.random(500),yvals=Y)
+
 	las.set_image()
-
-	# # Y = np.arange(500)
-	# # X = np.random.random(500)
-
-	# # las.set_figure(3)
-	# # las.set_axes((1,2,1))
-	# # las.set_axis(0,0,xvals=X,yvals=Y)
-	# # las.set_axis(1,0,xvals=X,yvals=Y)
-	# # las.set_axis(1,1,xvals=np.random.random(500),yvals=Y)
 
 	# root.geometry("750x270")
 
-	tk.mainloop()
+	root.mainloop()
