@@ -1289,30 +1289,30 @@ class LogASCII(DataFrame):
             else:
                 self.frames[index].running = [np.asarray(column[depth_cond]) for column in self.frames[index]._running]
 
-    def get_interval(self,top,bottom,idfiles=None,curveID=None):
+    def get_interval(self,top,bottom,idframes=None,curveID=None):
 
         returningList = []
 
-        if idfiles is None:
-            idfiles = range(len(self.files))
-        elif isinstance(idfiles,int):
-            idfiles = (idfiles,)
+        if idframes is None:
+            idframes = range(len(self.frames))
+        elif isinstance(idframes,int):
+            idframes = (idframes,)
 
-        for idfile in idfiles:
+        for idfile in idframes:
 
-            las = self.files[idfile]
+            las = self.frames[idfile]
 
             try:
-                depth = las["MD"]
-            except KeyError:
-                depth = las["DEPT"]
+                depth = las.columns("MD")
+            except ValueError:
+                depth = las.columns("DEPT")
 
             depth_cond = np.logical_and(depth>top,depth<bottom)
 
             if curveID is None:
                 returningList.append(depth_cond)
             else:
-                returningList.append(las.curves[curveID].data[depth_cond])
+                returningList.append(las.columns(curveID)[depth_cond])
 
         return returningList
 
@@ -1366,12 +1366,12 @@ class LogASCII(DataFrame):
 
         if depthsFID is not None:
             try:
-                depthsR = self.files[depthsFID]["MD"]
+                depthsR = self.frames[depthsFID]["MD"]
             except KeyError:
-                depthsR = self.files[depthsFID]["DEPT"]
+                depthsR = self.frames[depthsFID]["DEPT"]
 
         if fileID is None:
-            fileIDs = range(len(self.files))
+            fileIDs = range(len(self.frames))
         else:
             fileIDs = range(fileID,fileID+1)
 
@@ -1381,7 +1381,7 @@ class LogASCII(DataFrame):
                 if indexI==depthsFID:
                     continue
 
-            las = self.files[indexI]
+            las = self.frames[indexI]
 
             try:
                 depthsO = las["MD"]
@@ -1421,7 +1421,7 @@ class LogASCII(DataFrame):
                 dataR[upperend] = np.nan
 
                 if curveID is None:
-                    self.files[indexI].curves[indexJ].data = dataR
+                    self.frames[indexI].curves[indexJ].data = dataR
                 elif fileID is not None:
                     return dataR
 
@@ -1430,15 +1430,15 @@ class LogASCII(DataFrame):
         if isinstance(fileIDs,int):
 
             try:
-                depth = self.files[fileIDs]["MD"]
+                depth = self.frames[fileIDs]["MD"]
             except KeyError:
-                depth = self.files[fileIDs]["DEPT"]
+                depth = self.frames[fileIDs]["DEPT"]
 
-            xvals1 = self.files[fileIDs][curveNames[0]]
+            xvals1 = self.frames[fileIDs][curveNames[0]]
 
             for curveName in curveNames[1:]:
 
-                xvals2 = self.files[fileIDs][curveName]
+                xvals2 = self.frames[fileIDs][curveName]
 
                 xvals1[np.isnan(xvals1)] = xvals2[np.isnan(xvals1)]
 
@@ -1455,11 +1455,11 @@ class LogASCII(DataFrame):
             for (fileID,curveName) in zip(fileIDs,curveNames):
 
                 try:
-                    depth_loc = self.files[fileID]["MD"]
+                    depth_loc = self.frames[fileID]["MD"]
                 except KeyError:
-                    depth_loc = self.files[fileID]["DEPT"]
+                    depth_loc = self.frames[fileID]["DEPT"]
 
-                xvals_loc = self.files[fileID][curveName]
+                xvals_loc = self.frames[fileID][curveName]
 
                 depth_loc = depth_loc[~np.isnan(xvals_loc)]
                 xvals_loc = xvals_loc[~np.isnan(xvals_loc)]
@@ -1483,7 +1483,7 @@ class LogASCII(DataFrame):
 
         if fileID is not None:
 
-            lasfile = self.files[fileID]
+            lasfile = self.frames[fileID]
 
         else:
 

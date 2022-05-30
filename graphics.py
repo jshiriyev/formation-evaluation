@@ -1241,7 +1241,7 @@ def LogView(data=None):
 
         def get_GRcut(self,GRline,depth=("None",None,None),perc_cut=40):
 
-            xvals = self.get_interval(*depth[1:],fileID=GRline[0],curveID=GRline[1])[0]
+            xvals = self.get_interval(*depth[1:],idframes=GRline[0],curveID=GRline[1])[0]
 
             GRmin = np.nanmin(xvals)
             GRmax = np.nanmax(xvals)
@@ -1308,6 +1308,23 @@ def LogView(data=None):
 
             self.axes[indexI].subax[indexJ].fill_betweenx(
                 depth,xvals,x2=cut_line,where=ohmm_cut<=xvals,color=self.color_HC)
+
+        def set_DepthViewSaturationCut(self,SwLine,indexI,indexJ,Sw_cut=0.5):
+
+            # indexI index of Resistivity containing axis in the plot
+            # indexJ index of Resistivity containing line in the axis
+
+            try:
+                depth = self.frames[SwLine[0]].columns("MD")
+            except ValueError:
+                depth = self.frames[SwLine[0]].columns("DEPT")
+
+            xvals = self.frames[SwLine[0]].columns(SwLine[1])
+
+            cut_line = Sw_cut*np.ones(depth.shape)
+
+            self.axes[indexI].subax[indexJ].fill_betweenx(
+                depth,xvals,x2=cut_line,where=Sw_cut>=xvals,color=self.color_HC)
 
         def set_DepthViewNMRfluid(self,NMRline,indexI,water_clay,water_capi,water_move,HC):
 
@@ -1428,8 +1445,8 @@ def LogView(data=None):
 
             for depth in self.depths:
 
-                xaxis = self.get_interval(*depth[1:],fileID=porLine[0],curveID=porLine[1])
-                yaxis = self.get_interval(*depth[1:],fileID=sonLine[0],curveID=sonLine[1])
+                xaxis = self.get_interval(*depth[1:],idframe=porLine[0],curveID=porLine[1])
+                yaxis = self.get_interval(*depth[1:],idframe=sonLine[0],curveID=sonLine[1])
 
                 xaxis_max = max((xaxis_max,xaxis[0].max()))
                 yaxis_max = max((yaxis_max,yaxis[0].max()))
@@ -1506,8 +1523,8 @@ def LogView(data=None):
 
             if returnSwFlag:
 
-                xvalsR = self.frames[resLine[0]][resLine[1]]
-                xvalsP = self.frames[phiLine[0]][phiLine[1]]
+                xvalsR = self.frames[resLine[0]].columns(resLine[1])
+                xvalsP = self.frames[phiLine[0]].columns(phiLine[1])
 
                 return ((a*Rw)/(xvalsR*xvalsP**m))**(1/n)
 
@@ -1523,8 +1540,8 @@ def LogView(data=None):
 
                 for depth in self.depths:
 
-                    xaxis = self.get_interval(*depth[1:],fileID=resLine[0],curveID=resLine[1])[0]
-                    yaxis = self.get_interval(*depth[1:],fileID=phiLine[0],curveID=phiLine[1])[0]
+                    xaxis = self.get_interval(*depth[1:],idframes=resLine[0],curveID=resLine[1])[0]
+                    yaxis = self.get_interval(*depth[1:],idframes=phiLine[0],curveID=phiLine[1])[0]
 
                     xaxis_min = min((xaxis_min,xaxis.min()))
                     xaxis_max = max((xaxis_max,xaxis.max()))
@@ -1543,11 +1560,11 @@ def LogView(data=None):
                 indexR = self.frames[resLine[0]].headers.index(resLine[1])
                 indexP = self.frames[phiLine[0]].headers.index(phiLine[1])
 
-                mnemR = self.frames[resLine[0]].running[indexR].mnemonic
-                unitR = self.frames[resLine[0]].running[indexR].unit
+                mnemR = self.frames[resLine[0]].headers[indexR]
+                unitR = self.frames[resLine[0]].units[indexR]
 
-                mnemP = self.frames[phiLine[0]].running[indexP].mnemonic
-                unitP = self.frames[phiLine[0]].running[indexP].unit
+                mnemP = self.frames[phiLine[0]].headers[indexP]
+                unitP = self.frames[phiLine[0]].units[indexP]
 
                 xaxis_min = xmin if xmin is not None else xaxis_min
                 xaxis_max = xmax if xmax is not None else xaxis_max
