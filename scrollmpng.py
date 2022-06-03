@@ -1,5 +1,7 @@
 import io
 
+import logging
+
 import tkinter as tk
 
 from matplotlib import gridspec
@@ -37,7 +39,7 @@ class DepthView():
 
 		self.root.iconbitmap('rockpy.ico')
 
-		#
+		# The main frame for the listbox
 
 		self.framelist = tk.Frame(root,width=31*8)
 		self.framelist.pack(side=tk.LEFT,fill=tk.Y,expand=0)
@@ -45,7 +47,7 @@ class DepthView():
 		self.listbox = tk.Listbox(self.framelist,width=31)
 		self.listbox.pack(side=tk.LEFT,fill=tk.BOTH,expand=1)
 
-		#
+		# The main frame for the plot canvas
 
 		self.framefigs = tk.Frame(root)
 		self.framefigs.pack(side=tk.LEFT,fill=tk.BOTH,expand=1)
@@ -71,77 +73,97 @@ class DepthView():
 
 		self.canvas.bind_all("<MouseWheel>",self._on_mousewheel)
 
-		#
+		# The colors to be used for lines
 
+		# self.colors = ("black","crimson","blue","sienna")
 		self.colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+		self.colors.insert(0,"#000000")
 
-	def set_figure(self,numaxes=1,width=3,height=32,dpi=100.):
+	def set_axes(self,numaxes=1,subaxes=None,depth=None,inchdepth=15.,width=3.,height=32.,dpi=100.):
+		"""Creates the figure and axes and their sub-axes and stores them in the self.axes."""
+
+		# numaxes 	: integer
+		# 			 Number of axes in the figure
+
+		# subaxes 	: list or tuple of integers
+		# 			 Number of subaxes in each axis
+
+		# depth 	: float
+		# 			 Depth of log in meters; every inch will represent inchdepth meter of formation
+		# 			 Default value for inchdepth is 15 meters.
+
+		# inchdepth	: float
+		# 			 The depth (meters) to be shown in every inch of the figure
+
+		# width 	: float
+		# 			 Width of each axis in inches
+
+		# height 	: float
+		# 			 Height of figure in inches
+
+		# dpi 		: integer
+		# 			 Resolution of the figure, dots per inches
 
 		self.figure = plt.figure(dpi=dpi)
 
 		self.figure.set_figwidth(width*numaxes)
-		self.figure.set_figheight(height)
+
+		if depth is None:
+			self.figure.set_figheight(height)
+		else:
+			self.figure.set_figheight(depth/inchdepth)
 
 		self.fgspec = gridspec.GridSpec(1,numaxes)
-		self.fgspec.update(wspace=0)
 
 		self.axes = []
 
+		if subaxes is None:
+			subaxes = (1,)*numaxes
+		elif not hasattr(subaxes,"__len__"):
+			logging.warning(f"Expected subaxes is a list or tuple with the length equal to numaxes; input is {type(subaxes)}")
+		elif len(subaxes)!=numaxes:
+			logging.warning(f"The length of subaxes should be equal to numaxes; {len(subaxes)} not equal to {numaxes=}")
+
 		for idaxis in range(numaxes):
-			self.add_axis(idaxis)
+			self.add_axis(idaxis,subaxes[idaxis])
 
-	def add_axis(self,idaxis,numsubaxis=1):
+	def add_axis(self,idaxis,numsubaxes=1):
+		"""Adds main-axis and its subaxes to the list of self.axes."""
 
-		axes = []
+		subaxes = []
 
-		axis = plt.subplot(self.fgspec[idaxis])
+		subaxis_main = plt.subplot(self.fgspec[idaxis])
 
-		axis.set_xticks([])
-		axis.set_yticks((0,1))
+		subaxis_main.set_xticks([])
+		subaxis_main.set_yticks((0,1))
 
-		axis.set_ylim((1,0))
+		subaxis_main.set_ylim((1,0))
 
-		axis.spines["top"].set_visible(False)
+		subaxis_main.spines["top"].set_visible(False)
 
-		axis.grid(True,which="both",axis='y')
+		subaxis_main.grid(True,which="both",axis='y')
 
-		plt.setp(axis.get_yticklines(),visible=False)
-		# axis.tick_params(axis='y',which='major',length=0)
+		plt.setp(subaxis_main.get_yticklines(),visible=False)
+		# subaxis_main.tick_params(axis='y',which='major',length=0)
 
 		if idaxis>0:
-			plt.setp(axis.get_yticklabels(),visible=False)
+			plt.setp(subaxis_main.get_yticklabels(),visible=False)
 
-		axes.append(axis)
+		subaxes.append(subaxis_main)
 
+		self.axes.append(subaxes)
 
+		for idline in range(numsubaxes):
+			self.add_subaxis(idaxis,idline)
 
+	def set_subaxes(self,idaxis,numsubaxis):
+		"""Creates subaxes and stores them in self.axes."""
 
-		axsub = axis.twiny()
+		for idline in range(1,numsubaxis):
+			self.add_subaxis(idaxis,idline)
 
-		axsub.set_xticks((0,1))
-		axsub.set_ylim(axis.get_ylim())
-
-		axsub.spines["left"].set_visible(False)
-		axsub.spines["right"].set_visible(False)
-		axsub.spines["bottom"].set_visible(False)
-
-		plt.setp(axsub.xaxis.get_majorticklabels()[0],ha="left")
-		plt.setp(axsub.xaxis.get_majorticklabels()[-1],ha="right")
-		
-		axes.append(axsub)
-
-		self.axes.append(axes)
-
-	def set_axis(self,idaxis=0,numsubaxis=2):
-
-		if numsubaxis<2:
-			return
-
-		for idline in range(1,numsubaxis+1):
-			flaglastsub = False if idline<numsubaxis else True
-			self.add_subaxis(idaxis,idline,flaglastsub)
-
-	def add_subaxis(self,idaxis,idline,flaglastsub=False):
+	def add_subaxis(self,idaxis,idline):
+		"""Adds subaxis to the self.axes."""
 
 		axis = self.axes[idaxis][0]
 
@@ -150,42 +172,36 @@ class DepthView():
 		axsub.set_xticks((0,1))
 		axsub.set_ylim(axis.get_ylim())
 
-		spinepos = 1+0.4*idline/self.figure.get_figheight()
-
-		axsub.spines["top"].set_position(("axes",spinepos))
-		axsub.spines["top"].set_color(self.colors[idline-1])
+		if idline!=0:
+			spinepos = 1+0.4*idline/self.figure.get_figheight()
+			axsub.spines["top"].set_position(("axes",spinepos))
+			axsub.spines["top"].set_color(self.colors[idline])
 
 		axsub.spines["left"].set_visible(False)
 		axsub.spines["right"].set_visible(False)
 		axsub.spines["bottom"].set_visible(False)
 
-		axsub.tick_params(axis='x',
-			color=self.colors[idline-1],
-			labelcolor=self.colors[idline-1])
+		axsub.tick_params(axis='x',labelcolor=self.colors[idline])
 
 		plt.setp(axsub.xaxis.get_majorticklabels()[0],ha="left")
 		plt.setp(axsub.xaxis.get_majorticklabels()[-1],ha="right")
 
-		if flaglastsub:
-			axsub.spines["top"].set_visible(False)
-			plt.setp(axsub.get_xticklines(),visible=False)
-			plt.setp(axsub.get_xticklabels(),color=self.figure.get_facecolor())
-			return
+		plt.setp(axsub.xaxis.get_majorticklines()[1],markersize=25)
+		plt.setp(axsub.xaxis.get_majorticklines()[-1],markersize=25)
+
+		# axsub.xaxis.get_majorticklines()[0].set_markersize(100)
 
 		self.axes[idaxis].append(axsub)
 
 	def set_lines(self,idaxis,idline,xvals,yvals):
 
 		axis = self.axes[idaxis][idline]
+		
+		# zmult = int((500-0)/20.)
 
-		colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
-		# colors = ("black","crimson","blue","sienna")
+		# spinepos = [1+x/zmult for x in (0,0.1,0.2,0.3)]
 
-		zmult = int((500-0)/20.)
-
-		spinepos = [1+x/zmult for x in (0,0.1,0.2,0.3)]
-
-		axis.plot(xvals,yvals,color=colors[idline])
+		axis.plot(xvals,yvals,color=self.colors[idline])
 
 		xticks = self.get_xticks(xvals)
 		yticks = self.get_yticks(yvals)
@@ -211,12 +227,14 @@ class DepthView():
 			for tic in axis.yaxis.get_minor_ticks():
 				tic.tick1line.set_visible(False)
 
+			# plt.setp(axis.yaxis.get_yticklabels(),visible=False)
+
 		if idline==0:
 			axis.grid(True,which="major",axis='x')
 		else:
 			axis.spines["top"].set_position(("axes",spinepos[idline]))
-			axis.spines["top"].set_color(colors[idline])
-			axis.tick_params(axis='x',color=colors[idline],labelcolor=colors[idline])
+			axis.spines["top"].set_color(self.colors[idline])
+			axis.tick_params(axis='x',color=self.colors[idline],labelcolor=self.colors[idline])
 
 		axis.xaxis.set_major_formatter(ScalarFormatter())
 		# axis.xaxis.set_major_formatter(LogFormatter())
@@ -226,6 +244,7 @@ class DepthView():
 		for tic in majorTicksX:
 			tic.label2.set_visible(False)
 			tic.tick2line.set_visible(False)
+		# plt.setp(majorTicksX,visible=False)
 
 		majorTicksX[0].label2.set_visible(True)
 		majorTicksX[0].tick2line.set_visible(True)
@@ -237,8 +256,10 @@ class DepthView():
 		plt.setp(axis.xaxis.get_majorticklabels()[-1],ha="right")
 
 	def set_image(self):
+		"""Creates the image of figure in memory and displays it on canvas."""
 
-		self.figure.set_tight_layout(True)
+		self.fgspec.tight_layout(self.figure,rect=[0,0,1.0,0.99])
+		self.fgspec.update(wspace=0)
 
 		buff = io.BytesIO()
 
@@ -343,9 +364,9 @@ if __name__ == "__main__":
 	Y = np.arange(500)
 	X = np.random.random(500)
 
-	las.set_figure(2)
-	las.set_axis(0,2)
-	# las.set_axis(1,4)
+	las.set_axes(2)
+	las.set_subaxes(0,10)
+	las.set_subaxes(1,3)
 	# las.set_lines(0,0,xvals=X,yvals=Y)
 	# las.set_lines(1,0,xvals=X,yvals=Y)
 	# las.set_lines(1,1,xvals=np.random.random(500),yvals=Y)
