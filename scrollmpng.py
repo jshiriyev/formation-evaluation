@@ -2,6 +2,8 @@ import io
 
 import logging
 
+import os
+
 import tkinter as tk
 
 from matplotlib import gridspec
@@ -20,6 +22,11 @@ import numpy as np
 
 from PIL import ImageTk, Image
 
+if __name__ == "__main__":
+    import setup
+
+from textio import LogASCII
+
 """
 1. DepthView should be a frame that can be added to any parent frame.
 2. Axis and line numbers should not be predefined.
@@ -28,18 +35,23 @@ from PIL import ImageTk, Image
 5. DepthView should be added to graphics and inherit from the textio.
 6. Depth axis must be unique!
 7. x-axis grids must be the same for the axis on top of each other.
+8. get_xticks() should be working perfectly for both normal and logarithmic scale
 """
 
-class DepthView():
+class DepthView(LogASCII):
 
-	def __init__(self,root):
+	def __init__(self,root,**kwargs):
 		"""It initializes the DepthView with listbox and figure canvas."""
+
+		super().__init__(**kwargs)
 
 		self.root = root
 
 		self.root.title("RockPy")
 
-		self.root.iconbitmap('rockpy.ico')
+		icopath = os.path.join(os.path.dirname(__file__),"rockpy.ico")
+
+		self.root.iconbitmap(icopath)
 
 		# The main frame for the listbox
 
@@ -141,8 +153,6 @@ class DepthView():
 
 		subaxis_main.set_ylim((1,0))
 
-		subaxis_main.spines["top"].set_visible(False)
-
 		subaxis_main.grid(True,which="both",axis='y')
 
 		plt.setp(subaxis_main.get_yticklines(),visible=False)
@@ -155,29 +165,30 @@ class DepthView():
 
 		self.axes.append(subaxes)
 
-		for idline in range(numsubaxes):
-			self.add_subaxis(idaxis,idline)
+		self.set_subaxes(idaxis,numsubaxes)
 
-	def set_subaxes(self,idaxis,numsubaxis):
+	def set_subaxes(self,idaxis,numsubaxes):
 		"""Creates subaxes and stores them in self.axes."""
 
-		for idline in range(1,numsubaxis):
+		roofpos = 1+0.4*numsubaxes/self.figure.get_figheight()
+
+		self.axes[idaxis][0].spines["top"].set_position(("axes",roofpos))
+
+		for idline in range(numsubaxes):
 			self.add_subaxis(idaxis,idline)
 
 	def add_subaxis(self,idaxis,idline):
 		"""Adds subaxis to the self.axes."""
 
-		axis = self.axes[idaxis][0]
-
-		axsub = axis.twiny()
+		axsub = self.axes[idaxis][0].twiny()
 
 		axsub.set_xticks((0,1))
-		axsub.set_ylim(axis.get_ylim())
+		axsub.set_ylim(self.axes[0][0].get_ylim())
 
-		if idline!=0:
-			spinepos = 1+0.4*idline/self.figure.get_figheight()
-			axsub.spines["top"].set_position(("axes",spinepos))
-			axsub.spines["top"].set_color(self.colors[idline])
+		spinepos = 1+0.4*idline/self.figure.get_figheight()
+
+		axsub.spines["top"].set_position(("axes",spinepos))
+		axsub.spines["top"].set_color(self.colors[idline])
 
 		axsub.spines["left"].set_visible(False)
 		axsub.spines["right"].set_visible(False)
@@ -337,25 +348,32 @@ class DepthView():
 
 		return xticks
 
-	def get_yticks(self,yvals=None,top=None,bottom=None):
+	def get_yticks(self,yvals=None,top=None,bottom=None,endmultiple=20.,ydelta=10.):
+
+		if yvals is None:
+			yvals = np.array([0,1])
 
 		if top is None:
-			top = yvals.min()
+			top = np.nanmin(yvals)
 
 		if bottom is None:
-			bottom = yvals.max()
+			bottom = np.nanmax(yvals)
 
-		ymin = np.floor(top/20)*20
+		if top>bottom:
+			top,bottom = bottom,top
 
-		ymax = np.ceil(bottom/20)*20
+		ymin = np.floor(top/endmultiple)*endmultiple
 
-		yticks = np.arange(ymin,ymax+5,10)
+		ymax = np.ceil(bottom/endmultiple)*endmultiple
+
+		yticks = np.arange(ymin,ymax+ydelta/2,ydelta)
 
 		return yticks
 
 	def _on_mousewheel(self,event):
+		"""Lets the scroll work everywhere on the window."""
 
-		self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+		self.canvas.yview_scroll(int(-1*(event.delta/120)),"units")
 
 if __name__ == "__main__":
 
@@ -366,8 +384,8 @@ if __name__ == "__main__":
 	Y = np.arange(500)
 	X = np.random.random(500)
 
-	las.set_axes(2)
-	las.set_subaxes(0,10)
+	las.set_axes(3)
+	las.set_subaxes(0,3)
 	las.set_subaxes(1,3)
 	# las.set_lines(0,0,xvals=X,yvals=Y)
 	# las.set_lines(1,0,xvals=X,yvals=Y)

@@ -24,7 +24,6 @@ from matplotlib.ticker import ScalarFormatter
 import numpy as np
 
 if __name__ == "__main__":
-
     import setup
 
 from textio import DataFrame

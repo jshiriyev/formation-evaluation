@@ -1938,6 +1938,6 @@ if __name__ == "__main__":
 
     import unittest
 
-    from tests import datatest
+    from tests import textiotest
 
-    unittest.main(datatest)
+    unittest.main(textiotest)
