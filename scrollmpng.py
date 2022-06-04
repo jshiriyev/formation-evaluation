@@ -7,7 +7,8 @@ import os
 import tkinter as tk
 
 from matplotlib import gridspec
-from matplotlib import pyplot as plt
+from matplotlib import pyplot
+from matplotlib import transforms
 
 # from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
@@ -36,6 +37,8 @@ from textio import LogASCII
 6. Depth axis must be unique!
 7. x-axis grids must be the same for the axis on top of each other.
 8. get_xticks() should be working perfectly for both normal and logarithmic scale
+9. set_lines() should be working smoothly
+10. set_listbox() should be adding {idfile: mnemonic} to the listbox
 """
 
 class DepthView(LogASCII):
@@ -90,8 +93,12 @@ class DepthView(LogASCII):
 		# The colors to be used for lines
 
 		# self.colors = ("black","crimson","blue","sienna")
-		self.colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
-		self.colors.insert(0,"#000000")
+		self.colors = pyplot.rcParams['axes.prop_cycle'].by_key()['color']
+		# self.colors.insert(0,"#000000")
+
+	def set_listbox(self):
+
+		pass
 
 	def set_axes(self,numaxes=1,subaxes=None,depth=None,inchdepth=15.,width=3.,height=32.,dpi=100.):
 		"""Creates the figure and axes and their sub-axes and stores them in the self.axes."""
@@ -118,7 +125,7 @@ class DepthView(LogASCII):
 		# dpi 		: integer
 		# 			 Resolution of the figure, dots per inches
 
-		self.figure = plt.figure(dpi=dpi)
+		self.figure = pyplot.figure(dpi=dpi)
 
 		self.figure.set_figwidth(width*numaxes)
 
@@ -146,7 +153,7 @@ class DepthView(LogASCII):
 
 		subaxes = []
 
-		subaxis_main = plt.subplot(self.fgspec[idaxis])
+		subaxis_main = pyplot.subplot(self.fgspec[idaxis])
 
 		subaxis_main.set_xticks([])
 		subaxis_main.set_yticks((0,1))
@@ -155,11 +162,11 @@ class DepthView(LogASCII):
 
 		subaxis_main.grid(True,which="both",axis='y')
 
-		plt.setp(subaxis_main.get_yticklines(),visible=False)
+		pyplot.setp(subaxis_main.get_yticklines(),visible=False)
 		# subaxis_main.tick_params(axis='y',which='major',length=0)
 
 		if idaxis>0:
-			plt.setp(subaxis_main.get_yticklabels(),visible=False)
+			pyplot.setp(subaxis_main.get_yticklabels(),visible=False)
 
 		subaxes.append(subaxis_main)
 
@@ -170,11 +177,16 @@ class DepthView(LogASCII):
 	def set_subaxes(self,idaxis,numsubaxes):
 		"""Creates subaxes and stores them in self.axes."""
 
+		numsubaxes_current = len(self.axes[idaxis])-1
+
+		if numsubaxes_current>=numsubaxes:
+			return
+
 		roofpos = 1+0.4*numsubaxes/self.figure.get_figheight()
 
 		self.axes[idaxis][0].spines["top"].set_position(("axes",roofpos))
 
-		for idline in range(numsubaxes):
+		for idline in range(numsubaxes_current,numsubaxes):
 			self.add_subaxis(idaxis,idline)
 
 	def add_subaxis(self,idaxis,idline):
@@ -196,11 +208,20 @@ class DepthView(LogASCII):
 
 		axsub.tick_params(axis='x',labelcolor=self.colors[idline])
 
-		plt.setp(axsub.xaxis.get_majorticklabels()[0],ha="left")
-		plt.setp(axsub.xaxis.get_majorticklabels()[-1],ha="right")
+		pyplot.setp(axsub.xaxis.get_majorticklabels()[0],ha="left")
+		pyplot.setp(axsub.xaxis.get_majorticklabels()[-1],ha="right")
 
-		plt.setp(axsub.xaxis.get_majorticklines()[1],markersize=25)
-		plt.setp(axsub.xaxis.get_majorticklines()[-1],markersize=25)
+		loffset = transforms.ScaledTranslation(5/72,-5/72,self.figure.dpi_scale_trans)
+		roffset = transforms.ScaledTranslation(-5/72,-5/72,self.figure.dpi_scale_trans)
+
+		ltrans = axsub.xaxis.get_majorticklabels()[0].get_transform()
+		rtrans = axsub.xaxis.get_majorticklabels()[-1].get_transform()
+
+		axsub.xaxis.get_majorticklabels()[0].set_transform(ltrans+loffset)
+		axsub.xaxis.get_majorticklabels()[-1].set_transform(rtrans+roffset)
+
+		pyplot.setp(axsub.xaxis.get_majorticklines()[1],markersize=25)
+		pyplot.setp(axsub.xaxis.get_majorticklines()[-1],markersize=25)
 
 		# axsub.xaxis.get_majorticklines()[0].set_markersize(100)
 
@@ -240,7 +261,7 @@ class DepthView(LogASCII):
 			for tic in axis.yaxis.get_minor_ticks():
 				tic.tick1line.set_visible(False)
 
-			# plt.setp(axis.yaxis.get_yticklabels(),visible=False)
+			# pyplot.setp(axis.yaxis.get_yticklabels(),visible=False)
 
 		if idline==0:
 			axis.grid(True,which="major",axis='x')
@@ -257,7 +278,7 @@ class DepthView(LogASCII):
 		for tic in majorTicksX:
 			tic.label2.set_visible(False)
 			tic.tick2line.set_visible(False)
-		# plt.setp(majorTicksX,visible=False)
+		# pyplot.setp(majorTicksX,visible=False)
 
 		majorTicksX[0].label2.set_visible(True)
 		majorTicksX[0].tick2line.set_visible(True)
@@ -265,13 +286,13 @@ class DepthView(LogASCII):
 		majorTicksX[-1].label2.set_visible(True)
 		majorTicksX[-1].tick2line.set_visible(True)
 
-		plt.setp(axis.xaxis.get_majorticklabels()[0],ha="left")
-		plt.setp(axis.xaxis.get_majorticklabels()[-1],ha="right")
+		pyplot.setp(axis.xaxis.get_majorticklabels()[0],ha="left")
+		pyplot.setp(axis.xaxis.get_majorticklabels()[-1],ha="right")
 
 	def set_image(self):
 		"""Creates the image of figure in memory and displays it on canvas."""
 
-		self.fgspec.tight_layout(self.figure,rect=[0,0,1.0,0.99])
+		self.fgspec.tight_layout(self.figure,rect=[0,0,1.0,0.985])
 		self.fgspec.update(wspace=0)
 
 		buff = io.BytesIO()
@@ -384,9 +405,10 @@ if __name__ == "__main__":
 	Y = np.arange(500)
 	X = np.random.random(500)
 
-	las.set_axes(3)
+	las.set_axes(4)
 	las.set_subaxes(0,3)
 	las.set_subaxes(1,3)
+	las.set_subaxes(2,3)
 	# las.set_lines(0,0,xvals=X,yvals=Y)
 	# las.set_lines(1,0,xvals=X,yvals=Y)
 	# las.set_lines(1,1,xvals=np.random.random(500),yvals=Y)
