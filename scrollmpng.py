@@ -26,6 +26,8 @@ from PIL import ImageTk, Image
 3. Adding axis should not affect previous axes.
 4. Adding line should not affect previous lines.
 5. DepthView should be added to graphics and inherit from the textio.
+6. Depth axis must be unique!
+7. x-axis grids must be the same for the axis on top of each other.
 """
 
 class DepthView():
