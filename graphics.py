@@ -1188,11 +1188,11 @@ def LogView(data=None):
             # indexJ index of GR containing line in the axis
 
             try:
-                depth = self.frames[GRline[0]]["MD"]
-            except KeyError:
-                depth = self.frames[GRline[0]]["DEPT"]
+                depth = self.frames[GRline[0]].columns("MD")
+            except ValueError:
+                depth = self.frames[GRline[0]].columns("DEPT")
 
-            xvals = self.frames[GRline[0]][GRline[1]]
+            xvals = self.frames[GRline[0]].columns(GRline[1])
 
             GRmin = np.nanmin(xvals)
             GRmax = np.nanmax(xvals)

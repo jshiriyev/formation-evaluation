@@ -257,6 +257,8 @@ class DataFrame(DirBase):
         if isinstance(cols,int):
             cols = (cols,)
 
+        """HOW ABOUT REPLACING DATA????????????"""
+
         if init:
             self._headers = []
             self._running = []
@@ -295,6 +297,10 @@ class DataFrame(DirBase):
 
             if len(args)!=len(cols):
                 logging.critical("Length of cols is not equal to number of provided arguments.")
+
+            if len(self._running)<max(cols)+1:
+                [self._headers.append("Col #{}".format(index)) for index in range(len(self._running),max(cols)+1)]
+                [self._running.append(np.array([])) for _ in range(len(self._running),max(cols)+1)]
 
             for (index,arg) in zip(cols,args):
 
@@ -1366,9 +1372,9 @@ class LogASCII(DataFrame):
 
         if depthsFID is not None:
             try:
-                depthsR = self.frames[depthsFID]["MD"]
-            except KeyError:
-                depthsR = self.frames[depthsFID]["DEPT"]
+                depthsR = self.frames[depthsFID].columns("MD")
+            except ValueError:
+                depthsR = self.frames[depthsFID].columns("DEPT")
 
         if fileID is None:
             fileIDs = range(len(self.frames))
@@ -1384,9 +1390,9 @@ class LogASCII(DataFrame):
             las = self.frames[indexI]
 
             try:
-                depthsO = las["MD"]
-            except KeyError:
-                depthsO = las["DEPT"]
+                depthsO = las.columns("MD")
+            except ValueError:
+                depthsO = las.columns("DEPT")
 
             lowerend = depthsR<depthsO.min()
             upperend = depthsR>depthsO.max()
@@ -1403,27 +1409,36 @@ class LogASCII(DataFrame):
             grads = (depths_interior-depthsO[indices_lower])/(depthsO[indices_upper]-depthsO[indices_lower])
 
             if curveID is None:
-                las.curves[0].data = depthsR
+                running = [depthsR]
+                # self.frames[indexI].set_running(depthsR,cols=0,init=True)
 
             if curveID is None:
-                curveIDs = range(1,len(las.curves))
+                curveIDs = range(1,len(las.running))
             else:
                 curveIDs = range(curveID,curveID+1)
 
             for indexJ in curveIDs:
 
-                curve = las.curves[indexJ]
+                curve = las.columns(indexJ)
 
                 dataR = np.empty(depthsR.shape,dtype=float)
 
                 dataR[lowerend] = np.nan
-                dataR[interior] = curve.data[indices_lower]+grads*(curve.data[indices_upper]-curve.data[indices_lower])
+                dataR[interior] = curve[indices_lower]+grads*(curve[indices_upper]-curve[indices_lower])
                 dataR[upperend] = np.nan
 
                 if curveID is None:
-                    self.frames[indexI].curves[indexJ].data = dataR
-                elif fileID is not None:
-                    return dataR
+                    running.append(dataR)
+
+            heads = self.frames[indexI].headers
+
+            if curveID is None:
+                curveIDs = list(curveIDs)
+                curveIDs.insert(0,0)
+                self.frames[indexI].set_running(*running,cols=curveIDs,init=True)
+                self.frames[indexI].set_headers(*heads,cols=curveIDs,init=False)
+            elif fileID is not None:
+                return dataR
 
     def merge(self,fileIDs,curveNames):
 
