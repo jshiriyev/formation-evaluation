@@ -64,7 +64,17 @@ class TestColumn(unittest.TestCase):
 
     def test_init(self):
 
-        column = Column(np.array([1,2,3,4]),unit="m")
+        column = Column(np.linspace(1,1000,100000),unit="m")
+
+        column+1
+        column-1
+        column*2
+        column/2
+
+        column+column
+        column-column
+        column*column
+        column/column
 
 class TestDataFrame(unittest.TestCase):
 

@@ -14,10 +14,24 @@ import re
 
 import numpy as np
 import openpyxl as opxl
+import pint
 import lasio
 
 if __name__ == "__main__":
     import setup
+
+"""
+1. Implement the use of string in Column
+2. Implement the use of datetime in Column
+3. Replicate astype, edit_dates, edit_strings from DataFrame and merge it to Column
+3. Merge Column to DataFrame
+4. DataFrame write should be finalized
+4. loadtext should be working well
+4. Finalize RegText
+5. Finalize LogASCII
+6. Finalize Excel
+7. Finalize IrrText
+"""
 
 class DirBase():
     """Base directory class to manage files in the input & output directories."""
@@ -127,66 +141,127 @@ class DirBase():
                 else:
                     return [filename for filename in filenames if filename.startswith(prefix) and filename.endswith(extension)]
 
-class Column(np.ndarray):
+class Column():
     """It is a numpy array of shape (N,) with additional attributes of head, unit and info."""
 
-    def __new__(cls,head=None,unit=None,info=None,values=None,shape=None):
-        """Returns a modified numpy array."""
+    def __init__(self,vals=None,head=None,unit=None,info=None,shape=None):
+        """Returns a numpy array with additional attributes."""
 
-        if head is None:
-            head = "n.d."
-
-        if unit is None:
-            unit = "n.d."
-
-        if info is None:
-            info = "n.d."
-
-        if values is None:
+        if vals is None:
 
             if shape is None:
                 shape = (0,)
             elif isinstance(shape,int):
                 shape = (shape,)
             elif isinstance(shape,list) or isinstance(shape,tuple):
-                pass
+                shape = (np.prod(shape),)
             else:
-                logging.warning(f"Unexpected shape type, {type(shape)}")
+                logging.warning(f"Unexpected shape type, {type(shape)}. Expected is int, list or tuple.")
 
-            if len(shape)>1:
-                logging.warning(f"It is not allowed to have dimensions larger than unity.")
-
-            values = np.zeros(shape)
+            vals = np.zeros(shape)
 
         else:
 
-            if isinstance(values,np.ndarray):
-                pass
-            elif isinstance(values,int) or isinstance(values,float):
-                values = np.array([values])
-            elif isinstance(values,list) or isinstance(values,tuple):
-                values = np.array(values)
+            if isinstance(vals,np.ndarray):
+                vals = vals.flatten()
+            elif isinstance(vals,int) or isinstance(vals,float):
+                vals = np.array([vals])
+            elif isinstance(vals,list) or isinstance(vals,tuple):
+                vals = np.array(vals).flatten()
 
-        self = super().__new__(cls,shape=values.shape,buffer=values,dtype=values.dtype)
+        self.vals = vals
 
-        self.head = head
-        self.unit = unit
-        self.info = info
+        vals_str = self.vals.__str__()
 
-        self.values = values.__str__()
+        vals_str = vals_str.replace("[","")
+        vals_str = vals_str.replace("]","")
 
-        return self
+        vals_str = vals_str.strip()
+
+        vals_str = vals_str.replace("\t"," ")
+        vals_str = vals_str.replace("\n"," ")
+
+        vals_str = re.sub(' +',',',vals_str)
+
+        self.str_ = f"[{vals_str}]"
+
+        self.head = "" if head is None else str(head)
+        self.unit = "dimensionless" if unit is None else str(unit)
+        self.info = "" if info is None else str(info)
+
+    def __add__(self,other):
+
+        if isinstance(other,Column):
+            other = other.convert(self.unit,inplace=False)
+            return Column(self.vals+other.vals,unit=self.unit)
+        else:
+            return Column(self.vals+other,self.head,self.unit,self.info)
+
+    def __eq__(self,other):
+
+        if isinstance(other,Column):
+            other = other.convert(self.unit,inplace=False)
+            return np.allclose(self.vals,other.vals,rtol=1e-10,atol=1e-10)
+        else:
+            return self.vals==other
+
+    def __mul__(self,other):
+
+        if isinstance(other,Column):
+            ur = pint.UnitRegistry()
+            unit = ur.Unit(f"{self.unit}*({other.unit})").__str__()
+            return Column(self.vals*other.vals,unit=unit)
+        else:
+            return Column(self.vals*other,self.head,self.unit,self.info)
+
+    def __repr__(self):
+
+        return f'column(head="{self.head}", unit="{self.unit}", info="{self.info}", vals={self.str_})'
 
     def __str__(self):
 
-        string = ""
+        string = "{}\n"*4
 
-        string += f"head\t: {self.head}\n"
-        string += f"unit\t: {self.unit}\n"
-        string += f"info\t: {self.info}\n"
-        string += f"values\t: {self.values}\n"
+        head = f"head\t: {self.head}"
+        unit = f"unit\t: {self.unit}"
+        info = f"info\t: {self.info}"
+        vals = f"vals\t: {self.str_}"
 
-        return string
+        return string.format(head,unit,info,vals)
+
+    def __sub__(self,other):
+
+        if isinstance(other,Column):
+            other = other.convert(self.unit,inplace=False)
+            return Column(self.vals-other.vals,unit=self.unit)
+        else:
+            return Column(self.vals-other,self.head,self.unit,self.info)
+
+    def __truediv__(self,other):
+
+        if isinstance(other,Column):
+            ur = pint.UnitRegistry()
+            unit = ur.Unit(f"{self.unit}/({other.unit})").__str__()
+            return Column(self.vals/other.vals,unit=unit)
+        else:
+            return Column(self.vals/other,self.head,self.unit,self.info)
+
+    def convert(self,unit,inplace=True):
+
+        if self.unit==unit:
+            if inplace:
+                return
+            else:
+                return self
+
+        ur = pint.UnitRegistry()
+
+        if inplace:
+            ur.Quantity(self.vals,self.unit).ito(unit)
+            self.unit = unit
+        else:
+            vals = ur.Quantity(self.vals,self.unit).to(unit).magnitude
+            return Column(vals,self.head,unit,self.info)
 
 class DataFrame(DirBase):
     """It stores equal-size one-dimensional numpy arrays in a list."""
