@@ -23,14 +23,15 @@ if __name__ == "__main__":
 """
 1. Implement the use of string in Column
 2. Implement the use of datetime in Column
-3. Replicate astype, edit_dates, edit_strings from DataFrame and merge it to Column
-3. Merge Column to DataFrame
-4. DataFrame write should be finalized
-4. loadtext should be working well
-4. Finalize RegText
-5. Finalize LogASCII
-6. Finalize Excel
-7. Finalize IrrText
+3. Replicate astype in Column
+4. Replicate edit_dates in Column
+5. Merge Column to DataFrame
+6. DataFrame write should be finalized
+7. loadtext should be working well
+8. Finalize RegText
+9. Finalize LogASCII
+10. Finalize Excel
+11. Finalize IrrText
 """
 
 class DirBase():
@@ -171,6 +172,24 @@ class Column():
 
         self.vals = vals
 
+        self.head = "" if head is None else str(head)
+        self.unit = "dimensionless" if unit is None else str(unit)
+        self.info = "" if info is None else str(info)
+
+    def set_head(self,head):
+
+        self.head = head
+
+    def set_unit(self,unit):
+        
+        self.unit = unit
+
+    def set_info(self,info):
+        
+        self.info = info
+
+    def get_valstr_(self):
+
         vals_str = self.vals.__str__()
 
         vals_str = vals_str.replace("[","")
@@ -183,40 +202,167 @@ class Column():
 
         vals_str = re.sub(' +',',',vals_str)
 
-        self.str_ = f"[{vals_str}]"
+        return f"[{vals_str}]"
 
-        self.head = "" if head is None else str(head)
-        self.unit = "dimensionless" if unit is None else str(unit)
-        self.info = "" if info is None else str(info)
+    def get_maxchar_(self):
+
+        if self.vals.dtype.type is np.str_:
+            vals = self.vals
+        else:
+            vals = self.stringify(inplace=False)
+
+        ## A better job can be done with the help of dtype.
+
+        counter = lambda x: len(x)
+
+        counter = np.vectorize(counter)
+
+        return np.max(counter(vals))
+
+    def is_dimensionless(self):
+
+        return self.unit=="dimensionless"
 
     def __add__(self,other):
+        """Implementing '+' operator."""
 
         if isinstance(other,Column):
-            other = other.convert(self.unit,inplace=False)
+            if self.unit!=other.unit:
+                other = other.convert(self.unit,inplace=False)
             return Column(self.vals+other.vals,unit=self.unit)
         else:
             return Column(self.vals+other,self.head,self.unit,self.info)
 
-    def __eq__(self,other):
+    def __eq__(self,other,tol=1e-12):
+        """Implementing '==' operator."""
 
         if isinstance(other,Column):
-            other = other.convert(self.unit,inplace=False)
-            return np.allclose(self.vals,other.vals,rtol=1e-10,atol=1e-10)
+            if self.unit!=other.unit:
+                other = other.convert(self.unit,inplace=False)
+                return np.abs(self.vals-other.vals)<tol*np.maximum(np.abs(self.vals),np.abs(other.vals))
+                #np.allclose(self.vals,other.vals,rtol=1e-10,atol=1e-10)
+            else:
+                return self.vals==other.vals
         else:
             return self.vals==other
 
-    def __mul__(self,other):
+    def __floordiv__(self,other):
+        """Implementing '//' operator."""
 
         if isinstance(other,Column):
-            ur = pint.UnitRegistry()
-            unit = ur.Unit(f"{self.unit}*({other.unit})").__str__()
+            # ureg = pint.UnitRegistry()
+            # unit = ureg.Unit(f"{self.unit}/({other.unit})").__str__()
+
+            if other.is_dimensionless() and self.is_dimensionless():
+                unit = "dimensionless"
+            elif not other.is_dimensionless() and self.is_dimensionless():
+                unit = f"1/{other.unit}"
+            elif other.is_dimensionless() and not self.is_dimensionless():
+                unit = self.unit
+            else:
+                unit = f"{self.unit}/({other.unit})"
+
+            return Column(self.vals//other.vals,unit=unit)
+        else:
+            return Column(self.vals//other,self.head,self.unit,self.info)
+
+    def __ge__(self,other):
+        """Implementing '>=' operator."""
+
+        if isinstance(other,Column):
+            if self.unit!=other.unit:
+                other = other.convert(self.unit,inplace=False)
+            return self.vals>=other.vals
+        else:
+            return self.vals>=other
+
+    def __gt__(self,other):
+        """Implementing '>' operator."""
+        
+        if isinstance(other,Column):
+            if self.unit!=other.unit:
+                other = other.convert(self.unit,inplace=False)
+            return self.vals>other.vals
+        else:
+            return self.vals>other
+
+    def __le__(self,other):
+        """Implementing '<=' operator."""
+        
+        if isinstance(other,Column):
+            if self.unit!=other.unit:
+                other = other.convert(self.unit,inplace=False)
+            return self.vals<=other.vals
+        else:
+            return self.vals<=other
+
+    def __lt__(self,other):
+        """Implementing '<' operator."""
+        
+        if isinstance(other,Column):
+            if self.unit!=other.unit:
+                other = other.convert(self.unit,inplace=False)
+            return self.vals<other.vals
+        else:
+            return self.vals<other
+
+    def __mod__(self,other):
+        """Implementing '%' operator."""
+
+        if isinstance(other,Column):
+        #     ureg = pint.UnitRegistry()
+        #     unit = ureg.Unit(f"{self.unit}/({other.unit})").__str__()
+        #     return Column(self.vals%other.vals,unit=unit)
+            if other.is_dimensionless():
+                return Column(self.vals%other.vals,self.head,self.unit,self.info)
+            else:
+                logging.critical(f"Cannot operate % on a dimensional Column.")
+        else:
+            return Column(self.vals%other,self.head,self.unit,self.info)
+
+    def __mul__(self,other):
+        """Implementing '*' operator."""
+
+        if isinstance(other,Column):
+            # ur = pint.UnitRegistry()
+            # unit = ur.Unit(f"{self.unit}*{other.unit}").__str__()
+
+            if other.is_dimensionless():
+                unit = self.unit
+            elif self.is_dimensionless():
+                unit = other.unit
+            else:
+                unit = f"{self.unit}*{other.unit}"
+
             return Column(self.vals*other.vals,unit=unit)
         else:
             return Column(self.vals*other,self.head,self.unit,self.info)
 
+    def __ne__(self,other,tol=1e-12):
+        """Implementing '!=' operator."""
+        
+        if isinstance(other,Column):
+            if self.unit!=other.unit:
+                other = other.convert(self.unit,inplace=False)
+                return np.abs(self.vals-other.vals)>tol*np.maximum(np.abs(self.vals),np.abs(other.vals))
+            else:
+                return self.vals!=other.vals
+        else:
+            return self.vals!=other
+
+    def __pow__(self,other):
+        """Implementing '**' operator."""
+
+        if isinstance(other,int) or isinstance(other,float):
+            # ureg = pint.UnitRegistry()
+            # unit = ureg.Unit(f"{self.unit}^{other}").__str__()
+            return Column(self.vals**other,self.head,f"({self.unit})**{other}",self.info)
+        else:
+            logging.critical("Cannot take to the power of non-int or non-float entries.")
+
     def __repr__(self):
 
-        return f'column(head="{self.head}", unit="{self.unit}", info="{self.info}", vals={self.str_})'
+        return f'column(head="{self.head}", unit="{self.unit}", info="{self.info}", vals={self.get_valstr_()})'
 
     def __str__(self):
 
@@ -225,23 +371,36 @@ class Column():
         head = f"head\t: {self.head}"
         unit = f"unit\t: {self.unit}"
         info = f"info\t: {self.info}"
-        vals = f"vals\t: {self.str_}"
+        vals = f"vals\t: {self.get_valstr()}"
 
         return string.format(head,unit,info,vals)
 
     def __sub__(self,other):
+        """Implementing '-' operator."""
 
         if isinstance(other,Column):
-            other = other.convert(self.unit,inplace=False)
+            if self.unit!=other.unit:
+                other = other.convert(self.unit,inplace=False)
             return Column(self.vals-other.vals,unit=self.unit)
         else:
             return Column(self.vals-other,self.head,self.unit,self.info)
 
     def __truediv__(self,other):
+        """Implementing '/' operator."""
 
         if isinstance(other,Column):
-            ur = pint.UnitRegistry()
-            unit = ur.Unit(f"{self.unit}/({other.unit})").__str__()
+            # ur = pint.UnitRegistry()
+            # unit = ur.Unit(f"{self.unit}/({other.unit})").__str__()
+
+            if other.is_dimensionless() and self.is_dimensionless():
+                unit = "dimensionless"
+            elif not other.is_dimensionless() and self.is_dimensionless():
+                unit = f"1/{other.unit}"
+            elif other.is_dimensionless() and not self.is_dimensionless():
+                unit = self.unit
+            else:
+                unit = f"{self.unit}/({other.unit})"
+
             return Column(self.vals/other.vals,unit=unit)
         else:
             return Column(self.vals/other,self.head,self.unit,self.info)
@@ -262,6 +421,36 @@ class Column():
         else:
             vals = ur.Quantity(self.vals,self.unit).to(unit).magnitude
             return Column(vals,self.head,unit,self.info)
+
+    def stringify(self,fstring=None,upper=False,lower=False,zfill=None,inplace=False):
+
+        if fstring is None:
+            fstring_inner = "{}"
+            fstring_clean = "{}"
+        else:
+            fstring_inner = re.search(r"\{(.*?)\}",fstring).group()
+            fstring_clean = re.sub(r"\{(.*?)\}","{}",fstring,count=1)
+
+        string = lambda x: fstring_inner.format(x)
+
+        if zfill is None:
+            string_fixed = lambda x: string(x)
+        else:
+            string_fixed = lambda x: string(x).zfill(zfill)
+
+        if upper:
+            case = lambda x: string_fixed(x).upper()
+        elif lower:
+            case = lambda x: string_fixed(x).lower()
+        else:
+            case = lambda x: string_fixed(x)
+
+        editor = np.vectorize(lambda x: fstring_clean.format(case(x)))
+
+        if inplace:
+            self.vals = editor(self.vals)
+        else:
+            return editor(self.vals)
 
 class DataFrame(DirBase):
     """It stores equal-size one-dimensional numpy arrays in a list."""
@@ -2010,7 +2199,7 @@ class Alphabet():
 
         self.string = string
 
-    def convert(self,language="aze",from_="cyril",to="latin"):
+    def conbvert(self,language="aze",from_="cyril",to="latin"):
 
         from_lower = getattr(self,f"{language}_{from_}_lower")
         from_upper = getattr(self,f"{language}_{from_}_upper")
