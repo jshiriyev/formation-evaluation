@@ -653,7 +653,8 @@ class DataFrame(DirBase):
     def add_childattrs(self,parent,**kwargs):
 
         if hasattr(self,parent):
-            logging.warning(f"{type(self).__name__} has {parent} attribute.")
+            # logging.warning(f"{type(self).__name__} has {parent} attribute.")
+            pass
         else:
             class Section(): pass
 
@@ -1396,10 +1397,10 @@ class LogASCII(DataFrame):
                     mnemonic,rest = line.split(".",maxsplit=1)
                     rest,descrptn = rest.split(":",maxsplit=1)
 
-                    if rest.startswith(" "):
+                    if rest.startswith(" ") or rest.startswith("\t"):
                         unit = ""
                         value = rest.strip()
-                    elif rest.endswith(" "):
+                    elif rest.endswith(" ") or rest.endswith("\t"):
                         value = ""
                         unit = rest.strip()
                     else:
@@ -1445,11 +1446,10 @@ class LogASCII(DataFrame):
 
                     else:
 
-                        if len(mnemonics)>0:
-                            frame.add_childattrs(title,mnemonics=mnemonics)
-                            frame.add_childattrs(title,units=units)
-                            frame.add_childattrs(title,values=values)
-                            frame.add_childattrs(title,descriptions=descriptions)
+                        frame.add_childattrs(title,mnemonics=mnemonics)
+                        frame.add_childattrs(title,units=units)
+                        frame.add_childattrs(title,values=values)
+                        frame.add_childattrs(title,descriptions=descriptions)
 
         if headers is None:
             usecols = None
@@ -1458,9 +1458,18 @@ class LogASCII(DataFrame):
 
         logdata = np.loadtxt(filepath,comments="#",skiprows=skiprows,usecols=usecols,encoding="latin1")
 
-        nullvalue = frame.well.values[frame.well.mnemonics.index("NULL")]
+        if hasattr(frame,"well"):
+            try:
+                index_null = frame.well.mnemonics.index("NULL")
+                value_null = frame.well.values[index_null]
+            except ValueError:
+                value_null = -999.25
+            except IndexError:
+                value_null = -999.25
+        else:
+            value_null = -999.25
 
-        logdata[logdata==nullvalue] = np.nan
+        logdata[logdata==value_null] = np.nan
 
         columns = [column for column in logdata.transpose()]
 
