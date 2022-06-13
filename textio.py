@@ -21,19 +21,15 @@ if __name__ == "__main__":
     import setup
 
 """
-1. Implement the use of integers in Column
-2. Implement the use of floats in Column
-1. Implement the use of string in Column
-2. Implement the use of datetime in Column
-3. Replicate astype in Column
-4. Replicate edit_dates in Column
-5. Merge Column to DataFrame
-6. DataFrame write should be finalized
-7. loadtext should be working well
-8. Finalize RegText
-9. Finalize LogASCII
-10. Finalize Excel
-11. Finalize IrrText
+1. Replicate astype in Column
+2. Replicate edit_dates in Column
+3. Merge Column to DataFrame
+4. DataFrame write should be finalized
+5. loadtext should be working well
+6. Finalize RegText
+7. Finalize LogASCII
+8. Finalize Excel
+9. Finalize IrrText
 """
 
 class DirBase():
@@ -174,21 +170,106 @@ class Column():
 
         self.vals = vals
 
-        self.head = "" if head is None else str(head)
-        self.unit = "dimensionless" if unit is None else str(unit)
-        self.info = "" if info is None else str(info)
+        self.head = self.set_head("") if head is None else self.set_head(head)
+        self.unit = self.set_unit("dimensionless") if unit is None else self.set_unit(unit)
+        self.info = self.set_info("") if info is None else self.set_info(info)
 
-    def set_head(self,head):
+    def set_head(self,head:str):
 
         self.head = head
 
-    def set_unit(self,unit):
-        
-        self.unit = unit
+    def set_unit(self,unit:str):
 
-    def set_info(self,info):
+        if self.vals.dtype.type is np.float64:
+            self.unit = unit
+            return
+
+        try:
+            self.vals.astype(float)
+            self.unit = unit
+        except ValueError:
+            logging.critical("Only numpy.float64 or float-convertables can have units, not {}".format(self.vals.dtype.type))
+
+    def set_info(self,info:str):
         
         self.info = info
+
+    def astype(self,dtype=None,none=None):
+
+        if dtype is str:
+            none = "" if none is None else str(none)
+        elif dtype is int:
+            none = -99999 if none is None else int(none)
+        elif dtype is float:
+            none = np.nan if none is None else float(none)
+        elif dtype is np.datetime64:
+            # none = np.datetime64('today')
+            none = np.datetime64('NaT') if none is None else np.datetime64(none)
+
+        if self.vals.dtype.type is np.object_:
+
+            vnone = np.vectorize(lambda x: x if x is not None else none)
+
+            self.vals = vnone(self.vals)
+
+            self.vals = self.vals.astype(dtype)
+
+        elif self.vals.dtype.type is np.str_:
+
+            vnone = np.vectorize(lambda x: x if x!='' and x!='None' else str(none))
+
+            self.vals = vnone(self.vals)
+
+            if dtype is str:
+                return
+            elif dtype is int:
+                try:
+                    self.vals = self.vals.astype(dtype)
+                except ValueError:
+                    vformat = np.vectorize(lambda x: round(float(remove_separator_from_float_string(x))))
+                    self.vals = vformat(self.vals).astype(dtype)
+            elif dtype is float:
+                try:
+                    self.vals = self.vals.astype(dtype)
+                except ValueError:
+                    vformat = np.vectorize(remove_separator_from_float_string)
+                    self.vals = vformat(self.vals).astype(dtype)
+            elif dtype is np.datetime64:
+                try:
+                    self.vals = self.vals.astype(dtype)
+                except ValueError:
+                    vformat = np.vectorize(lambda x: parser.parse(x))
+                    self.vals = vformat(self.vals).astype(dtype)
+            elif dtype is datetime:
+                vformat = np.vectorize(lambda x: parser.parse(x))
+                self.vals = vformat(self.vals).astype(dtype)
+
+        elif self.vals.dtype.type is np.int32:
+
+            self.vals = self.vals.astype(dtype)
+
+        elif self.vals.dtype.type is np.float64:
+
+            bools = np.isnan(self.vals)
+
+            if dtype is int:
+                self.vals = np.round_(self.vals)
+
+            self.vals = self.vals.astype(dtype)
+
+            self.vals[bools] = none
+
+        elif self.vals.dtype.type is np.datetime64:
+
+            bools = np.isnat(self.vals)
+
+            self.vals = self.vals.astype(dtype)
+
+            self.vals[bools] = none
+
+        else:
+
+            logging.warning(f"Unknown {self.vals.dtype.type=}.")
 
     def get_valstr_(self):
 
@@ -1207,6 +1288,7 @@ class DataFrame(DirBase):
         return string
 
     def write(self,filepath,fstring=None,**kwargs):
+        """It writes text form of DataFrame."""
 
         header_fstring = ("{}\t"*len(self._headers))[:-1]+"\n"
 
@@ -1222,22 +1304,15 @@ class DataFrame(DirBase):
             for line in vprint(*self._running):
                 wfile.write(line)
 
-    def writeb(self,filepath):
+    def writeb(self,filename):
         """It writes binary form of DataFrame."""
 
-        filepath = self.get_abspath(filepath)
+        filepath = self.get_abspath(f"{filename}.npz",homeFlag=True)
 
-        # self.cols2str()
+        for header,column in zip(self._headers,self._running):
+            kwargs[header] = column
 
-        # for column in self._running:
-        #     np.save(filepath,column)
-
-        running_fstring = ("{}\t"*len(self._headers))[:-1]+"\n"
-
-        with open("text.txt","w") as wfile:
-            for i in range(len(self._running[0])):
-                rows = self.get_rows(i)
-                wfile.write(running_fstring.format(*rows[0]))
+        np.savez_compressed(filepath,**kwargs)
 
 def loadtxt(path,classname=None,**kwargs):
 
@@ -2219,6 +2294,32 @@ class Alphabet():
 
         for from_letter,to_letter in zip(from_upper,to_upper):
             self.string.replace(from_letter,to_letter)
+
+def remove_separator_from_float_string(string):
+
+    if string.count(".")>1 and string.count(",")>1:
+        logging.warning(f"String contains more than one comma and dot, {string}")
+        return string
+
+    if string.count(",")>1 and string.count(".")<=1:
+        string = string.replace(",","")
+    elif string.count(".")>1 and string.count(",")<=1:
+        string = string.replace(".","")
+
+    if string.count(".")==1 and string.count(",")==1:
+        if string.index(".")>string.index(","):
+            string = string.replace(",","")
+        else:
+            string = string.replace(".","")
+            string = string.replace(",",".")
+        return string
+    elif string.count(".")==1:
+        return string
+    elif string.count(",")==1:
+        string = string.replace(",",".")
+        return string
+    else:
+        return string
 
 if __name__ == "__main__":
 
