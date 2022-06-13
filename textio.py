@@ -21,6 +21,8 @@ if __name__ == "__main__":
     import setup
 
 """
+1. Implement the use of integers in Column
+2. Implement the use of floats in Column
 1. Implement the use of string in Column
 2. Implement the use of datetime in Column
 3. Replicate astype in Column
@@ -211,13 +213,9 @@ class Column():
         else:
             vals = self.stringify(inplace=False)
 
-        ## A better job can be done with the help of dtype.
+        # max(vals,key=len) : this returns the string with maximum character
 
-        counter = lambda x: len(x)
-
-        counter = np.vectorize(counter)
-
-        return np.max(counter(vals))
+        return int(vals.dtype.itemsize/4)
 
     def is_dimensionless(self):
 
@@ -371,7 +369,7 @@ class Column():
         head = f"head\t: {self.head}"
         unit = f"unit\t: {self.unit}"
         info = f"info\t: {self.info}"
-        vals = f"vals\t: {self.get_valstr()}"
+        vals = f"vals\t: {self.get_valstr_()}"
 
         return string.format(head,unit,info,vals)
 

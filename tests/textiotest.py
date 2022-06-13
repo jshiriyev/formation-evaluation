@@ -76,6 +76,18 @@ class TestColumn(unittest.TestCase):
         column*column
         column/column
 
+    def test_get_maxchar(self):
+
+        column = Column(np.linspace(1,1000,100000),unit="m")
+
+        self.assertEqual(column.get_maxchar_(),18,
+            "get_maxchar_() does not return correct number of max chars for floats!")
+
+        column = Column(np.arange(50),unit='cm')
+
+        self.assertEqual(column.get_maxchar_(),2,
+            "get_maxchar_() does not return correct number of max chars for ints!")
+
 class TestDataFrame(unittest.TestCase):
 
     def test_init_none(self):
