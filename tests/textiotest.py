@@ -21,6 +21,8 @@ from textio import IrrText
 from textio import WSchedule
 from textio import VTKit
 
+from textio import remove_thousand_separator
+
 class TestDirBase(unittest.TestCase):
 
     def test_init(self):
@@ -66,15 +68,20 @@ class TestColumn(unittest.TestCase):
 
         column = Column(np.linspace(1,1000,100000),unit="m")
 
-        column+1
-        column-1
-        column*2
-        column/2
+    def test_set_head(self):
+        pass
 
-        column+column
-        column-column
-        column*column
-        column/column
+    def test_set_unit(self):
+        pass
+
+    def test_set_info(self):
+        pass
+
+    def test_astype(self):
+        pass
+
+    def test_get_valstr(self):
+        pass
 
     def test_get_maxchar(self):
 
@@ -87,6 +94,80 @@ class TestColumn(unittest.TestCase):
 
         self.assertEqual(column.get_maxchar_(),2,
             "get_maxchar_() does not return correct number of max chars for ints!")
+
+    def test_is_dimensionless(self):
+        pass
+
+    def test_addition(self):
+
+        column = Column(np.linspace(1,1000,100000),unit="m")
+        
+        column+1
+        column+column
+
+    def test_check_equality(self):
+        pass
+
+    def test_floor_division(self):
+        pass
+
+    def test_greater_equal(self):
+        pass
+
+    def test_greater_than(self):
+        pass
+
+    def test_less_equal(self):
+        pass
+
+    def test_less_than(self):
+        pass
+
+    def test_remainder(self):
+        pass
+
+    def test_multiplication(self):
+
+        column = Column(np.linspace(1,1000,100000),unit="m")
+        
+        column*2
+
+        column*column
+
+    def test_not_equal(self):
+        pass
+
+    def test_to_the_power(self):
+        pass
+
+    def test_repr(self):
+        pass
+
+    def test_str(self):
+        pass
+
+    def test_subtraction(self):
+
+        column = Column(np.linspace(1,1000,100000),unit="m")
+        
+        column-1
+        column-column
+
+    def test_true_division(self):
+
+        column = Column(np.linspace(1,1000,100000),unit="m")
+        
+        column/2
+        column/column
+
+    def test_unit_conversion(self):
+        pass
+
+    def test_stringify(self):
+        pass
+
+    def test_shift(self):
+        pass
 
 class TestDataFrame(unittest.TestCase):
 
@@ -144,26 +225,31 @@ class TestDataFrame(unittest.TestCase):
         df = DataFrame("col0","col1")
 
         df.add_attrs(name="raw_data")
-        
-        name1 = df.name
 
-        df.add_attrs(name="raw_data_2")
+        with self.assertLogs() as captured:
+            df.add_attrs(name="raw_data_2")
 
-        name2 = df.name
+        self.assertEqual(captured.records[0].getMessage(),
+            "Added value after replacing name with name_1.")
 
-        self.assertEqual(name1,name2)
-        self.assertEqual(name1,"raw_data")
-        self.assertEqual(name2,"raw_data")
+        self.assertEqual(df.name,"raw_data")
+        self.assertEqual(df.name_1,"raw_data_2")
 
-    def test_add_childattrs(self):
+    def test_add_tag(self):
 
         df = DataFrame("A","B")
 
-        df.add_childattrs("child",name1="john",name2="smith")
+        df.add_tag("child",name1="john",name2="smith")
 
-        df.add_childattrs("child",name1="tomy")
+        with self.assertLogs() as captured:
+            df.add_tag("child",name1="tomy")
+
+        self.assertEqual(captured.records[0].getMessage(),
+            "Added tag details after replacing child with child_1.")
 
         self.assertEqual(df.child.name1,"john")
+        self.assertEqual(df.child.name2,"smith")
+        self.assertEqual(df.child_1.name1,"tomy")
 
     def test_str2cols(self):
 
@@ -333,6 +419,18 @@ class TestVTKit(unittest.TestCase):
     def test_init(self):
 
         pass
+
+class TestFunctions(unittest.TestCase):
+
+    def test_remove_thousand_separator(self):
+
+        a1 = remove_thousand_separator("10 000,00")
+        a2 = remove_thousand_separator("10.000,00")
+        a3 = remove_thousand_separator("10,000.00")
+
+        self.assertEqual(a1,10000.,"could not remove thousand separator...")
+        self.assertEqual(a2,10000.,"could not remove thousand separator...")
+        self.assertEqual(a3,10000.,"could not remove thousand separator...")
                        
 if __name__ == "__main__":
 

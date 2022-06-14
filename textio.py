@@ -21,15 +21,13 @@ if __name__ == "__main__":
     import setup
 
 """
-1. Replicate astype in Column
-2. Replicate edit_dates in Column
-3. Merge Column to DataFrame
-4. DataFrame write should be finalized
-5. loadtext should be working well
-6. Finalize RegText
-7. Finalize LogASCII
-8. Finalize Excel
-9. Finalize IrrText
+1. Merge Column to DataFrame
+2. DataFrame write should be finalized
+3. loadtext should be working well
+4. Finalize RegText
+5. Finalize LogASCII
+6. Finalize Excel
+7. Finalize WSchedule
 """
 
 class DirBase():
@@ -195,6 +193,7 @@ class Column():
         self.info = info
 
     def astype(self,dtype=None,none=None):
+        """1. Replicate astype in Column"""
 
         if dtype is str:
             none = "" if none is None else str(none)
@@ -226,13 +225,13 @@ class Column():
                 try:
                     self.vals = self.vals.astype(dtype)
                 except ValueError:
-                    vformat = np.vectorize(lambda x: round(float(remove_separator_from_float_string(x))))
+                    vformat = np.vectorize(lambda x: round(float(remove_thousand_separator(x))))
                     self.vals = vformat(self.vals).astype(dtype)
             elif dtype is float:
                 try:
                     self.vals = self.vals.astype(dtype)
                 except ValueError:
-                    vformat = np.vectorize(remove_separator_from_float_string)
+                    vformat = np.vectorize(remove_thousand_separator)
                     self.vals = vformat(self.vals).astype(dtype)
             elif dtype is np.datetime64:
                 try:
@@ -531,6 +530,14 @@ class Column():
         else:
             return editor(self.vals)
 
+    def shift(self,delta,deltaunit,inplace=False):
+        """2. Replicate edit_dates in Column"""
+
+        if inplace:
+            pass
+        else:
+            return Column()
+
 class DataFrame(DirBase):
     """It stores equal-size one-dimensional numpy arrays in a list."""
 
@@ -724,26 +731,44 @@ class DataFrame(DirBase):
     def add_attrs(self,**kwargs):
 
         for key,value in kwargs.items():
-            if hasattr(self,key):
-                logging.warning(f"{type(self).__name__} has {key} attribute.")
-            else:
+
+            if not hasattr(self,key):
                 setattr(self,key,value)
-
-    def add_childattrs(self,parent,**kwargs):
-
-        if hasattr(self,parent):
-            # logging.warning(f"{type(self).__name__} has {parent} attribute.")
-            pass
-        else:
-            class Section(): pass
-
-            setattr(self,parent,Section())
-
-        for key,value in kwargs.items():
-            if hasattr(getattr(self,parent),key):
-                logging.warning(f"{type(self).__name__} has {key} attribute under {parent}.")
+                continue
             else:
-                setattr(getattr(self,parent),key,value)
+                key_edited = f"{key}_{1}"
+
+            for i in range(2,100):
+                if hasattr(self,key_edited):
+                    key_edited = f"{key}_{i}"
+                else:
+                    break
+            else:
+                logging.critical(f"Could not add DataFrameTag, copy limit of key reached 100!")
+            
+            setattr(self,key_edited,value)
+
+            logging.info(f"Added value after replacing {key} with {key_edited}.")
+
+    def add_tag(self,tagname,**kwargs):
+
+        if not hasattr(self,tagname):
+            setattr(self,tagname,DataFrameTag(**kwargs))
+            return
+        else:
+            tagname_edited = f"{tagname}_{1}"
+
+        for i in range(2,100):
+            if hasattr(self,tagname_edited):
+                tagname_edited = f"{tagname}_{i}"
+            else:
+                break
+        else:
+            logging.critical(f"Could not add DataFrameTag, copy limit of tagname reached 100!")
+        
+        setattr(self,tagname_edited,DataFrameTag(**kwargs))
+
+        logging.info(f"Added tag details after replacing {tagname} with {tagname_edited}.")
 
     def str2cols(self,col=None,deliminator=None,maxsplit=None):
 
@@ -1314,6 +1339,13 @@ class DataFrame(DirBase):
 
         np.savez_compressed(filepath,**kwargs)
 
+class DataFrameTag():
+
+    def __init__(self,**kwargs):
+
+        for key,value in kwargs.items():
+            setattr(self,key,value)
+
 def loadtxt(path,classname=None,**kwargs):
 
     if classname is None:
@@ -1519,10 +1551,10 @@ class LogASCII(DataFrame):
 
                     else:
 
-                        frame.add_childattrs(title,mnemonics=mnemonics)
-                        frame.add_childattrs(title,units=units)
-                        frame.add_childattrs(title,values=values)
-                        frame.add_childattrs(title,descriptions=descriptions)
+                        frame.add_tag(title,mnemonics=mnemonics)
+                        frame.add_tag(title,units=units)
+                        frame.add_tag(title,values=values)
+                        frame.add_tag(title,descriptions=descriptions)
 
         if headers is None:
             usecols = None
@@ -2295,7 +2327,9 @@ class Alphabet():
         for from_letter,to_letter in zip(from_upper,to_upper):
             self.string.replace(from_letter,to_letter)
 
-def remove_separator_from_float_string(string):
+def remove_thousand_separator(string):
+    """It returns float after removing thousand separator (either comma or full stop)
+    from string and setting decimal separator as full stop."""
 
     if string.count(".")>1 and string.count(",")>1:
         logging.warning(f"String contains more than one comma and dot, {string}")
@@ -2312,14 +2346,30 @@ def remove_separator_from_float_string(string):
         else:
             string = string.replace(".","")
             string = string.replace(",",".")
-        return string
+        try:
+            return float(string)
+        except ValueError:
+            string = string.replace(" ","")
+            return float(string)
     elif string.count(".")==1:
-        return string
+        try:
+            return float(string)
+        except ValueError:
+            string = string.replace(" ","")
+            return float(string)
     elif string.count(",")==1:
         string = string.replace(",",".")
-        return string
+        try:
+            return float(string)
+        except ValueError:
+            string = string.replace(" ","")
+            return float(string)
     else:
-        return string
+        try:
+            return float(string)
+        except ValueError:
+            string = string.replace(" ","")
+            return float(string)
 
 if __name__ == "__main__":
 
