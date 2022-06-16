@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 
 import numpy as np
 
+from textio import star_split
+
 Nx,Ny,Nz = (1,1,2)
 
 Nsurf_nodes = (Nx+1)*(Ny+1)
@@ -17,31 +19,11 @@ endsection = "/"
 headers = ["COORD","ZCORN"]
 running = [coord,zcorn]
 
-running_temp = []
-
-def starsplit0(string):
-	row = string.split("*",maxsplit=2)
-	[row.insert(0,"") for _ in range(2-len(row))]
-	if len(row[0])==0:
-		return 1
-	else:
-		return int(row[0])
-
-def starsplit1(string):
-	row = string.split("*",maxsplit=2)
-	[row.insert(0,"") for _ in range(2-len(row))]
-	return float(row[1])
-
-splitting0 = np.vectorize(starsplit0)
-splitting1 = np.vectorize(starsplit1)
+lines = ""
 
 with open("grid.grdecl","r") as text:
-
-	array = []
 	
 	for line in text:
-
-		line = line.split('\n')[0].strip()
 
 		if line=="":
 			continue
@@ -50,36 +32,33 @@ with open("grid.grdecl","r") as text:
 			if line[:len(comment)] == comment:
 				continue
 
-		line = re.sub(' +',',',line)
-		
-		row = line.split(",")
+		lines += line
 
-		try:
-			index = line.index(endsection)
-		except ValueError:
-			[array.append(col) for col in row]
-		else:
-			[array.append(col) for col in row[:index]]
-			running_temp.append(array)
-			array = []
-			[array.append(col) for col in row[index+1:]]
+sections = lines.split(endsection)
 
-for array in running_temp:
+for section in sections:
+
+	if section=="":
+		continue
+
+	section = section.strip("\n")
+
+	section = re.sub('\n+',' ',section)
+	section = re.sub(' +',',',section)
+
+	array = section.split(",")
 	
 	section_keyword = array.pop(0)
+
 	index = headers.index(section_keyword)
 	
-	ints = splitting0(array)
-	flts = splitting1(array)
+	ints,flts = star_split(array)
 
-	running[index] = np.repeat(flts,ints)
+	running[index][:] = np.repeat(flts,ints)
 
 coord = running[0].reshape((Nsurf_nodes,6))
 
 zcorn = running[1] #((2*Nx*2*Ny*2*Nz,))
-
-print(coord)
-print(zcorn)
 
 coord1 = coord*1
 coord2 = coord*1
@@ -103,4 +82,4 @@ ax.set_xlabel("x-axis")
 ax.set_ylabel("y-axis")
 ax.set_zlabel("z-axis")
 
-plt.show()
+# plt.show()

@@ -2371,6 +2371,18 @@ def remove_thousand_separator(string):
             string = string.replace(" ","")
             return float(string)
 
+def star_split_(string):
+    """It returns integer and floating number in star multiplied string."""
+    
+    row = string.split("*",maxsplit=1)
+
+    if len(row)==1:
+        return 1,float(row[0])
+    else:
+        return int(row[0]),float(row[1])
+
+star_split = np.vectorize(star_split_,signature='()->(),()')
+
 if __name__ == "__main__":
 
     import unittest
