@@ -4,6 +4,10 @@ SETUP_CODE = """
 
 import numpy as np
 
+from vector import starsplit
+from vector import starsplit_numpy
+from vector import starsplit_npvect
+
 N = 1000000
 
 np.random.seed(2021)
@@ -29,8 +33,6 @@ result_list = result_array.tolist()
 
 RUN_CODE_1 = """
 
-from vector import starsplit
-
 pylist = starsplit(result_list)
 
 # print(pylist[:10])
@@ -39,8 +41,6 @@ pylist = starsplit(result_list)
 
 RUN_CODE_2 = """
 
-from vector import starsplit_numpy
-
 nparray = starsplit_numpy(result_array)
 
 # print(nparray[:10])
@@ -48,8 +48,6 @@ nparray = starsplit_numpy(result_array)
 """
 
 RUN_CODE_3 = """
-
-from vector import starsplit_npvect
 
 ints,flts = starsplit_npvect(result_array)
 
@@ -63,4 +61,6 @@ py1 = timeit.timeit(RUN_CODE_1,setup=SETUP_CODE,number=1)
 py2 = timeit.timeit(RUN_CODE_2,setup=SETUP_CODE,number=1)
 py3 = timeit.timeit(RUN_CODE_3,setup=SETUP_CODE,number=1)
 
-print(py1,py2,py3)
+print(f"Python List runs in {py1}")
+print(f"Numpy Array runs in {py2}")
+print(f"Vectorized Numpy Array runs in {py3}")
