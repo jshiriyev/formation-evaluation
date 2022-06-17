@@ -20,6 +20,8 @@ import lasio
 if __name__ == "__main__":
     import setup
 
+from cypy.vector import remove_thousand_separator
+
 """
 1. Merge Column to DataFrame
 2. DataFrame write should be finalized
@@ -2326,62 +2328,6 @@ class Alphabet():
 
         for from_letter,to_letter in zip(from_upper,to_upper):
             self.string.replace(from_letter,to_letter)
-
-def remove_thousand_separator(string):
-    """It returns float after removing thousand separator (either comma or full stop)
-    from string and setting decimal separator as full stop."""
-
-    if string.count(".")>1 and string.count(",")>1:
-        logging.warning(f"String contains more than one comma and dot, {string}")
-        return string
-
-    if string.count(",")>1 and string.count(".")<=1:
-        string = string.replace(",","")
-    elif string.count(".")>1 and string.count(",")<=1:
-        string = string.replace(".","")
-
-    if string.count(".")==1 and string.count(",")==1:
-        if string.index(".")>string.index(","):
-            string = string.replace(",","")
-        else:
-            string = string.replace(".","")
-            string = string.replace(",",".")
-        try:
-            return float(string)
-        except ValueError:
-            string = string.replace(" ","")
-            return float(string)
-    elif string.count(".")==1:
-        try:
-            return float(string)
-        except ValueError:
-            string = string.replace(" ","")
-            return float(string)
-    elif string.count(",")==1:
-        string = string.replace(",",".")
-        try:
-            return float(string)
-        except ValueError:
-            string = string.replace(" ","")
-            return float(string)
-    else:
-        try:
-            return float(string)
-        except ValueError:
-            string = string.replace(" ","")
-            return float(string)
-
-def star_split_(string):
-    """It returns integer and floating number in star multiplied string."""
-    
-    row = string.split("*",maxsplit=1)
-
-    if len(row)==1:
-        return 1,float(row[0])
-    else:
-        return int(row[0]),float(row[1])
-
-star_split = np.vectorize(star_split_,signature='()->(),()')
 
 if __name__ == "__main__":
 

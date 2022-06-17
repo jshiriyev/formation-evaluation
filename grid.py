@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 import numpy as np
 
-from textio import star_split
+from cypy.vector import starsplit
 
 Nx,Ny,Nz = (1,1,2)
 
@@ -51,10 +51,8 @@ for section in sections:
 	section_keyword = array.pop(0)
 
 	index = headers.index(section_keyword)
-	
-	ints,flts = star_split(array)
 
-	running[index][:] = np.repeat(flts,ints)
+	running[index][:] = np.array(starsplit(array))
 
 coord = running[0].reshape((Nsurf_nodes,6))
 
