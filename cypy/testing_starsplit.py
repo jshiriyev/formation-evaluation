@@ -35,7 +35,7 @@ RUN_CODE_1 = """
 
 pylist = starsplit(result_list)
 
-# print(pylist[:10])
+print(pylist[:10])
 
 """
 
@@ -43,7 +43,7 @@ RUN_CODE_2 = """
 
 nparray = starsplit_numpy(result_array)
 
-# print(nparray[:10])
+print(nparray[:10])
 
 """
 
@@ -53,7 +53,7 @@ ints,flts = starsplit_npvect(result_array)
 
 nparray = np.repeat(flts,ints)
 
-# print(nparray[:10])
+print(nparray[:10])
 
 """
 

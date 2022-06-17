@@ -44,36 +44,52 @@ def remove_thousand_separator(string):
             string = string.replace(" ","")
             return float(string)
 
-def starsplit(string_list):
-    """It returns star splitted array repeating post-star pre-star times."""
+def starsplit(string_list,default=1.0):
+    """It returns star splitted list repeating post-star pre-star times."""
 
     float_list = []
 
     for string in string_list:
 
-        row = string.split("*",maxsplit=1)
+        if "*" in string:
 
-        if len(row)==1:
-            val = float(row[0])
-            float_list.append(val)
+            if string.endswith("*"):
+                mult = string.rstrip("*")
+                mult,val = int(mult),default
+            else:
+                mult,val = string.split("*",maxsplit=1)
+                mult,val = int(mult),float(val)
+
+            for i in range(mult):
+                float_list.append(val)
+
         else:
-            mult,val = int(row[0]),float(row[1])
-            [float_list.append(val) for _ in range(mult)]
+            
+            float_list.append(float(string))
 
     return float_list
 
 def starsplit_numpy(array):
     """It returns star splitted array repeating post-star pre-star times."""
 
-    ints = np.empty(array.shape,dtype=int)
+    ints = np.ones(array.shape,dtype=int)
+
     flts = np.empty(array.shape,dtype=float)
 
+    # array = np.char.split(array,sep="*",maxsplit=1)
+
+    # for i,pylist in enumerate(array):
+
+    #     if len(pylist)==1:
+    #         flts[i] = float(pylist[0])
+    #     else:
+    #         ints[i],flts[i] = int(pylist[0]),float(pylist[1])
     for i,string in enumerate(array):
 
         row = string.split("*",maxsplit=1)
 
         if len(row)==1:
-            ints[i],flts[i] = 1,float(row[0])
+            flts[i] = float(row[0])
         else:
             ints[i],flts[i] = int(row[0]),float(row[1])
 
