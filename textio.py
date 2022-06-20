@@ -746,31 +746,18 @@ class DataFrame(DirBase):
                 else:
                     break
             else:
-                logging.critical(f"Could not add DataFrameTag, copy limit of key reached 100!")
+                logging.critical(f"Could not add DataFrameGlossary, copy limit of key reached 100!")
             
             setattr(self,key_edited,value)
 
             logging.info(f"Added value after replacing {key} with {key_edited}.")
 
-    def add_tag(self,tagname,**kwargs):
+    def add_glossary(self,title,**kwargs):
 
-        if not hasattr(self,tagname):
-            setattr(self,tagname,DataFrameTag(**kwargs))
-            return
+        if hasattr(self,title):
+            pass
         else:
-            tagname_edited = f"{tagname}_{1}"
-
-        for i in range(2,100):
-            if hasattr(self,tagname_edited):
-                tagname_edited = f"{tagname}_{i}"
-            else:
-                break
-        else:
-            logging.critical(f"Could not add DataFrameTag, copy limit of tagname reached 100!")
-        
-        setattr(self,tagname_edited,DataFrameTag(**kwargs))
-
-        logging.info(f"Added tag details after replacing {tagname} with {tagname_edited}.")
+            setattr(self,title,DataFrameGlossary(**kwargs))
 
     def str2cols(self,col=None,deliminator=None,maxsplit=None):
 
@@ -1341,12 +1328,44 @@ class DataFrame(DirBase):
 
         np.savez_compressed(filepath,**kwargs)
 
-class DataFrameTag():
+class DataFrameGlossary(list):
+    """It is a list of dictionaries where the elements are defined below keys."""
 
     def __init__(self,**kwargs):
 
-        for key,value in kwargs.items():
-            setattr(self,key,value)
+        self.set_glossary(**kwargs)
+
+    def set_glossary(self,**kwargs):
+
+        items = []
+
+        self.rows = kwargs.values()
+
+        for row in zip(*self.rows):
+
+            item = {}
+
+            for cell,key in zip(row,kwargs.keys()):
+                item[key] = cell
+
+            items.append(item)
+
+        super().__init__(items)
+
+        self.keys = kwargs.keys()
+
+    def get_element(self,**kwargs):
+
+        key,keyword = next(iter(kwargs.items()))
+
+        for item in self:
+            if item[key]==keyword:
+                return item
+
+    def get_columns(self,key=None):
+
+        if key is None:
+            return self.rows
 
 def loadtxt(path,classname=None,**kwargs):
 
@@ -1504,6 +1523,8 @@ class LogASCII(DataFrame):
                     mnemonic,rest = line.split(".",maxsplit=1)
                     rest,descrptn = rest.split(":",maxsplit=1)
 
+                    print(rest)
+
                     if rest.startswith(" ") or rest.startswith("\t"):
                         unit = ""
                         value = rest.strip()
@@ -1553,10 +1574,11 @@ class LogASCII(DataFrame):
 
                     else:
 
-                        frame.add_tag(title,mnemonics=mnemonics)
-                        frame.add_tag(title,units=units)
-                        frame.add_tag(title,values=values)
-                        frame.add_tag(title,descriptions=descriptions)
+                        frame.add_glossary(title,
+                            mnemonic=mnemonics,
+                            unit=units,
+                            value=values,
+                            description=descriptions)
 
         if headers is None:
             usecols = None
@@ -1567,11 +1589,10 @@ class LogASCII(DataFrame):
 
         if hasattr(frame,"well"):
             try:
-                index_null = frame.well.mnemonics.index("NULL")
-                value_null = frame.well.values[index_null]
-            except ValueError:
+                value_null = frame.well.get_element(mnemonic="NULL")["value"]
+            except TypeError:
                 value_null = -999.25
-            except IndexError:
+            except KeyError:
                 value_null = -999.25
         else:
             value_null = -999.25
@@ -1595,9 +1616,11 @@ class LogASCII(DataFrame):
 
             frame = self.frames[index]
 
-            print("\n\tWELL #{}".format(frame.well.values[frame.well.mnemonics.index("WELL")]))
+            print("\n\tWELL #{}".format(frame.well.get_element(mnemonic="WELL")["value"]))
 
-            iterator = zip(frame.well.mnemonics,frame.well.units,frame.well.values,frame.well.descriptions)
+            # iterator = zip(frame.well["mnemonic"],frame.well["units"],frame.well["value"],frame.well.descriptions)
+
+            iterator = zip(*frame.well.get_columns())
 
             for mnem,unit,value,descr in iterator:
                 print(f"{descr} ({mnem}):\t\t{value} [{unit}]")
