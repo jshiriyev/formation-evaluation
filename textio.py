@@ -20,7 +20,8 @@ import lasio
 if __name__ == "__main__":
     import setup
 
-from cypy.vector import remove_thousand_separator
+from cypy.vector import str2float
+from cypy.vector import str2int
 
 """
 1. Merge Column to DataFrame
@@ -227,13 +228,13 @@ class Column():
                 try:
                     self.vals = self.vals.astype(dtype)
                 except ValueError:
-                    vformat = np.vectorize(lambda x: round(float(remove_thousand_separator(x))))
+                    vformat = np.vectorize(str2int)
                     self.vals = vformat(self.vals).astype(dtype)
             elif dtype is float:
                 try:
                     self.vals = self.vals.astype(dtype)
                 except ValueError:
-                    vformat = np.vectorize(remove_thousand_separator)
+                    vformat = np.vectorize(str2float)
                     self.vals = vformat(self.vals).astype(dtype)
             elif dtype is np.datetime64:
                 try:
@@ -543,6 +544,8 @@ class Column():
 class DataFrame(DirBase):
     """It stores equal-size one-dimensional numpy arrays in a list."""
 
+    glossaries = []
+
     print_cols = None
     print_rows = None
     print_rlim = 20
@@ -755,9 +758,14 @@ class DataFrame(DirBase):
     def add_glossary(self,title,**kwargs):
 
         if hasattr(self,title):
+
             pass
+
         else:
+
             setattr(self,title,DataFrameGlossary(**kwargs))
+
+            self.glossaries.append(title)
 
     def str2cols(self,col=None,deliminator=None,maxsplit=None):
 
@@ -1263,8 +1271,6 @@ class DataFrame(DirBase):
 
                 rows = range(nrows)
 
-                string += "\n\n"
-
                 string += fstring.format(*headers)
                 string += fstring.format(*unlines)
 
@@ -1290,8 +1296,6 @@ class DataFrame(DirBase):
                     string += fstring.format(*[self.running[col][row] for col in cols])
 
         else:
-
-            string += "\n\n"
 
             string += fstring.format(*headers)
             string += fstring.format(*unlines)
@@ -1339,9 +1343,9 @@ class DataFrameGlossary(list):
 
         items = []
 
-        self.rows = kwargs.values()
+        self.columns = kwargs.values()
 
-        for row in zip(*self.rows):
+        for row in zip(*self.columns):
 
             item = {}
 
@@ -1354,7 +1358,10 @@ class DataFrameGlossary(list):
 
         self.keys = kwargs.keys()
 
-    def get_element(self,**kwargs):
+    def get_row(self,**kwargs):
+
+        if len(kwargs)!=1:
+            logging.critical("DataFrameGlossary.get_row() expects only one positional argument!")
 
         key,keyword = next(iter(kwargs.items()))
 
@@ -1365,7 +1372,10 @@ class DataFrameGlossary(list):
     def get_columns(self,key=None):
 
         if key is None:
-            return self.rows
+            return self.columns
+        else:
+            index = self.keys.index(key)
+            return self.columns[index]
 
 def loadtxt(path,classname=None,**kwargs):
 
@@ -1479,7 +1489,7 @@ class LogASCII(DataFrame):
             self.frames.append(self.read(filepath,**kwargs))
             logging.info(f"Loaded {filepath} as expected.")
 
-    def read(self,filepath,headers=None):
+    def read(self,filepath):
 
         filepath = self.get_abspath(filepath)
 
@@ -1523,14 +1533,14 @@ class LogASCII(DataFrame):
                     mnemonic,rest = line.split(".",maxsplit=1)
                     rest,descrptn = rest.split(":",maxsplit=1)
 
-                    print(rest)
+                    rest = rest.rstrip()
 
-                    if rest.startswith(" ") or rest.startswith("\t"):
-                        unit = ""
-                        value = rest.strip()
-                    elif rest.endswith(" ") or rest.endswith("\t"):
-                        value = ""
-                        unit = rest.strip()
+                    if len(rest)==0:
+                        unit,value = "",""
+                    elif rest.startswith(" ") or rest.startswith("\t"):
+                        unit,value = "",rest.lstrip()
+                    elif len(rest.split(" ",maxsplit=1))==1:
+                        unit,value = rest,""
                     else:
                         unit,value = rest.split(" ",maxsplit=1)
 
@@ -1580,26 +1590,52 @@ class LogASCII(DataFrame):
                             value=values,
                             description=descriptions)
 
-        if headers is None:
-            usecols = None
-        else:
-            usecols = [frame.headers.index(header) for header in headers]
+            line = next(text).strip()
 
-        logdata = np.loadtxt(filepath,comments="#",skiprows=skiprows,usecols=usecols,encoding="latin1")
+            row = re.sub(' +',' ',line).split(" ")
 
-        if hasattr(frame,"well"):
-            try:
-                value_null = frame.well.get_element(mnemonic="NULL")["value"]
-            except TypeError:
+            dtypes = [float if isnumber(cell) else str for cell in row]
+
+        usecols = None
+
+        if all([dtype is float for dtype in dtypes]):
+
+            logdata = np.loadtxt(filepath,
+                comments="#",
+                skiprows=skiprows,
+                usecols=usecols,
+                encoding="latin1")
+
+            if hasattr(frame,"well"):
+                try:
+                    value_null = frame.well.get_row(mnemonic="NULL")["value"]
+                except TypeError:
+                    value_null = -999.25
+                except KeyError:
+                    value_null = -999.25
+            else:
                 value_null = -999.25
-            except KeyError:
-                value_null = -999.25
+
+            logdata[logdata==value_null] = np.nan
+
+            columns = [column for column in logdata.transpose()]
+
         else:
-            value_null = -999.25
 
-        logdata[logdata==value_null] = np.nan
+            # usecols_flt = [index for index,dtype in enumerate(dtypes) if dtype is float]
+            # usecols_str = [index for index,dtype in enumerate(dtypes) if dtype is str]
 
-        columns = [column for column in logdata.transpose()]
+            columns = []
+
+            for index,dtype in enumerate(dtypes):
+
+                column = np.loadtxt(filepath,
+                    dtype=dtype,
+                    skiprows=skiprows,
+                    usecols=[index],
+                    encoding="latin1")
+
+                columns.append(column)
 
         frame.set_running(*columns,cols=range(len(columns)))
 
@@ -1616,7 +1652,7 @@ class LogASCII(DataFrame):
 
             frame = self.frames[index]
 
-            print("\n\tWELL #{}".format(frame.well.get_element(mnemonic="WELL")["value"]))
+            print("\n\tWELL #{}".format(frame.well.get_row(mnemonic="WELL")["value"]))
 
             # iterator = zip(frame.well["mnemonic"],frame.well["units"],frame.well["value"],frame.well.descriptions)
 
@@ -1685,10 +1721,7 @@ class LogASCII(DataFrame):
 
         for index in idframes:
 
-            try:
-                depth = self.frames[index].columns("MD")
-            except ValueError:
-                depth = self.frames[index].columns("DEPT")
+            depth = self.frames[index].columns(0)
 
             depth_cond = np.logical_and(depth>self.top,depth<self.bottom)
 
@@ -1889,19 +1922,19 @@ class LogASCII(DataFrame):
 
             return depth,xvals
 
-    def write(self,filepath,mnemonics,data,fileID=None,units=None,descriptions=None,values=None):
+    def write(self,filepath,mnemonics,data,idfile=None,units=None,descriptions=None,values=None):
 
         """
         filepath:       It will write a lasio.LASFile to the given filepath
-        fileID:         The file index which to write to the given filepath
-                        If fileID is None, new lasio.LASFile will be created
+        idfile:         The file index which to write to the given filepath
+                        If idfile is None, new lasio.LASFile will be created
 
         kwargs:         These are mnemonics, data, units, descriptions, values
         """
 
-        if fileID is not None:
+        if idfile is not None:
 
-            lasfile = self.frames[fileID]
+            lasfile = self.frames[idfile]
 
         else:
 
@@ -1912,7 +1945,7 @@ class LogASCII(DataFrame):
             depthExistFlag = False
 
             for mnemonic in mnemonics:
-                if mnemonic=="MD" or mnemonic=="DEPT":
+                if mnemonic=="MD" or mnemonic=="DEPT" or mnemonic=="DEPTH":
                     depthExistFlag = True
                     break
 
@@ -2351,6 +2384,14 @@ class Alphabet():
 
         for from_letter,to_letter in zip(from_upper,to_upper):
             self.string.replace(from_letter,to_letter)
+
+def isnumber(string):
+
+    try:
+        float(string)
+        return True
+    except ValueError:
+        return False
 
 if __name__ == "__main__":
 

@@ -930,10 +930,7 @@ def LogView(data=None):
             yvals = []
             zvals = []
 
-            try:
-                depth = las.columns("MD")
-            except ValueError:
-                depth = las.columns("DEPT")
+            depth = las.columns(0)
 
             for index,column in enumerate(las.running):
 
@@ -1028,10 +1025,7 @@ def LogView(data=None):
 
                 for indexJ,line in enumerate(axdict["lines"]):
                 
-                    try:
-                        depth = self.frames[line[0]].columns("MD")
-                    except ValueError:
-                        depth = self.frames[line[0]].columns("DEPT")
+                    depth = self.frames[line[0]].columns(0)
                         
                     xvals = self.frames[line[0]].columns(line[1])
 
@@ -1296,10 +1290,7 @@ def LogView(data=None):
             # indexI index of Resistivity containing axis in the plot
             # indexJ index of Resistivity containing line in the axis
 
-            try:
-                depth = self.frames[ResLine[0]].columns("MD")
-            except ValueError:
-                depth = self.frames[ResLine[0]].columns("DEPT")
+            depth = self.frames[ResLine[0]].columns(0)
 
             xvals = self.frames[ResLine[0]].columns(ResLine[1])
 
@@ -1313,10 +1304,7 @@ def LogView(data=None):
             # indexI index of Resistivity containing axis in the plot
             # indexJ index of Resistivity containing line in the axis
 
-            try:
-                depth = self.frames[SwLine[0]].columns("MD")
-            except ValueError:
-                depth = self.frames[SwLine[0]].columns("DEPT")
+            depth = self.frames[SwLine[0]].columns(0)
 
             xvals = self.frames[SwLine[0]].columns(SwLine[1])
 
@@ -1353,27 +1341,41 @@ def LogView(data=None):
             self.axes[indexI].subax[0].fill_betweenx(
                 depth,xvals4,x2=xvals3,where=xvals3<=xvals4,color=self.color_HC)
 
-        def set_DepthViewPerfs(self,indexI,indexJ,*args):
+        def set_DepthViewPerfs(self,indexI,indexJ,depths,perfs):
 
             xtick = self.axes[indexI].subax[indexJ].get_xticks()
 
-            pfgun = xtick.min()
+            ytick = self.axes[indexI].subax[indexJ].get_yticks()
 
-            for arg in args:
+            perfs = np.array(perfs)
 
-                depths = np.arange(arg[0],arg[1]+1/2,1.)
+            perfs_just = perfs[perfs>0]
 
-                for index,depth in enumerate(depths):
+            perfs_just[::10] -= perfs_just[::10]*0.5
 
-                    if index==0:
-                        marker,size = 11,10
-                    elif index==len(depths)-1:
-                        marker,size = 10,10
-                    else:
-                        marker,size = 9,10
+            perfs[perfs>0] = perfs_just
 
-                    self.axes[indexI].subax[indexJ].plot(pfgun,depth,
-                        marker=marker,color='orange',markersize=size,markerfacecolor='black')
+            perfs_scaled = xtick.min()+(xtick.max()-xtick.min())/10/(perfs.max()-perfs.min())*perfs
+
+            # pfgun_point = xtick.min()
+
+            # for arg in args:
+
+            #     depths = np.arange(arg[0],arg[1]+1/2,1.)
+
+            #     for index,depth in enumerate(depths):
+
+            #         if index==0:
+            #             marker,size = 11,10
+            #         elif index==len(depths)-1:
+            #             marker,size = 10,10
+            #         else:
+            #             marker,size = 9,10
+
+            #         self.axes[indexI].subax[indexJ].plot(pfgun_point,depth,
+            #             marker=marker,color='orange',markersize=size,markerfacecolor='black')
+
+            self.axes[indexI].subax[indexJ].plot(perfs_scaled,depths)
 
         def set_DepthViewCasing(self):
             """It creates an axis to include casing set depths"""
@@ -1525,7 +1527,11 @@ def LogView(data=None):
                 xvalsR = self.frames[resLine[0]].columns(resLine[1])
                 xvalsP = self.frames[phiLine[0]].columns(phiLine[1])
 
-                return ((a*Rw)/(xvalsR*xvalsP**m))**(1/n)
+                Sw_calculated = ((a*Rw)/(xvalsR*xvalsP**m))**(1/n)
+
+                Sw_calculated[Sw_calculated>1] = 1
+
+                return Sw_calculated
 
             else:
 

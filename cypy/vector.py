@@ -1,6 +1,6 @@
 import numpy as np
 
-def remove_thousand_separator(string):
+def str2float(string):
     """It returns float after removing thousand separator (either comma or full stop)
     from string and setting decimal separator as full stop."""
 
@@ -43,6 +43,26 @@ def remove_thousand_separator(string):
         except ValueError:
             string = string.replace(" ","")
             return float(string)
+
+def str2int(string):
+
+    return round(str2float(string))
+
+def str2date(string):
+
+    pass
+
+def float2str(pyfloat):
+
+    pass
+
+def int2str(pyint):
+
+    pass
+
+def date2str(pydatetime):
+
+    pass
 
 def starsplit(string_list,default=1.0):
     """It returns star splitted list repeating post-star pre-star times."""
