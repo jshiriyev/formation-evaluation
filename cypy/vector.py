@@ -1,5 +1,25 @@
 import numpy as np
 
+"""
+ 1. String to Integer
+ 2. String to Float
+ 3. String to Datetime
+ 4. Integer to String
+ 5. Float to String
+ 6. Datetime to String
+
+ 7. check "" in string array
+ 8. check -9999 in integer array
+ 9. check np.nan in float array
+10. check np.NdT in datetime array
+11. check None in object array
+
+12. check numbers in string array
+
+13. Edit strings
+14. Edit datetime (shifting)
+"""
+
 def str2float(string):
     """It returns float after removing thousand separator (either comma or full stop)
     from string and setting decimal separator as full stop."""

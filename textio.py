@@ -26,6 +26,11 @@ from cypy.vector import str2int
 """
 1. Merge Column to DataFrame
 2. DataFrame write should be finalized
+    - string to columns
+    - columns to string
+    - sort
+    - filter
+    - unique
 3. loadtext should be working well
 4. Finalize RegText
 5. Finalize LogASCII
@@ -543,7 +548,7 @@ class Column():
 
 class DataFrame(DirBase):
     """It stores equal-size one-dimensional numpy arrays in a list."""
-
+    
     glossaries = []
 
     print_cols = None
