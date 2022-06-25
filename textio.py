@@ -20,8 +20,8 @@ import lasio
 if __name__ == "__main__":
     import setup
 
-from cypy.vector import str2float
-from cypy.vector import str2int
+from cypy.vectorpy import str2float
+from cypy.vectorpy import str2int
 
 """
 1. Merge Column to DataFrame

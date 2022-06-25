@@ -72,13 +72,33 @@ def str2date(string):
 
     pass
 
-def float2str(pyfloat):
+def float2str(pyfloat,fstring=None):
 
-    pass
+    if fstring is None:
+        fstring = "{}"
 
-def int2str(pyint):
+    pystring = []
 
-    pass
+    for number in pyfloat:
+        pystring.append(fstring.format(number))
+
+    return pystring
+
+def int2str(pyint,fstring=None,roundflag=False):
+
+    if fstring is None:
+        fstring = "{:d}"
+
+    pystring = []
+
+    for number in pyfloat:
+
+        if roundflag:
+            number = round(number)
+
+        pystring.append(fstring.format(number))
+
+    return pystring
 
 def date2str(pydatetime):
 
