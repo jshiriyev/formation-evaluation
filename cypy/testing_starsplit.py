@@ -5,9 +5,10 @@ SETUP_CODE = """
 import numpy as np
 
 from vectorpy import starsplit
-from vectorcy import starsplit as starsplitcy
 from vectorpy import starsplit_numpy
 from vectorpy import starsplit_npvect
+
+from vectorcy import starsplit as starsplitcy
 
 N = 1000000
 
@@ -48,30 +49,30 @@ print(nparray[:10])
 
 """
 
-RUN_CODE_3 = """
+# RUN_CODE_3 = """
 
-ints,flts = starsplit_npvect(result_array)
+# ints,flts = starsplit_npvect(result_array)
 
-nparray = np.repeat(flts,ints)
+# nparray = np.repeat(flts,ints)
+
+# print(nparray[:10])
+
+# """
+
+RUN_CODE_4 = """
+
+nparray = starsplitcy(result_list)
 
 print(nparray[:10])
 
 """
 
-RUN_CODE_4 = """
-
-pylist = starsplitcy(result_list)
-
-print(pylist[:10])
-
-"""
-
 py1 = timeit.timeit(RUN_CODE_1,setup=SETUP_CODE,number=1)
 py2 = timeit.timeit(RUN_CODE_2,setup=SETUP_CODE,number=1)
-py3 = timeit.timeit(RUN_CODE_3,setup=SETUP_CODE,number=1)
+# py3 = timeit.timeit(RUN_CODE_3,setup=SETUP_CODE,number=1)
 py4 = timeit.timeit(RUN_CODE_4,setup=SETUP_CODE,number=1)
 
 print(f"Python List runs in {py1}")
 print(f"Numpy Array runs in {py2}")
-print(f"Vectorized Numpy Array runs in {py3}")
-print(f"Python List runs in C {py4}")
+# print(f"Vectorized Numpy Array runs in {py3}")
+print(f"Cythonized Numpy Array runs in {py4}")
