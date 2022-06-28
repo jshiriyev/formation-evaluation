@@ -39,6 +39,8 @@ pylist = starsplit(result_list)
 
 print(pylist[:10])
 
+print(len(pylist))
+
 """
 
 RUN_CODE_2 = """
@@ -46,6 +48,8 @@ RUN_CODE_2 = """
 nparray = starsplit_numpy(result_array)
 
 print(nparray[:10])
+
+print(nparray.size)
 
 """
 
@@ -61,9 +65,11 @@ print(nparray[:10])
 
 RUN_CODE_4 = """
 
-nparray = starsplitcy(result_list)
+pylist = starsplitcy(result_list)
 
-print(nparray[:10])
+print(pylist[:10])
+
+print(len(pylist))
 
 """
 
@@ -75,4 +81,4 @@ py4 = timeit.timeit(RUN_CODE_4,setup=SETUP_CODE,number=1)
 print(f"Python List runs in {py1}")
 print(f"Numpy Array runs in {py2}")
 # print(f"Vectorized Numpy Array runs in {py3}")
-print(f"Cythonized Numpy Array runs in {py4}")
+print(f"Cythonized Python List runs in {py4}")

@@ -100,7 +100,7 @@ class DepthView(LogASCII):
 
 		pass
 
-	def set_axes(self,numaxes=1,subaxes=None,depth=None,inchdepth=15.,width=3.,height=32.,dpi=100.):
+	def set_axes(self,numaxes=1,subaxes=None,depth=None,inchdepth=15.,width=3.,height=128.,dpi=100.):
 		"""Creates the figure and axes and their sub-axes and stores them in the self.axes."""
 
 		# numaxes 	: integer
@@ -155,14 +155,28 @@ class DepthView(LogASCII):
 
 		subaxis_main = pyplot.subplot(self.fgspec[idaxis])
 
-		subaxis_main.set_xticks([])
-		subaxis_main.set_yticks((0,1))
+		xlims = (0,1)
 
-		subaxis_main.set_ylim((1,0))
+		ylims = (0,1)
+
+		subaxis_main.set_xticks(np.linspace(*xlims,11))
+		subaxis_main.set_yticks(ylims)
+
+		subaxis_main.set_ylim(ylims[::-1])
+
+		subaxis_main.yaxis.set_minor_locator(AutoMinorLocator(25))
 
 		subaxis_main.grid(True,which="both",axis='y')
 
-		pyplot.setp(subaxis_main.get_yticklines(),visible=False)
+		subaxis_main.grid(True,which="major",axis='x')
+
+		pyplot.setp(subaxis_main.get_xticklabels(),visible=False)
+		pyplot.setp(subaxis_main.get_xticklines(),visible=False)
+
+		# pyplot.setp(subaxis_main.xaxis.get_minorticklabels(),visible=False)
+		# pyplot.setp(subaxis_main.xaxis.get_minorticklines(),visible=False)
+
+		pyplot.setp(subaxis_main.yaxis.get_minorticklines(),visible=False)
 		# subaxis_main.tick_params(axis='y',which='major',length=0)
 
 		if idaxis>0:
@@ -194,7 +208,7 @@ class DepthView(LogASCII):
 
 		axsub = self.axes[idaxis][0].twiny()
 
-		axsub.set_xticks((0,1))
+		axsub.set_xticks((0.,1.))
 		axsub.set_ylim(self.axes[0][0].get_ylim())
 
 		spinepos = 1+0.4*idline/self.figure.get_figheight()
@@ -208,91 +222,105 @@ class DepthView(LogASCII):
 
 		axsub.tick_params(axis='x',labelcolor=self.colors[idline])
 
-		pyplot.setp(axsub.xaxis.get_majorticklabels()[0],ha="left")
-		pyplot.setp(axsub.xaxis.get_majorticklabels()[-1],ha="right")
+		# self.axes[idaxis][0].yaxis.set_minor_locator(AutoMinorLocator(25))
 
-		loffset = transforms.ScaledTranslation(5/72,-5/72,self.figure.dpi_scale_trans)
-		roffset = transforms.ScaledTranslation(-5/72,-5/72,self.figure.dpi_scale_trans)
+		# self.axes[idaxis][0].grid(True,which="both",axis='y')
 
-		ltrans = axsub.xaxis.get_majorticklabels()[0].get_transform()
-		rtrans = axsub.xaxis.get_majorticklabels()[-1].get_transform()
+		pyplot.setp(self.axes[idaxis][0].get_xticklabels(),visible=False)
+		pyplot.setp(self.axes[idaxis][0].get_xticklines(),visible=False)
 
-		axsub.xaxis.get_majorticklabels()[0].set_transform(ltrans+loffset)
-		axsub.xaxis.get_majorticklabels()[-1].set_transform(rtrans+roffset)
+		axsub.LineExistFlag = False
 
-		pyplot.setp(axsub.xaxis.get_majorticklines()[1],markersize=25)
-		pyplot.setp(axsub.xaxis.get_majorticklines()[-1],markersize=25)
-
-		# axsub.xaxis.get_majorticklines()[0].set_markersize(100)
+		self.set_xaxis(axsub)
 
 		self.axes[idaxis].append(axsub)
 
-	def set_lines(self,idaxis,idline,xvals,yvals):
+	def set_depth(self,depth=None):
+		"""It will check the depths of axis and set depth which include all depths."""
 
-		axis = self.axes[idaxis][idline]
-		
-		# zmult = int((500-0)/20.)
+		for axis in self.axes:
+			for axsub in axis:
+				axsub.set_ylim(self.axes[0][0].get_ylim())
 
-		# spinepos = [1+x/zmult for x in (0,0.1,0.2,0.3)]
+			# axis[0].yaxis.set_minor_locator(AutoMinorLocator(25))
+			# axis[0].grid(True,which="both",axis='y')
 
-		axis.plot(xvals,yvals,color=self.colors[idline])
+	def set_xaxis(self,axis):
 
-		xticks = self.get_xticks(xvals)
-		yticks = self.get_yticks(yvals)
-
-		figheight_temp = (yticks.max()-yticks.min())/128
-
-		if figheight_temp>self.figure.get_figheight():
-			self.figure.set_figheight(figheight_temp)
-
-		# figheight = max(self.figure.get_figheight(),figheight_temp)
-
-		axis.set_xlim([xticks.min(),xticks.max()])
-		axis.set_xticks(xticks)
-
-		axis.set_ylim([yticks.max(),yticks.min()])
-		axis.set_yticks(yticks)
-
-		axis.grid(True,which="both",axis='y')
-
-		axis.yaxis.set_minor_locator(AutoMinorLocator(10))
-
-		if idaxis>0:
-			for tic in axis.yaxis.get_minor_ticks():
-				tic.tick1line.set_visible(False)
-
-			# pyplot.setp(axis.yaxis.get_yticklabels(),visible=False)
-
-		if idline==0:
-			axis.grid(True,which="major",axis='x')
-		else:
-			axis.spines["top"].set_position(("axes",spinepos[idline]))
-			axis.spines["top"].set_color(self.colors[idline])
-			axis.tick_params(axis='x',color=self.colors[idline],labelcolor=self.colors[idline])
-
-		axis.xaxis.set_major_formatter(ScalarFormatter())
-		# axis.xaxis.set_major_formatter(LogFormatter())
-
-		majorTicksX = axis.xaxis.get_major_ticks()
-
-		for tic in majorTicksX:
-			tic.label2.set_visible(False)
-			tic.tick2line.set_visible(False)
-		# pyplot.setp(majorTicksX,visible=False)
-
-		majorTicksX[0].label2.set_visible(True)
-		majorTicksX[0].tick2line.set_visible(True)
-
-		majorTicksX[-1].label2.set_visible(True)
-		majorTicksX[-1].tick2line.set_visible(True)
+		pyplot.setp(axis.xaxis.get_majorticklabels()[1:-1],visible=False)
 
 		pyplot.setp(axis.xaxis.get_majorticklabels()[0],ha="left")
 		pyplot.setp(axis.xaxis.get_majorticklabels()[-1],ha="right")
 
+		if not axis.LineExistFlag:
+
+			loffset = transforms.ScaledTranslation(5/72,-5/72,self.figure.dpi_scale_trans)
+			
+			ltrans = axis.xaxis.get_majorticklabels()[0].get_transform()
+
+			axis.xaxis.get_majorticklabels()[0].set_transform(ltrans+loffset)
+
+			roffset = transforms.ScaledTranslation(-5/72,-5/72,self.figure.dpi_scale_trans)
+
+			rtrans = axis.xaxis.get_majorticklabels()[-1].get_transform()
+
+			axis.xaxis.get_majorticklabels()[-1].set_transform(rtrans+roffset)
+
+		else:
+
+			roffset = transforms.ScaledTranslation(-10/72,0,self.figure.dpi_scale_trans)
+
+			rtrans = axis.xaxis.get_majorticklabels()[-1].get_transform()
+
+			axis.xaxis.get_majorticklabels()[-1].set_transform(rtrans+roffset)
+
+		pyplot.setp(axis.xaxis.get_majorticklines()[2:-1],visible=False)
+
+		pyplot.setp(axis.xaxis.get_majorticklines()[1],markersize=25)
+		pyplot.setp(axis.xaxis.get_majorticklines()[-1],markersize=25)
+
+		# axis.xaxis.get_majorticklines()[0].set_markersize(100)
+
+	def set_lines(self,idaxis,idline,xvals,yvals):
+
+		axis = self.axes[idaxis][idline+1]
+
+		axis.plot(xvals,yvals,color=self.colors[idline])
+
+		axis.LineExistFlag = True
+
+		yticks = self.get_yticks(yvals)
+		xticks = self.get_xticks(xvals)
+
+		# figheight_temp = (yticks.max()-yticks.min())/128
+
+		# if figheight_temp>self.figure.get_figheight():
+		# 	self.figure.set_figheight(figheight_temp)
+
+		# figheight = max(self.figure.get_figheight(),figheight_temp)
+
+		axis.set_ylim((yticks.max(),yticks.min()))
+		axis.set_yticks(yticks)
+
+		axis.set_xlim((xticks.min(),xticks.max()))
+		axis.set_xticks(xticks)
+
+		self.set_xaxis(axis)
+
+		# axis.grid(True,which="both",axis='y')
+
+		# axis.yaxis.set_minor_locator(AutoMinorLocator(10))
+
+		# if idline==0:
+			# axis.grid(True,which="major",axis='x')
+
+		# axis.xaxis.set_major_formatter(ScalarFormatter())
+		# # axis.xaxis.set_major_formatter(LogFormatter())
+
 	def set_image(self):
 		"""Creates the image of figure in memory and displays it on canvas."""
 
-		self.fgspec.tight_layout(self.figure,rect=[0,0,1.0,0.985])
+		self.fgspec.tight_layout(self.figure,rect=[0,0,1.0,0.995])
 		self.fgspec.update(wspace=0)
 
 		buff = io.BytesIO()
@@ -369,7 +397,7 @@ class DepthView(LogASCII):
 
 		return xticks
 
-	def get_yticks(self,yvals=None,top=None,bottom=None,endmultiple=20.,ydelta=10.):
+	def get_yticks(self,yvals=None,top=None,bottom=None,endmultiple=5.,ydelta=25.):
 
 		if yvals is None:
 			yvals = np.array([0,1])
@@ -402,14 +430,14 @@ if __name__ == "__main__":
 
 	las = DepthView(root)
 
-	Y = np.arange(500)
-	X = np.random.random(500)
+	Y = np.arange(5000)*0.1
+	X = np.random.random(5000)/5
 
-	las.set_axes(4)
+	las.set_axes(2)
 	las.set_subaxes(0,3)
 	las.set_subaxes(1,3)
-	las.set_subaxes(2,3)
-	# las.set_lines(0,0,xvals=X,yvals=Y)
+	# las.set_subaxes(2,3)
+	las.set_lines(0,0,xvals=X,yvals=Y)
 	# las.set_lines(1,0,xvals=X,yvals=Y)
 	# las.set_lines(1,1,xvals=np.random.random(500),yvals=Y)
 
