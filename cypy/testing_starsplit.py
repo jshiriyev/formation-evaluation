@@ -31,6 +31,8 @@ result_array = vmerge(part1,part2)
 
 result_list = result_array.tolist()
 
+result_string = " ".join(result_list)
+
 """
 
 RUN_CODE_1 = """

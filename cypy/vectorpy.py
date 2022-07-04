@@ -104,20 +104,22 @@ def date2str(pydatetime):
 
     pass
 
-def starsplit(string_list,default=1.0):
+def starsplit(text,default=1.0):
     """It returns star splitted list repeating post-star pre-star times."""
+
+    string_list - text.split(" ")
 
     float_list = []
 
-    for string in string_list:
+    for string_value in string_list:
 
-        if "*" in string:
+        if "*" in string_value:
 
-            if string.endswith("*"):
-                mult = string.rstrip("*")
+            if string_value.endswith("*"):
+                mult = string_value.rstrip("*")
                 mult,val = int(mult),default
             else:
-                mult,val = string.split("*",maxsplit=1)
+                mult,val = string_value.split("*",maxsplit=1)
                 mult,val = int(mult),float(val)
 
             for i in range(mult):
@@ -125,7 +127,7 @@ def starsplit(string_list,default=1.0):
 
         else:
             
-            float_list.append(float(string))
+            float_list.append(float(string_value))
 
     return float_list
 

@@ -4,7 +4,7 @@ SETUP_CODE = """
 
 import numpy as np
 
-from vector import float2str
+from vectorpy import float2str
 
 N = 1000000
 
