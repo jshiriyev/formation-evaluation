@@ -24,18 +24,13 @@ from cypy.vectorpy import str2float
 from cypy.vectorpy import str2int
 
 """
-1. Merge Column to DataFrame
-2. DataFrame write should be finalized
-    - string to columns
-    - columns to string
-    - sort
-    - filter
-    - unique
-3. loadtext should be working well
+1. Check Column, and test it.
+1. Merge Column to DataFrame.
+2. DataFrame write should be finalized:
+3. loadtext should be working well.
 4. Finalize RegText
 5. Finalize LogASCII
 6. Finalize Excel
-7. Finalize WSchedule
 """
 
 class DirBase():
@@ -548,8 +543,6 @@ class Column():
 
 class DataFrame(DirBase):
     """It stores equal-size one-dimensional numpy arrays in a list."""
-    
-    glossaries = []
 
     print_cols = None
     print_rows = None
@@ -754,23 +747,21 @@ class DataFrame(DirBase):
                 else:
                     break
             else:
-                logging.critical(f"Could not add DataFrameGlossary, copy limit of key reached 100!")
+                logging.critical(f"Could not add Glossary, copy limit of key reached 100!")
             
             setattr(self,key_edited,value)
 
             logging.info(f"Added value after replacing {key} with {key_edited}.")
 
-    def add_glossary(self,title,**kwargs):
+    def add_glossary(self,title,*args,**kwargs):
 
-        if hasattr(self,title):
+        if not hasattr(self,title):
 
-            pass
+            setattr(self,title,Glossary(*args,**kwargs))
 
         else:
 
-            setattr(self,title,DataFrameGlossary(**kwargs))
-
-            self.glossaries.append(title)
+            logging.warning(f"{title} already exists.")
 
     def str2cols(self,col=None,deliminator=None,maxsplit=None):
 
@@ -1337,50 +1328,105 @@ class DataFrame(DirBase):
 
         np.savez_compressed(filepath,**kwargs)
 
-class DataFrameGlossary(list):
-    """It is a list of dictionaries where the elements are defined below keys."""
+class Glossary():
+    """It is a table of lines vs heads"""
 
-    def __init__(self,**kwargs):
+    def __init__(self,*args,**kwargs):
 
-        self.set_glossary(**kwargs)
+        self.lines = []
+        self.heads = []
+        self.forms = []
 
-    def set_glossary(self,**kwargs):
+        for arg in args:
+            self.heads.append(arg.lower())
+            self.forms.append(str)
 
-        items = []
+        for key,value in kwargs.items():
+            self.heads.append(key.lower())
+            self.forms.append(value)
 
-        self.columns = kwargs.values()
+        self.forms[0] = str
 
-        for row in zip(*self.columns):
+    def add_line(self,**kwargs):
 
-            item = {}
+        line = {}
 
-            for cell,key in zip(row,kwargs.keys()):
-                item[key] = cell
+        for index,head in enumerate(self.heads):
 
-            items.append(item)
+            if head in kwargs.keys():
+                try:
+                    line[head] = self.forms[index](kwargs[head])
+                except ValueError:
+                    line[head] = kwargs[head]
+                finally:
+                    kwargs.pop(head)
+            elif index==0:
+                raise KeyError(f"Missing {self.heads[0]}, it must be defined!")
+            else:
+                line[head] = " "
 
-        super().__init__(items)
+        self.lines.append(line)
 
-        self.keys = kwargs.keys()
-
-    def get_row(self,**kwargs):
-
-        if len(kwargs)!=1:
-            logging.critical("DataFrameGlossary.get_row() expects only one positional argument!")
-
-        key,keyword = next(iter(kwargs.items()))
-
-        for item in self:
-            if item[key]==keyword:
-                return item
-
-    def get_columns(self,key=None):
-
-        if key is None:
-            return self.columns
+    def __getitem__(self,key):
+        
+        if isinstance(key,slice):
+            return self.lines[key]
+        elif isinstance(key,int):
+            return self.lines[key]
+        elif isinstance(key,str):
+            for line in self:
+                if key==line[self.heads[0]]:
+                    return line
+            else:
+                raise ValueError(f"Glossary does not contain line with {key} in its {self.heads[0]}.")
+        elif isinstance(key,tuple):
+            key1,key2 = key
+            lines = self[key1]
+            if isinstance(lines,dict):
+                return lines[key2]
+            elif isinstance(lines,list):
+                column = []
+                for line in lines:
+                    column.append(line[key2])
+                return column
         else:
-            index = self.keys.index(key)
-            return self.columns[index]
+            raise TypeError(f"Glossary key can not be {type(key)}, int, slice or str is accepted.")
+
+    def __repr__(self):
+
+        fstring = ""
+        
+        underline = []
+
+        for head in self.heads:
+            
+            column = self[:,head]
+            column.append(head)
+            
+            char_count = max([len(str(value)) for value in column])
+
+            fstring += f"{{:<{char_count}}}   "
+            
+            underline.append("-"*char_count)
+
+        fstring += "\n"
+
+        text = fstring.format(*[head.capitalize() for head in self.heads])
+        
+        text += fstring.format(*underline)
+        
+        for line in self:
+            text += fstring.format(*line.values())
+
+        return text
+
+    def __iter__(self):
+
+        return iter(self.lines)
+
+    def __len__(self):
+
+        return len(self.lines)
 
 def loadtxt(path,classname=None,**kwargs):
 

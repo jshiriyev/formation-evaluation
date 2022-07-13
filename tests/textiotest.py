@@ -21,7 +21,7 @@ from textio import IrrText
 from textio import WSchedule
 from textio import VTKit
 
-from textio import remove_thousand_separator
+from cypy.vectorpy import str2float
 
 class TestDirBase(unittest.TestCase):
 
@@ -235,21 +235,61 @@ class TestDataFrame(unittest.TestCase):
         self.assertEqual(df.name,"raw_data")
         self.assertEqual(df.name_1,"raw_data_2")
 
-    def test_add_tag(self):
+    def test_add_glossary(self):
 
         df = DataFrame("A","B")
 
-        df.add_tag("child",name1="john",name2="smith")
+        df.add_glossary("child",first_name=str,last_name=str)
+
+        df.child.add_line(first_name="john",last_name="smith")
 
         with self.assertLogs() as captured:
-            df.add_tag("child",name1="tomy")
+            df.add_glossary("child","first_name")
 
         self.assertEqual(captured.records[0].getMessage(),
-            "Added tag details after replacing child with child_1.")
+            "child already exists.")
 
-        self.assertEqual(df.child.name1,"john")
-        self.assertEqual(df.child.name2,"smith")
-        self.assertEqual(df.child_1.name1,"tomy")
+        self.assertEqual(df.child[0,"first_name"],"john")
+        self.assertEqual(df.child["john","first_name"],"john")
+        self.assertEqual(df.child["john","last_name"],"smith")
+
+        df.add_glossary("glos",Mnemonic=str,Unit=str,Value=float,Description=str)
+
+        start = {
+            "unit" : "M",
+            "value" : 2576,
+            "description" : "it shows the depth logging started",
+            "mnemonic" : "START",
+            }
+        
+        stop = {
+            "mnemonic" : "STOP",
+            "unit" : "M",
+            "value" : 2896,
+            "description" : "it shows the depth logging stopped",
+            }
+        
+        null = {
+            "mnemonic" : "NULL",
+            "value" : -999.25,
+            "description" : "null values",
+            }
+
+        fld = {
+            "mnemonic" : "FLD",
+            "value" : "FIELD",
+            "description" : "GUNESLI",
+            }
+
+        df.glos.add_line(**start)
+        df.glos.add_line(**stop)
+        df.glos.add_line(**null)
+        df.glos.add_line(**fld)
+
+        df.glos
+
+        self.assertListEqual(df.glos[:,"value"],[2576.,2896.,-999.25,'FIELD'])
+        self.assertListEqual(df.glos[1:,"value"],[2896.,-999.25,'FIELD'])
 
     def test_str2cols(self):
 
@@ -424,9 +464,9 @@ class TestFunctions(unittest.TestCase):
 
     def test_remove_thousand_separator(self):
 
-        a1 = remove_thousand_separator("10 000,00")
-        a2 = remove_thousand_separator("10.000,00")
-        a3 = remove_thousand_separator("10,000.00")
+        a1 = str2float("10 000,00")
+        a2 = str2float("10.000,00")
+        a3 = str2float("10,000.00")
 
         self.assertEqual(a1,10000.,"could not remove thousand separator...")
         self.assertEqual(a2,10000.,"could not remove thousand separator...")
