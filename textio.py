@@ -1,8 +1,7 @@
 import calendar
+import datetime
 
-from datetime import datetime
-from dateutil import parser
-from dateutil import relativedelta
+from dateutil import parser, relativedelta
 
 from difflib import SequenceMatcher
 
@@ -144,77 +143,175 @@ class DirBase():
 class Column():
     """It is a numpy array of shape (N,) with additional attributes of head, unit and info."""
 
-    def __init__(self,vals=None,head=None,unit=None,info=None,shape=None):
+    def __init__(self,vals=None,head=None,unit=None,info=None,size=None,dtype=None,none=None,charcount=None):
         """Returns a numpy array with additional attributes."""
 
-        if vals is None:
+        """
+        - Initialization can be done in two ways:
+            1) Defining vals by sending int, float, string, datetime.datetime, numpy.datetime64 as standalone or
+                in a list, tuple or numpy.array
+            2) Defining the size of numpy array by sending N.
+        - The argument "dtype" is optional and can be any of the {int, float, str, np.datetime64}
+        - Depending on the dtype optional arguments "none" and "charcount" can be used.
+        """
 
-            if shape is None:
-                shape = (0,)
-            elif isinstance(shape,int):
-                shape = (shape,)
-            elif isinstance(shape,list) or isinstance(shape,tuple):
-                shape = (np.prod(shape),)
+        if vals is not None:
+
+            if isinstance(vals,int):
+                vals = np.array([vals])
+            elif isinstance(vals,float):
+                vals = np.array([vals])
+            elif isinstance(vals,str):
+                vals = np.array([vals])
+            elif isinstance(vals,datetime.date):
+                vals = np.array([vals])
+            elif isinstance(vals,np.datetime64):
+                vals = np.array([vals])
+            elif isinstance(vals,np.ndarray):
+                vals = vals.flatten()
+            elif isinstance(vals,list):
+                vals = np.array(vals).flatten()
+            elif isinstance(vals,tuple):
+                vals = np.array(vals).flatten()
             else:
-                logging.warning(f"Unexpected shape type, {type(shape)}. Expected is int, list or tuple.")
+                logging.warning(f"Unexpected object type {type(vals)}.")
 
-            vals = np.zeros(shape)
+            self.vals = vals
+
+            self.astype(dtype=dtype,none=none,charcount=charcount)
 
         else:
 
-            if isinstance(vals,np.ndarray):
-                vals = vals.flatten()
-            elif isinstance(vals,int) or isinstance(vals,float):
-                vals = np.array([vals])
-            elif isinstance(vals,list) or isinstance(vals,tuple):
-                vals = np.array(vals).flatten()
+            if size is None:
+                shape = (0,)
+            elif isinstance(size,int):
+                shape = (size,)
+            elif isinstance(size,list) or isinstance(size,tuple):
+                shape = (np.prod(size),)
+            else:
+                logging.warning(f"Unexpected size type, {type(size)}. Accepted inputs are None, int, list or tuple.")
 
-        self.vals = vals
+            if dtype is int:
+                vals = np.arange(shape[0])
+            elif dtype is None or dtype is float:
+                vals = np.zeros(shape)
+            elif dtype is str:
+                if charcount is None:
+                    vals = np.empty(shape,dtype="U30")
+                else:
+                    vals = np.empty(shape,dtype=f"U{charcount}")
+            elif dtype is np.datetime64:
+                base = datetime.datetime(2000, 1, 1)
+                dates = [base+relativedelta.relativedelta(months=i) for i in range(shape[0])]
+                vals = np.array(dates,dtype=np.datetime64)
 
-        self.head = self.set_head("") if head is None else self.set_head(head)
-        self.unit = self.set_unit("dimensionless") if unit is None else self.set_unit(unit)
-        self.info = self.set_info("") if info is None else self.set_info(info)
+            self.vals = vals
 
-    def set_head(self,head:str):
+        self.set_head(head)
+        self.set_unit(unit)
+        self.set_info(info)
 
-        self.head = head
+    def set_head(self,head=None):
 
-    def set_unit(self,unit:str):
+        if head is None:
+            if hasattr(self,"head"):
+                return
+            else:
+                self.head = " "
+        else:
+            self.head = head
+
+    def set_unit(self,unit=None):
 
         if self.vals.dtype.type is np.float64:
-            self.unit = unit
-            return
+            if unit is None:
+                if hasattr(self,"unit"):
+                    return
+                else:
+                    self.unit = "dimensionless"
+            else:
+                self.unit = unit
+        elif unit is not None:
+            try:
+                self.vals = self.vals.astype(float)
+            except ValueError:
+                logging.critical(f"Only numpy.float64 or float-convertables can have units, not {self.vals.dtype.type}")
+            else:
+                self.unit = unit
+        else:
+            self.unit = None
 
-        try:
-            self.vals.astype(float)
-            self.unit = unit
-        except ValueError:
-            logging.critical("Only numpy.float64 or float-convertables can have units, not {}".format(self.vals.dtype.type))
+    def set_info(self,info=None):
 
-    def set_info(self,info:str):
-        
-        self.info = info
+        if info is None:
+            if hasattr(self,"info"):
+                return
+            else:
+                self.info = " "
+        else:
+            self.info = info
 
-    def astype(self,dtype=None,none=None):
-        """1. Replicate astype in Column"""
+    def astype(self,dtype=None,none=None,charcount=None):
+        """It changes the dtype of the Column and alters the None values accordingly."""
 
-        if dtype is str:
-            none = "" if none is None else str(none)
-        elif dtype is int:
+        if dtype is None:
+            if isinstance(self.vals,object):
+                dtype = type(self.vals[0])
+            else:
+                dtype = type(self.vals[0].tolist())
+
+        if dtype is int:
             none = -99999 if none is None else int(none)
         elif dtype is float:
             none = np.nan if none is None else float(none)
+        elif dtype is str:
+            none = "" if none is None else str(none)
         elif dtype is np.datetime64:
-            # none = np.datetime64('today')
             none = np.datetime64('NaT') if none is None else np.datetime64(none)
 
-        if self.vals.dtype.type is np.object_:
+        if isinstance(self.vals,object):
 
-            vnone = np.vectorize(lambda x: x if x is not None else none)
-
-            self.vals = vnone(self.vals)
+            for index,val in enumerate(self.vals):
+                self.vals[index] = none if val is None else val
 
             self.vals = self.vals.astype(dtype)
+
+        elif isinstance(self.vals[0].tolist(),int):
+
+            if dtype is str and charcount is not None:
+                self.vals = self.vals.astype(dtype=f"U{charcount}")
+            else:
+                self.vals = self.vals.astype(dtype=dtype)
+
+        elif isinstance(self.vals[0].tolist(),float):
+            if dtype is None:
+                pass
+            elif dtype is str and charcount is not None:
+                self.vals = self.vals.astype(dtype=f"U{charcount}")
+            else:
+                self.vals = self.vals.astype(dtype=dtype)
+        elif isinstance(self.vals[0].tolist(),str):
+            if dtype is None:
+                pass
+            elif dtype is str and charcount is not None:
+                self.vals = self.vals.astype(dtype=f"U{charcount}")
+            else:
+                self.vals = self.vals.astype(dtype=dtype)
+        elif isinstance(self.vals[0].tolist(),datetime.date):
+            if dtype is None:
+                self.vals = self.vals.astype(np.datetime64)
+            elif dtype is str and charcount is not None:
+                self.vals = self.vals.astype(dtype=f"U{charcount}")
+            else:
+                self.vals = self.vals.astype(dtype=dtype)
+        else:
+            logging.warning(f"Unknown format of Column.vals, {self.vals.dtype.type}.")
+
+
+
+
+
+        """
 
         elif self.vals.dtype.type is np.str_:
 
@@ -242,13 +339,9 @@ class Column():
                 except ValueError:
                     vformat = np.vectorize(lambda x: parser.parse(x))
                     self.vals = vformat(self.vals).astype(dtype)
-            elif dtype is datetime:
+            elif dtype is datetime.datetime:
                 vformat = np.vectorize(lambda x: parser.parse(x))
                 self.vals = vformat(self.vals).astype(dtype)
-
-        elif self.vals.dtype.type is np.int32:
-
-            self.vals = self.vals.astype(dtype)
 
         elif self.vals.dtype.type is np.float64:
 
@@ -269,9 +362,7 @@ class Column():
 
             self.vals[bools] = none
 
-        else:
-
-            logging.warning(f"Unknown {self.vals.dtype.type=}.")
+        """
 
     def get_valstr_(self):
 
@@ -874,8 +965,8 @@ class DataFrame(DirBase):
             elif dtype is np.datetime64:
                 none = np.datetime64('today')
                 # none = np.datetime64('NaT')
-            elif dtype is datetime:
-                none = datetime.today()
+            elif dtype is datetime.datetime:
+                none = datetime.datetime.today()
 
         column = self._running[idcol]
 
@@ -913,7 +1004,7 @@ class DataFrame(DirBase):
                 except ValueError:
                     vformat = np.vectorize(lambda x: parser.parse(x))
                     column = vformat(column).astype(dtype)
-            elif dtype is datetime:
+            elif dtype is datetime.datetime:
                 vformat = np.vectorize(lambda x: parser.parse(x))
                 column = vformat(column).astype(dtype)
 
@@ -1003,7 +1094,7 @@ class DataFrame(DirBase):
             else:
                 day = date.day
 
-            return datetime(date.year,date.month,day)
+            return datetime.datetime(date.year,date.month,day)
 
         def add_months(date):
 
@@ -1016,7 +1107,7 @@ class DataFrame(DirBase):
             else:
                 day = date.day
 
-            return datetime(date.year,date.month,day)
+            return datetime.datetime(date.year,date.month,day)
 
         if shiftyears!=0:
             vshift = np.vectorize(add_years)
@@ -1991,7 +2082,7 @@ class LogASCII(DataFrame):
 
             lasfile = lasio.LASFile()
 
-            lasfile.well.DATE = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
+            lasfile.well.DATE = datetime.datetime.today().strftime('%Y-%m-%d %H:%M:%S')
 
             depthExistFlag = False
 
