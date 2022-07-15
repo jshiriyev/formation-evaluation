@@ -255,10 +255,15 @@ class Column():
         """It changes the dtype of the Column and alters the None values accordingly."""
 
         if dtype is None:
-            if isinstance(self.vals,object):
-                dtype = type(self.vals[0])
+            if self.vals.dtype.type is np.object_:
+                dtype = type(self.vals[np.argmax(self.vals!=None)])
             else:
                 dtype = type(self.vals[0].tolist())
+
+        if dtype is datetime.date:
+            dtype = np.datetime64
+        elif dtype is datetime.datetime:
+            dtype = np.datetime64
 
         if dtype is int:
             none = -99999 if none is None else int(none)
@@ -268,8 +273,10 @@ class Column():
             none = "" if none is None else str(none)
         elif dtype is np.datetime64:
             none = np.datetime64('NaT') if none is None else np.datetime64(none)
+        else:
+            logging.warning(f"Unexpected dtype has occured, {dtype}.")
 
-        if isinstance(self.vals,object):
+        if self.vals.dtype.type is np.object_:
 
             for index,val in enumerate(self.vals):
                 self.vals[index] = none if val is None else val
@@ -284,85 +291,58 @@ class Column():
                 self.vals = self.vals.astype(dtype=dtype)
 
         elif isinstance(self.vals[0].tolist(),float):
-            if dtype is None:
-                pass
+
+            npnan_bools = np.isnan(self.vals)
+
+            if dtype is int:
+                self.vals = np.around(self.vals,decimals=0).astype(dtype)
             elif dtype is str and charcount is not None:
                 self.vals = self.vals.astype(dtype=f"U{charcount}")
             else:
                 self.vals = self.vals.astype(dtype=dtype)
+
+            self.vals[npnan_bools] = none
+
         elif isinstance(self.vals[0].tolist(),str):
-            if dtype is None:
-                pass
-            elif dtype is str and charcount is not None:
-                self.vals = self.vals.astype(dtype=f"U{charcount}")
-            else:
-                self.vals = self.vals.astype(dtype=dtype)
-        elif isinstance(self.vals[0].tolist(),datetime.date):
-            if dtype is None:
-                self.vals = self.vals.astype(np.datetime64)
-            elif dtype is str and charcount is not None:
-                self.vals = self.vals.astype(dtype=f"U{charcount}")
-            else:
-                self.vals = self.vals.astype(dtype=dtype)
-        else:
-            logging.warning(f"Unknown format of Column.vals, {self.vals.dtype.type}.")
 
-
-
-
-
-        """
-
-        elif self.vals.dtype.type is np.str_:
-
-            vnone = np.vectorize(lambda x: x if x!='' and x!='None' else str(none))
-
-            self.vals = vnone(self.vals)
-
-            if dtype is str:
-                return
-            elif dtype is int:
+            if dtype is int:
                 try:
                     self.vals = self.vals.astype(dtype)
                 except ValueError:
                     vformat = np.vectorize(str2int)
                     self.vals = vformat(self.vals).astype(dtype)
+
             elif dtype is float:
                 try:
                     self.vals = self.vals.astype(dtype)
                 except ValueError:
                     vformat = np.vectorize(str2float)
                     self.vals = vformat(self.vals).astype(dtype)
+
+            elif dtype is str and charcount is not None:
+                self.vals = self.vals.astype(dtype=f"U{charcount}")
+
             elif dtype is np.datetime64:
+
                 try:
-                    self.vals = self.vals.astype(dtype)
+                    self.vals = self.vals.astype(dtype=dtype)
                 except ValueError:
                     vformat = np.vectorize(lambda x: parser.parse(x))
                     self.vals = vformat(self.vals).astype(dtype)
-            elif dtype is datetime.datetime:
-                vformat = np.vectorize(lambda x: parser.parse(x))
-                self.vals = vformat(self.vals).astype(dtype)
 
-        elif self.vals.dtype.type is np.float64:
+        elif isinstance(self.vals[0].tolist(),datetime.date):
 
-            bools = np.isnan(self.vals)
+            npnat_bools = np.isnat(self.vals)
+            
+            if dtype is str and charcount is not None:
+                self.vals = self.vals.astype(dtype=f"U{charcount}")
+            else:
+                self.vals = self.vals.astype(dtype=dtype)
 
-            if dtype is int:
-                self.vals = np.round_(self.vals)
+            self.vals[npnat_bools] = none
 
-            self.vals = self.vals.astype(dtype)
-
-            self.vals[bools] = none
-
-        elif self.vals.dtype.type is np.datetime64:
-
-            bools = np.isnat(self.vals)
-
-            self.vals = self.vals.astype(dtype)
-
-            self.vals[bools] = none
-
-        """
+        else:
+            logging.warning(f"Unknown format of Column.vals, {self.vals.dtype.type}.")  
 
     def get_valstr_(self):
 

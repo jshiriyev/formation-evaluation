@@ -1,4 +1,4 @@
-from datetime import datetime
+import datetime
 
 import logging
 
@@ -119,8 +119,8 @@ class TestColumn(unittest.TestCase):
         self.assertEqual(column.unit,None)
         self.assertEqual(column.info," ")
 
-        column = Column(datetime.today())
-        np.testing.assert_array_equal(column.vals,np.array([datetime.today()],dtype=np.datetime64))
+        column = Column(datetime.datetime.today())
+        np.testing.assert_array_equal(column.vals,np.array([datetime.datetime.today()],dtype=np.datetime64))
         self.assertEqual(column.head," ")
         self.assertEqual(column.unit,None)
         self.assertEqual(column.info," ")
@@ -155,15 +155,15 @@ class TestColumn(unittest.TestCase):
         self.assertEqual(column.unit,None)
         self.assertEqual(column.info," ")
 
-        column = Column([datetime.today(),datetime.today()])
-        np.testing.assert_array_equal(column.vals,np.array([datetime.today(),datetime.today()],dtype=np.datetime64))
+        column = Column([datetime.datetime.today()]*2)
+        np.testing.assert_array_equal(column.vals,np.array([datetime.datetime.today()]*2,dtype=np.datetime64))
         self.assertEqual(column.head," ")
         self.assertEqual(column.unit,None)
         self.assertEqual(column.info," ")
         
     def test_set_head(self):
         
-        column = Column([datetime.today(),datetime.today()])
+        column = Column([datetime.datetime.today()]*2)
         self.assertEqual(column.head," ")
 
         column.set_head('Two Dates')
@@ -177,14 +177,14 @@ class TestColumn(unittest.TestCase):
 
     def test_set_unit(self):
         
-        column = Column([datetime.today().date(),datetime.today().date()])
+        column = Column([datetime.datetime.today().date()]*2)
         self.assertEqual(column.unit,None)
 
         column.set_unit()
         self.assertEqual(column.unit,None)
 
         column.set_unit("seconds")
-        np.testing.assert_array_equal(column.vals,np.array([datetime.today().date()]*2,dtype=np.datetime64).astype(float))
+        np.testing.assert_array_equal(column.vals,np.array([datetime.datetime.today().date()]*2,dtype=np.datetime64).astype(float))
         self.assertEqual(column.unit,"seconds")
 
         column = Column(["1.","2"],unit="m")
@@ -198,7 +198,7 @@ class TestColumn(unittest.TestCase):
 
     def test_set_info(self):
         
-        column = Column([datetime.today(),datetime.today()])
+        column = Column([datetime.datetime.today()]*2)
         self.assertEqual(column.info," ")
 
         column.set_info('INFO: Two Dates')
@@ -210,8 +210,8 @@ class TestColumn(unittest.TestCase):
         column.set_info('INFO: Edited')
         self.assertEqual(column.info,"INFO: Edited")
 
-    def test_astype(self):
-        pass
+    # def test_astype(self):
+    #     pass
 
     # def test_get_valstr(self):
     #     pass
@@ -450,7 +450,7 @@ class TestDataFrame(unittest.TestCase):
 
         a = np.array([1,2,3,4,5])
         b = np.array([1.,3.4,np.nan,4.7,8])
-        c = np.array([datetime.today(),datetime(2022,2,2),datetime(2022,1,2),datetime(2021,12,2),None])
+        c = np.array([datetime.datetime.today(),datetime.datetime(2022,2,2),datetime.datetime(2022,1,2),datetime.datetime(2021,12,2),None])
         d = np.array(["1.","","5.7","6","None"])
         e = c.astype(np.datetime64)
 
@@ -462,13 +462,13 @@ class TestDataFrame(unittest.TestCase):
         for dtype in (int,str,float,object):
             df.astype(1,dtype)
 
-        for dtype in (str,datetime,np.datetime64):
+        for dtype in (str,datetime.datetime,np.datetime64):
             df.astype(2,dtype)
 
         for dtype in (str,int,float):
             df.astype(3,dtype)
 
-        for dtype in (str,datetime,np.datetime64):
+        for dtype in (str,datetime.datetime,np.datetime64):
             df.astype(4,np.datetime64)
 
     def test_edit_nones(self):
@@ -483,7 +483,7 @@ class TestDataFrame(unittest.TestCase):
 
     def test_edit_dates(self):
 
-        c = np.array([datetime.today(),datetime(2022,2,2),datetime(2022,1,2),datetime(2021,12,2),None])
+        c = np.array([datetime.datetime.today(),datetime.datetime(2022,2,2),datetime.datetime(2022,1,2),datetime.datetime(2021,12,2),None])
 
         df = DataFrame(c)
 
