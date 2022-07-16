@@ -210,33 +210,43 @@ class TestColumn(unittest.TestCase):
         column.set_info('INFO: Edited')
         self.assertEqual(column.info,"INFO: Edited")
 
-    # def test_astype(self):
-    #     pass
-
-    # def test_get_valstr(self):
-    #     pass
-
-    # def test_get_maxchar(self):
-
-    #     column = Column(np.linspace(1,1000,100000),unit="m")
-
-    #     self.assertEqual(column.get_maxchar_(),18,
-    #         "get_maxchar_() does not return correct number of max chars for floats!")
-
-    #     column = Column(np.arange(50),unit='cm')
-
-    #     self.assertEqual(column.get_maxchar_(),2,
-    #         "get_maxchar_() does not return correct number of max chars for ints!")
-
-    # def test_is_dimensionless(self):
-    #     pass
-
-    # def test_addition(self):
-
-    #     column = Column(np.linspace(1,1000,100000),unit="m")
+    def test_astype(self):
         
-    #     column+1
-    #     column+column
+        column = Column(["1.","2"],unit="m")
+        column.astype(int)
+        self.assertEqual(column.unit,None)
+
+        column.astype(float)
+        self.assertEqual(column.unit,"dimensionless")
+
+    def test_get_maxstring(self):
+
+        column = Column(np.linspace(1,1000,100000),unit="m")
+
+        self.assertEqual(column.get_maxstring(),18,
+            "get_maxstring() does not return correct number of chars in the largest str(float)!")
+
+        self.assertEqual(column.get_maxstring(string=True),"1.0299702997029971")
+
+        column = Column(np.arange(50))
+
+        self.assertEqual(column.get_maxstring(),2,
+            "get_maxstring() does not return correct number of chars in the largest str(ints)!")
+
+    def test_is_dimensionless(self):
+        
+        column = Column(["1.","2"],unit="m")
+        self.assertEqual(column.is_dimensionless(),False)
+
+        column.astype(int)
+        self.assertEqual(column.is_dimensionless(),True)
+
+    def test_addition(self):
+
+        column = Column(np.linspace(1,1000,100000),unit="m")
+        
+        column+1
+        column+column
 
     # def test_check_equality(self):
     #     pass
@@ -259,13 +269,13 @@ class TestColumn(unittest.TestCase):
     # def test_remainder(self):
     #     pass
 
-    # def test_multiplication(self):
+    def test_multiplication(self):
 
-    #     column = Column(np.linspace(1,1000,100000),unit="m")
+        column = Column(np.linspace(1,1000,100000),unit="m")
         
-    #     column*2
+        column*2
 
-    #     column*column
+        column*column
 
     # def test_not_equal(self):
     #     pass
@@ -273,25 +283,32 @@ class TestColumn(unittest.TestCase):
     # def test_to_the_power(self):
     #     pass
 
+    def test_subtraction(self):
+
+        column = Column(np.linspace(1,1000,100000),unit="m")
+        
+        column-1
+        column-column
+
+    def test_true_division(self):
+
+        column = Column(np.linspace(1,1000,100000),unit="m")
+        
+        column/2
+        column/column
+
+    def test_valstr_(self):
+        
+        column = Column(np.linspace(1,1000,100000),unit="m")
+
+        # print(column.vals.__str__())
+        # print(column._valstr_())
+
     # def test_repr(self):
     #     pass
 
     # def test_str(self):
     #     pass
-
-    # def test_subtraction(self):
-
-    #     column = Column(np.linspace(1,1000,100000),unit="m")
-        
-    #     column-1
-    #     column-column
-
-    # def test_true_division(self):
-
-    #     column = Column(np.linspace(1,1000,100000),unit="m")
-        
-    #     column/2
-    #     column/column
 
     # def test_unit_conversion(self):
     #     pass

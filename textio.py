@@ -226,6 +226,8 @@ class Column():
         if self.vals.dtype.type is np.float64:
             if unit is None:
                 if hasattr(self,"unit"):
+                    if self.unit is None:
+                        self.unit = "dimensionless"
                     return
                 else:
                     self.unit = "dimensionless"
@@ -342,38 +344,31 @@ class Column():
             self.vals[npnat_bools] = none
 
         else:
+
             logging.warning(f"Unknown format of Column.vals, {self.vals.dtype.type}.")  
 
-    def get_valstr_(self):
+        self.set_unit()
 
-        vals_str = self.vals.__str__()
-
-        vals_str = vals_str.replace("[","")
-        vals_str = vals_str.replace("]","")
-
-        vals_str = vals_str.strip()
-
-        vals_str = vals_str.replace("\t"," ")
-        vals_str = vals_str.replace("\n"," ")
-
-        vals_str = re.sub(' +',',',vals_str)
-
-        return f"[{vals_str}]"
-
-    def get_maxchar_(self):
+    def get_maxstring(self,string=False):
 
         if self.vals.dtype.type is np.str_:
             vals = self.vals
         else:
             vals = self.stringify(inplace=False)
 
-        # max(vals,key=len) : this returns the string with maximum character
+        charsize = np.dtype(f"{vals.dtype.char}1").itemsize
 
-        return int(vals.dtype.itemsize/4)
+        if string:
+            return max(vals,key=len)
+        else:
+            return int(vals.dtype.itemsize/charsize)
 
     def is_dimensionless(self):
 
-        return self.unit=="dimensionless"
+        if self.vals.dtype.type is np.float64:
+            return self.unit=="dimensionless"
+        else:
+            return True
 
     def __add__(self,other):
         """Implementing '+' operator."""
@@ -512,21 +507,6 @@ class Column():
         else:
             logging.critical("Cannot take to the power of non-int or non-float entries.")
 
-    def __repr__(self):
-
-        return f'column(head="{self.head}", unit="{self.unit}", info="{self.info}", vals={self.get_valstr_()})'
-
-    def __str__(self):
-
-        string = "{}\n"*4
-
-        head = f"head\t: {self.head}"
-        unit = f"unit\t: {self.unit}"
-        info = f"info\t: {self.info}"
-        vals = f"vals\t: {self.get_valstr_()}"
-
-        return string.format(head,unit,info,vals)
-
     def __sub__(self,other):
         """Implementing '-' operator."""
 
@@ -556,6 +536,37 @@ class Column():
             return Column(self.vals/other.vals,unit=unit)
         else:
             return Column(self.vals/other,self.head,self.unit,self.info)
+
+    def _valstr_(self):
+
+        vals_str = self.vals.__str__()
+
+        vals_str = vals_str.replace("[","")
+        vals_str = vals_str.replace("]","")
+
+        vals_str = vals_str.strip()
+
+        vals_str = vals_str.replace("\t"," ")
+        vals_str = vals_str.replace("\n"," ")
+
+        vals_str = re.sub(' +',',',vals_str)
+
+        return f"[{vals_str}]"
+
+    def __repr__(self):
+
+        return f'Column(head="{self.head}", unit="{self.unit}", info="{self.info}", vals={self._valstr_()})'
+
+    def __str__(self):
+
+        string = "{}\n"*4
+
+        head = f"head\t: {self.head}"
+        unit = f"unit\t: {self.unit}"
+        info = f"info\t: {self.info}"
+        vals = f"vals\t: {self._valstr_()}"
+
+        return string.format(head,unit,info,vals)
 
     def convert(self,unit,inplace=True):
 
