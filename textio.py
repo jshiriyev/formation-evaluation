@@ -349,19 +349,69 @@ class Column():
 
         self.set_unit()
 
-    def get_maxstring(self,string=False):
+    def _valstr_(self,num=None):
 
-        if self.vals.dtype.type is np.str_:
-            vals = self.vals
+        if num is None:
+
+            vals_str = self.vals.__str__()
+
+            if self.vals.dtype.type is np.int32:
+                vals_lst = re.findall(r"[-+]?[0-9]+",vals_str)
+                vals_str = re.sub(r"[-+]?[0-9]+","{}",vals_str)
+            elif self.vals.dtype.type is np.float64:
+                vals_lst = re.findall(r"[-+]?(?:\d*\.\d+|\d+)",vals_str)
+                vals_str = re.sub(r"[-+]?(?:\d*\.\d+|\d+)","{}",vals_str)
+            elif self.vals.dtype.type is np.str_:
+                vals_lst = re.findall(r"\'(.*?)\'",vals_str)
+                vals_str = re.sub(r"\'(.*?)\'","\'{}\'",vals_str)
+            elif self.vals.dtype.type is np.datetime64:
+                vals_lst = re.findall(r"\'(.*?)\'",vals_str)
+                vals_str = re.sub(r"\'(.*?)\'","\'{}\'",vals_str)
+
+            vals_str = vals_str.replace("[","")
+            vals_str = vals_str.replace("]","")
+
+            vals_str = vals_str.strip()
+
+            vals_str = vals_str.replace("\t"," ")
+            vals_str = vals_str.replace("\n"," ")
+
+            vals_str = re.sub(' +',',',vals_str)
+
+            vals_str = vals_str.format(*vals_lst)
+
+            return f"[{vals_str}]"
+
         else:
-            vals = self.stringify(inplace=False)
 
-        charsize = np.dtype(f"{vals.dtype.char}1").itemsize
+            part1 = int(np.ceil(num/2))
+            part2 = int(np.floor(num/2))
 
-        if string:
-            return max(vals,key=len)
-        else:
-            return int(vals.dtype.itemsize/charsize)
+            if self.vals.dtype.type is np.int32:
+                vals_str = "[{}...{}]".format("{:d},"*part1,",{:d}"*part2)
+            elif self.vals.dtype.type is np.float64:
+                vals_str = "[{}...{}]".format("{:g},"*part1,",{:g}"*part2)
+            elif self.vals.dtype.type is np.str_:
+                vals_str = "[{}...{}]".format("'{:s}',"*part1,",'{:s}'"*part2)
+            elif self.vals.dtype.type is np.datetime64:
+                vals_str = "[{}...{}]".format("'{}',"*part1,",'{}'"*part2)
+
+            return vals_str.format(*self.vals[:part1],*self.vals[-part2:])
+
+    def __repr__(self):
+
+        return f'Column(head="{self.head}", unit="{self.unit}", info="{self.info}", vals={self._valstr_(2)})'
+
+    def __str__(self):
+
+        string = "{}\n"*4
+
+        head = f"head\t: {self.head}"
+        unit = f"unit\t: {self.unit}"
+        info = f"info\t: {self.info}"
+        vals = f"vals\t: {self._valstr_(2)}"
+
+        return string.format(head,unit,info,vals)
 
     def is_dimensionless(self):
 
@@ -370,15 +420,62 @@ class Column():
         else:
             return True
 
-    def __add__(self,other):
-        """Implementing '+' operator."""
+    def convert(self,unit,inplace=True):
+
+        if self.unit==unit:
+            if inplace:
+                return
+            else:
+                return self
+
+        ur = pint.UnitRegistry()
+
+        if inplace:
+            ur.Quantity(self.vals,self.unit).ito(unit)
+            self.unit = unit
+        else:
+            vals = ur.Quantity(self.vals,self.unit).to(unit).magnitude
+            return Column(vals,self.head,unit,self.info)
+
+    def __lt__(self,other):
+        """Implementing '<' operator."""
+        
+        if isinstance(other,Column):
+            if self.unit!=other.unit:
+                other = other.convert(self.unit,inplace=False)
+            return self.vals<other.vals
+        else:
+            return self.vals<other
+
+    def __le__(self,other):
+        """Implementing '<=' operator."""
+        
+        if isinstance(other,Column):
+            if self.unit!=other.unit:
+                other = other.convert(self.unit,inplace=False)
+            return self.vals<=other.vals
+        else:
+            return self.vals<=other
+
+    def __gt__(self,other):
+        """Implementing '>' operator."""
+        
+        if isinstance(other,Column):
+            if self.unit!=other.unit:
+                other = other.convert(self.unit,inplace=False)
+            return self.vals>other.vals
+        else:
+            return self.vals>other
+
+    def __ge__(self,other):
+        """Implementing '>=' operator."""
 
         if isinstance(other,Column):
             if self.unit!=other.unit:
                 other = other.convert(self.unit,inplace=False)
-            return Column(self.vals+other.vals,unit=self.unit)
+            return self.vals>=other.vals
         else:
-            return Column(self.vals+other,self.head,self.unit,self.info)
+            return self.vals>=other
 
     def __eq__(self,other,tol=1e-12):
         """Implementing '==' operator."""
@@ -392,6 +489,71 @@ class Column():
                 return self.vals==other.vals
         else:
             return self.vals==other
+
+    def __ne__(self,other,tol=1e-12):
+        """Implementing '!=' operator."""
+        
+        if isinstance(other,Column):
+            if self.unit!=other.unit:
+                other = other.convert(self.unit,inplace=False)
+                return np.abs(self.vals-other.vals)>tol*np.maximum(np.abs(self.vals),np.abs(other.vals))
+            else:
+                return self.vals!=other.vals
+        else:
+            return self.vals!=other
+
+    def __bool__(self):
+
+        if self.vals.dtype.type is np.object_:
+            return self.vals.any()
+        elif self.vals.dtype.type is np.int32:
+            return self.vals.any()
+        elif self.vals.dtype.type is np.float64:
+            return not np.all(np.isnan(self.vals))
+        elif self.vals.dtype.type is np.str_:
+            return self.vals.any()
+        elif self.vals.dtype.type is np.datetime64:
+            return not np.all(np.isnat(self.vals))
+
+    def get_maxstring(self,string=False):
+
+        if self.vals.dtype.type is np.str_:
+            vals = self.vals
+        else:
+            vals = self.stringify(inplace=False).vals
+
+        charsize = np.dtype(f"{vals.dtype.char}1").itemsize
+
+        if string:
+            return max(vals,key=len)
+        else:
+            return int(vals.dtype.itemsize/charsize)
+
+    def __getitem__(self,key):
+
+        return Column(vals=self.vals[key],head=self.head,unit=None,info=self.info)
+
+    def __setitem__(self,key,vals):
+
+        self.vals[key] = vals
+
+    def shift(self,delta,deltaunit,inplace=False):
+        """2. Replicate edit_dates in Column"""
+
+        if inplace:
+            pass
+        else:
+            return Column()
+
+    def __add__(self,other):
+        """Implementing '+' operator."""
+
+        if isinstance(other,Column):
+            if self.unit!=other.unit:
+                other = other.convert(self.unit,inplace=False)
+            return Column(self.vals+other.vals,unit=self.unit)
+        else:
+            return Column(self.vals+other,self.head,self.unit,self.info)
 
     def __floordiv__(self,other):
         """Implementing '//' operator."""
@@ -412,46 +574,6 @@ class Column():
             return Column(self.vals//other.vals,unit=unit)
         else:
             return Column(self.vals//other,self.head,self.unit,self.info)
-
-    def __ge__(self,other):
-        """Implementing '>=' operator."""
-
-        if isinstance(other,Column):
-            if self.unit!=other.unit:
-                other = other.convert(self.unit,inplace=False)
-            return self.vals>=other.vals
-        else:
-            return self.vals>=other
-
-    def __gt__(self,other):
-        """Implementing '>' operator."""
-        
-        if isinstance(other,Column):
-            if self.unit!=other.unit:
-                other = other.convert(self.unit,inplace=False)
-            return self.vals>other.vals
-        else:
-            return self.vals>other
-
-    def __le__(self,other):
-        """Implementing '<=' operator."""
-        
-        if isinstance(other,Column):
-            if self.unit!=other.unit:
-                other = other.convert(self.unit,inplace=False)
-            return self.vals<=other.vals
-        else:
-            return self.vals<=other
-
-    def __lt__(self,other):
-        """Implementing '<' operator."""
-        
-        if isinstance(other,Column):
-            if self.unit!=other.unit:
-                other = other.convert(self.unit,inplace=False)
-            return self.vals<other.vals
-        else:
-            return self.vals<other
 
     def __mod__(self,other):
         """Implementing '%' operator."""
@@ -484,18 +606,6 @@ class Column():
             return Column(self.vals*other.vals,unit=unit)
         else:
             return Column(self.vals*other,self.head,self.unit,self.info)
-
-    def __ne__(self,other,tol=1e-12):
-        """Implementing '!=' operator."""
-        
-        if isinstance(other,Column):
-            if self.unit!=other.unit:
-                other = other.convert(self.unit,inplace=False)
-                return np.abs(self.vals-other.vals)>tol*np.maximum(np.abs(self.vals),np.abs(other.vals))
-            else:
-                return self.vals!=other.vals
-        else:
-            return self.vals!=other
 
     def __pow__(self,other):
         """Implementing '**' operator."""
@@ -537,54 +647,6 @@ class Column():
         else:
             return Column(self.vals/other,self.head,self.unit,self.info)
 
-    def _valstr_(self):
-
-        vals_str = self.vals.__str__()
-
-        vals_str = vals_str.replace("[","")
-        vals_str = vals_str.replace("]","")
-
-        vals_str = vals_str.strip()
-
-        vals_str = vals_str.replace("\t"," ")
-        vals_str = vals_str.replace("\n"," ")
-
-        vals_str = re.sub(' +',',',vals_str)
-
-        return f"[{vals_str}]"
-
-    def __repr__(self):
-
-        return f'Column(head="{self.head}", unit="{self.unit}", info="{self.info}", vals={self._valstr_()})'
-
-    def __str__(self):
-
-        string = "{}\n"*4
-
-        head = f"head\t: {self.head}"
-        unit = f"unit\t: {self.unit}"
-        info = f"info\t: {self.info}"
-        vals = f"vals\t: {self._valstr_()}"
-
-        return string.format(head,unit,info,vals)
-
-    def convert(self,unit,inplace=True):
-
-        if self.unit==unit:
-            if inplace:
-                return
-            else:
-                return self
-
-        ur = pint.UnitRegistry()
-
-        if inplace:
-            ur.Quantity(self.vals,self.unit).ito(unit)
-            self.unit = unit
-        else:
-            vals = ur.Quantity(self.vals,self.unit).to(unit).magnitude
-            return Column(vals,self.head,unit,self.info)
-
     def stringify(self,fstring=None,upper=False,lower=False,zfill=None,inplace=False):
 
         if fstring is None:
@@ -594,34 +656,36 @@ class Column():
             fstring_inner = re.search(r"\{(.*?)\}",fstring).group()
             fstring_clean = re.sub(r"\{(.*?)\}","{}",fstring,count=1)
 
-        string = lambda x: fstring_inner.format(x)
+        vals_str = []
 
-        if zfill is None:
-            string_fixed = lambda x: string(x)
-        else:
-            string_fixed = lambda x: string(x).zfill(zfill)
+        for val in self.vals:
 
-        if upper:
-            case = lambda x: string_fixed(x).upper()
-        elif lower:
-            case = lambda x: string_fixed(x).lower()
-        else:
-            case = lambda x: string_fixed(x)
+            val = val.tolist()
 
-        editor = np.vectorize(lambda x: fstring_clean.format(case(x)))
+            if isinstance(val,datetime.date):
+                string = val.strftime(fstring_inner[1:-1])
+            else:
+                string = fstring_inner.format(val)
+
+            if zfill is not None:
+                string = string.zfill(zfill)
+
+            if upper:
+                string = string.upper()
+            elif lower:
+                string = string.lower()
+
+            string = fstring_clean.format(string)
+
+            vals_str.append(string)
+
+        vals_str = np.array(vals_str,dtype=str)
 
         if inplace:
-            self.vals = editor(self.vals)
+            self.vals = vals_str
+            self.set_unit()
         else:
-            return editor(self.vals)
-
-    def shift(self,delta,deltaunit,inplace=False):
-        """2. Replicate edit_dates in Column"""
-
-        if inplace:
-            pass
-        else:
-            return Column()
+            return Column(vals=vals_str,head=self.head,unit=None,info=self.info)
 
 class DataFrame(DirBase):
     """It stores equal-size one-dimensional numpy arrays in a list."""

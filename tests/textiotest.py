@@ -119,8 +119,9 @@ class TestColumn(unittest.TestCase):
         self.assertEqual(column.unit,None)
         self.assertEqual(column.info," ")
 
-        column = Column(datetime.datetime.today())
-        np.testing.assert_array_equal(column.vals,np.array([datetime.datetime.today()],dtype=np.datetime64))
+        dt = datetime.datetime.today()
+        column = Column(dt)
+        np.testing.assert_array_equal(column.vals,np.array([dt],dtype=np.datetime64))
         self.assertEqual(column.head," ")
         self.assertEqual(column.unit,None)
         self.assertEqual(column.info," ")
@@ -155,8 +156,9 @@ class TestColumn(unittest.TestCase):
         self.assertEqual(column.unit,None)
         self.assertEqual(column.info," ")
 
-        column = Column([datetime.datetime.today()]*2)
-        np.testing.assert_array_equal(column.vals,np.array([datetime.datetime.today()]*2,dtype=np.datetime64))
+        dt_list = [datetime.datetime.today()]*2
+        column = Column(dt_list)
+        np.testing.assert_array_equal(column.vals,np.array(dt_list,dtype=np.datetime64))
         self.assertEqual(column.head," ")
         self.assertEqual(column.unit,None)
         self.assertEqual(column.info," ")
@@ -219,6 +221,36 @@ class TestColumn(unittest.TestCase):
         column.astype(float)
         self.assertEqual(column.unit,"dimensionless")
 
+    def test_representation_operations(self):
+        
+        column = Column(-np.arange(1,10000))
+        self.assertEqual(column._valstr_(),'[-1,-2,-3,...,-9997,-9998,-9999]')
+
+        column = Column(np.linspace(1,1000,100000),unit="m")
+        self.assertEqual(column._valstr_(),'[1.,1.0099901,1.0199802,...,999.9800198,999.9900099,1000.]')
+
+        column = Column(["1 textio.py","2 graphics.py","3 geometries.py","4 items.py"])
+        self.assertEqual(column._valstr_(),"['1 textio.py','2 graphics.py','3 geometries.py','4 items.py']")
+
+        column = Column(size=10,dtype=np.datetime64)
+        self.assertEqual(column._valstr_(2),"['2000-01-01T00:00:00.000000',...,'2000-10-01T00:00:00.000000']")
+
+    def test_is_dimensionless(self):
+        
+        column = Column(["1.","2"],unit="m")
+        self.assertEqual(column.is_dimensionless(),False)
+
+        column.astype(int)
+        self.assertEqual(column.is_dimensionless(),True)
+
+    def test_unit_conversion(self):
+
+        pass
+
+    def test_comparison_operations(self):
+
+        pass
+
     def test_get_maxstring(self):
 
         column = Column(np.linspace(1,1000,100000),unit="m")
@@ -233,43 +265,27 @@ class TestColumn(unittest.TestCase):
         self.assertEqual(column.get_maxstring(),2,
             "get_maxstring() does not return correct number of chars in the largest str(ints)!")
 
-    def test_is_dimensionless(self):
-        
-        column = Column(["1.","2"],unit="m")
-        self.assertEqual(column.is_dimensionless(),False)
+    def test_container_operations(self):
 
-        column.astype(int)
-        self.assertEqual(column.is_dimensionless(),True)
+        pass
 
-    def test_addition(self):
+    def test_shift(self):
+
+        pass
+
+    def test_numeric_operations(self):
+
+        # Addition
 
         column = Column(np.linspace(1,1000,100000),unit="m")
         
         column+1
         column+column
 
-    # def test_check_equality(self):
-    #     pass
+        # Floor Division
 
-    # def test_floor_division(self):
-    #     pass
 
-    # def test_greater_equal(self):
-    #     pass
-
-    # def test_greater_than(self):
-    #     pass
-
-    # def test_less_equal(self):
-    #     pass
-
-    # def test_less_than(self):
-    #     pass
-
-    # def test_remainder(self):
-    #     pass
-
-    def test_multiplication(self):
+        # Multiplication
 
         column = Column(np.linspace(1,1000,100000),unit="m")
         
@@ -277,47 +293,55 @@ class TestColumn(unittest.TestCase):
 
         column*column
 
-    # def test_not_equal(self):
-    #     pass
+        # Not Equal
 
-    # def test_to_the_power(self):
-    #     pass
+        # To The Power:
 
-    def test_subtraction(self):
+        # Subtraction
 
         column = Column(np.linspace(1,1000,100000),unit="m")
         
         column-1
         column-column
 
-    def test_true_division(self):
+        # True Division
 
         column = Column(np.linspace(1,1000,100000),unit="m")
         
         column/2
         column/column
 
-    def test_valstr_(self):
+    def test_stringify(self):
+
+        column = Column(np.arange(1,5))
+        column.stringify(fstring="{:d}",inplace=True)
+        np.testing.assert_array_equal(column.vals,np.array(["1","2","3","4"]))
+        self.assertEqual(column.head," ")
+        self.assertEqual(column.unit,None)
+        self.assertEqual(column.info," ")
         
-        column = Column(np.linspace(1,1000,100000),unit="m")
+        column = Column(np.linspace(1,5,4),unit="km")
+        column.stringify(fstring="{:.1f}",inplace=True)
+        np.testing.assert_array_equal(column.vals,np.array(["1.0","2.3","3.7","5.0"]))
+        self.assertEqual(column.head," ")
+        self.assertEqual(column.unit,None)
+        self.assertEqual(column.info," ")
 
-        # print(column.vals.__str__())
-        # print(column._valstr_())
+        column = Column(np.array(["78,.45,2","98,3.,28","1,75,3,."]))
+        column.stringify(fstring="{:15s}",inplace=True)
+        np.testing.assert_array_equal(column.vals,np.array(['78,.45,2       ',
+            '98,3.,28       ','1,75,3,.       ']))
+        self.assertEqual(column.head," ")
+        self.assertEqual(column.unit,None)
+        self.assertEqual(column.info," ")
 
-    # def test_repr(self):
-    #     pass
-
-    # def test_str(self):
-    #     pass
-
-    # def test_unit_conversion(self):
-    #     pass
-
-    # def test_stringify(self):
-    #     pass
-
-    # def test_shift(self):
-    #     pass
+        column = Column(size=2,dtype=np.datetime64,head="Dates",info="Two months")
+        column.stringify(fstring="Date is {%Y-%m-%d}",inplace=True)
+        np.testing.assert_array_equal(column.vals,np.array([
+            'Date is 2000-01-01','Date is 2000-02-01']))
+        self.assertEqual(column.head,"Dates")
+        self.assertEqual(column.unit,None)
+        self.assertEqual(column.info,"Two months")
 
 class TestDataFrame(unittest.TestCase):
 
