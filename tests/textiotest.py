@@ -245,25 +245,27 @@ class TestColumn(unittest.TestCase):
 
     def test_unit_conversion(self):
 
-        pass
+        column = Column(["1.","2"],unit="m")
+        column.convert("km")
+        np.testing.assert_array_equal(column.vals,np.array([0.001,0.002]))
 
     def test_comparison_operations(self):
 
         pass
 
-    def test_get_maxstring(self):
+    def test_searching(self):
 
         column = Column(np.linspace(1,1000,100000),unit="m")
 
-        self.assertEqual(column.get_maxstring(),18,
-            "get_maxstring() does not return correct number of chars in the largest str(float)!")
+        self.assertEqual(column.maxchar(),18,
+            "maxchar() does not return correct number of chars in the largest str(float)!")
 
-        self.assertEqual(column.get_maxstring(string=True),"1.0299702997029971")
+        self.assertEqual(column.maxchar(string=True),"1.0299702997029971")
 
         column = Column(np.arange(50))
 
-        self.assertEqual(column.get_maxstring(),2,
-            "get_maxstring() does not return correct number of chars in the largest str(ints)!")
+        self.assertEqual(column.maxchar(),2,
+            "maxchar() does not return correct number of chars in the largest str(ints)!")
 
     def test_container_operations(self):
 

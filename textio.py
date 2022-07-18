@@ -515,7 +515,29 @@ class Column():
         elif self.vals.dtype.type is np.datetime64:
             return not np.all(np.isnat(self.vals))
 
-    def get_maxstring(self,string=False):
+    def min(self):
+
+        if self.vals.dtype.type is np.int32:
+            return self.vals.min()
+        elif self.vals.dtype.type is np.float64:
+            return np.nanmin(self.vals)
+        elif self.vals.dtype.type is np.str_:
+            return min(self.vals,key=len)
+        elif self.vals.dtype.type is np.datetime64:
+            return np.nanmin(self.vals)
+
+    def max(self):
+
+        if self.vals.dtype.type is np.int32:
+            return self.vals.max()
+        elif self.vals.dtype.type is np.float64:
+            return np.nanmax(self.vals)
+        elif self.vals.dtype.type is np.str_:
+            return max(self.vals,key=len)
+        elif self.vals.dtype.type is np.datetime64:
+            return np.nanmax(self.vals)
+
+    def maxchar(self,string=False):
 
         if self.vals.dtype.type is np.str_:
             vals = self.vals
@@ -529,21 +551,49 @@ class Column():
         else:
             return int(vals.dtype.itemsize/charsize)
 
-    def __getitem__(self,key):
-
-        return Column(vals=self.vals[key],head=self.head,unit=None,info=self.info)
-
     def __setitem__(self,key,vals):
 
         self.vals[key] = vals
 
-    def shift(self,delta,deltaunit,inplace=False):
-        """2. Replicate edit_dates in Column"""
+    def __iter__(self):
 
-        if inplace:
-            pass
-        else:
-            return Column()
+        return iter(self.vals)
+
+    def __len__(self):
+
+        return len(self.vals)
+
+    def __getitem__(self,key):
+
+        return Column(vals=self.vals[key],head=self.head,unit=None,info=self.info)
+
+    def shift(self,delta,deltaunit,inplace=False):
+        """Shifting the entries depending on its dtype."""
+
+        if self.vals.dtype.type is np.int32:
+            if inplace:
+                self.vals += delta
+            else:
+                vals = self.vals+delta
+                return Column(vals=vals,head=self.head,unit=self.unit,info=self.info)
+        elif self.vals.dtype.type is np.float64:
+            other = Column(vals=delta,unit=deltaunit)
+            if inplace:
+                self.vals += other
+            else:
+                vals = self.vals+other.vals
+                return Column(vals=vals,head=self.head,unit=self.unit,info=self.info)
+        elif self.vals.dtype.type is np.str_:
+            if inplace:
+                self.vals = np.char.add(" "*delta,self.vals)
+            else:
+                vals = np.char.add(" "*delta,self.vals)
+                return Column(vals=vals,head=self.head,unit=self.unit,info=self.info)
+        elif self.vals.dtype.type is np.datetime64:
+            if inplace:
+                self.vals = None
+            else:
+                return
 
     def __add__(self,other):
         """Implementing '+' operator."""
