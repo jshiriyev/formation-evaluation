@@ -567,7 +567,7 @@ class Column():
 
         return Column(vals=self.vals[key],head=self.head,unit=None,info=self.info)
 
-    def shift(self,delta,deltaunit,inplace=False):
+    def shift(self,delta,deltaunit=None,inplace=True):
         """Shifting the entries depending on its dtype."""
 
         if self.vals.dtype.type is np.int32:
@@ -578,6 +578,7 @@ class Column():
                 return Column(vals=vals,head=self.head,unit=self.unit,info=self.info)
         elif self.vals.dtype.type is np.float64:
             other = Column(vals=delta,unit=deltaunit)
+            other.convert(self.unit)
             if inplace:
                 self.vals += other
             else:
@@ -590,10 +591,57 @@ class Column():
                 vals = np.char.add(" "*delta,self.vals)
                 return Column(vals=vals,head=self.head,unit=self.unit,info=self.info)
         elif self.vals.dtype.type is np.datetime64:
-            if inplace:
-                self.vals = None
+            """
+            For numpy.datetime64, the issue with following deltatime units
+            has been solved by considering self.vals:
+
+            Y: year,
+            M: month,
+            
+            For numpy.datetime64, following deltatime units
+            have no inherent issue:
+
+            W: week,
+            D: day,
+            h: hour,
+            m: minute,
+            s: second,
+            
+            For numpy.datetime64, also include:
+
+            ms: millisecond,
+            us: microsecond,
+            ns: nanosecond,
+
+            For numpy.datetime64, do not include:
+
+            ps: picosecond,
+            fs: femtosecond,
+            as: attosecond,
+            """
+
+            if deltaunit == "Y":
+                year_arr = np.empty(self.vals.shape,dtype=int)
+                for index,dt in enumerate(self.vals):
+                    dtl = dt.tolist()
+                    if (dtl.year+delta)%4==0:
+                        if datetime.date(dtl.year+delta,dtl.month,dtl.day)>datetime.date(dtl.year+delta,2,28):
+                            year_arr[index] = 365*delta+delta//4+1
+                        else:
+                            year_arr[index] = 365*delta+delta//4
+                    else:
+                        year_arr[index] = 365*delta+delta//4
+                timedelta = year_arr.astype("timedelta64[D]")
+            elif deltaunit == "M":
+                pass
             else:
-                return
+                timedelta = np.timedelta64(delta,deltaunit)
+
+            if inplace:
+                self.vals += timedelta
+            else:
+                vals = self.vals+timedelta
+                return Column(vals=vals,head=self.head,unit=self.unit,info=self.info)
 
     def __add__(self,other):
         """Implementing '+' operator."""

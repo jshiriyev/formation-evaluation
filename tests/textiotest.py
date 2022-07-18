@@ -273,7 +273,47 @@ class TestColumn(unittest.TestCase):
 
     def test_shift(self):
 
-        pass
+        column = Column(np.array([1,2,3,4,5],dtype=int))
+        print(column.vals)
+        column.shift(5)
+        print(column.vals)
+
+        column = Column(np.linspace(1,4,7),unit="km")
+        print(column.vals)
+        column.shift(5,"m")
+        print(column.vals)
+
+        column = Column(["textio","petrophysics","helloworld!"])
+        print(column.vals)
+        column.shift(5)
+        print(column.vals)
+
+        column = Column(np.arange(np.datetime64('2019-02-27'),np.datetime64('2019-03-02'),np.timedelta64(1,'D')))
+        print(column.vals)
+        column.shift(1,'Y')
+        print(column.vals)
+        column.shift(2,'Y')
+        print(column.vals)
+        column.shift(3,'Y')
+        print(column.vals)
+        column.shift(4,'Y')
+        print(column.vals)
+        column.shift(5,'Y')
+        print(column.vals)
+        column.shift(6,'Y')
+        print(column.vals)
+        column.shift(7,'Y')
+        print(column.vals)
+        column.shift(8,'Y')
+        print(column.vals)
+        column.shift(9,'Y')
+        print(column.vals)
+        column.shift(10,'Y')
+        print(column.vals)
+        column.shift(80,'Y')
+        print(column.vals)
+        # column.shift(5,'D')
+        # print(column.vals)
 
     def test_numeric_operations(self):
 
