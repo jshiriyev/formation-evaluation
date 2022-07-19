@@ -23,7 +23,6 @@ from cypy.vectorpy import str2float
 from cypy.vectorpy import str2int
 
 """
-1. Check Column, and test it.
 1. Merge Column to DataFrame.
 2. DataFrame write should be finalized:
 3. loadtext should be working well.
@@ -621,19 +620,37 @@ class Column():
             """
 
             if deltaunit == "Y":
-                year_arr = np.empty(self.vals.shape,dtype=int)
-                for index,dt in enumerate(self.vals):
-                    dtl = dt.tolist()
-                    if (dtl.year+delta)%4==0:
-                        if datetime.date(dtl.year+delta,dtl.month,dtl.day)>datetime.date(dtl.year+delta,2,28):
-                            year_arr[index] = 365*delta+delta//4+1
-                        else:
-                            year_arr[index] = 365*delta+delta//4
-                    else:
-                        year_arr[index] = 365*delta+delta//4
-                timedelta = year_arr.astype("timedelta64[D]")
+
+                year0 = self.year
+                year1 = year0+delta
+
+                feb28_bool = np.logical_and(self.month==2,self.day==28)
+                feb29_bool = np.logical_and(self.month==2,self.day==29)
+
+                year0_leap_bool = year0%4==0
+                year0_leap_bool[year0%100==0] = False
+                year0_leap_bool[year0%400==0] = True
+                year0_leap_bool[self.month>2] = False
+                year0_leap_bool[feb29_bool] = False
+
+                year1_leap_bool = year1%4==0
+                year1_leap_bool[year1%100==0] = False
+                year1_leap_bool[year1%400==0] = True
+                year1_leap_bool[self.month>2] = False
+                year1_leap_bool[np.logical_and(~year0_leap_bool,feb28_bool)] = False
+                year1_leap_bool[feb29_bool] = False
+                
+                leap_year_count4 = year1//4-year0//4
+                leap_year_count100 = year1//100-year0//100
+                leap_year_count400 = year1//400-year0//400
+                leap_year_count = leap_year_count4-leap_year_count100+leap_year_count400
+                
+                day_arr = 365*delta+leap_year_count+year0_leap_bool-year1_leap_bool
+
+                timedelta = day_arr.astype("timedelta64[D]")
+
             elif deltaunit == "M":
-                pass
+                timedelta = np.timedelta64(30*delta,"timedelta64[D]")
             else:
                 timedelta = np.timedelta64(delta,deltaunit)
 
@@ -784,6 +801,45 @@ class Column():
             self.set_unit()
         else:
             return Column(vals=vals_str,head=self.head,unit=None,info=self.info)
+
+    @property
+    def year(self):
+
+        if self.vals.dtype.type is not np.datetime64:
+            return
+
+        year_arr = np.empty(self.vals.shape,dtype=int)
+
+        for index,dt in enumerate(self.vals.tolist()):
+            year_arr[index] = dt.year
+
+        return year_arr
+
+    @property
+    def month(self):
+
+        if self.vals.dtype.type is not np.datetime64:
+            return
+
+        month_arr = np.empty(self.vals.shape,dtype=int)
+
+        for index,dt in enumerate(self.vals.tolist()):
+            month_arr[index] = dt.month
+
+        return month_arr
+
+    @property
+    def day(self):
+
+        if self.vals.dtype.type is not np.datetime64:
+            return
+
+        day_arr = np.empty(self.vals.shape,dtype=int)
+
+        for index,dt in enumerate(self.vals.tolist()):
+            day_arr[index] = dt.day
+
+        return day_arr
 
 class DataFrame(DirBase):
     """It stores equal-size one-dimensional numpy arrays in a list."""
