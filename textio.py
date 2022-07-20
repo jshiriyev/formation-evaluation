@@ -142,6 +142,12 @@ class DirBase():
 class Column():
     """It is a numpy array of shape (N,) with additional attributes of head, unit and info."""
 
+    """
+    To-Do List:
+    1. Add nan values for all dtypes.
+    2. Implement the copy of array here
+    """
+
     def __init__(self,vals=None,head=None,unit=None,info=None,size=None,dtype=None,none=None,charcount=None):
         """Returns a numpy array with additional attributes."""
 
@@ -218,7 +224,7 @@ class Column():
             else:
                 self.head = " "
         else:
-            self.head = head
+            self.head = str(head)
 
     def set_unit(self,unit=None):
 
@@ -250,16 +256,13 @@ class Column():
             else:
                 self.info = " "
         else:
-            self.info = info
+            self.info = str(info)
 
     def astype(self,dtype=None,none=None,charcount=None):
         """It changes the dtype of the Column and alters the None values accordingly."""
 
         if dtype is None:
-            if self.vals.dtype.type is np.object_:
-                dtype = type(self.vals[np.argmax(self.vals!=None)])
-            else:
-                dtype = type(self.vals[0].tolist())
+            dtype = self.dtypeM
 
         if dtype is datetime.date:
             dtype = np.datetime64
@@ -277,21 +280,20 @@ class Column():
         else:
             logging.warning(f"Unexpected dtype has occured, {dtype}.")
 
-        if self.vals.dtype.type is np.object_:
+        if self.dtype is np.object_:
 
-            for index,val in enumerate(self.vals):
-                self.vals[index] = none if val is None else val
+            self.vals[self.vals==None] = none
 
             self.vals = self.vals.astype(dtype)
 
-        elif isinstance(self.vals[0].tolist(),int):
+        elif self.dtypeM is int:
 
             if dtype is str and charcount is not None:
                 self.vals = self.vals.astype(dtype=f"U{charcount}")
             else:
                 self.vals = self.vals.astype(dtype=dtype)
 
-        elif isinstance(self.vals[0].tolist(),float):
+        elif self.dtypeM is float:
 
             npnan_bools = np.isnan(self.vals)
 
@@ -304,7 +306,7 @@ class Column():
 
             self.vals[npnan_bools] = none
 
-        elif isinstance(self.vals[0].tolist(),str):
+        elif self.dtypeM is str:
 
             if dtype is int:
                 try:
@@ -331,7 +333,7 @@ class Column():
                     vformat = np.vectorize(lambda x: parser.parse(x))
                     self.vals = vformat(self.vals).astype(dtype)
 
-        elif isinstance(self.vals[0].tolist(),datetime.date):
+        elif self.dtypeM is np.datetime64:
 
             npnat_bools = np.isnat(self.vals)
             
@@ -344,7 +346,7 @@ class Column():
 
         else:
 
-            logging.warning(f"Unknown format of Column.vals, {self.vals.dtype.type}.")  
+            logging.warning(f"Unknown format of Column.vals, {self.dtype=} {self.vals.dtype.type}.")  
 
         self.set_unit()
 
@@ -803,6 +805,47 @@ class Column():
             return Column(vals=vals_str,head=self.head,unit=None,info=self.info)
 
     @property
+    def dtype(self):
+        """Return dtype of Column.vals."""
+        return self.vals.dtype.type
+    
+    @property
+    def dtypeM(self):
+        """Return matched dtype of Column.vals."""
+
+        if self.vals.size==0:
+            dtype = self.vals.dtype.type
+        elif self.vals.dtype.type is np.object_:
+            dtype = type(self.vals[np.argmax(self.vals!=None)])
+        else:
+            dtype = type(self.vals.item(0))
+
+        if dtype is int:
+            return int
+        elif dtype is np.int32:
+            return int
+        elif dtype is float:
+            return float
+        elif dtype is np.float64:
+            return float
+        elif dtype is str:
+            return str
+        elif dtype is np.str_:
+            return str
+        elif dtype is np.datetime64:
+            return np.datetime64
+        elif dtype is datetime.date:
+            return np.datetime64
+        elif dtype is datetime.datetime:
+            return np.datetime64
+        elif dtype is np.object_:
+            raise TypeError(f"Input is shape={self.vals.shape} and {dtype=}.")
+        elif dtype is type(None):
+            raise TypeError(f"Input is shape={self.vals.shape} and {dtype=} with {np.sum(self.vals==None)} None's.")
+        else:
+            raise TypeError(f"Input is shape={self.vals.shape} and {dtype=} which is unrecognized.")
+    
+    @property
     def year(self):
 
         if self.vals.dtype.type is not np.datetime64:
@@ -851,142 +894,276 @@ class DataFrame(DirBase):
     def __init__(self,*args,**kwargs):
         """Initializes DataFrame with headers & running and parent class DirBase."""
 
-        super().__init__(**kwargs)
+        homedir = kwargs.get('homedir')
+        filedir = kwargs.get('filedir')
 
-        if len(args)==0:
-            DataFrame.set_headers(self,colnum=0,init=True)
-        elif isinstance(args[0],np.ndarray):
-            DataFrame.set_running(self,*args,init=True)
-        elif isinstance(args[0],str):
-            DataFrame.set_headers(self,*args,init=True)
-        else:
-            logging.critical(f"Expected positional arguments is either a string or numpy array; input is {type(args[0])}")
+        super().__init__(homedir=homedir,filedir=filedir)
 
-    def set_headers(self,*args,cols=None,colnum=None,init=False):
-        """Set headers and running based on one or more inputs."""
+        if homedir is not None:
+            homedir = kwargs.pop('homedir')
 
-        if isinstance(cols,int) or isinstance(cols,str):
-            cols = (cols,)
+        if filedir is not None:
+            filedir = kwargs.pop('filedir')
+
+        DataFrame.set_running_new(self,*args,init=True,**kwargs)
+
+    def set_running_new(self,*args,init=False,**kwargs):
 
         if init:
-            self._headers = []
-            self._running = []
+            self.running = []
 
-        colnum0 = len(self._headers)
+        for head in args:
+            self.running.append(Column(vals=np.array([]),head=head))
 
-        if cols is None and colnum is None:
-            [self._headers.append(arg) for arg in args]
-            [self._running.append(np.array([])) for arg in args]
-
-        if colnum is not None:
-            indices = range(colnum0,colnum0+colnum)
-            [self._headers.append("Col #{}".format(index)) for index in indices]
-            [self._running.append(np.array([])) for index in indices]
-
-        if cols is not None:
-            if len(args)!=len(cols):
-                logging.critical("Length of cols is not equal to number of provided arguments.")
-            for (col,arg) in zip(cols,args):
-                if isinstance(col,str):
-                    idcol = self._headers.index(col)
-                elif isinstance(col,int):
-                    idcol = col
-                self._headers[idcol] = arg      
-
-        if len(self._running)!=len(self._headers):
-            logging.warning("The DataFrame has headers and columns different in size.")
-
-        rownum = np.array([column.size for column in self._running])
-
-        if np.unique(rownum).size>1:
-            logging.warning("The DataFrame has columns with different size.")
-
-        self.headers = self._headers
-        self.running = [np.asarray(column) for column in self._running]
-
-    def set_running(self,*args,cols=None,colnum=None,headers=None,init=False):
-        """Set running and headers based on one or more inputs."""
-
-        if isinstance(cols,int):
-            cols = (cols,)
-
-        """HOW ABOUT REPLACING DATA????????????"""
-
-        if init:
-            self._headers = []
-            self._running = []
-
-        colnum0 = len(self._running)
-
-        if cols is None and colnum is None:
-
-            if headers is None:
-                indices = range(colnum0,colnum0+len(args))
-                headers = ("Col #{}".format(index) for index in indices)
-            elif isinstance(headers,str):
-                headers = (headers,)
-            elif isinstance(headers,list):
-                pass
-            elif isinstance(headers,tuple):
-                pass
+        for head,vals in kwargs.items():
+            if head in self.heads:
+                index_head = self.heads.index(head)
+                self.running[index_head] = Column(vals=vals,head=head)
             else:
-                logging.critical(f"Expected headers is list or tuple; input is {type(headers)}")
+                self.running.append(Column(vals=vals,head=head))
+
+        # Column(vals=None,head=None,unit=None,info=None,size=None,dtype=None,none=None,charcount=None)
+
+    # def set_headers(self,*args,cols=None,colnum=None,init=False):
+    #     """Set headers and running based on one or more inputs."""
+
+    #     if isinstance(cols,int) or isinstance(cols,str):
+    #         cols = (cols,)
+
+    #     if init:
+    #         self._headers = []
+    #         self._running = []
+
+    #     colnum0 = len(self._headers)
+
+    #     if cols is None and colnum is None:
+    #         [self._headers.append(arg) for arg in args]
+    #         [self._running.append(np.array([])) for arg in args]
+
+    #     if colnum is not None:
+    #         indices = range(colnum0,colnum0+colnum)
+    #         [self._headers.append("Col #{}".format(index)) for index in indices]
+    #         [self._running.append(np.array([])) for index in indices]
+
+    #     if cols is not None:
+    #         if len(args)!=len(cols):
+    #             logging.critical("Length of cols is not equal to number of provided arguments.")
+    #         for (col,arg) in zip(cols,args):
+    #             if isinstance(col,str):
+    #                 idcol = self._headers.index(col)
+    #             elif isinstance(col,int):
+    #                 idcol = col
+    #             self._headers[idcol] = arg      
+
+    #     if len(self._running)!=len(self._headers):
+    #         logging.warning("The DataFrame has headers and columns different in size.")
+
+    #     rownum = np.array([column.size for column in self._running])
+
+    #     if np.unique(rownum).size>1:
+    #         logging.warning("The DataFrame has columns with different size.")
+
+    #     self.headers = self._headers
+    #     self.running = [np.asarray(column) for column in self._running]
+
+    # def set_running(self,*args,cols=None,colnum=None,headers=None,init=False):
+    #     """Set running and headers based on one or more inputs."""
+
+    #     if isinstance(cols,int):
+    #         cols = (cols,)
+
+    #     """HOW ABOUT REPLACING DATA????????????"""
+
+    #     if init:
+    #         self._headers = []
+    #         self._running = []
+
+    #     colnum0 = len(self._running)
+
+    #     if cols is None and colnum is None:
+
+    #         if headers is None:
+    #             indices = range(colnum0,colnum0+len(args))
+    #             headers = ("Col #{}".format(index) for index in indices)
+    #         elif isinstance(headers,str):
+    #             headers = (headers,)
+    #         elif isinstance(headers,list):
+    #             pass
+    #         elif isinstance(headers,tuple):
+    #             pass
+    #         else:
+    #             logging.critical(f"Expected headers is list or tuple; input is {type(headers)}")
             
-            [self._headers.append(header) for header in headers]
-            [self._running.append(arg) for arg in args]
+    #         [self._headers.append(header) for header in headers]
+    #         [self._running.append(arg) for arg in args]
 
-        if colnum is not None:
+    #     if colnum is not None:
 
-            if headers is None:
-                indices = range(colnum0,colnum0+colnum)
-                headers = ("Col #{}".format(index) for index in indices)
-            elif not isinstance(headers,list) and not isinstance(headers,tuple):
-                headers = (str(headers),)
+    #         if headers is None:
+    #             indices = range(colnum0,colnum0+colnum)
+    #             headers = ("Col #{}".format(index) for index in indices)
+    #         elif not isinstance(headers,list) and not isinstance(headers,tuple):
+    #             headers = (str(headers),)
                 
-            [self._headers.append(header) for header in headers]
-            [self._running.append(np.array([])) for index in indices]
+    #         [self._headers.append(header) for header in headers]
+    #         [self._running.append(np.array([])) for index in indices]
 
-        if cols is not None:
+    #     if cols is not None:
 
-            if len(args)!=len(cols):
-                logging.critical("Length of cols is not equal to number of provided arguments.")
+    #         if len(args)!=len(cols):
+    #             logging.critical("Length of cols is not equal to number of provided arguments.")
 
-            if len(self._running)<max(cols)+1:
-                [self._headers.append("Col #{}".format(index)) for index in range(len(self._running),max(cols)+1)]
-                [self._running.append(np.array([])) for _ in range(len(self._running),max(cols)+1)]
+    #         if len(self._running)<max(cols)+1:
+    #             [self._headers.append("Col #{}".format(index)) for index in range(len(self._running),max(cols)+1)]
+    #             [self._running.append(np.array([])) for _ in range(len(self._running),max(cols)+1)]
 
-            for (index,arg) in zip(cols,args):
+    #         for (index,arg) in zip(cols,args):
 
-                if isinstance(arg,np.ndarray):
-                    arr = arg
-                elif hasattr(arg,"__len__"):
-                    arr = np.array(arg)
+    #             if isinstance(arg,np.ndarray):
+    #                 arr = arg
+    #             elif hasattr(arg,"__len__"):
+    #                 arr = np.array(arg)
+    #             else:
+    #                 arr = np.array([arg])
+
+    #             if self._running[index].size==0:
+    #                 self._running[index] = self._running[index].astype(arg.dtype)
+
+    #             self._running[index] = np.append(self._running[index],arg)
+
+    #         if headers is None:
+    #             pass
+    #         elif not isinstance(headers,list) and not isinstance(headers,tuple):
+    #             headers = (str(headers),)
+    #             self.set_headers(*headers,cols=cols)
+    #         elif headers is not None:
+    #             self.set_headers(*headers,cols=cols)
+
+    #     if len(self._running)!=len(self._headers):
+    #         logging.warning("The DataFrame has headers and columns different in size.")
+
+    #     rownum = np.array([column.size for column in self._running])
+
+    #     if np.unique(rownum).size!=1:
+    #         logging.warning("The DataFrame has columns with different size.")
+
+    #     self.headers = self._headers
+    #     self.running = [np.asarray(column) for column in self._running]
+
+    def __str__(self):
+        """It prints to the console limited number of rows with headers."""
+
+        if self.print_cols is None:
+            cols = range(len(self.running))
+        else:
+            cols = self.print_cols
+
+        fstring = "{}\n".format("{}\t"*len(cols))
+
+        headers = [self.headers[col] for col in cols]
+        unlines = ["-"*len(self.headers[col]) for col in cols]
+
+        string = ""
+
+        try:
+            nrows = self.running[0].size
+        except IndexError:
+            nrows = 0
+
+        if self.print_rows is None:
+
+            if nrows<=int(self.print_rlim):
+
+                rows = range(nrows)
+
+                string += fstring.format(*headers)
+                string += fstring.format(*unlines)
+
+                for row in rows:
+                    string += fstring.format(*[self.running[col][row] for col in cols])
+
+            else:
+
+                rows1 = list(range(int(self.print_rlim/2)))
+                rows2 = list(range(-1,-int(self.print_rlim/2)-1,-1))
+
+                rows2.reverse()
+
+                string += fstring.format(*headers)
+                string += fstring.format(*unlines)
+
+                for row in rows1:
+                    string += fstring.format(*[self.running[col][row] for col in cols])
+
+                string += "...\n"*3
+
+                for row in rows2:
+                    string += fstring.format(*[self.running[col][row] for col in cols])
+
+        else:
+
+            string += fstring.format(*headers)
+            string += fstring.format(*unlines)
+
+            for row in self.print_rows:
+                string += fstring.format(*[self.running[col][row] for col in cols])
+
+        return string
+
+    def add_attrs(self,**kwargs):
+
+        for key,value in kwargs.items():
+
+            if not hasattr(self,key):
+                setattr(self,key,value)
+                continue
+            else:
+                key_edited = f"{key}_{1}"
+
+            for i in range(2,100):
+                if hasattr(self,key_edited):
+                    key_edited = f"{key}_{i}"
                 else:
-                    arr = np.array([arg])
+                    break
+            else:
+                logging.critical(f"Could not add Glossary, copy limit of key reached 100!")
+            
+            setattr(self,key_edited,value)
 
-                if self._running[index].size==0:
-                    self._running[index] = self._running[index].astype(arg.dtype)
+            logging.info(f"Added value after replacing {key} with {key_edited}.")
 
-                self._running[index] = np.append(self._running[index],arg)
+    def add_glossary(self,title,*args,**kwargs):
 
-            if headers is None:
-                pass
-            elif not isinstance(headers,list) and not isinstance(headers,tuple):
-                headers = (str(headers),)
-                self.set_headers(*headers,cols=cols)
-            elif headers is not None:
-                self.set_headers(*headers,cols=cols)
+        if not hasattr(self,title):
 
-        if len(self._running)!=len(self._headers):
-            logging.warning("The DataFrame has headers and columns different in size.")
+            setattr(self,title,Glossary(*args,**kwargs))
 
-        rownum = np.array([column.size for column in self._running])
+        else:
 
-        if np.unique(rownum).size!=1:
-            logging.warning("The DataFrame has columns with different size.")
+            logging.warning(f"{title} already exists.")
 
-        self.headers = self._headers
-        self.running = [np.asarray(column) for column in self._running]
+    def __setitem__(self,key,vals):
+
+        self.running.append(Column(vals=vals,head=key))
+
+    def __iter__(self):
+
+        return iter(self.running)
+
+    def __len__(self):
+
+        return len(self.running)
+
+    def __getitem__(self,key):
+
+        if isinstance(key,int):
+            key_index = key
+        elif isinstance(key,str):
+            key_index = self.heads.index(key)
+        else:
+            raise TypeError(f"The key can be int or str, not type={type(key)}.") 
+
+        return self.running[key_index]
 
     def columns(self,cols=None,match=None,inplace=False,returnflag=True):
         """Set or returns columns in running"""
@@ -1031,69 +1208,40 @@ class DataFrame(DirBase):
                 self.headers = [self._headers[index] for index in idcols]
                 self.running = [np.asarray(self._running[index][conditional]) for index in idcols]
 
-    def add_attrs(self,**kwargs):
+    def str2cols(self,col=None,delimiter=None,maxsplit=None):
 
-        for key,value in kwargs.items():
+        # if isinstance(col,int):
+        #     idcol = col
+        # elif isinstance(col,str):
+        #     idcol = self._headers.index(col)
+        # else:
+        #     logging.critical(f"Excpected col is int or string, input is {type(col)}")
 
-            if not hasattr(self,key):
-                setattr(self,key,value)
-                continue
-            else:
-                key_edited = f"{key}_{1}"
+        index_ = self.running.index(self[col])
 
-            for i in range(2,100):
-                if hasattr(self,key_edited):
-                    key_edited = f"{key}_{i}"
-                else:
-                    break
-            else:
-                logging.critical(f"Could not add Glossary, copy limit of key reached 100!")
-            
-            setattr(self,key_edited,value)
+        column_ = self.running.pop(index_)
+        
+        header_string = column_.head
+        # header_string = re.sub(delimiter+'+',delimiter,header_string)
+        column_string = np.asarray(column_.vals)
 
-            logging.info(f"Added value after replacing {key} with {key_edited}.")
-
-    def add_glossary(self,title,*args,**kwargs):
-
-        if not hasattr(self,title):
-
-            setattr(self,title,Glossary(*args,**kwargs))
-
-        else:
-
-            logging.warning(f"{title} already exists.")
-
-    def str2cols(self,col=None,deliminator=None,maxsplit=None):
-
-        if isinstance(col,int):
-            idcol = col
-        elif isinstance(col,str):
-            idcol = self._headers.index(col)
-        else:
-            logging.critical(f"Excpected col is int or string, input is {type(col)}")
-
-        header_string = self._headers[idcol]
-        # header_string = re.sub(deliminator+'+',deliminator,header_string)
-        column_string = np.asarray(self._running[idcol])
-
-        headers = header_string.split(deliminator)
-        columns = column_string[0].split(deliminator)
+        # headers = header_string.split(delimiter)
 
         if maxsplit is None:
-            maxsplit = max(len(headers),len(columns))
+            maxsplit = np.char.count(column_,delimiter).max()
 
-        headers = header_string.split(deliminator,maxsplit=maxsplit-1)
+        # headers = header_string.split(delimiter,maxsplit=maxsplit-1)
 
-        if maxsplit>len(headers):
-            indices = range(maxsplit-len(headers))
-            [headers.append("Col ##{}".format(index)) for index in indices]
+        # if maxsplit>len(headers):
+        #     indices = range(maxsplit-len(headers))
+        #     [headers.append("Col ##{}".format(index)) for index in indices]
 
         running = []
 
         for index,string in enumerate(column_string):
 
-            # string = re.sub(deliminator+'+',deliminator,string)
-            row = string.split(deliminator,maxsplit=maxsplit-1)
+            # string = re.sub(delimiter+'+',delimiter,string)
+            row = string.split(delimiter,maxsplit=maxsplit-1)
 
             if len(row)<maxsplit:
                 indices = range(maxsplit-len(row))
@@ -1103,20 +1251,22 @@ class DataFrame(DirBase):
 
         running = np.array(running,dtype=str).T
 
-        self._headers.pop(idcol)
-        self._running.pop(idcol)
+        # self._headers.pop(idcol)
+        # self._running.pop(idcol)
 
-        for header,column in zip(headers,running):
-            self._headers.insert(idcol,header)
-            self._running.insert(idcol,column)
-            idcol += 1
+        for column in running:
+            self.running.insert(index_,Column(vals=column))
+            # self._headers.insert(idcol,header)
+            # self._running.insert(idcol,column)
+            # idcol += 1
+            index_ += 1
 
         # line = re.sub(r"[^\w]","",line)
         # line = "_"+line if line[0].isnumeric() else line
         # vmatch = np.vectorize(lambda x: bool(re.compile('[Ab]').match(x)))
         
-        self.headers = self._headers
-        self.running = [np.asarray(column) for column in self._running]
+        # self.headers = self._headers
+        # self.running = [np.asarray(column) for column in self._running]
 
     def cols2str(self,cols=None,header_new=None,fstring=None):
 
@@ -1541,66 +1691,6 @@ class DataFrame(DirBase):
 
         self.running = [np.asarray(column) for column in self._running]
 
-    def __str__(self):
-        """It prints to the console limited number of rows with headers."""
-
-        if self.print_cols is None:
-            cols = range(len(self.running))
-        else:
-            cols = self.print_cols
-
-        fstring = "{}\n".format("{}\t"*len(cols))
-
-        headers = [self.headers[col] for col in cols]
-        unlines = ["-"*len(self.headers[col]) for col in cols]
-
-        string = ""
-
-        try:
-            nrows = self.running[0].size
-        except IndexError:
-            nrows = 0
-
-        if self.print_rows is None:
-
-            if nrows<=int(self.print_rlim):
-
-                rows = range(nrows)
-
-                string += fstring.format(*headers)
-                string += fstring.format(*unlines)
-
-                for row in rows:
-                    string += fstring.format(*[self.running[col][row] for col in cols])
-
-            else:
-
-                rows1 = list(range(int(self.print_rlim/2)))
-                rows2 = list(range(-1,-int(self.print_rlim/2)-1,-1))
-
-                rows2.reverse()
-
-                string += fstring.format(*headers)
-                string += fstring.format(*unlines)
-
-                for row in rows1:
-                    string += fstring.format(*[self.running[col][row] for col in cols])
-
-                string += "...\n"*3
-
-                for row in rows2:
-                    string += fstring.format(*[self.running[col][row] for col in cols])
-
-        else:
-
-            string += fstring.format(*headers)
-            string += fstring.format(*unlines)
-
-            for row in self.print_rows:
-                string += fstring.format(*[self.running[col][row] for col in cols])
-
-        return string
-
     def write(self,filepath,fstring=None,**kwargs):
         """It writes text form of DataFrame."""
 
@@ -1627,6 +1717,22 @@ class DataFrame(DirBase):
             kwargs[header] = column
 
         np.savez_compressed(filepath,**kwargs)
+
+    @property
+    def types(self):
+        return [column.vals.dtype.type for column in self.running]
+
+    @property
+    def heads(self):
+        return [column.head for column in self.running]
+
+    @property
+    def units(self):
+        return [column.unit for column in self.running]
+
+    @property
+    def infos(self):
+        return [column.info for column in self.running]
 
 class Glossary():
     """It is a table of lines vs heads"""

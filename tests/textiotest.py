@@ -384,45 +384,37 @@ class TestColumn(unittest.TestCase):
 
         column = Column(np.arange(1,4))
 
-        self.assertEqual(column.year,None)
+        # self.assertEqual(column.year,None)
 
 class TestDataFrame(unittest.TestCase):
 
-    def test_init_none(self):
+    def test_init(self):
 
         df = DataFrame()
-
-    def test_init_headers(self):
+        self.assertEqual(len(df.heads),0,"Initialization of DataFrame Headers has failed!")
+        self.assertEqual(len(df.running),0,"Initialization of DataFrame Headers has failed!")
 
         df = DataFrame("col1","col2",filedir=__file__)
-
-    def test_set_headers(self):
+        self.assertEqual(len(df.heads),2,"Initialization of DataFrame Headers has failed!")
+        self.assertEqual(len(df.running),2,"Initialization of DataFrame Headers has failed!")
 
         df = DataFrame()
-
-        df.set_headers("col1","col2","col3")
-
-        self.assertEqual(len(df.headers),3,"Initialization of DataFrame Headers is failed!")
-        self.assertEqual(len(df.running),3,"Initialization of DataFrame Headers is failed!")
-
-    def test_set_running(self):
+        df.set_running_new("col1","col2","col3")
+        self.assertEqual(len(df.heads),3,"Initialization of DataFrame Headers has failed!")
+        self.assertEqual(len(df.running),3,"Initialization of DataFrame Headers has failed!")
 
         df = DataFrame("col0","col1")
-
         a = np.array([1,2,3.])
         b = np.array([4,5,6.])
 
-        df.set_running(a,b,cols=(0,1),init=False)
+        df.set_running_new(col0=a,col1=b,init=False)
 
-        self.assertCountEqual(df._headers,["col0","col1"],"Initialization of DataFrame Running is failed!")
+        self.assertCountEqual(df.heads,["col0","col1"],"Initialization of DataFrame Running has failed!")
 
-        df.set_running(b,a,cols=(0,1))
+        df.set_running_new(col0=b,col1=a)
 
-        np.testing.assert_array_equal(df.columns("col0")[:3],a)
-        np.testing.assert_array_equal(df.columns("col0")[3:],b)
-
-        np.testing.assert_array_equal(df.columns("col1")[:3],b)
-        np.testing.assert_array_equal(df.columns("col1")[3:],a)
+        np.testing.assert_array_equal(df["col0"],b)
+        np.testing.assert_array_equal(df["col1"],a)
 
     def test_columns(self):
 
@@ -431,11 +423,11 @@ class TestDataFrame(unittest.TestCase):
         a = np.random.randint(0,100,10)
         b = np.random.randint(0,100,10)
 
-        df.set_running(a,b,cols=(0,1),headers=["a","b"])
+        df.set_running_new(a=a,b=b,init=True)
 
-        self.assertCountEqual(df.headers,["a","b"],"Initialization of DataFrame Running is failed!")
+        self.assertCountEqual(df.heads,["a","b"],"Initialization of DataFrame Running has failed!")
 
-        np.testing.assert_array_equal(df.columns("b"),df.columns(1))
+        np.testing.assert_array_equal(df["b"],df[1])
 
     def test_add_attrs(self):
 
@@ -510,15 +502,15 @@ class TestDataFrame(unittest.TestCase):
 
     def test_str2cols(self):
 
+        head = "first name\tlast name"
+
         full_names = np.array(["elthon\tsmith","bill\tgates\tshir"])
 
-        df = DataFrame(full_names)
+        df = DataFrame(head=full_names)
 
-        df.set_headers("first name\tlast name",cols=(0,))
+        df.str2cols(0,delimiter="\t")
 
-        df.str2cols(0,deliminator="\t")
-
-        self.assertCountEqual(df._headers,["first name","last name"],
+        self.assertCountEqual(df.heads,[" "," "],
             "Splitting headers while splitting column has failed!")
 
     def test_cols2str(self):
