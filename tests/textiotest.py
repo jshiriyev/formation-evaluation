@@ -504,45 +504,54 @@ class TestDataFrame(unittest.TestCase):
 
         head = "first name\tlast name"
 
-        full_names = np.array(["elthon\tsmith","bill\tgates\tshir"])
+        full_names = np.array(["elthon\tsmith","bill\tgates\tjohn"])
 
         df = DataFrame(head=full_names)
 
-        df.str2cols(0,delimiter="\t")
+        df.str2cols("head",delimiter="\t")
 
-        self.assertCountEqual(df.heads,[" "," "],
+        self.assertEqual(df.heads,["head","head_1","head_2"],
             "Splitting headers while splitting column has failed!")
+        np.testing.assert_array_equal(df["head"],np.array(["elthon","bill"]))
+        np.testing.assert_array_equal(df["head_1"],np.array(["smith","gates"]))
+        np.testing.assert_array_equal(df["head_2"],np.array(["","john"]))
 
     def test_cols2str(self):
 
         names = np.array(["elthon","john"])
         nicks = np.array(["smith","verdin"])
 
-        df = DataFrame(names,nicks)
+        df = DataFrame(names=names,nicks=nicks)
         
-        df.cols2str([0,1])
+        df.cols2str(["names","nicks"])
+
+        np.testing.assert_array_equal(df["names_nicks"],np.array(["elthon smith","john verdin"]))
 
     def test_astype(self):
 
         a = np.array([1,2,3,4,5])
         b = np.array([1.,3.4,np.nan,4.7,8])
         c = np.array([datetime.datetime.today(),datetime.datetime(2022,2,2),datetime.datetime(2022,1,2),datetime.datetime(2021,12,2),None])
-        d = np.array(["1.","","5.7","6","None"])
+        d = np.array(["1.","","5.7","6",""])
         e = c.astype(np.datetime64)
 
-        df = DataFrame(a,b,c,d,e)
+        df = DataFrame(a=a,b=b,c=c,d=d,e=e)
 
-        for dtype in (int,str,float,object):
+        for dtype in (int,str,float):
             df.astype(0,dtype)
 
-        for dtype in (int,str,float,object):
+        for dtype in (int,str,float):
             df.astype(1,dtype)
 
         for dtype in (str,datetime.datetime,np.datetime64):
             df.astype(2,dtype)
 
         for dtype in (str,int,float):
-            df.astype(3,dtype)
+
+            if dtype is int:
+                df.astype(3,dtype,regex=r"[-+]?\d+\b")
+            else:
+                df.astype(3,dtype)
 
         for dtype in (str,datetime.datetime,np.datetime64):
             df.astype(4,np.datetime64)
@@ -685,8 +694,8 @@ class TestFunctions(unittest.TestCase):
 
     def test_remove_thousand_separator(self):
 
-        a1 = str2float("10 000,00")
-        a2 = str2float("10.000,00")
+        a1 = str2float("10 000,00",sep_decimal=",",sep_thousand=" ")
+        a2 = str2float("10.000,00",sep_decimal=",",sep_thousand=".")
         a3 = str2float("10,000.00")
 
         self.assertEqual(a1,10000.,"could not remove thousand separator...")

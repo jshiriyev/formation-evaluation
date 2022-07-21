@@ -1,3 +1,5 @@
+import re
+
 import numpy as np
 
 """
@@ -8,83 +10,84 @@ import numpy as np
  5. Float to String
  6. Datetime to String
 
- 7. check "" in string array
- 8. check -9999 in integer array
- 9. check np.nan in float array
-10. check np.NdT in datetime array
-11. check None in object array
-
-12. check numbers in string array
-
 13. Edit strings
 14. Edit datetime (shifting)
 """
 
-def str2float(string):
-    """It returns float after removing thousand separator (either comma or full stop)
-    from string and setting decimal separator as full stop."""
+def str2float(
+    string: str,
+    strnone: str = "",
+    floatnone: float = np.nan,
+    sep_decimal: str = ".",
+    sep_thousand: str = ",",
+    regex: str = None) -> float:
+    """It returns float after removing thousand separator and setting decimal separator as full stop."""
 
-    if string.count(".")>1 and string.count(",")>1:
-        logging.warning(f"String contains more than one comma and dot, {string}")
-        return string
+    # common regular expression for float type is f"[-+]?(?:\\d*\\{sep_thousand}*\\d*\\{sep_decimal}\\d+|\\d+)"
 
-    if string.count(",")>1 and string.count(".")<=1:
-        string = string.replace(",","")
-    elif string.count(".")>1 and string.count(",")<=1:
-        string = string.replace(".","")
-
-    if string.count(".")==1 and string.count(",")==1:
-        if string.index(".")>string.index(","):
-            string = string.replace(",","")
+    if regex is None:
+        if string==strnone:
+            return floatnone
+        elif string.count(sep_decimal)>1:
+            raise ValueError(f"String contains more than one comma and dot, {string}")
         else:
-            string = string.replace(".","")
-            string = string.replace(",",".")
-        try:
+            if string.count(sep_thousand)>0:
+                string = string.replace(sep_thousand,"")
+            if sep_decimal!=".":
+                string = string.replace(sep_decimal,".")
             return float(string)
-        except ValueError:
-            string = string.replace(" ","")
-            return float(string)
-    elif string.count(".")==1:
-        try:
-            return float(string)
-        except ValueError:
-            string = string.replace(" ","")
-            return float(string)
-    elif string.count(",")==1:
-        string = string.replace(",",".")
-        try:
-            return float(string)
-        except ValueError:
-            string = string.replace(" ","")
-            return float(string)
+
     else:
-        try:
-            return float(string)
-        except ValueError:
-            string = string.replace(" ","")
-            return float(string)
+        match = re.search(regex,string)
 
-def str2int(string):
+        if match is None:
+            return floatnone
+        else:
+            return float(match.group())
 
-    return round(str2float(string))
+str2float = np.vectorize(str2float,otypes=[float],excluded=["strnone","floatnone","sep_decimal","sep_thousand","regex"])
 
-def str2date(string):
+def str2int(
+    string: str,
+    strnone: str = "",
+    intnone: int = -99_999,
+    regex: str = None) -> int:
+
+    # common expression for int type is r"[-+]?\d+\b"
+
+    if regex is None:
+        if string==strnone:
+            return intnone
+        else:
+            return int(string)
+
+    else:
+        match = re.search(regex,string)
+
+        if match is None:
+            return intnone
+        else:
+            return int(match.group())
+        
+str2int = np.vectorize(str2int,otypes=[int],excluded=["strnone","intnone","regex"])
+
+# print(str2int(np.array(["john 1","sabrina 2","tarum 5 nohan","conor"]),intnone=0,regexFlag=True))
+
+def str2date(string:str):
 
     pass
 
-def float2str(pyfloat,fstring=None):
+def float2str(number,floatnone:float=np.nan,strnone:str="",fstring=None) -> str:
 
     if fstring is None:
-        fstring = "{}"
+        fstring = "{:f}"
 
-    pystring = []
+    if number==floatnone:
+        number = strnone
 
-    for number in pyfloat:
-        pystring.append(fstring.format(number))
+    return fstring.format(number)
 
-    return pystring
-
-def int2str(pyint,fstring=None,roundflag=False):
+def int2str(number,intnone=-9999,strnone="",fstring=None,roundflag=False):
 
     if fstring is None:
         fstring = "{:d}"

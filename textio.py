@@ -142,13 +142,18 @@ class DirBase():
 class Column():
     """It is a numpy array of shape (N,) with additional attributes of head, unit and info."""
 
+    none_int = -99_999
+    none_float = np.nan
+    none_str = ""
+    none_datetime = np.datetime64('NaT')
+
     """
     To-Do List:
     1. Add nan values for all dtypes.
     2. Implement the copy of array here
     """
 
-    def __init__(self,vals=None,head=None,unit=None,info=None,size=None,dtype=None,none=None,charcount=None):
+    def __init__(self,vals=None,head=None,unit=None,info=None,size=None,dtype=None,charcount=None):
         """Returns a numpy array with additional attributes."""
 
         """
@@ -183,7 +188,7 @@ class Column():
 
             self.vals = vals
 
-            self.astype(dtype=dtype,none=none,charcount=charcount)
+            self.astype(dtype=dtype,charcount=charcount)
 
         else:
 
@@ -258,7 +263,7 @@ class Column():
         else:
             self.info = str(info)
 
-    def astype(self,dtype=None,none=None,charcount=None):
+    def astype(self,dtype=None,regex=None,charcount=None):
         """It changes the dtype of the Column and alters the None values accordingly."""
 
         if dtype is None:
@@ -270,13 +275,13 @@ class Column():
             dtype = np.datetime64
 
         if dtype is int:
-            none = -99999 if none is None else int(none)
+            none = self.none_int
         elif dtype is float:
-            none = np.nan if none is None else float(none)
+            none = self.none_float
         elif dtype is str:
-            none = "" if none is None else str(none)
+            none = self.none_str
         elif dtype is np.datetime64:
-            none = np.datetime64('NaT') if none is None else np.datetime64(none)
+            none = self.none_datetime
         else:
             logging.warning(f"Unexpected dtype has occured, {dtype}.")
 
@@ -288,6 +293,8 @@ class Column():
 
         elif self.dtypeM is int:
 
+            nint_bools = self.isnone()
+
             if dtype is str and charcount is not None:
                 self.vals = self.vals.astype(dtype=f"U{charcount}")
             else:
@@ -295,7 +302,7 @@ class Column():
 
         elif self.dtypeM is float:
 
-            npnan_bools = np.isnan(self.vals)
+            npnan_bools = self.isnone()
 
             if dtype is int:
                 self.vals = np.around(self.vals,decimals=0).astype(dtype)
@@ -308,19 +315,13 @@ class Column():
 
         elif self.dtypeM is str:
 
+            nstr_bools = self.isnone()
+
             if dtype is int:
-                try:
-                    self.vals = self.vals.astype(dtype)
-                except ValueError:
-                    vformat = np.vectorize(str2int)
-                    self.vals = vformat(self.vals).astype(dtype)
+                self.vals = str2int(self.vals,strnone=self.none_str,intnone=self.none_int,regex=regex)
 
             elif dtype is float:
-                try:
-                    self.vals = self.vals.astype(dtype)
-                except ValueError:
-                    vformat = np.vectorize(str2float)
-                    self.vals = vformat(self.vals).astype(dtype)
+                self.vals = str2float(self.vals,strnone=self.none_str,floatnone=self.none_float,regex=regex)
 
             elif dtype is str and charcount is not None:
                 self.vals = self.vals.astype(dtype=f"U{charcount}")
@@ -335,7 +336,7 @@ class Column():
 
         elif self.dtypeM is np.datetime64:
 
-            npnat_bools = np.isnat(self.vals)
+            npnat_bools = self.isnone()
             
             if dtype is str and charcount is not None:
                 self.vals = self.vals.astype(dtype=f"U{charcount}")
@@ -804,6 +805,21 @@ class Column():
         else:
             return Column(vals=vals_str,head=self.head,unit=None,info=self.info)
 
+    def isnone(self):
+
+        dtypeM = self.dtypeM
+
+        if dtypeM is int:
+            return self.vals == self.none_int
+        elif dtypeM is float:
+            return self.vals == self.none_float
+        elif dtypeM is str:
+            return self.vals == self.none_str
+        elif self.dtypeM is np.datetime64:
+            return self.vals == self.none_datetime
+        else:
+            raise TypeError(f"Unidentified problem with column dtype={self.dtype}")
+
     @property
     def dtype(self):
         """Return dtype of Column.vals."""
@@ -913,7 +929,10 @@ class DataFrame(DirBase):
             self.running = []
 
         for head in args:
-            self.running.append(Column(vals=np.array([]),head=head))
+            if isinstance(head,str):
+                self.running.append(Column(vals=np.array([]),head=head))
+            else:
+                raise TypeError(f"The args can be str, not type={type(head)}.")
 
         for head,vals in kwargs.items():
             if head in self.heads:
@@ -1142,6 +1161,24 @@ class DataFrame(DirBase):
 
             logging.warning(f"{title} already exists.")
 
+    def index(self,*args):
+
+        indices = []
+
+        for key in args:
+
+            if isinstance(key,str):
+                indices.append(self.heads.index(key))
+            elif isinstance(key,int):
+                indices.append(key)
+            else:
+                raise TypeError(f"The input/s can be str or int, not type={type(key)}.")
+
+        if len(args)==0:
+            raise TypeError(f"Index expected at least 1 argument, got 0")
+        else:
+            return tuple(indices)
+
     def __setitem__(self,key,vals):
 
         self.running.append(Column(vals=vals,head=key))
@@ -1156,14 +1193,23 @@ class DataFrame(DirBase):
 
     def __getitem__(self,key):
 
-        if isinstance(key,int):
-            key_index = key
-        elif isinstance(key,str):
-            key_index = self.heads.index(key)
-        else:
-            raise TypeError(f"The key can be int or str, not type={type(key)}.") 
+        if key is None:
+            key = slice(None,None,None)
 
-        return self.running[key_index]
+        if isinstance(key,int):
+            return self.running[key].vals
+        elif isinstance(key,str):
+            return self.running[self.index(key)[0]].vals
+        elif isinstance(key,range):
+            return [np.asarray(self[KEY]) for KEY in key]
+        elif isinstance(key,list):
+            return [np.asarray(self[KEY]) for KEY in key]
+        elif isinstance(key,tuple):
+            return [np.asarray(self[KEY]) for KEY in key]
+        elif isinstance(key,slice):
+            return [np.asarray(column.vals) for column in self.running[key]]
+        else:
+            raise TypeError(f"The key cannot be type={type(key)}.") 
 
     def columns(self,cols=None,match=None,inplace=False,returnflag=True):
         """Set or returns columns in running"""
@@ -1210,56 +1256,42 @@ class DataFrame(DirBase):
 
     def str2cols(self,col=None,delimiter=None,maxsplit=None):
 
-        # if isinstance(col,int):
-        #     idcol = col
-        # elif isinstance(col,str):
-        #     idcol = self._headers.index(col)
-        # else:
-        #     logging.critical(f"Excpected col is int or string, input is {type(col)}")
+        if isinstance(col,int):
+            idcol = col
+        elif isinstance(col,str):
+            idcol = self.index(col)[0]
+        else:
+            logging.critical(f"Excpected col is int or str, input is {type(col)}")
 
-        index_ = self.running.index(self[col])
-
-        column_ = self.running.pop(index_)
+        column_ = self.running.pop(idcol)
         
         header_string = column_.head
-        # header_string = re.sub(delimiter+'+',delimiter,header_string)
         column_string = np.asarray(column_.vals)
-
-        # headers = header_string.split(delimiter)
 
         if maxsplit is None:
             maxsplit = np.char.count(column_,delimiter).max()
 
-        # headers = header_string.split(delimiter,maxsplit=maxsplit-1)
+        headers = [header_string,]
 
-        # if maxsplit>len(headers):
-        #     indices = range(maxsplit-len(headers))
-        #     [headers.append("Col ##{}".format(index)) for index in indices]
+        [headers.append("{}_{}".format(header_string,index)) for index in range(1,maxsplit+1)]
 
         running = []
 
         for index,string in enumerate(column_string):
 
             # string = re.sub(delimiter+'+',delimiter,string)
-            row = string.split(delimiter,maxsplit=maxsplit-1)
+            row = string.split(delimiter,maxsplit=maxsplit)
 
-            if len(row)<maxsplit:
-                indices = range(maxsplit-len(row))
+            if maxsplit+1>len(row):
+                indices = range(maxsplit+1-len(row))
                 [row.append("") for index in indices]
 
             running.append(row)
 
         running = np.array(running,dtype=str).T
 
-        # self._headers.pop(idcol)
-        # self._running.pop(idcol)
-
-        for column in running:
-            self.running.insert(index_,Column(vals=column))
-            # self._headers.insert(idcol,header)
-            # self._running.insert(idcol,column)
-            # idcol += 1
-            index_ += 1
+        for index,(vals,head) in enumerate(zip(running,headers),start=idcol):
+            self.running.insert(index,Column(vals=vals,head=head))
 
         # line = re.sub(r"[^\w]","",line)
         # line = "_"+line if line[0].isnumeric() else line
@@ -1270,133 +1302,42 @@ class DataFrame(DirBase):
 
     def cols2str(self,cols=None,header_new=None,fstring=None):
 
-        if cols is None:
-            idcols = range(len(self._running))
-        elif isinstance(cols,int):
-            idcols = (cols,)
-        elif isinstance(cols,str):
-            idcols = (self._headers.index(cols),)
-        elif isinstance(cols,list) or isinstance(cols,tuple):
-            if isinstance(cols[0],int):
-                idcols = cols
-            elif isinstance(cols[0],str):
-                idcols = [self._headers.index(col) for col in cols]
-            else:
-                logging.critical(f"Expected cols is the list or tuple of integer or string; input is {cols}")
-        else:
-            logging.critical(f"Other than None, expected cols is integer or string or their list or tuples; input is {cols}")
+        idcols = self.index(*cols)
+
+        column_new = self[cols]
 
         if fstring is None:
-            fstring = ("{} "*len(idcols)).strip()
+            fstring = ("{} "*len(column_new)).strip()
 
         vprint = np.vectorize(lambda *args: fstring.format(*args))
 
-        column_new = [np.asarray(self._running[idcol]) for idcol in idcols]
+        # column_new = [np.asarray(self._running[idcol]) for idcol in idcols]
 
         column_new = vprint(*column_new)
 
         if header_new is None:
-            header_new = fstring.format(*[self._headers[idcol] for idcol in idcols])
+            fstring_header = ("{}_"*len(column_new))[:-1]
+            header_new = fstring_header.format(*[self.heads[idcol] for idcol in idcols])
 
-        self._headers.append(header_new)
-        self._running.append(column_new)
+        self[header_new] = column_new
+        # self._headers.append(header_new)
+        # self._running.append(column_new)
 
-        self.headers = self._headers
-        self.running = [np.asarray(column) for column in self._running]
+        # self.headers = self._headers
+        # self.running = [np.asarray(column) for column in self._running]
 
-    def astype(self,col=None,dtype=None,none=None):
+    def astype(self,col=None,dtype=None,regex=None,charcount=None):
 
         if isinstance(col,int):
             idcol = col
         elif isinstance(col,str):
-            idcol = self._headers.index(col)
+            idcol = self.index(col)
         else:
             logging.critical(f"Excpected col is int or string, input is {type(col)}")
 
-        if none is None:
+        # astype(self,dtype=None,none=None,charcount=None)
 
-            if dtype is str:
-                none = ""
-            elif dtype is int:
-                none = 0
-            elif dtype is float:
-                none = np.nan
-            elif dtype is np.datetime64:
-                none = np.datetime64('today')
-                # none = np.datetime64('NaT')
-            elif dtype is datetime.datetime:
-                none = datetime.datetime.today()
-
-        column = self._running[idcol]
-
-        if column.dtype.type is np.object_:
-
-            vnone = np.vectorize(lambda x: x if x is not None else none)
-
-            column = vnone(column)
-
-            column = column.astype(dtype)
-
-        elif column.dtype.type is np.str_:
-
-            vnone = np.vectorize(lambda x: x if x!='' and x!='None' else str(none))
-
-            column = vnone(column)
-
-            if dtype is str:
-                return
-            elif dtype is int:
-                try:
-                    column = column.astype(dtype)
-                except ValueError:
-                    vformat = np.vectorize(lambda x: round(float(x.replace(",","."))))
-                    column = vformat(column).astype(dtype)
-            elif dtype is float:
-                try:
-                    column = column.astype(dtype)
-                except ValueError:
-                    vformat = np.vectorize(lambda x: x.replace(",","."))
-                    column = vformat(column).astype(dtype)
-            elif dtype is np.datetime64:
-                try:
-                    column = column.astype(dtype)
-                except ValueError:
-                    vformat = np.vectorize(lambda x: parser.parse(x))
-                    column = vformat(column).astype(dtype)
-            elif dtype is datetime.datetime:
-                vformat = np.vectorize(lambda x: parser.parse(x))
-                column = vformat(column).astype(dtype)
-
-        elif column.dtype.type is np.int32:
-
-            column = column.astype(dtype)
-
-        elif column.dtype.type is np.float64:
-
-            bools = np.isnan(column)
-
-            if dtype is int:
-                column = np.round_(column)
-
-            column = column.astype(dtype)
-
-            column[bools] = none
-
-        elif column.dtype.type is np.datetime64:
-
-            bools = np.isnat(column)
-
-            column = column.astype(dtype)
-
-            column[bools] = none
-
-        else:
-
-            logging.warning(f"Unknown {column.dtype.type=}.")
-
-        self._running[idcol] = column
-
-        self.running[idcol] = np.asarray(self._running[idcol])
+        self.running[idcol].astype(dtype,regex,charcount)
 
     def edit_nones(self,cols=None,none=None):
 
