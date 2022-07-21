@@ -1,18 +1,40 @@
+from dateutil import parser
+
 import re
 
 import numpy as np
 
 """
- 1. String to Integer
- 2. String to Float
- 3. String to Datetime
- 4. Integer to String
- 5. Float to String
- 6. Datetime to String
-
-13. Edit strings
-14. Edit datetime (shifting)
+1. Edit strings
+2. Edit datetime (shifting)
 """
+
+def str2int(
+    string: str,
+    strnone: str = "",
+    intnone: int = -99_999,
+    regex: str = None) -> int:
+    """It returns integer converted from string."""
+
+    # common expression for int type is r"[-+]?\d+\b"
+
+    if regex is None:
+        if string==strnone:
+            return intnone
+        else:
+            return int(string)
+
+    else:
+        match = re.search(regex,string)
+
+        if match is None:
+            return intnone
+        else:
+            return int(match.group())
+        
+str2int = np.vectorize(str2int,otypes=[int],excluded=["strnone","intnone","regex"])
+
+# print(str2int(np.array(["john 1","sabrina 2","tarum 5 nohan","conor"]),intnone=0,regexFlag=True))
 
 def str2float(
     string: str,
@@ -47,65 +69,92 @@ def str2float(
 
 str2float = np.vectorize(str2float,otypes=[float],excluded=["strnone","floatnone","sep_decimal","sep_thousand","regex"])
 
-def str2int(
+def str2datetime(
     string: str,
     strnone: str = "",
-    intnone: int = -99_999,
-    regex: str = None) -> int:
-
-    # common expression for int type is r"[-+]?\d+\b"
+    datetimenone: np.datetime64 = np.datetime64('NaT'),
+    regex: str = None) -> np.datetime64:
 
     if regex is None:
         if string==strnone:
-            return intnone
+            return datetimenone
         else:
-            return int(string)
+            return np.datetime64(parser.parse(string))
+    else:
+        match = re.search(regex,string)
+
+        if match is None:
+            return datetimenone
+        else:
+            return np.datetime64(match.group())
+
+str2datetime = np.vectorize(str2datetime,otypes=[np.datetime64],excluded=["strnone","datetimenone","regex"])
+
+def int2str(
+    number: int,
+    intnone: int = -99_999,
+    strnone: str = "",
+    fstring: str = None) -> str:
+
+    if number==intnone:
+        return strnone
+    else:
+        fstring = "{:,d}" if fstring is None else fstring
+        return fstring.format(number)
+
+int2str = np.vectorize(int2str,otypes=[str],excluded=["intnone","strnone","fstring"])
+
+def float2str(
+    number: float,
+    floatnone: float = np.nan,
+    strnone: str = "",
+    fstring: str = None) -> str:
+
+    if number==floatnone:
+        number = strnone
+    else:
+        fstring = "{:f}" if fstring is None else fstring
+        return fstring.format(number)
+
+float2str = np.vectorize(float2str,otypes=[str],excluded=["floatnone","strnone","fstring"])
+
+def str2str(
+    string: str,
+    strnone: str = "",
+    regex: str = None,
+    fstring: str = None) -> str:
+
+    fstring = "{:s}" if fstring is None else fstring
+
+    if regex is None:
+        if string==strnone:
+            return fstring.format(strnone)
+        else:
+            return fstring.format(string)
 
     else:
         match = re.search(regex,string)
 
         if match is None:
-            return intnone
+            return fstring.format(strnone)
         else:
-            return int(match.group())
-        
-str2int = np.vectorize(str2int,otypes=[int],excluded=["strnone","intnone","regex"])
+            return fstring.format(match.group())
 
-# print(str2int(np.array(["john 1","sabrina 2","tarum 5 nohan","conor"]),intnone=0,regexFlag=True))
+str2str = np.vectorize(str2str,otypes=[str],excluded=["strnone","regex","fstring"])
 
-def str2date(string:str):
+def datetime2str(
+    datetime_: np.datetime64,
+    datetimenone: np.datetime64 = np.datetime64('NaT'),
+    strnone: str = "",
+    fstring: str = None) -> str:
 
-    pass
+    if datetime_ is datetimenone.tolist():
+        return strnone
+    else:
+        fstring = "%d-%b-%Y" if fstring is None else fstring
+        return datetime_.strftime(fstring)
 
-def float2str(number,floatnone:float=np.nan,strnone:str="",fstring=None) -> str:
-
-    if fstring is None:
-        fstring = "{:f}"
-
-    if number==floatnone:
-        number = strnone
-
-    return fstring.format(number)
-
-def int2str(number,intnone=-9999,strnone="",fstring=None,roundflag=False):
-
-    if fstring is None:
-        fstring = "{:d}"
-
-    pystring = []
-
-    for number in pyfloat:
-
-        if roundflag:
-            number = round(number)
-
-        pystring.append(fstring.format(number))
-
-    return pystring
-
-def date2str(pydatetime):
-
-    pass
+datetime2str = np.vectorize(datetime2str,otypes=[str],excluded=["datetimenone","strnone","fstring"])
 
 def starsplit(text,default=1.0):
     """It returns star splitted list repeating post-star pre-star times."""

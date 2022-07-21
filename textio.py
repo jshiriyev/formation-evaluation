@@ -19,8 +19,13 @@ import lasio
 if __name__ == "__main__":
     import setup
 
-from cypy.vectorpy import str2float
 from cypy.vectorpy import str2int
+from cypy.vectorpy import str2float
+from cypy.vectorpy import str2str
+from cypy.vectorpy import str2datetime
+from cypy.vectorpy import int2str
+from cypy.vectorpy import float2str
+from cypy.vectorpy import datetime2str
 
 """
 1. Merge Column to DataFrame.
@@ -263,7 +268,7 @@ class Column():
         else:
             self.info = str(info)
 
-    def astype(self,dtype=None,regex=None,charcount=None):
+    def astype(self,dtype=None,regex=None,charcount=None,fstring=None):
         """It changes the dtype of the Column and alters the None values accordingly."""
 
         if dtype is None:
@@ -288,62 +293,49 @@ class Column():
         if self.dtype is np.object_:
 
             self.vals[self.vals==None] = none
-
             self.vals = self.vals.astype(dtype)
 
         elif self.dtypeM is int:
 
-            nint_bools = self.isnone()
-
-            if dtype is str and charcount is not None:
-                self.vals = self.vals.astype(dtype=f"U{charcount}")
+            if dtype is str:
+                self.vals = int2str(self.vals,intnone=self.none_int,strnone=self.none_str,fstring=fstring)
+                if charcount is not None:
+                    self.vals = self.vals.astype(dtype=f"U{charcount}")
             else:
                 self.vals = self.vals.astype(dtype=dtype)
 
         elif self.dtypeM is float:
 
-            npnan_bools = self.isnone()
-
             if dtype is int:
                 self.vals = np.around(self.vals,decimals=0).astype(dtype)
-            elif dtype is str and charcount is not None:
-                self.vals = self.vals.astype(dtype=f"U{charcount}")
+            elif dtype is str:
+                self.vals = float2str(self.vals,floatnone=self.none_float,strnone=self.none_str,fstring=fstring)
+                if charcount is not None:
+                    self.vals = self.vals.astype(dtype=f"U{charcount}")
             else:
                 self.vals = self.vals.astype(dtype=dtype)
-
-            self.vals[npnan_bools] = none
 
         elif self.dtypeM is str:
 
-            nstr_bools = self.isnone()
-
             if dtype is int:
                 self.vals = str2int(self.vals,strnone=self.none_str,intnone=self.none_int,regex=regex)
-
             elif dtype is float:
                 self.vals = str2float(self.vals,strnone=self.none_str,floatnone=self.none_float,regex=regex)
-
-            elif dtype is str and charcount is not None:
-                self.vals = self.vals.astype(dtype=f"U{charcount}")
-
+            elif dtype is str:
+                self.vals = str2str(self.vals,strnone=self.none_str,regex=regex,fstring=fstring)
+                if charcount is not None:
+                    self.vals = self.vals.astype(dtype=f"U{charcount}")
             elif dtype is np.datetime64:
-
-                try:
-                    self.vals = self.vals.astype(dtype=dtype)
-                except ValueError:
-                    vformat = np.vectorize(lambda x: parser.parse(x))
-                    self.vals = vformat(self.vals).astype(dtype)
+                self.vals = str2datetime(self.vals,strnone=self.none_str,datetimenone=self.none_datetime,regex=regex)
 
         elif self.dtypeM is np.datetime64:
-
-            npnat_bools = self.isnone()
             
-            if dtype is str and charcount is not None:
-                self.vals = self.vals.astype(dtype=f"U{charcount}")
+            if dtype is str:
+                self.vals = datetime2str(self.vals,datetimenone=self.none_datetime,strnone=self.none_str,fstring=fstring)
+                if charcount is not None:
+                    self.vals = self.vals.astype(dtype=f"U{charcount}")
             else:
                 self.vals = self.vals.astype(dtype=dtype)
-
-            self.vals[npnat_bools] = none
 
         else:
 
