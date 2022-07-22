@@ -6,11 +6,6 @@ import re
 
 import numpy as np
 
-"""
-1. Edit strings
-2. Edit datetime (shifting)
-"""
-
 def str2int(
     string: str,
     strnone: str = "",
@@ -53,7 +48,7 @@ def str2float(
         if string==strnone:
             return floatnone
         elif string.count(sep_decimal)>1:
-            raise ValueError(f"String contains more than one comma and dot, {string}")
+            raise ValueError(f"String contains more than one {sep_decimal=}, {string}")
         else:
             if string.count(sep_thousand)>0:
                 string = string.replace(sep_thousand,"")

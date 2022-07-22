@@ -29,12 +29,16 @@ from cypy.vectorpy import float2str
 from cypy.vectorpy import datetime2str
 
 """
-1. DataFrame write should be finalized:
-2. Shift dates to the end of month or beginning of month
-3. loadtext should be working well.
-4. Finalize RegText
-5. Finalize LogASCII
-6. Finalize Excel
+1. Column nones, better ways
+2. Shift dates several months, end of month or beginning of month
+3. DataFrame representation
+4. DataFrame attributes and glossary
+5. DataFrame sort, filter, unique
+6. DataFrame read, write
+7. loadtext should be working well
+8. Finalize RegText
+9. Finalize LogASCII
+10. Finalize Excel
 """
 
 class DirBase():
@@ -155,15 +159,19 @@ class Column():
 
     """INITIALIZATION"""
     def __init__(self,vals=None,head=None,unit=None,info=None,size=None,dtype=None,charcount=None):
-        """Returns a numpy array with additional attributes."""
+        """Returns a numpy array (N,) with additional attributes."""
 
         """
-        - Initialization can be done in two ways:
-            1) Defining vals by sending int, float, string, datetime.datetime, numpy.datetime64 as standalone or
-                in a list, tuple or numpy.array
-            2) Defining the size of numpy array by sending N.
-        - The argument "dtype" is optional and can be any of the {int, float, str, np.datetime64}
-        - Depending on the dtype optional arguments "none" and "charcount" can be used.
+        Initialization can be done in two ways:
+        
+        1) Defining vals by sending int, float, string, datetime.date, numpy.datetime64 as standalone or
+        in a list, tuple or numpy.array
+        
+        2) Defining the size of numpy array by sending N.
+        
+        The argument "dtype" is optional and can be any of the {int, float, str, np.datetime64}
+        
+        Depending on the dtype optional arguments "none" and "charcount" can be used.
         """
 
         if vals is not None:
@@ -215,6 +223,8 @@ class Column():
                 base = datetime.datetime(2000, 1, 1)
                 dates = [base+relativedelta.relativedelta(months=i) for i in range(shape[0])]
                 vals = np.array(dates,dtype=np.datetime64)
+            else:
+                raise ValueError(f"dtype is not int, float, str or np.datetime64, given {dtype=}")
 
             self.vals = vals
 
@@ -223,16 +233,18 @@ class Column():
         self.set_info(info)
 
     def set_head(self,head=None):
+        """Sets the head of Column."""
 
         if head is None:
             if hasattr(self,"head"):
                 return
             else:
-                self.head = " "
+                self.head = "HEAD"
         else:
-            self.head = str(head)
+            self.head = re.sub(r"[^\w]","",str(head))
 
     def set_unit(self,unit=None):
+        """Sets the unit of Column."""
 
         if self.vals.dtype.type is np.float64:
             if unit is None:
@@ -255,6 +267,7 @@ class Column():
             self.unit = None
 
     def set_info(self,info=None):
+        """Sets the info of Column."""
 
         if info is None:
             if hasattr(self,"info"):
@@ -340,6 +353,7 @@ class Column():
         self.set_unit()
 
     def stringify(self,fstring=None,upper=False,lower=False,zfill=None,inplace=False):
+        """It has more capabilities than str2str on the outputting part."""
 
         if fstring is None:
             fstring_inner = "{}"
@@ -381,6 +395,7 @@ class Column():
 
     """REPRESENTATION"""
     def _valstr_(self,num=None):
+        """It outputs Column.vals in string format. If num is not defined it edites numpy.ndarray.__str__()."""
 
         if num is None:
 
@@ -430,10 +445,12 @@ class Column():
             return vals_str.format(*self.vals[:part1],*self.vals[-part2:])
 
     def __repr__(self):
+        """Console representation of Column."""
 
         return f'Column(head="{self.head}", unit="{self.unit}", info="{self.info}", vals={self._valstr_(2)})'
 
     def __str__(self):
+        """Print representation of Column."""
 
         string = "{}\n"*4
 
@@ -446,6 +463,7 @@ class Column():
 
     """COMPARISON"""
     def isnone(self):
+        """It return boolean array by comparing the values of vals to none types defined by Column."""
 
         dtypeM = self.dtypeM
 
@@ -467,6 +485,7 @@ class Column():
             raise TypeError(f"Unidentified problem with column dtype={self.dtype}")
 
     def nondim(self):
+        """It checks whether Column has unit or not."""
 
         if self.vals.dtype.type is np.float64:
             return self.unit=="dimensionless"
@@ -553,28 +572,31 @@ class Column():
 
     """CONTAINER METHODS"""
     def min(self):
+        """It returns none-minimum value of Column."""
 
         if self.vals.dtype.type is np.int32:
-            return self.vals.min()
+            return self.vals[~self.isnone()].min()
         elif self.vals.dtype.type is np.float64:
             return np.nanmin(self.vals)
         elif self.vals.dtype.type is np.str_:
-            return min(self.vals,key=len)
+            return min(self.vals[~self.isnone()],key=len)
         elif self.vals.dtype.type is np.datetime64:
             return np.nanmin(self.vals)
 
     def max(self):
+        """It returns none-maximum value of Column."""
 
         if self.vals.dtype.type is np.int32:
-            return self.vals.max()
+            return self.vals[~self.isnone()].max()
         elif self.vals.dtype.type is np.float64:
             return np.nanmax(self.vals)
         elif self.vals.dtype.type is np.str_:
-            return max(self.vals,key=len)
+            return max(self.vals[~self.isnone()],key=len)
         elif self.vals.dtype.type is np.datetime64:
             return np.nanmax(self.vals)
 
     def maxchar(self,string=False):
+        """It returns the maximum character count in stringified Column."""
 
         if self.vals.dtype.type is np.str_:
             vals = self.vals
@@ -589,6 +611,8 @@ class Column():
             return int(vals.dtype.itemsize/charsize)
 
     def replace(self,new=None,old=None,method="upper"):
+        """It replaces old with new. If old is not defined, it replaces nones.
+        If new is not defined, it uses upper or lower values to replace the olds."""
 
         if old is None:
             conds = self.isnone()
@@ -622,10 +646,11 @@ class Column():
 
     def __getitem__(self,key):
 
-        return Column(vals=self.vals[key],head=self.head,unit=None,info=self.info)
+        return Column(vals=self.vals[key],head=self.head,unit=self.unit,info=self.info)
 
     """OPERATIONS"""
     def convert(self,unit,inplace=True):
+        """It converts the vals to the new unit."""
 
         if self.unit==unit:
             if inplace:
@@ -640,7 +665,7 @@ class Column():
             self.unit = unit
         else:
             vals = ur.Quantity(self.vals,self.unit).to(unit).magnitude
-            return Column(vals,self.head,unit,self.info)
+            return Column(head=self.head,vals=vals,unit=unit,info=self.info)
     
     def shift(self,delta,deltaunit=None,inplace=True):
         """Shifting the entries depending on its dtype."""
@@ -650,21 +675,21 @@ class Column():
                 self.vals += delta
             else:
                 vals = self.vals+delta
-                return Column(vals=vals,head=self.head,unit=self.unit,info=self.info)
+                return Column(head=self.head,vals=vals,unit=self.unit,info=self.info)
         elif self.vals.dtype.type is np.float64:
-            other = Column(vals=delta,unit=deltaunit)
+            other = Column(head="other",vals=delta,unit=deltaunit)
             other.convert(self.unit)
             if inplace:
                 self.vals += other
             else:
                 vals = self.vals+other.vals
-                return Column(vals=vals,head=self.head,unit=self.unit,info=self.info)
+                return Column(head=self.head,vals=vals,unit=self.unit,info=self.info)
         elif self.vals.dtype.type is np.str_:
             if inplace:
                 self.vals = np.char.add(" "*delta,self.vals)
             else:
                 vals = np.char.add(" "*delta,self.vals)
-                return Column(vals=vals,head=self.head,unit=self.unit,info=self.info)
+                return Column(head=self.head,vals=vals,unit=self.unit,info=self.info)
         elif self.vals.dtype.type is np.datetime64:
             """
             For numpy.datetime64, the issue with following deltatime units
@@ -735,7 +760,7 @@ class Column():
                 self.vals[~self.isnone()] += timedelta
             else:
                 vals = self.vals[~self.isnone()]+timedelta
-                return Column(vals=vals,head=self.head,unit=self.unit,info=self.info)
+                return Column(head=self.head,vals=vals,unit=self.unit,info=self.info)
 
     def __add__(self,other):
         """Implementing '+' operator."""
@@ -743,9 +768,9 @@ class Column():
         if isinstance(other,Column):
             if self.unit!=other.unit:
                 other = other.convert(self.unit,inplace=False)
-            return Column(self.vals+other.vals,unit=self.unit)
+            return Column(vals=self.vals+other.vals,unit=self.unit)
         else:
-            return Column(self.vals+other,self.head,self.unit,self.info)
+            return Column(vals=self.vals+other,head=self.head,unit=self.unit,info=self.info)
 
     def __floordiv__(self,other):
         """Implementing '//' operator."""
