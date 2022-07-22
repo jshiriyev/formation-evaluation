@@ -1,3 +1,5 @@
+import datetime
+
 from dateutil import parser
 
 import re
@@ -143,18 +145,27 @@ def str2str(
 str2str = np.vectorize(str2str,otypes=[str],excluded=["strnone","regex","fstring"])
 
 def datetime2str(
-    datetime_: np.datetime64,
-    datetimenone: np.datetime64 = np.datetime64('NaT'),
+    datetime_: datetime.date,
+    datetimenone: datetime.date = None,
     strnone: str = "",
     fstring: str = None) -> str:
 
-    if datetime_ is datetimenone.tolist():
+    if isinstance(datetimenone,np.datetime64):
+        datetimenone = datetimenone.tolist()
+
+    if datetime_ == datetimenone:
         return strnone
     else:
         fstring = "%d-%b-%Y" if fstring is None else fstring
         return datetime_.strftime(fstring)
 
 datetime2str = np.vectorize(datetime2str,otypes=[str],excluded=["datetimenone","strnone","fstring"])
+
+# dtl = [datetime.datetime.today(),datetime.datetime.today()]
+# dtn = np.array(dtl,dtype=np.datetime64)
+
+# print(datetime2str(dtl))
+# print(datetime2str(dtn))
 
 def starsplit(text,default=1.0):
     """It returns star splitted list repeating post-star pre-star times."""

@@ -235,13 +235,13 @@ class TestColumn(unittest.TestCase):
         column = Column(size=10,dtype=np.datetime64)
         self.assertEqual(column._valstr_(2),"['2000-01-01T00:00:00.000000',...,'2000-10-01T00:00:00.000000']")
 
-    def test_is_dimensionless(self):
+    def test_nodim(self):
         
         column = Column(["1.","2"],unit="m")
-        self.assertEqual(column.is_dimensionless(),False)
+        self.assertEqual(column.nondim(),False)
 
         column.astype(int)
-        self.assertEqual(column.is_dimensionless(),True)
+        self.assertEqual(column.nondim(),True)
 
     def test_unit_conversion(self):
 
@@ -394,36 +394,43 @@ class TestDataFrame(unittest.TestCase):
         self.assertEqual(len(df.heads),0,"Initialization of DataFrame Headers has failed!")
         self.assertEqual(len(df.running),0,"Initialization of DataFrame Headers has failed!")
 
-        df = DataFrame("col1","col2",filedir=__file__)
+        df = DataFrame(col1=[],col2=[],filedir=__file__)
         self.assertEqual(len(df.heads),2,"Initialization of DataFrame Headers has failed!")
         self.assertEqual(len(df.running),2,"Initialization of DataFrame Headers has failed!")
 
         df = DataFrame()
-        df.set_running_new("col1","col2","col3")
+
+        df["col1"] = []
+        df["col2"] = []
+        df["col3"] = []
+
         self.assertEqual(len(df.heads),3,"Initialization of DataFrame Headers has failed!")
         self.assertEqual(len(df.running),3,"Initialization of DataFrame Headers has failed!")
 
-        df = DataFrame("col0","col1")
+        df = DataFrame(col0=[],col1=[])
         a = np.array([1,2,3.])
         b = np.array([4,5,6.])
 
-        df.set_running_new(col0=a,col1=b,init=False)
+        df["col0"] = a
+        df["col1"] = b
 
         self.assertCountEqual(df.heads,["col0","col1"],"Initialization of DataFrame Running has failed!")
 
-        df.set_running_new(col0=b,col1=a)
+        df["col0"] = b
+        df["col1"] = a
 
         np.testing.assert_array_equal(df["col0"],b)
         np.testing.assert_array_equal(df["col1"],a)
 
     def test_columns(self):
 
-        df = DataFrame("col0","col1")
+        df = DataFrame()
 
         a = np.random.randint(0,100,10)
         b = np.random.randint(0,100,10)
 
-        df.set_running_new(a=a,b=b,init=True)
+        df['a'] = a
+        df['b'] = b
 
         self.assertCountEqual(df.heads,["a","b"],"Initialization of DataFrame Running has failed!")
 
@@ -431,7 +438,7 @@ class TestDataFrame(unittest.TestCase):
 
     def test_add_attrs(self):
 
-        df = DataFrame("col0","col1")
+        df = DataFrame(col0=[],col1=[])
 
         df.add_attrs(name="raw_data")
 
@@ -446,7 +453,7 @@ class TestDataFrame(unittest.TestCase):
 
     def test_add_glossary(self):
 
-        df = DataFrame("A","B")
+        df = DataFrame(A=[],B=[])
 
         df.add_glossary("child",first_name=str,last_name=str)
 
@@ -538,65 +545,69 @@ class TestDataFrame(unittest.TestCase):
         df = DataFrame(a=a,b=b,c=c,d=d,e=e)
 
         for dtype in (int,str,float):
-            df.astype(0,dtype)
+            df[0].astype(dtype)
 
         for dtype in (int,str,float):
-            df.astype(1,dtype)
+            df[1].astype(dtype)
 
         for dtype in (str,datetime.datetime,np.datetime64):
-            df.astype(2,dtype)
+            df[2].astype(dtype)
 
         for dtype in (str,int,float):
 
             if dtype is int:
-                df.astype(3,dtype,regex=r"[-+]?\d+\b")
+                df[3].astype(dtype,regex=r"[-+]?\d+\b")
             else:
-                df.astype(3,dtype)
+                df[3].astype(dtype)
 
         for dtype in (str,datetime.datetime,np.datetime64):
-            df.astype(4,np.datetime64)
+            df[4].astype(np.datetime64)
 
     def test_edit_nones(self):
 
         A = np.array([1,2,3,4,None,6])
-        B = np.array([0,1,2,None,3,4])
+        B = np.array([0,1,2,None,None,4])
 
-        df = DataFrame(A,B)
+        df = DataFrame(A=A,B=B)
 
-        df.edit_nones(0,none=50)
-        df.edit_nones(1)
+        df['A'].replace(new=50)
+        np.testing.assert_array_equal(df["A"].vals,np.array([1,2,3,4,50,6]))
+        df['B'].replace()
+        np.testing.assert_array_equal(df["B"].vals,np.array([0,1,2,2,2,4]))
 
     def test_edit_dates(self):
 
-        c = np.array([datetime.datetime.today(),datetime.datetime(2022,2,2),datetime.datetime(2022,1,2),datetime.datetime(2021,12,2),None])
+        c = np.array([datetime.datetime(2022,2,2),datetime.datetime(2022,1,2),datetime.datetime(2021,12,2),None])
 
-        df = DataFrame(c)
+        df = DataFrame(c=c)
 
-        df.astype(0,np.datetime64)
+        df['c'].shift(delta=-2,deltaunit='Y')
+        df['c'].shift(delta=10,deltaunit='D')
 
-        df.edit_dates(0,shiftyears=-2,shiftmonths=-3,shiftdays=10)
+        np.testing.assert_array_equal(df["c"].vals,
+            np.array([np.datetime64('2020-02-12'),np.datetime64('2020-01-12'),np.datetime64('2019-12-12'),np.datetime64('NaT')]))
 
     def test_edit_strings(self):
 
         names = np.array(["elthon","john","1"])
 
-        df = DataFrame(names)
+        df = DataFrame(names=names)
 
-        df.edit_strings(0,zfill=3)
+        df['names'].stringify(zfill=3,inplace=True)
 
     def test_unique(self):
 
         df = DataFrame()
 
         A = np.array([1,1,1,2,2,3,3,3,4,5,6,6,6,6])
-
         B = np.array(["A","A","B","B","C","C","C","C","C","D","E","F","F","F"])
 
-        df.set_running(A,B,init=True)
+        df["A"] = A
+        df["B"] = B
 
-        df.unique(cols=(0,1),inplace=True)
+        df.unique(cols=(0,1))
 
-        np.testing.assert_array_equal(df.running[0],
+        np.testing.assert_array_equal(df[0].vals,
             np.array([1,1,2,2,3,4,5,6,6]),err_msg="DataFrame.unique() has an issue!")
 
         np.testing.assert_array_equal(df.running[1],
@@ -604,12 +615,13 @@ class TestDataFrame(unittest.TestCase):
 
     def test_print(self):
 
-        df = DataFrame("col0","col1")
+        df = DataFrame(col0=[],col1=[])
 
         a = np.random.randint(0,100,20)
         b = np.random.randint(0,100,20)
 
-        df.set_running(a,b,cols=(0,1),headers=["a","b"])
+        df["a"] = a
+        df["b"] = b
 
     def test_write(self):
 
@@ -617,12 +629,13 @@ class TestDataFrame(unittest.TestCase):
 
     def test_writeb(self):
 
-        df = DataFrame("col0","col1")
+        df = DataFrame(col0=[],col1=[])
 
         a = np.random.randint(0,100,20)
         b = np.random.randint(0,100,20)
 
-        df.set_running(a,b,cols=(0,1),headers=["a","b"])
+        df["a"] = a
+        df["b"] = b
 
 class TestGlossary(unittest.TestCase):
 
@@ -641,8 +654,6 @@ class TestRegText(unittest.TestCase):
     def test_init(self):
 
         rt = RegText()
-
-        rt.set_headers("WELL","DATE","OIL","WATER","GAS")
         
         well = np.array([
             "A01","A01","A01","A01","A01","A01","A01","A01",
@@ -654,7 +665,11 @@ class TestRegText(unittest.TestCase):
         water   = np.array([24,23,22,21,20,19,18,17,16,16,14,13,15,15,15,15,15,15,15,15,15,15,15,15])
         gas     = np.array([36,35,34,33,32,31,30,29,28,27,26,25,25,25,25,25,25,25,25,25,25,25,25,25])
 
-        rt.set_running(well,date,oil,water,gas,cols=(0,1,2,3,4))
+        rt["WELL"] = well
+        rt["DATE"] = date
+        rt["OIL"] = oil
+        rt["WATER"] = water
+        rt["GAS"] = gas
 
         rt.print_rlim = 30
 
