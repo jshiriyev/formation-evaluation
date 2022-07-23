@@ -67,12 +67,12 @@ class TestNones(unittest.TestCase):
 
     def test_nones(self):
 
-        none = Nones()
-        none["datetime"] = np.datetime64('NaT')
-        self.assertEqual(none["int"],-99999)
+        nones = Nones()
+        nones.datetime = np.datetime64('NaT')
+        self.assertEqual(nones.int,-99_999)
 
-        none["int"] = 0
-        self.assertEqual(none["int"],0)
+        nones.int = 0.
+        self.assertEqual(nones.int,0)
 
 class TestColumn(unittest.TestCase):
 

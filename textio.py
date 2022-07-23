@@ -155,23 +155,22 @@ class Nones():
 
     def __init__(self,nint=None,nfloat=None,nstr=None,ndatetime=None):
 
-        self._int = -99_999 if nint is None else nint
-        self._float = np.nan if nfloat is None else nfloat
-        self._str = "" if nstr is None else nstr
-        self._datetime = np.datetime64('NaT') if ndatetime is None else ndatetime
+        self.int = -99_999 if nint is None else nint
+        self.float = np.nan if nfloat is None else nfloat
+        self.str = "" if nstr is None else nstr
+        self.datetime = np.datetime64('NaT') if ndatetime is None else ndatetime
 
     def __str__(self):
 
-        dtypes = ("int","float","str","datetime")
-
         row0 = "None-Values"
-        row2 = "{:,d}".format(self["int"])
-        row3 = "{:,f}".format(self["float"])
-        row4 = "'{:s}'".format(self["str"])
-        if np.isnan(self["datetime"]):
-            row5 = "{}".format(self["datetime"])
+        row2 = "{:,d}".format(self.int)
+        row3 = "{:,f}".format(self.float)
+        row4 = "'{:s}'".format(self.str)
+        
+        if np.isnan(self.datetime):
+            row5 = "{}".format(self.datetime)
         else:
-            row5 = self["datetime"].tolist().strftime("%Y-%b-%d")
+            row5 = self.datetime.tolist().strftime("%Y-%b-%d")
 
         count = len(max((row0,row2,row3,row4,row5),key=len))
 
@@ -184,18 +183,9 @@ class Nones():
         string += "{:>10s}  {:s}\n".format("strings",row4)
         string += "{:>10s}  {:s}\n".format("datetime",row5)
 
-        """
-        Data-Types  None-Values
-        ----------  --------------------
-          integers  -99,999
-            floats  np.nan
-           strings  ""
-          datetime  np.datetime64('NaT')
-        """
-
         return string
 
-    def __setitem__(self,dtype,non_value):
+    def __setattr__(self,dtype,non_value):
 
         if dtype == "int":
             non_value = int(non_value)
@@ -206,16 +196,16 @@ class Nones():
         elif dtype == "datetime":
             non_value = np.datetime64(non_value)
         else:
-            raise KeyError("int, float, str and datetime are the types.")
+            raise KeyError("int, float, str and datetime are the attributes to modify.")
 
-        setattr(self,f"_{dtype}",non_value)
+        super().__setattr__(dtype,non_value)
 
-    def __getitem__(self,dtype):
+    def __getattr__(self,dtype):
 
         if dtype in self.dtypes:
-            return getattr(self,f"_{dtype}")
+            return super().__getattribute__(dtype)
         else:
-            raise KeyError("int, float, str and datetime are the types.")
+            raise KeyError("int, float, str and datetime are the attributes to view.")
 
 class Column():
     """It is a numpy array of shape (N,) with additional attributes of head, unit and info."""
