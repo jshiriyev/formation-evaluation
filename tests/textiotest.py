@@ -12,6 +12,7 @@ if __name__ == "__main__":
     import setup
 
 from textio import DirBase
+from textio import Nones
 from textio import Column
 from textio import DataFrame
 from textio import RegText
@@ -61,6 +62,17 @@ class TestDirBase(unittest.TestCase):
         db = DirBase()
 
         db.get_fnames(__file__,returnAbsFlag=True)
+
+class TestNones(unittest.TestCase):
+
+    def test_nones(self):
+
+        none = Nones()
+        none["datetime"] = np.datetime64('NaT')
+        self.assertEqual(none["int"],-99999)
+
+        none["int"] = 0
+        self.assertEqual(none["int"],0)
 
 class TestColumn(unittest.TestCase):
 
@@ -245,6 +257,11 @@ class TestColumn(unittest.TestCase):
         self.assertEqual(column.unit,None)
         self.assertEqual(column.info," ")
 
+        column = Column(vals=np.array(["elthon","john","1"]),head="string")
+        column.stringify(zfill=3,inplace=True)
+        np.testing.assert_array_equal(column.vals,np.array(['elthon',
+            'john','001']))
+
         column = Column(size=2,dtype=np.datetime64,head="Dates",info="Two months")
         column.stringify(fstring="Date is {%Y-%m-%d}",inplace=True)
         np.testing.assert_array_equal(column.vals,np.array([
@@ -298,6 +315,16 @@ class TestColumn(unittest.TestCase):
         self.assertEqual(column.maxchar(),2,
             "maxchar() does not return correct number of chars in the largest str(ints)!")
 
+    def test_replace(self):
+
+        A = Column(vals=np.array([1,2,3,4,None,6]))
+        B = Column(vals=np.array([0,1,2,None,None,4]))
+
+        A.replace(new=50)
+        np.testing.assert_array_equal(A.vals,np.array([1,2,3,4,50,6]))
+        B.replace()
+        np.testing.assert_array_equal(B.vals,np.array([0,1,2,2,2,4]))
+
     def test_container_operations(self):
 
         vals = np.linspace(1,5,5)
@@ -341,6 +368,24 @@ class TestColumn(unittest.TestCase):
         column.shift(100,'Y')
         np.testing.assert_array_equal(column.vals,np.array([
             np.datetime64('2127-02-27'),np.datetime64('2127-02-28'),np.datetime64('2127-03-01')]))
+
+        c = np.array([
+            datetime.datetime(2022,2,2),
+            datetime.datetime(2022,1,2),
+            datetime.datetime(2021,12,2),
+            None])
+
+        column = Column(vals=c)
+
+        column.shift(delta=-2,deltaunit='Y')
+        column.shift(delta=10,deltaunit='D')
+
+        np.testing.assert_array_equal(column.vals,
+            np.array([
+                np.datetime64('2020-02-12'),
+                np.datetime64('2020-01-12'),
+                np.datetime64('2019-12-12'),
+                np.datetime64('NaT')]))
 
     def test_numeric_operations(self):
 
@@ -434,19 +479,44 @@ class TestDataFrame(unittest.TestCase):
         np.testing.assert_array_equal(df["col0"],b)
         np.testing.assert_array_equal(df["col1"],a)
 
-    def test_columns(self):
+    def test_column_astype(self):
 
-        df = DataFrame()
+        a = np.array([1,2,3,4,5])
+        b = np.array([1.,3.4,np.nan,4.7,8])
+        c = np.array([datetime.datetime.today(),datetime.datetime(2022,2,2),datetime.datetime(2022,1,2),datetime.datetime(2021,12,2),None])
+        d = np.array(["1.","","5.7","6",""])
+        e = c.astype(np.datetime64)
 
-        a = np.random.randint(0,100,10)
-        b = np.random.randint(0,100,10)
+        df = DataFrame(a=a,b=b,c=c,d=d,e=e)
 
-        df['a'] = a
-        df['b'] = b
+        for dtype in (int,str,float):
+            df[0].astype(dtype)
 
-        self.assertCountEqual(df.heads,["a","b"],"Initialization of DataFrame Running has failed!")
+        for dtype in (int,str,float):
+            df[1].astype(dtype)
 
-        np.testing.assert_array_equal(df["b"],df[1])
+        for dtype in (str,datetime.datetime,np.datetime64):
+            df[2].astype(dtype)
+
+        for dtype in (str,int,float):
+
+            if dtype is int:
+                df[3].astype(dtype,regex=r"[-+]?\d+\b")
+            else:
+                df[3].astype(dtype)
+
+        for dtype in (str,datetime.datetime,np.datetime64):
+            df[4].astype(np.datetime64)
+
+    def test_representation_methods(self):
+
+        df = DataFrame(col0=[],col1=[])
+
+        a = np.random.randint(0,100,20)
+        b = np.random.randint(0,100,20)
+
+        df["a"] = a
+        df["b"] = b
 
     def test_add_attrs(self):
 
@@ -519,6 +589,18 @@ class TestDataFrame(unittest.TestCase):
         self.assertListEqual(df.glos[:,"value"],[2576.,2896.,-999.25,'FIELD'])
         self.assertListEqual(df.glos[1:,"value"],[2896.,-999.25,'FIELD'])
 
+    def test_container_methods(self):
+
+        df = DataFrame()
+
+        a = np.random.randint(0,100,10)
+        b = np.random.randint(0,100,10)
+
+        df['a'] = a
+        df['b'] = b
+
+        np.testing.assert_array_equal(df["b"],df[1])
+
     def test_str2cols(self):
 
         head = "first name\tlast name"
@@ -546,67 +628,6 @@ class TestDataFrame(unittest.TestCase):
 
         np.testing.assert_array_equal(df["names_nicks"],np.array(["elthon smith","john verdin"]))
 
-    def test_astype(self):
-
-        a = np.array([1,2,3,4,5])
-        b = np.array([1.,3.4,np.nan,4.7,8])
-        c = np.array([datetime.datetime.today(),datetime.datetime(2022,2,2),datetime.datetime(2022,1,2),datetime.datetime(2021,12,2),None])
-        d = np.array(["1.","","5.7","6",""])
-        e = c.astype(np.datetime64)
-
-        df = DataFrame(a=a,b=b,c=c,d=d,e=e)
-
-        for dtype in (int,str,float):
-            df[0].astype(dtype)
-
-        for dtype in (int,str,float):
-            df[1].astype(dtype)
-
-        for dtype in (str,datetime.datetime,np.datetime64):
-            df[2].astype(dtype)
-
-        for dtype in (str,int,float):
-
-            if dtype is int:
-                df[3].astype(dtype,regex=r"[-+]?\d+\b")
-            else:
-                df[3].astype(dtype)
-
-        for dtype in (str,datetime.datetime,np.datetime64):
-            df[4].astype(np.datetime64)
-
-    def test_edit_nones(self):
-
-        A = np.array([1,2,3,4,None,6])
-        B = np.array([0,1,2,None,None,4])
-
-        df = DataFrame(A=A,B=B)
-
-        df['A'].replace(new=50)
-        np.testing.assert_array_equal(df["A"].vals,np.array([1,2,3,4,50,6]))
-        df['B'].replace()
-        np.testing.assert_array_equal(df["B"].vals,np.array([0,1,2,2,2,4]))
-
-    def test_edit_dates(self):
-
-        c = np.array([datetime.datetime(2022,2,2),datetime.datetime(2022,1,2),datetime.datetime(2021,12,2),None])
-
-        df = DataFrame(c=c)
-
-        df['c'].shift(delta=-2,deltaunit='Y')
-        df['c'].shift(delta=10,deltaunit='D')
-
-        np.testing.assert_array_equal(df["c"].vals,
-            np.array([np.datetime64('2020-02-12'),np.datetime64('2020-01-12'),np.datetime64('2019-12-12'),np.datetime64('NaT')]))
-
-    def test_edit_strings(self):
-
-        names = np.array(["elthon","john","1"])
-
-        df = DataFrame(names=names)
-
-        df['names'].stringify(zfill=3,inplace=True)
-
     def test_unique(self):
 
         df = DataFrame()
@@ -624,16 +645,6 @@ class TestDataFrame(unittest.TestCase):
 
         np.testing.assert_array_equal(df.running[1],
             np.array(['A','B','B','C','C','C','D','E','F']),err_msg="DataFrame.unique() has an issue!")
-
-    def test_print(self):
-
-        df = DataFrame(col0=[],col1=[])
-
-        a = np.random.randint(0,100,20)
-        b = np.random.randint(0,100,20)
-
-        df["a"] = a
-        df["b"] = b
 
     def test_write(self):
 

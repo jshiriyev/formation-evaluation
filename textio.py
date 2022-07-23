@@ -1,5 +1,4 @@
 import calendar
-import copy
 import datetime
 
 from dateutil import parser, relativedelta
@@ -24,6 +23,7 @@ from cypy.vectorpy import str2int
 from cypy.vectorpy import str2float
 from cypy.vectorpy import str2str
 from cypy.vectorpy import str2datetime
+
 from cypy.vectorpy import int2str
 from cypy.vectorpy import float2str
 from cypy.vectorpy import datetime2str
@@ -148,6 +148,74 @@ class DirBase():
                     return [filepath for (filepath,filename) in zip(filepaths,filenames) if filename.startswith(prefix) and filename.endswith(extension)]
                 else:
                     return [filename for filename in filenames if filename.startswith(prefix) and filename.endswith(extension)]
+
+class Nones():
+
+    dtypes = ("int","float","str","datetime")
+
+    def __init__(self,nint=None,nfloat=None,nstr=None,ndatetime=None):
+
+        self._int = -99_999 if nint is None else nint
+        self._float = np.nan if nfloat is None else nfloat
+        self._str = "" if nstr is None else nstr
+        self._datetime = np.datetime64('NaT') if ndatetime is None else ndatetime
+
+    def __str__(self):
+
+        dtypes = ("int","float","str","datetime")
+
+        row0 = "None-Values"
+        row2 = "{:,d}".format(self["int"])
+        row3 = "{:,f}".format(self["float"])
+        row4 = "'{:s}'".format(self["str"])
+        if np.isnan(self["datetime"]):
+            row5 = "{}".format(self["datetime"])
+        else:
+            row5 = self["datetime"].tolist().strftime("%Y-%b-%d")
+
+        count = len(max((row0,row2,row3,row4,row5),key=len))
+
+        string = ""
+
+        string += "{:>10s}  {:s}\n".format("Data-Types",row0)
+        string += "{:>10s}  {:s}\n".format("-"*10,"-"*count)
+        string += "{:>10s}  {:s}\n".format("integers",row2)
+        string += "{:>10s}  {:s}\n".format("floats",row3)
+        string += "{:>10s}  {:s}\n".format("strings",row4)
+        string += "{:>10s}  {:s}\n".format("datetime",row5)
+
+        """
+        Data-Types  None-Values
+        ----------  --------------------
+          integers  -99,999
+            floats  np.nan
+           strings  ""
+          datetime  np.datetime64('NaT')
+        """
+
+        return string
+
+    def __setitem__(self,dtype,non_value):
+
+        if dtype == "int":
+            non_value = int(non_value)
+        elif dtype == "float":
+            non_value = float(non_value)
+        elif dtype == "str":
+            non_value = str(non_value)
+        elif dtype == "datetime":
+            non_value = np.datetime64(non_value)
+        else:
+            raise KeyError("int, float, str and datetime are the types.")
+
+        setattr(self,f"_{dtype}",non_value)
+
+    def __getitem__(self,dtype):
+
+        if dtype in self.dtypes:
+            return getattr(self,f"_{dtype}")
+        else:
+            raise KeyError("int, float, str and datetime are the types.")
 
 class Column():
     """It is a numpy array of shape (N,) with additional attributes of head, unit and info."""
