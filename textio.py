@@ -198,14 +198,14 @@ class Nones():
         else:
             raise KeyError("int, float, str and datetime are the attributes to modify.")
 
-        super().__setattr__(dtype,non_value)
+        object.__setattr__(self,dtype,non_value)
 
-    def __getattr__(self,dtype):
-
-        if dtype in self.dtypes:
-            return super().__getattribute__(dtype)
+    def __getattribute__(self,dtype):
+        
+        if dtype in object.__getattribute__(self,"dtypes"):
+            return object.__getattribute__(self,dtype)
         else:
-            raise KeyError("int, float, str and datetime are the attributes to view.")
+            raise AttributeError("int, float, str and datetime are the attributes to view.")
 
 class Column():
     """It is a numpy array of shape (N,) with additional attributes of head, unit and info."""
@@ -216,7 +216,17 @@ class Column():
     none_datetime = np.datetime64('NaT')
 
     """INITIALIZATION"""
-    def __init__(self,vals=None,head=None,unit=None,info=None,size=None,dtype=None,charcount=None):
+    def __init__(self,
+        vals=None,
+        head=None,
+        unit=None,
+        info=None,
+        size=None,
+        dtype=None,
+        start=None,
+        end=None,
+        delta=None,
+        charcount=None):
         """Returns a numpy array (N,) with additional attributes."""
 
         """
@@ -410,7 +420,15 @@ class Column():
 
         self.set_unit()
 
-    def stringify(self,fstring=None,upper=False,lower=False,zfill=None,inplace=False):
+    def toint(self):
+
+        pass
+
+    def tofloat(self):
+
+        pass
+        
+    def tostring(self,fstring=None,upper=False,lower=False,zfill=None,inplace=False):
         """It has more capabilities than str2str on the outputting part."""
 
         if fstring is None:
@@ -450,6 +468,10 @@ class Column():
             self.set_unit()
         else:
             return Column(vals=vals_str,head=self.head,unit=None,info=self.info)
+
+    def todatetime(self,years,months,days):
+
+        pass
 
     """REPRESENTATION"""
     def _valstr_(self,num=None):
@@ -659,7 +681,7 @@ class Column():
         if self.vals.dtype.type is np.str_:
             vals = self.vals
         else:
-            vals = self.stringify(inplace=False).vals
+            vals = self.tostring(inplace=False).vals
 
         charsize = np.dtype(f"{vals.dtype.char}1").itemsize
 
@@ -805,20 +827,33 @@ class Column():
                 leap_year_count = leap_year_count4-leap_year_count100+leap_year_count400
                 
                 day_arr = 365*delta+leap_year_count+year0_leap_bool-year1_leap_bool
+                day_arr = day_arr.astype(str)
 
-                timedelta = day_arr.astype("timedelta64[D]")
-                timedelta = timedelta[~self.isnone()]
+                day_arr[self.isnone()] = "NaT"
+
+                vals_shifted = self.vals+day_arr.astype("timedelta64[D]")
 
             elif deltaunit == "M":
-                timedelta = np.timedelta64(30*delta,"timedelta64[D]")
+
+                deltayear = delta//12
+                deltamonth = delta%12
+
+                vals_shifted = self.shift(deltayear,'Y',False)
+
+                timedelta = np.timedelta64(30*deltamonth,"timedelta64[D]")
+
+                vals_shifted[~self.isnone()] += timedelta
+
             else:
+
                 timedelta = np.timedelta64(delta,deltaunit)
 
+                vals_shifted = self.vals+timedelta
+
             if inplace:
-                self.vals[~self.isnone()] += timedelta
+                self.vals = vals_shifted
             else:
-                vals = self.vals[~self.isnone()]+timedelta
-                return Column(head=self.head,vals=vals,unit=self.unit,info=self.info)
+                return Column(head=self.head,vals=vals_shifted,unit=self.unit,info=self.info)
 
     def __add__(self,other):
         """Implementing '+' operator."""
@@ -995,6 +1030,22 @@ class Column():
                 month_arr[index] = dt.month
 
         return month_arr
+
+    @property
+    def end_of_month(self):
+
+        if self.vals.dtype.type is not np.datetime64:
+            return
+
+        days_arr = np.empty(self.vals.shape,dtype=int)
+
+        for index,dt in enumerate(self.vals.tolist()):
+            if dt is None:
+                days_arr[index] = self.none_int
+            else:
+                days_arr[index] = calendar.monthrange(dt.year,dt.month)
+
+        return days_arr
 
     @property
     def day(self):

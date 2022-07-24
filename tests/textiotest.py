@@ -74,6 +74,9 @@ class TestNones(unittest.TestCase):
         nones.int = 0.
         self.assertEqual(nones.int,0)
 
+        with self.assertRaises(AttributeError):
+            nones.dtypes
+
 class TestColumn(unittest.TestCase):
 
     def test_init(self):
@@ -233,24 +236,24 @@ class TestColumn(unittest.TestCase):
         column.astype(float)
         self.assertEqual(column.unit,"dimensionless")
 
-    def test_stringify(self):
+    def test_tostring(self):
 
         column = Column(np.arange(1,5))
-        column.stringify(fstring="{:d}",inplace=True)
+        column.tostring(fstring="{:d}",inplace=True)
         np.testing.assert_array_equal(column.vals,np.array(["1","2","3","4"]))
         self.assertEqual(column.head,"HEAD")
         self.assertEqual(column.unit,None)
         self.assertEqual(column.info," ")
         
         column = Column(np.linspace(1,5,4),unit="km")
-        column.stringify(fstring="{:.1f}",inplace=True)
+        column.tostring(fstring="{:.1f}",inplace=True)
         np.testing.assert_array_equal(column.vals,np.array(["1.0","2.3","3.7","5.0"]))
         self.assertEqual(column.head,"HEAD")
         self.assertEqual(column.unit,None)
         self.assertEqual(column.info," ")
 
         column = Column(np.array(["78,.45,2","98,3.,28","1,75,3,."]))
-        column.stringify(fstring="{:15s}",inplace=True)
+        column.tostring(fstring="{:15s}",inplace=True)
         np.testing.assert_array_equal(column.vals,np.array(['78,.45,2       ',
             '98,3.,28       ','1,75,3,.       ']))
         self.assertEqual(column.head,"HEAD")
@@ -258,12 +261,12 @@ class TestColumn(unittest.TestCase):
         self.assertEqual(column.info," ")
 
         column = Column(vals=np.array(["elthon","john","1"]),head="string")
-        column.stringify(zfill=3,inplace=True)
+        column.tostring(zfill=3,inplace=True)
         np.testing.assert_array_equal(column.vals,np.array(['elthon',
             'john','001']))
 
         column = Column(size=2,dtype=np.datetime64,head="Dates",info="Two months")
-        column.stringify(fstring="Date is {%Y-%m-%d}",inplace=True)
+        column.tostring(fstring="Date is {%Y-%m-%d}",inplace=True)
         np.testing.assert_array_equal(column.vals,np.array([
             'Date is 2000-01-01','Date is 2000-02-01']))
         self.assertEqual(column.head,"Dates")
