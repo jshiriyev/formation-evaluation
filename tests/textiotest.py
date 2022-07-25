@@ -1,5 +1,7 @@
 import datetime
 
+from dateutil import relativedelta
+
 import logging
 
 import os
@@ -68,7 +70,7 @@ class TestNones(unittest.TestCase):
     def test_nones(self):
 
         nones = Nones()
-        nones.datetime = np.datetime64('NaT')
+        nones.datetime64 = np.datetime64('NaT')
         self.assertEqual(nones.int,-99_999)
 
         nones.int = 0.
@@ -88,7 +90,7 @@ class TestColumn(unittest.TestCase):
         self.assertEqual(column.info," ")
 
         column = Column(head="A",size=5)
-        np.testing.assert_array_equal(column.vals,np.zeros(5))
+        np.testing.assert_array_equal(column.vals,np.linspace(0,5,5))
         self.assertEqual(column.head,"A")
         self.assertEqual(column.unit,"dimensionless")
         self.assertEqual(column.info," ")
@@ -100,16 +102,16 @@ class TestColumn(unittest.TestCase):
         self.assertEqual(column.info," ")
 
         column = Column(head="A",size=5,dtype=float)
-        np.testing.assert_array_equal(column.vals,np.zeros(5))
+        np.testing.assert_array_equal(column.vals,np.linspace(0,5,5))
         self.assertEqual(column.head,"A")
         self.assertEqual(column.unit,"dimensionless")
         self.assertEqual(column.info," ")
 
-        column = Column(head="A",size=5,dtype=str)
-        np.testing.assert_array_equal(column.vals,np.empty(5,dtype="U30"))
-        self.assertEqual(column.head,"A")
-        self.assertEqual(column.unit,None)
-        self.assertEqual(column.info," ")
+        # column = Column(head="A",size=5,dtype=str)
+        # np.testing.assert_array_equal(column.vals,np.empty(5,dtype="U30"))
+        # self.assertEqual(column.head,"A")
+        # self.assertEqual(column.unit,None)
+        # self.assertEqual(column.info," ")
 
         column = Column(head="5 months",size=5,dtype=np.datetime64,info="5 months starting from January 1, 2000")
         self.assertEqual(column.head,"5months")
@@ -239,21 +241,21 @@ class TestColumn(unittest.TestCase):
     def test_tostring(self):
 
         column = Column(np.arange(1,5))
-        column.tostring(fstring="{:d}",inplace=True)
+        column = column.tostring(fstring="{:d}")
         np.testing.assert_array_equal(column.vals,np.array(["1","2","3","4"]))
         self.assertEqual(column.head,"HEAD")
         self.assertEqual(column.unit,None)
         self.assertEqual(column.info," ")
         
         column = Column(np.linspace(1,5,4),unit="km")
-        column.tostring(fstring="{:.1f}",inplace=True)
+        column = column.tostring(fstring="{:.1f}")
         np.testing.assert_array_equal(column.vals,np.array(["1.0","2.3","3.7","5.0"]))
         self.assertEqual(column.head,"HEAD")
         self.assertEqual(column.unit,None)
         self.assertEqual(column.info," ")
 
         column = Column(np.array(["78,.45,2","98,3.,28","1,75,3,."]))
-        column.tostring(fstring="{:15s}",inplace=True)
+        column = column.tostring(fstring="{:15s}")
         np.testing.assert_array_equal(column.vals,np.array(['78,.45,2       ',
             '98,3.,28       ','1,75,3,.       ']))
         self.assertEqual(column.head,"HEAD")
@@ -261,14 +263,18 @@ class TestColumn(unittest.TestCase):
         self.assertEqual(column.info," ")
 
         column = Column(vals=np.array(["elthon","john","1"]),head="string")
-        column.tostring(zfill=3,inplace=True)
+        column = column.tostring(zfill=3)
         np.testing.assert_array_equal(column.vals,np.array(['elthon',
             'john','001']))
 
-        column = Column(size=2,dtype=np.datetime64,head="Dates",info="Two months")
-        column.tostring(fstring="Date is {%Y-%m-%d}",inplace=True)
-        np.testing.assert_array_equal(column.vals,np.array([
-            'Date is 2000-01-01','Date is 2000-02-01']))
+        column = Column(dtype=np.datetime64,size=2,step_unit="M",head="Dates",info="Two months")
+        column = column.tostring(fstring="Date is {%Y-%m-%d}")
+        true_vals = (
+            datetime.datetime.today()-relativedelta.relativedelta(months=2),
+            datetime.datetime.today()-relativedelta.relativedelta(months=1),
+            )
+        true_vals = ["Date is {}".format(dt.strftime("%Y-%m-%d")) for dt in true_vals]
+        np.testing.assert_array_equal(column.vals,np.array(true_vals))
         self.assertEqual(column.head,"Dates")
         self.assertEqual(column.unit,None)
         self.assertEqual(column.info,"Two months")
@@ -284,8 +290,10 @@ class TestColumn(unittest.TestCase):
         column = Column(head="modules",vals=["1 textio.py","2 graphics.py","3 geometries.py","4 items.py"])
         self.assertEqual(column._valstr_(),"['1 textio.py','2 graphics.py','3 geometries.py','4 items.py']")
 
-        column = Column(head="datetime",size=10,dtype=np.datetime64)
-        self.assertEqual(column._valstr_(2),"['2000-01-01T00:00:00.000000',...,'2000-10-01T00:00:00.000000']")
+        vals = [datetime.datetime.today()-relativedelta.relativedelta(days=i) for i in reversed(range(1,11))]
+        column = Column(vals=vals,head="datetime")
+        vals_ = np.array(vals,dtype=np.datetime64)
+        self.assertEqual(column._valstr_(2),"['{}',...,'{}']".format(vals_[0],vals_[-1]))
 
     def test_nondim(self):
         
@@ -298,7 +306,7 @@ class TestColumn(unittest.TestCase):
     def test_comparison_operations(self):
 
         column1 = Column(vals=np.array([1,2,3]),head="length",unit="km")
-        column2 = column1.convert("m",inplace=False)
+        column2 = column1.convert("m")
 
         cond = column1==column2
         
@@ -341,53 +349,82 @@ class TestColumn(unittest.TestCase):
 
     def test_unit_conversion(self):
 
-        column = Column(head="values",vals=["1.","2"],unit="m")
-        column.convert("km")
-        np.testing.assert_array_equal(column.vals,np.array([0.001,0.002]))
+        column1 = Column(head="values",vals=["1.","2"],unit="m")
+        column2 = column1.convert("km")
+        np.testing.assert_array_equal(column2.vals,np.array([0.001,0.002]))
 
     def test_shift(self):
 
         column = Column(head="integers",vals=np.array([1,2,3,4,5],dtype=int))
-        column.shift(5)
+        column = column.shift(5)
         np.testing.assert_array_equal(column.vals,np.array([6,7,8,9,10]))
 
         column = Column(head="floats",vals=np.linspace(1,4,7),unit="km")
-        column.shift(5,"m")
+        column = column.shift(5,"m")
         np.testing.assert_array_equal(column.vals,np.array([
             1.005,1.505,2.005,2.505,3.005,3.505,4.005]))
 
         column = Column(["textio","petrophysics","helloworld!"])
-        column.shift(5)
+        column = column.shift(5)
         np.testing.assert_array_equal(column.vals,np.array([
             '     textio','     petrophysics','     helloworld!']))
         
         column = Column(np.arange(np.datetime64('2019-02-27'),np.datetime64('2019-03-02'),np.timedelta64(1,'D')))
-        column.shift(1,'Y')
+        column = column.shift(1,'Y')
         np.testing.assert_array_equal(column.vals,np.array([
             np.datetime64('2020-02-27'),np.datetime64('2020-02-29'),np.datetime64('2020-03-01')]))
-        column.shift(7,'Y')
+        column = column.shift(7,'Y')
         np.testing.assert_array_equal(column.vals,np.array([
             np.datetime64('2027-02-27'),np.datetime64('2027-02-28'),np.datetime64('2027-03-01')]))
-        column.shift(100,'Y')
+        column = column.shift(100,'Y')
         np.testing.assert_array_equal(column.vals,np.array([
             np.datetime64('2127-02-27'),np.datetime64('2127-02-28'),np.datetime64('2127-03-01')]))
 
-        c = np.array([
+        column_vals = np.array([
             datetime.datetime(2022,2,2),
             datetime.datetime(2022,1,2),
             datetime.datetime(2021,12,2),
             None])
+        
+        column = Column(vals=column_vals)
 
-        column = Column(vals=c)
-
-        column.shift(delta=-2,deltaunit='Y')
-        column.shift(delta=10,deltaunit='D')
+        column = column.shift(delta=-2,deltaunit='Y')
+        column = column.shift(delta=10,deltaunit='D')
 
         np.testing.assert_array_equal(column.vals,
             np.array([
                 np.datetime64('2020-02-12'),
                 np.datetime64('2020-01-12'),
                 np.datetime64('2019-12-12'),
+                np.datetime64('NaT')]))
+
+        column = Column(vals=column_vals)
+
+        column = column.shift(delta=-2,deltaunit='M')
+
+        np.testing.assert_array_equal(column.vals.astype('datetime64[D]'),
+            np.array([
+                np.datetime64('2021-12-02'),
+                np.datetime64('2021-11-02'),
+                np.datetime64('2021-10-02'),
+                np.datetime64('NaT')]))
+
+        column = column.shift(delta='EOM')
+
+        np.testing.assert_array_equal(column.vals.astype('datetime64[D]'),
+            np.array([
+                np.datetime64('2021-12-31'),
+                np.datetime64('2021-11-30'),
+                np.datetime64('2021-10-31'),
+                np.datetime64('NaT')]))
+
+        column = column.shift(delta='BOM')
+
+        np.testing.assert_array_equal(column.vals.astype('datetime64[D]'),
+            np.array([
+                np.datetime64('2021-12-01'),
+                np.datetime64('2021-11-01'),
+                np.datetime64('2021-10-01'),
                 np.datetime64('NaT')]))
 
     def test_numeric_operations(self):

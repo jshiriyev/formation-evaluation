@@ -66,26 +66,26 @@ def str2float(
 
 str2float = np.vectorize(str2float,otypes=[float],excluded=["strnone","floatnone","sep_decimal","sep_thousand","regex"])
 
-def str2datetime(
+def str2datetime64(
     string: str,
     strnone: str = "",
-    datetimenone: np.datetime64 = np.datetime64('NaT'),
+    datetime64none: np.datetime64 = np.datetime64('NaT'),
     regex: str = None) -> np.datetime64:
 
     if regex is None:
         if string==strnone:
-            return datetimenone
+            return datetime64none
         else:
             return np.datetime64(parser.parse(string))
     else:
         match = re.search(regex,string)
 
         if match is None:
-            return datetimenone
+            return datetime64none
         else:
             return np.datetime64(match.group())
 
-str2datetime = np.vectorize(str2datetime,otypes=[np.datetime64],excluded=["strnone","datetimenone","regex"])
+str2datetime64 = np.vectorize(str2datetime64,otypes=[np.datetime64],excluded=["strnone","datetime64none","regex"])
 
 def int2str(
     number: int,
@@ -139,22 +139,22 @@ def str2str(
 
 str2str = np.vectorize(str2str,otypes=[str],excluded=["strnone","regex","fstring"])
 
-def datetime2str(
-    datetime_: datetime.date,
-    datetimenone: datetime.date = None,
+def datetime64_2str(
+    datetime64: datetime.date,
+    datetime64none: datetime.date = None,
     strnone: str = "",
     fstring: str = None) -> str:
 
-    if isinstance(datetimenone,np.datetime64):
-        datetimenone = datetimenone.tolist()
+    if isinstance(datetime64none,np.datetime64):
+        datetime64none = datetime64none.tolist()
 
-    if datetime_ == datetimenone:
+    if datetime64 == datetime64none:
         return strnone
     else:
         fstring = "%d-%b-%Y" if fstring is None else fstring
-        return datetime_.strftime(fstring)
+        return datetime64.strftime(fstring)
 
-datetime2str = np.vectorize(datetime2str,otypes=[str],excluded=["datetimenone","strnone","fstring"])
+datetime64_2str = np.vectorize(datetime64_2str,otypes=[str],excluded=["datetime64none","strnone","fstring"])
 
 # dtl = [datetime.datetime.today(),datetime.datetime.today()]
 # dtn = np.array(dtl,dtype=np.datetime64)
