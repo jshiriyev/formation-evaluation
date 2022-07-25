@@ -79,6 +79,21 @@ class TestNones(unittest.TestCase):
         with self.assertRaises(AttributeError):
             nones.dtypes
 
+    def test_todict(self):
+
+        nones = Nones()
+
+        nones.int = 0
+
+        nones_dict = nones.todict()
+
+        nones_dict['none_float'] = -99999.999
+
+        self.assertEqual(nones_dict["none_int"],0)
+        self.assertEqual(nones_dict["none_float"],-99999.999)
+        self.assertEqual(nones_dict["none_str"],"")
+        self.assertEqual(np.isnan(nones_dict["none_datetime64"]),True)
+
 class TestColumn(unittest.TestCase):
 
     def test_init(self):
@@ -107,11 +122,11 @@ class TestColumn(unittest.TestCase):
         self.assertEqual(column.unit,"dimensionless")
         self.assertEqual(column.info," ")
 
-        # column = Column(head="A",size=5,dtype=str)
-        # np.testing.assert_array_equal(column.vals,np.empty(5,dtype="U30"))
-        # self.assertEqual(column.head,"A")
-        # self.assertEqual(column.unit,None)
-        # self.assertEqual(column.info," ")
+        column = Column(head="A",size=5,dtype=str)
+        np.testing.assert_array_equal(column.vals,np.empty(5,dtype="U30"))
+        self.assertEqual(column.head,"A")
+        self.assertEqual(column.unit,None)
+        self.assertEqual(column.info," ")
 
         column = Column(head="5 months",size=5,dtype=np.datetime64,info="5 months starting from January 1, 2000")
         self.assertEqual(column.head,"5months")
@@ -541,7 +556,8 @@ class TestDataFrame(unittest.TestCase):
         for dtype in (str,int,float):
 
             if dtype is int:
-                df[3].astype(dtype,regex=r"[-+]?\d+\b")
+                df[3].fromstring(dtype=int,regex=r"[-+]?\d+\b")
+                df[3].astype(dtype)
             else:
                 df[3].astype(dtype)
 

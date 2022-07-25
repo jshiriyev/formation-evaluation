@@ -25,19 +25,15 @@ from cypy.vectorpy import str2float
 from cypy.vectorpy import str2str
 from cypy.vectorpy import str2datetime64
 
-from cypy.vectorpy import int2str
-from cypy.vectorpy import float2str
-from cypy.vectorpy import datetime64_2str
-
 """
 1. DataFrame representation
 2. DataFrame attributes and glossary
 3. DataFrame sort, filter, unique
 4. DataFrame read, write
-5. loadtext should be working well
-6. Finalize RegText
-7. Finalize LogASCII
-8. Finalize Excel
+5. Finalize RegText
+6. Finalize LogASCII
+7. Finalize Excel
+8. loadtext should be working well
 """
 
 class DirBase():
@@ -151,7 +147,7 @@ class DirBase():
 class Nones():
     """Base class to manage none values for int, float, str and datetime64."""
 
-    dtypes = ("int","float","str","datetime64")
+    __dtypes = ("int","float","str","datetime64")
 
     def __init__(self,nint=None,nfloat=None,nstr=None,ndatetime64=None):
         """Initializes all the dtypes with defaults."""
@@ -199,14 +195,19 @@ class Nones():
         else:
             raise KeyError("int, float, str and datetime64 are the attributes to modify.")
 
-        object.__setattr__(self,dtype,non_value)
+        super().__setattr__(dtype,non_value)
 
-    def __getattribute__(self,dtype):
-        
-        if dtype in object.__getattribute__(self,"dtypes"):
-            return object.__getattribute__(self,dtype)
-        else:
-            raise AttributeError("int, float, str and datetime64 are the only attributes to view.")
+    def todict(self,*args):
+
+        nones_dict = {}
+
+        if len(args)==0:
+            args = self._Nones__dtypes
+
+        for arg in args:
+            nones_dict[f'none_{arg}'] = getattr(self,arg)
+
+        return nones_dict
 
 class Column():
     """It is a numpy array of shape (N,) with additional attributes of head, unit and info."""
@@ -228,6 +229,11 @@ class Column():
         """
 
         self.nones = Nones()
+
+        try:
+            charcount = kwargs.pop("charcount")
+        except KeyError:
+            charcount = None
 
         if vals is not None:
 
@@ -252,22 +258,21 @@ class Column():
 
             self.vals = vals
 
-            self.astype(dtype=dtype,**kwargs)
+            self.astype(dtype=dtype,charcount=charcount)
 
         elif dtype is not None:
 
             if dtype is int:
-                vals = self._arrint_(**kwargs)
+                self.vals = self._arrint_(**kwargs)
             elif dtype is float:
-                vals = self._arrfloat_(**kwargs)
+                self.vals = self._arrfloat_(**kwargs)
             elif dtype is str:
-                vals = self._arrstr_(**kwargs)
+                self.vals = self._arrstr_(**kwargs)
+                self.astype(dtype,charcount=charcount)
             elif dtype is np.datetime64:
-                vals = self._arrdatetime64_(**kwargs)
+                self.vals = self._arrdatetime64_(**kwargs)
             else:
                 raise ValueError(f"dtype is not int, float, str or np.datetime64, given {dtype=}")
-
-            self.vals = vals
 
         else:
 
@@ -327,71 +332,31 @@ class Column():
         else:
             self.info = str(info)
 
-    def astype(self,dtype=None,regex=None,charcount=None):
+    def astype(self,dtype=None,charcount=None):
         """It changes the dtype of the Column and alters the None values accordingly."""
 
         if dtype is None:
             dtype = self.dtypeM
-
-        if dtype is datetime.date:
+        elif dtype is datetime.date:
             dtype = np.datetime64
         elif dtype is datetime.datetime:
             dtype = np.datetime64
 
-        # dnone = self.nones.todict()
+        none = getattr(self.nones,dtype.__name__)
 
         if self.dtype is np.object_:
-
-            none = getattr(self.nones,dtype.__name__)
-
             self.vals[self.vals==None] = none
             self.vals = self.vals.astype(dtype)
 
-        elif self.dtypeM is int:
-
-            if dtype is str:
-                self.vals = int2str(self.vals,intnone=self.nones.int,strnone=self.nones.str)
-                if charcount is not None:
-                    self.vals = self.vals.astype(dtype=f"U{charcount}")
-            else:
-                self.vals = self.vals.astype(dtype=dtype)
-
-        elif self.dtypeM is float:
-
-            if dtype is int:
-                self.vals = np.around(self.vals,decimals=0).astype(dtype)
-            elif dtype is str:
-                self.vals = float2str(self.vals,floatnone=self.nones.float,strnone=self.nones.str)
-                if charcount is not None:
-                    self.vals = self.vals.astype(dtype=f"U{charcount}")
-            else:
-                self.vals = self.vals.astype(dtype=dtype)
-
-        elif self.dtypeM is str:
-
-            if dtype is int:
-                self.vals = str2int(self.vals,strnone=self.nones.str,intnone=self.nones.int,regex=regex)
-            elif dtype is float:
-                self.vals = str2float(self.vals,strnone=self.nones.str,floatnone=self.nones.float,regex=regex)
-            elif dtype is str:
-                self.vals = str2str(self.vals,strnone=self.nones.str,regex=regex)
-                if charcount is not None:
-                    self.vals = self.vals.astype(dtype=f"U{charcount}")
-            elif dtype is np.datetime64:
-                self.vals = str2datetime64(self.vals,strnone=self.nones.str,datetime64none=self.nones.datetime64,regex=regex)
-
-        elif self.dtypeM is np.datetime64:
-            
-            if dtype is str:
-                self.vals = datetime64_2str(self.vals,datetime64none=self.nones.datetime64,strnone=self.nones.str)
-                if charcount is not None:
-                    self.vals = self.vals.astype(dtype=f"U{charcount}")
-            else:
-                self.vals = self.vals.astype(dtype=dtype)
+        elif self.dtypeM in (int,float,str,np.datetime64):
+            self.vals = self.vals.astype(dtype=dtype)
+            self.vals[self.isnone()] = none
 
         else:
+            logging.warning(f"Unknown format of Column.vals, {self.dtype=} {self.vals.dtype.type}.")
 
-            logging.warning(f"Unknown format of Column.vals, {self.dtype=} {self.vals.dtype.type}.")  
+        if charcount is not None:
+            self.vals = self.vals.astype(dtype=f"U{charcount}")  
 
         self.set_unit()
 
@@ -415,7 +380,7 @@ class Column():
 
     def _arrstr_(self,start=None,stop=None,step=None,size=None):
 
-        pass
+        return np.empty((size,),dtype=str)
 
     def _arrdatetime64_(self,start=None,stop="today",step=1,step_unit="D",size=None,year=None,month=None,day=-1):
 
@@ -467,7 +432,7 @@ class Column():
             else:
                 raise TypeError(f"start can not be the type {type(start)}")
 
-            date = start
+            date = copy.copy(start)
 
             arr_date = []
 
@@ -548,6 +513,26 @@ class Column():
 
             return np.array(arr_date,dtype=np.datetime64)
 
+    def fromstring(self,dtype,regex=None,sep_thousand=",",sep_decimal="."):
+
+        if dtype is int:
+            dnone = self.nones.todict("str","int")
+            regex = r"[-+]?\d+\b" if regex is None else regex
+            self.vals = str2int(self.vals,regex=regex,**dnone)
+        elif dtype is float:
+            dnone = self.nones.todict("str","float")
+            regex = f"[-+]?(?:\\d*\\{sep_thousand}*\\d*\\{sep_decimal}\\d+|\\d+)" if regex is None else regex
+            self.vals = str2float(self.vals,regex=regex,**dnone)
+            self.set_unit()
+        elif dtype is str:
+            dnone = self.nones.todict("str")
+            self.vals = str2str(self.vals,regex=regex,**dnone)
+        elif dtype is np.datetime64:
+            dnone = self.nones.todict("str","datetime64")
+            self.vals = str2datetime64(self.vals,regex=regex,**dnone)
+        else:
+            raise TypeError("dtype can be either int, float, str or np.datetime64")
+
     def tostring(self,fstring=None,upper=False,lower=False,zfill=None):
         """It has more capabilities than str2str on the outputting part."""
 
@@ -560,9 +545,11 @@ class Column():
 
         vals_str = []
 
-        for val in self.vals:
+        for val,none_bool in zip(self.vals.tolist(),self.isnone()):
 
-            val = val.tolist()
+            if none_bool:
+                vals_str.append(self.nones.str)
+                continue
 
             if isinstance(val,datetime.date):
                 string = val.strftime(fstring_inner[1:-1])
@@ -581,12 +568,13 @@ class Column():
 
             vals_str.append(string)
 
-        column_ = copy.copy(self)
-
         vals_str = np.array(vals_str,dtype=str)
 
+        column_ = copy.copy(self)
+
+        column_.astype(str)
+
         column_.vals = vals_str
-        column_.unit = None
 
         return column_
 
