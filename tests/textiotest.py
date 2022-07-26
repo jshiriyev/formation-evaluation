@@ -687,9 +687,9 @@ class TestDataFrame(unittest.TestCase):
 
         df = DataFrame(names=names,nicks=nicks)
         
-        df.cols2str(["names","nicks"])
+        column_ = df.cols2str(["names","nicks"])
 
-        np.testing.assert_array_equal(df["names_nicks"],np.array(["elthon smith","john verdin"]))
+        np.testing.assert_array_equal(column_,np.array(["elthon smith","john verdin"]))
 
     def test_unique(self):
 
@@ -748,7 +748,7 @@ class TestRegText(unittest.TestCase):
 
         date    = np.array([1,2,3,4,5,6,7,8,9,10,11,12,1,2,3,4,5,6,7,8,9,10,11,12])
         oil     = np.array([12,11,10,9,8,7,6,5,4,3,2,1,8,8,8,8,8,8,8,8,8,8,8,8])
-        water   = np.array([24,23,22,21,20,19,18,17,16,16,14,13,15,15,15,15,15,15,15,15,15,15,15,15])
+        water   = np.array([24,23,22,21,20,19,18,17,16,16,14,13,15,15,15,15,15,15,15,15,15,15,15,14])
         gas     = np.array([36,35,34,33,32,31,30,29,28,27,26,25,25,25,25,25,25,25,25,25,25,25,25,25])
 
         rt["WELL"] = well

@@ -26,14 +26,13 @@ from cypy.vectorpy import str2str
 from cypy.vectorpy import str2datetime64
 
 """
-1. DataFrame representation
-2. DataFrame attributes and glossary
-3. DataFrame sort, filter, unique
-4. DataFrame read, write
-5. Finalize RegText
-6. Finalize LogASCII
-7. Finalize Excel
-8. loadtext should be working well
+1. DataFrame attributes and glossary
+2. DataFrame sort, filter, unique
+3. DataFrame read, write
+4. Finalize RegText
+5. Finalize LogASCII
+6. Finalize Excel
+7. loadtext should be working well
 """
 
 class DirBase():
@@ -1209,10 +1208,6 @@ class ColArray():
 class DataFrame(DirBase):
     """It stores equal-size one-dimensional numpy arrays in a list."""
 
-    print_cols = None
-    print_rows = None
-    print_rlim = 20
-
     """INITIALIZATION"""
     def __init__(self,**kwargs):
         """Initializes DataFrame with headers & running and parent class DirBase."""
@@ -1237,60 +1232,58 @@ class DataFrame(DirBase):
     def __str__(self):
         """It prints to the console limited number of rows with headers."""
 
-        if self.print_cols is None:
-            cols = range(len(self.running))
-        else:
-            cols = self.print_cols
+        cols = range(len(self.running))
 
-        fstring = "{}\n".format("{}\t"*len(cols))
+        nrows = 0 if len(self)==0 else self[0].vals.size
 
         headers = self.heads
-        unlines = ["-"*len(headers[col]) for col in cols]
+
+        headcount = [len(headers[col]) for col in cols]
+        bodycount = [self[col].maxchar() for col in cols]
+
+        charcount = [max(hc,bc) for (hc,bc) in zip(headcount,bodycount)]
+
+        fstring = " ".join(["{{:>{}s}}".format(cc) for cc in charcount])
+        fstring = "{}\n".format(fstring)
+
+        headers = fstring.format(*headers)
+
+        unlines = " ".join(["-"*cc for cc in charcount])
+        unlines = "{}\n".format(unlines)
 
         string = ""
 
-        try:
-            nrows = self.running[0].vals.size
-        except IndexError:
-            nrows = 0
+        print_limit = 20
 
-        if self.print_rows is None:
+        vprint = np.vectorize(lambda *args: fstring.format(*args))
 
-            if nrows<=int(self.print_rlim):
+        if nrows<=int(print_limit):
+            rows = range(nrows)
 
-                rows = range(nrows)
+            string += headers
+            string += unlines
 
-                string += fstring.format(*headers)
-                string += fstring.format(*unlines)
+            bodycols = [self[col][rows].tostring() for col in cols]
 
-                for row in rows:
-                    string += fstring.format(*[self.running[col].vals[row] for col in cols])
-
-            else:
-
-                rows1 = list(range(int(self.print_rlim/2)))
-                rows2 = list(range(-1,-int(self.print_rlim/2)-1,-1))
-
-                rows2.reverse()
-
-                string += fstring.format(*headers)
-                string += fstring.format(*unlines)
-
-                for row in rows1:
-                    string += fstring.format(*[self.running[col][row] for col in cols])
-
-                string += "...\n"*3
-
-                for row in rows2:
-                    string += fstring.format(*[self.running[col][row] for col in cols])
+            string += "".join(vprint(*bodycols))
 
         else:
+            rows1 = list(range(int(print_limit/2)))
+            rows2 = list(range(-1,-int(print_limit/2)-1,-1))
 
-            string += fstring.format(*headers)
-            string += fstring.format(*unlines)
+            rows2.reverse()
 
-            for row in self.print_rows:
-                string += fstring.format(*[self.running[col][row] for col in cols])
+            string += headers
+            string += unlines
+
+            bodycols1 = [self[col][rows1].tostring() for col in cols]
+            bodycols2 = [self[col][rows2].tostring() for col in cols]
+
+            string += "".join(vprint(*bodycols1))
+            string += fstring.format(*[".." for _ in charcount])
+            string += fstring.format(*[".." for _ in charcount])
+            string += fstring.format(*[".." for _ in charcount])
+            string += "".join(vprint(*bodycols2))
 
         return string
 
@@ -1451,7 +1444,7 @@ class DataFrame(DirBase):
             fstring_header = ("{}_"*len(column_new))[:-1]
             header_new = fstring_header.format(*[self.heads[idcol] for idcol in idcols])
 
-        self[header_new] = column_new
+        return column_new
         # self._headers.append(header_new)
         # self._running.append(column_new)
 
@@ -2698,7 +2691,7 @@ class Alphabet():
 
         self.string = string
 
-    def conbvert(self,language="aze",from_="cyril",to="latin"):
+    def convert(self,language="aze",from_="cyril",to="latin"):
 
         from_lower = getattr(self,f"{language}_{from_}_lower")
         from_upper = getattr(self,f"{language}_{from_}_upper")
