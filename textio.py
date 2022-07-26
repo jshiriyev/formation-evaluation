@@ -230,70 +230,66 @@ class ColArray():
 
         self.nones = ColNone()
 
-        if isinstance(dtype,str):
-            dtype = np.dtype(dtype)
+        if vals is not None and dtype is None:
+            self._valsarr_(vals)
+            self.astype()
 
-        try:
-            charcount = kwargs.pop("charcount")
-        except KeyError:
-            charcount = None
+        elif vals is not None and dtype is not None:
+            self._valsarr_(vals)
+            self.astype(dtype)
 
-        if vals is not None:
+        elif vals is None and dtype is not None:
 
-            if isinstance(vals,int):
-                vals = np.array([vals])
-            elif isinstance(vals,float):
-                vals = np.array([vals])
-            elif isinstance(vals,str):
-                vals = np.array([vals])
-            elif isinstance(vals,datetime.date):
-                vals = np.array([vals])
-            elif isinstance(vals,np.datetime64):
-                vals = np.array([vals])
-            elif isinstance(vals,np.ndarray):
-                vals = vals.flatten()
-            elif isinstance(vals,list):
-                vals = np.array(vals).flatten()
-            elif isinstance(vals,tuple):
-                vals = np.array(vals).flatten()
-            else:
-                logging.warning(f"Unexpected object type {type(vals)}.")
-
-            self.vals = vals
-
-            self.astype(dtype=dtype,charcount=charcount)
-
-        elif dtype is not None:
+            if isinstance(dtype,str):
+                dtype = np.dtype(dtype)
 
             if dtype.type is np.dtype('int').type:
-                self.vals = self._arrint_(**kwargs)
+                self._valsarr_(self._arrint_(**kwargs))
             elif dtype.type is np.dtype('float').type:
-                self.vals = self._arrfloat_(**kwargs)
+                self._valsarr_(self._arrfloat_(**kwargs))
             elif dtype.type is np.dtype('str').type:
-                self.vals = self._arrstr_(**kwargs)
-                self.astype(dtype,charcount=charcount)
+                self._valsarr_(self._arrstr_(**kwargs))
             elif dtype.type is np.dtype('datetime64').type:
-                self.vals = self._arrdatetime64_(**kwargs)
+                self._valsarr_(self._arrdatetime64_(**kwargs))
             else:
                 raise ValueError(f"dtype is not int, float, str or np.datetime64, given {dtype=}")
 
-        else:
+        elif vals is None and dtype is None:
 
             if len(kwargs)==0:
-                vals = self._arrfloat_(size=0)
+                self._valsarr_(self._arrfloat_(size=0))
             else:
-                vals = self._arrfloat_(**kwargs)
-            
-            self.vals = vals
+                self._valsarr_(self._arrfloat_(**kwargs))
 
         self._valshead_(head)
         self._valsunit_(unit)
         self._valsinfo_(info)
 
-    def _valsarr_(self):
+    def _valsarr_(self,vals):
         """Sets the vals of ColArray."""
 
-        pass
+        if isinstance(vals,int):
+            arr = np.array([vals])
+        elif isinstance(vals,float):
+            arr = np.array([vals])
+        elif isinstance(vals,str):
+            arr = np.array([vals])
+        elif isinstance(vals,datetime.datetime):
+            arr = np.array([vals],dtype='datetime64[s]')
+        elif isinstance(vals,datetime.date):
+            arr = np.array([vals],dtype='datetime64[D]')
+        elif isinstance(vals,np.datetime64):
+            arr = np.array([vals])
+        elif isinstance(vals,np.ndarray):
+            arr = vals.flatten()
+        elif isinstance(vals,list):
+            arr = np.array(vals).flatten()
+        elif isinstance(vals,tuple):
+            arr = np.array(vals).flatten()
+        else:
+            logging.warning(f"Unexpected object type {type(arr)}.")
+
+        self.vals = arr
 
     def _valshead_(self,head=None):
         """Sets the head of ColArray."""
@@ -340,7 +336,7 @@ class ColArray():
         else:
             self.info = str(info)
 
-    def astype(self,dtype=None,charcount=None,datetimeunit=None):
+    def astype(self,dtype=None):
         """It changes the dtype of the ColArray and alters the None values accordingly."""
 
         if dtype is None:
@@ -370,9 +366,6 @@ class ColArray():
 
         self.vals = vals_arry
 
-        if (dtype.type is np.dtype('str').type) and (charcount is not None):
-            self.vals = self.vals.astype(dtype=f"U{charcount}")  
-
         self._valsunit_()
 
     def _arrint_(self,start:int=0,stop:int=None,step:int=1,size:int=None):
@@ -393,9 +386,9 @@ class ColArray():
             stop = start+size if stop is None else stop
             return np.linspace(start,stop,size,dtype=float)
 
-    def _arrstr_(self,start=None,stop=None,step=None,size=None):
+    def _arrstr_(self,size=None):
 
-        return np.empty((size,),dtype=str)
+        return np.empty((size,),dtype="U30")
 
     def _arrdatetime64_(self,start=None,stop="today",step=1,step_unit="D",size=None,year=None,month=None,day=-1):
 
@@ -1149,8 +1142,6 @@ class ColArray():
 
         return dtype_
     
-
-
     @property
     def year(self):
 
