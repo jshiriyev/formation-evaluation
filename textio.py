@@ -144,17 +144,18 @@ class DirBase():
                     return [filename for filename in filenames if filename.startswith(prefix) and filename.endswith(extension)]
 
 class ColNone():
-    """Base class to manage none values for int, float, str and datetime64."""
+    """Base class to manage none values for int, float, str, datetime64 and timedelta64."""
 
-    __dtypes = ("int","float","str","datetime64")
+    __types = ("int","float","str","datetime64")
 
-    def __init__(self,nint=None,nfloat=None,nstr=None,ndatetime64=None):
-        """Initializes all the dtypes with defaults."""
+    def __init__(self,nint=None,nfloat=None,nstr=None,ndatetime64=None,ntimedelta64=None):
+        """Initializes all the types with defaults."""
 
         self.int = -99_999 if nint is None else nint
         self.float = np.nan if nfloat is None else nfloat
         self.str = "" if nstr is None else nstr
         self.datetime64 = np.datetime64('NaT') if ndatetime64 is None else ndatetime64
+        self.timedelta64 = np.timedelta64('NaT') if ntimedelta64 is None else ntimedelta64
 
     def __str__(self):
 
@@ -168,16 +169,19 @@ class ColNone():
         else:
             row5 = self.datetime64.tolist().strftime("%Y-%b-%d")
 
-        count = len(max((row0,row2,row3,row4,row5),key=len))
+        row6 = "{}".format(self.timedelta64)
+
+        count = len(max((row0,row2,row3,row4,row5,row6),key=len))
 
         string = ""
 
-        string += "{:>10s}  {:s}\n".format("Data-Types",row0)
-        string += "{:>10s}  {:s}\n".format("-"*10,"-"*count)
-        string += "{:>10s}  {:s}\n".format("integers",row2)
-        string += "{:>10s}  {:s}\n".format("floats",row3)
-        string += "{:>10s}  {:s}\n".format("strings",row4)
-        string += "{:>10s}  {:s}\n".format("datetime64",row5)
+        string += "{:>11s}  {:s}\n".format("Data-Types",row0)
+        string += "{:>11s}  {:s}\n".format("-"*10,"-"*count)
+        string += "{:>11s}  {:s}\n".format("integers",row2)
+        string += "{:>11s}  {:s}\n".format("floats",row3)
+        string += "{:>11s}  {:s}\n".format("strings",row4)
+        string += "{:>11s}  {:s}\n".format("datetime64",row5)
+        string += "{:>11s}  {:s}\n".format("timedelta64",row5)
 
         return string
 
@@ -191,8 +195,10 @@ class ColNone():
             non_value = str(non_value)
         elif dtype == "datetime64":
             non_value = np.datetime64(non_value)
+        elif dtype == "timedelta64":
+            non_value = np.timedelta64(non_value)
         else:
-            raise KeyError("int, float, str and datetime64 are the attributes to modify.")
+            raise KeyError("int, float, str, datetime64, timedelta64 are the attributes to modify.")
 
         super().__setattr__(dtype,non_value)
 
@@ -201,14 +207,14 @@ class ColNone():
         nones_dict = {}
 
         if len(args)==0:
-            args = self._ColNone__dtypes
+            args = self._ColNone__types
 
         for arg in args:
             nones_dict[f'none_{arg}'] = getattr(self,arg)
 
         return nones_dict
 
-class ColArray():
+class ColArr():
     """It is a numpy array of shape (N,) with additional attributes of head, unit and info."""
 
     """INITIALIZATION"""
@@ -230,11 +236,12 @@ class ColArray():
         self.nones = ColNone()
 
         if vals is not None and dtype is None:
-            self._valsarr_(vals)
+
+            self._valsarr_(vals,kwargs.get("size"))
             self.astype()
 
         elif vals is not None and dtype is not None:
-            self._valsarr_(vals)
+            self._valsarr_(vals,kwargs.get("size"))
             self.astype(dtype)
 
         elif vals is None and dtype is not None:
@@ -264,21 +271,24 @@ class ColArray():
         self._valsunit_(unit)
         self._valsinfo_(info)
 
-    def _valsarr_(self,vals):
-        """Sets the vals of ColArray."""
+    def _valsarr_(self,vals,size=None):
+        """Sets the vals of ColArr."""
+
+        if size is None:
+            size = 1
 
         if isinstance(vals,int):
-            arr = np.array([vals])
+            arr = np.array([vals,]*size)
         elif isinstance(vals,float):
-            arr = np.array([vals])
+            arr = np.array([vals,]*size)
         elif isinstance(vals,str):
-            arr = np.array([vals])
+            arr = np.array([vals,]*size)
         elif isinstance(vals,datetime.datetime):
-            arr = np.array([vals],dtype='datetime64[s]')
+            arr = np.array([vals,]*size,dtype='datetime64[s]')
         elif isinstance(vals,datetime.date):
-            arr = np.array([vals],dtype='datetime64[D]')
+            arr = np.array([vals,]*size,dtype='datetime64[D]')
         elif isinstance(vals,np.datetime64):
-            arr = np.array([vals])
+            arr = np.array([vals,]*size)
         elif isinstance(vals,np.ndarray):
             arr = vals.flatten()
         elif isinstance(vals,list):
@@ -288,62 +298,71 @@ class ColArray():
         else:
             logging.warning(f"Unexpected object type {type(arr)}.")
 
-        self.vals = arr
+        super().__setattr__("vals",arr)
+
+        self._valsunit_()
 
     def _valshead_(self,head=None):
-        """Sets the head of ColArray."""
+        """Sets the head of ColArr."""
 
         if head is None:
             if hasattr(self,"head"):
                 return
             else:
-                self.head = "HEAD"
+                super().__setattr__("head","HEAD")
         else:
-            self.head = re.sub(r"[^\w]","",str(head))
+            super().__setattr__("head",re.sub(r"[^\w]","",str(head)))
 
     def _valsunit_(self,unit=None):
-        """Sets the unit of ColArray."""
+        """Sets the unit of ColArr."""
 
         if self.vals.dtype.type is np.float64:
             if unit is None:
                 if hasattr(self,"unit"):
                     if self.unit is None:
-                        self.unit = "dimensionless"
-                    return
+                        super().__setattr__("unit","dimensionless")
                 else:
-                    self.unit = "dimensionless"
+                    super().__setattr__("unit","dimensionless")
             else:
-                self.unit = unit
+                super().__setattr__("unit",unit)
         elif unit is not None:
             try:
                 self.vals = self.vals.astype("float")
             except ValueError:
                 logging.critical(f"Only numpy.float64 or float-convertables can have units, not {self.vals.dtype.type}")
             else:
-                self.unit = unit
+                super().__setattr__("unit",unit)
         else:
-            self.unit = None
+            super().__setattr__("unit",None)
 
     def _valsinfo_(self,info=None):
-        """Sets the info of ColArray."""
+        """Sets the info of ColArr."""
 
         if info is None:
             if hasattr(self,"info"):
                 return
             else:
-                self.info = " "
+                super().__setattr__("info"," ")
         else:
-            self.info = str(info)
+            super().__setattr__("info",str(info))
 
     def astype(self,dtype=None):
-        """It changes the dtype of the ColArray and alters the None values accordingly."""
+        """It changes the dtype of the ColArr and alters the None values accordingly."""
+
+        if isinstance(dtype,str):
+            dtype = np.dtype(dtype)
+
+        if dtype is None:
+            pass
+        elif not isinstance(dtype,np.dtype):
+            raise TypeError(f"dtype must be numpy.dtype, not type={type(dtype)}")
+        elif dtype.type is np.object_:
+            raise TypeError(f"Unexpected numpy.dtype, {dtype=}")
+        elif self.dtype==dtype:
+            return
 
         if dtype is None:
             dtype = self.dtype
-        elif isinstance(dtype,str):
-            dtype = np.dtype(dtype)
-        elif dtype.type is np.object_:
-            raise TypeError(f"Unexpected numpy.dtype, {dtype=}")
 
         if dtype.type is np.dtype('int').type:
             none = getattr(self.nones,'int')
@@ -358,14 +377,12 @@ class ColArray():
 
         isnone = self.isnone()
 
-        vals_arry = np.empty(self.vals.size,dtype=dtype)
+        vals_arr = np.empty(self.vals.size,dtype=dtype)
 
-        vals_arry[isnone] = none
-        vals_arry[~isnone] = self.vals[~isnone].astype(dtype=dtype)
+        vals_arr[isnone] = none
+        vals_arr[~isnone] = self.vals[~isnone].astype(dtype=dtype)
 
-        self.vals = vals_arry
-
-        self._valsunit_()
+        self.vals = vals_arr
 
     def _arrint_(self,start:int=0,stop:int=None,step:int=1,size:int=None):
 
@@ -385,9 +402,20 @@ class ColArray():
             stop = start+size if stop is None else stop
             return np.linspace(start,stop,size,dtype=float)
 
-    def _arrstr_(self,size=None):
+    def _arrstr_(self,phrase=None,size=None,spaces=None):
 
-        return np.empty((size,),dtype="U30")
+        if spaces is None:
+            if phrase is None:
+                arr_ = np.empty((size,),dtype="U30")
+            else:
+                arr_ = np.full((size,),str(phrase))
+        else:
+            spaces = ColArr(spaces,dtype='int')
+            size = len(spaces) if size is None else size
+            temp = spaces.vals if size is None else np.full((size,),spaces.vals[0])
+            arr_ = np.array([" "*t for t in temp])
+
+        return arr_
 
     def _arrdatetime64_(self,start=None,stop="today",step=1,step_unit="D",size=None,year=None,month=None,day=-1):
 
@@ -590,7 +618,7 @@ class ColArray():
 
     """REPRESENTATION"""
     def _valstr_(self,num=None):
-        """It outputs ColArray.vals in string format. If num is not defined it edites numpy.ndarray.__str__()."""
+        """It outputs ColArr.vals in string format. If num is not defined it edites numpy.ndarray.__str__()."""
 
         if num is None:
 
@@ -650,12 +678,12 @@ class ColArray():
             return vals_str.format(*self.vals[:part1],*self.vals[-part2:])
 
     def __repr__(self):
-        """Console representation of ColArray."""
+        """Console representation of ColArr."""
 
-        return f'ColArray(head="{self.head}", unit="{self.unit}", info="{self.info}", vals={self._valstr_(2)})'
+        return f'ColArr(head="{self.head}", unit="{self.unit}", info="{self.info}", vals={self._valstr_(2)})'
 
     def __str__(self):
-        """Print representation of ColArray."""
+        """Print representation of ColArr."""
 
         string = "{}\n"*4
 
@@ -668,7 +696,7 @@ class ColArray():
 
     """COMPARISON"""
     def isnone(self):
-        """It return boolean array by comparing the values of vals to none types defined by ColArray."""
+        """It return boolean array by comparing the values of vals to none types defined by ColArr."""
 
         if self.vals.dtype.type is np.object_:
 
@@ -718,7 +746,7 @@ class ColArray():
         return bool_arr
 
     def nondim(self):
-        """It checks whether ColArray has unit or not."""
+        """It checks whether ColArr has unit or not."""
 
         if self.vals.dtype.type is np.float64:
             return self.unit=="dimensionless"
@@ -728,7 +756,7 @@ class ColArray():
     def __lt__(self,other):
         """Implementing '<' operator."""
         
-        if isinstance(other,ColArray):
+        if isinstance(other,ColArr):
             if self.unit!=other.unit:
                 other = other.convert(self.unit)
             return self.vals<other.vals
@@ -738,7 +766,7 @@ class ColArray():
     def __le__(self,other):
         """Implementing '<=' operator."""
         
-        if isinstance(other,ColArray):
+        if isinstance(other,ColArr):
             if self.unit!=other.unit:
                 other = other.convert(self.unit)
             return self.vals<=other.vals
@@ -748,7 +776,7 @@ class ColArray():
     def __gt__(self,other):
         """Implementing '>' operator."""
         
-        if isinstance(other,ColArray):
+        if isinstance(other,ColArr):
             if self.unit!=other.unit:
                 other = other.convert(self.unit)
             return self.vals>other.vals
@@ -758,7 +786,7 @@ class ColArray():
     def __ge__(self,other):
         """Implementing '>=' operator."""
 
-        if isinstance(other,ColArray):
+        if isinstance(other,ColArr):
             if self.unit!=other.unit:
                 other = other.convert(self.unit)
             return self.vals>=other.vals
@@ -768,7 +796,7 @@ class ColArray():
     def __eq__(self,other,tol=1e-12):
         """Implementing '==' operator."""
 
-        if isinstance(other,ColArray):
+        if isinstance(other,ColArr):
             if self.unit!=other.unit:
                 other = other.convert(self.unit)
                 return np.abs(self.vals-other.vals)<tol*np.maximum(np.abs(self.vals),np.abs(other.vals))
@@ -781,7 +809,7 @@ class ColArray():
     def __ne__(self,other,tol=1e-12):
         """Implementing '!=' operator."""
         
-        if isinstance(other,ColArray):
+        if isinstance(other,ColArr):
             if self.unit!=other.unit:
                 other = other.convert(self.unit)
                 return np.abs(self.vals-other.vals)>tol*np.maximum(np.abs(self.vals),np.abs(other.vals))
@@ -803,9 +831,24 @@ class ColArray():
         elif self.vals.dtype.type is np.datetime64:
             return not np.all(np.isnat(self.vals))
 
+    """ATTRIBUTE ACCESS"""
+
+    def __setattr__(self,name,value):
+
+        if name=="vals":
+            self._valsarr_(value)
+        elif name=="unit":
+            self._valsunit_(value)
+        elif name=="head":
+            self._valshead_(value)
+        elif name=="info":
+            self._valsinfo_(value)
+        else:
+            super().__setattr__(name,value)
+
     """CONTAINER METHODS"""
     def min(self):
-        """It returns none-minimum value of ColArray."""
+        """It returns none-minimum value of ColArr."""
 
         if self.vals.dtype.type is np.int32:
             return self.vals[~self.isnone()].min()
@@ -817,7 +860,7 @@ class ColArray():
             return np.nanmin(self.vals)
 
     def max(self):
-        """It returns none-maximum value of ColArray."""
+        """It returns none-maximum value of ColArr."""
 
         if self.vals.dtype.type is np.int32:
             return self.vals[~self.isnone()].max()
@@ -829,7 +872,7 @@ class ColArray():
             return np.nanmax(self.vals)
 
     def maxchar(self,string=False):
-        """It returns the maximum character count in stringified ColArray."""
+        """It returns the maximum character count in stringified ColArr."""
 
         if self.vals.dtype.type is np.str_:
             vals = self.vals
@@ -888,62 +931,71 @@ class ColArray():
     def convert(self,unit):
         """It converts the vals to the new unit."""
 
-        if self.unit!=unit:
+        if self.unit==unit:
+            return self
 
-            ur = pint.UnitRegistry()
+        column_ = copy.deepcopy(self)
 
-            vals = ur.Quantity(self.vals,self.unit).to(unit).magnitude
+        if self.dtype.type is not np.dtype('float').type:
+            column_.astype('float')
+        # elif self.unit=="dimensionless":
+        #     logging.warning(f"converting dimensionless array to {unit}")
+        else:
+            unrg = pint.UnitRegistry()
+            unrg.Quantity(column_.vals,column_.unit).ito(unit)
 
-            column_ = copy.copy(self)
-
-            column_.vals = vals
-            column_._valsunit_(unit)
+        column_.unit = unit
 
         return column_
     
     def shift(self,delta,deltaunit=None):
         """Shifting the entries depending on its dtype."""
 
-        if self.vals.dtype.type is np.int32:
-            vals_shifted = self.vals+delta
-        elif self.vals.dtype.type is np.float64:
-            other = ColArray(vals=delta,unit=deltaunit)
-            other = other.convert(self.unit)
-            vals_shifted = self.vals+other.vals
-        elif self.vals.dtype.type is np.str_:
-            vals_shifted = np.char.add(" "*delta,self.vals)
-        elif self.vals.dtype.type is np.datetime64:
+        column_ = copy.deepcopy(self)
 
+        if column_.dtype.type is np.dtype('int').type:
+            delta_ = ColArr(delta,unit=deltaunit)
+            if not delta_.dtype.type is np.dtype('int').type:
+                delta_.astype('int')
+            vals_shifted = column_.vals+delta_.vals
+        elif column_.dtype.type is np.dtype('float').type:
+            delta_ = ColArr(delta,unit=deltaunit)
+            if not delta_.dtype.type is np.dtype('float').type:
+                delta_.astype('float')
+            delta_ = delta_.convert(column_.unit)
+            vals_shifted = column_.vals+delta_.vals
+        elif column_.dtype.type is np.dtype('str').type:
+            delta_ = ColArr(dtype='str',spaces=delta)
+            vals_shifted = np.char.add(delta_.vals,column_)
+        elif column_.dtype.type is np.dtype('datetime64').type:
             if deltaunit is None:
-
-                arr_y = self.year[:]
-                arr_m = self.month[:]
+                arr_y = column_.year[:]
+                arr_m = column_.month[:]
 
                 if delta=="BOM":
                     arr_d = 1
                 elif delta=="EOM":
-                    arr_d = self.eom[:]
+                    arr_d = column_.eom[:]
 
-                vals_shifted = self._arrdatetime64_(year=arr_y,month=arr_m,day=arr_d)
+                vals_shifted = column_._arrdatetime64_(year=arr_y,month=arr_m,day=arr_d)
 
             elif deltaunit == "Y":
-
-                year0 = self.year
+                year0 = column_.year
                 year1 = year0+delta
 
-                feb28_bool = np.logical_and(self.month==2,self.day==28)
-                feb29_bool = np.logical_and(self.month==2,self.day==29)
+                feb28_bool = np.logical_and(column_.month==2,column_.day==28)
+                feb29_bool = np.logical_and(column_.month==2,column_.day==29)
 
                 year0_leap_bool = year0%4==0
                 year0_leap_bool[year0%100==0] = False
                 year0_leap_bool[year0%400==0] = True
-                year0_leap_bool[self.month>2] = False
+                year0_leap_bool[column_.month>2] = False
                 year0_leap_bool[feb29_bool] = False
 
                 year1_leap_bool = year1%4==0
                 year1_leap_bool[year1%100==0] = False
                 year1_leap_bool[year1%400==0] = True
-                year1_leap_bool[self.month>2] = False
+                year1_leap_bool[column_.month>2] = False
                 year1_leap_bool[np.logical_and(~year0_leap_bool,feb28_bool)] = False
                 year1_leap_bool[feb29_bool] = False
                 
@@ -955,17 +1007,19 @@ class ColArray():
                 day_arr = 365*delta+leap_year_count+year0_leap_bool-year1_leap_bool
                 day_arr = day_arr.astype("str")
 
-                day_arr[self.isnone()] = "NaT"
+                day_arr[column_.isnone()] = "NaT"
 
-                vals_shifted = self.vals+day_arr.astype("timedelta64[D]")
+                vals_shifted = column_.vals+day_arr.astype("timedelta64[D]")
 
             elif deltaunit == "M":
-
                 vals_shifted = []
+
+                # if len(delta)==1:
+
 
                 delta = relativedelta.relativedelta(months=delta)
 
-                for val in self.vals.tolist():
+                for val in column_.vals.tolist():
                     if val is not None:
                         vals_shifted.append(val+delta)
                     else:
@@ -974,12 +1028,10 @@ class ColArray():
                 vals_shifted = np.array(vals_shifted,dtype=np.datetime64)
 
             else:
-
                 timedelta = np.timedelta64(delta,deltaunit)
 
-                vals_shifted = self.vals+timedelta
+                vals_shifted = column_.vals+timedelta
 
-        column_ = copy.copy(self)
         column_.vals = vals_shifted
 
         return column_
@@ -987,23 +1039,54 @@ class ColArray():
     def __add__(self,other):
         """Implementing '+' operator."""
 
-        column_ = copy.copy(self)
+        curnt = copy.deepcopy(self)
 
-        if isinstance(other,ColArray):
-            if self.unit!=other.unit:
-                other = other.convert(self.unit)
-            column_.vals += other.vals
-        else:
-            column_.vals += other
+        if not isinstance(other,ColArr):
+            other = ColArr(other)
+
+        if curnt.dtype.type is np.dtype('int').type:
+            if not other.dtype.type is np.dtype('int').type:
+                other.astype('int')
+            curnt.vals += other.vals
+        elif curnt.dtype.type is np.dtype('float').type:
+            if not other.dtype.type is np.dtype('float').type:
+                other.astype('float')
+            other = other.convert(curnt.unit)
+            curnt.vals += other.vals
+        elif curnt.dtype.type is np.dtype('str').type:
+            if not other.dtype.type is np.dtype('str').type:
+                other.astype('str')
+            curnt.vals = np.char.add(curnt.vals,other.vals)
+        elif curnt.dtype.type is np.dtype('datetime64').type:
+            unrg = pint.UnitRegistry()
+            unit = unrg.Unit(other.unit).__str__()
+            other.astype('int')
+            if unit=="year":
+                spaces = ColArr(spaces,dtype='int')
+                curnt.shift()
+                other.vals.astype('timedelta64[Y]')
+            elif unit=="month":
+                other.vals.astype('timedelta64[M]')
+            elif unit=="week":
+                curnt.vals += other.vals.astype('timedelta64[W]')
+            elif unit=="day":
+                curnt.vals += other.vals.astype('timedelta64[D]')
+            elif unit=="hour":
+                curnt.vals += other.vals.astype('timedelta64[h]')
+            elif unit=="minute":
+                curnt.vals += other.vals.astype('timedelta64[m]')
+            elif unit=="second":
+                curnt.vals += other.vals.astype('timedelta64[s]')
+
             
-        return column_
+        return curnt
 
     def __floordiv__(self,other):
         """Implementing '//' operator."""
 
         column_ = copy.copy(self)
 
-        if isinstance(other,ColArray):
+        if isinstance(other,ColArr):
             # ureg = pint.UnitRegistry()
             # unit = ureg.Unit(f"{self.unit}/({other.unit})").__str__()
 
@@ -1029,14 +1112,14 @@ class ColArray():
 
         column_ = copy.copy(self)
 
-        if isinstance(other,ColArray):
+        if isinstance(other,ColArr):
         #     ureg = pint.UnitRegistry()
         #     unit = ureg.Unit(f"{self.unit}/({other.unit})").__str__()
-        #     return ColArray(self.vals%other.vals,unit=unit)
+        #     return ColArr(self.vals%other.vals,unit=unit)
             if other.nondim():
                 column_.vals = self.vals%other.vals
             else:
-                raise TypeError(f"unsupported operand type for dimensional ColArray arrays.")
+                raise TypeError(f"unsupported operand type for dimensional ColArr arrays.")
         else:
             column_.vals = self.vals%other
             
@@ -1047,7 +1130,7 @@ class ColArray():
 
         column_ = copy.copy(self)
 
-        if isinstance(other,ColArray):
+        if isinstance(other,ColArr):
             # ur = pint.UnitRegistry()
             # unit = ur.Unit(f"{self.unit}*{other.unit}").__str__()
 
@@ -1085,7 +1168,7 @@ class ColArray():
 
         column_ = copy.copy(self)
 
-        if isinstance(other,ColArray):
+        if isinstance(other,ColArr):
             if self.unit!=other.unit:
                 other = other.convert(self.unit)
             column_.vals = self.vals-other.vals
@@ -1099,7 +1182,7 @@ class ColArray():
 
         column_ = copy.copy(self)
 
-        if isinstance(other,ColArray):
+        if isinstance(other,ColArr):
             # ur = pint.UnitRegistry()
             # unit = ur.Unit(f"{self.unit}/({other.unit})").__str__()
 
@@ -1122,7 +1205,7 @@ class ColArray():
     """PROPERTY METHODS"""
     @property
     def dtype(self):
-        """Return dtype of ColArray.vals."""
+        """Return dtype of ColArr.vals."""
 
         if self.vals.dtype.type is np.object_:
             array_ = self.vals[~self.isnone()]
@@ -1346,9 +1429,9 @@ class DataFrame(DirBase):
 
         if key in self.heads:
             index_key = self.heads.index(key)
-            self.running[index_key] = ColArray(vals=vals,head=key)
+            self.running[index_key] = ColArr(vals=vals,head=key)
         else:
-            self.running.append(ColArray(vals=vals,head=key))
+            self.running.append(ColArr(vals=vals,head=key))
 
     def __iter__(self):
 
@@ -1416,7 +1499,7 @@ class DataFrame(DirBase):
         running = np.array(running,dtype=str).T
 
         for index,(vals,head) in enumerate(zip(running,headers),start=idcol):
-            self.running.insert(index,ColArray(vals=vals,head=head))
+            self.running.insert(index,ColArr(vals=vals,head=head))
 
         # line = re.sub(r"[^\w]","",line)
         # line = "_"+line if line[0].isnumeric() else line
