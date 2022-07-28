@@ -143,19 +143,18 @@ class DirBase():
                 else:
                     return [filename for filename in filenames if filename.startswith(prefix) and filename.endswith(extension)]
 
-class ColNone():
-    """Base class to manage none values for int, float, str, datetime64 and timedelta64."""
+class nones():
+    """Base class to manage none values for int, float, str, datetime64."""
 
     __types = ("int","float","str","datetime64")
 
-    def __init__(self,nint=None,nfloat=None,nstr=None,ndatetime64=None,ntimedelta64=None):
+    def __init__(self,nint=None,nfloat=None,nstr=None,ndatetime64=None):
         """Initializes all the types with defaults."""
 
         self.int = -99_999 if nint is None else nint
         self.float = np.nan if nfloat is None else nfloat
         self.str = "" if nstr is None else nstr
         self.datetime64 = np.datetime64('NaT') if ndatetime64 is None else ndatetime64
-        self.timedelta64 = np.timedelta64('NaT') if ntimedelta64 is None else ntimedelta64
 
     def __str__(self):
 
@@ -169,19 +168,16 @@ class ColNone():
         else:
             row5 = self.datetime64.tolist().strftime("%Y-%b-%d")
 
-        row6 = "{}".format(self.timedelta64)
-
-        count = len(max((row0,row2,row3,row4,row5,row6),key=len))
+        count = len(max((row0,row2,row3,row4,row5),key=len))
 
         string = ""
 
-        string += "{:>11s}  {:s}\n".format("Data-Types",row0)
-        string += "{:>11s}  {:s}\n".format("-"*10,"-"*count)
-        string += "{:>11s}  {:s}\n".format("integers",row2)
-        string += "{:>11s}  {:s}\n".format("floats",row3)
-        string += "{:>11s}  {:s}\n".format("strings",row4)
-        string += "{:>11s}  {:s}\n".format("datetime64",row5)
-        string += "{:>11s}  {:s}\n".format("timedelta64",row5)
+        string += "{:>10s}  {:s}\n".format("Data-Types",row0)
+        string += "{:>10s}  {:s}\n".format("-"*10,"-"*count)
+        string += "{:>10s}  {:s}\n".format("integers",row2)
+        string += "{:>10s}  {:s}\n".format("floats",row3)
+        string += "{:>10s}  {:s}\n".format("strings",row4)
+        string += "{:>10s}  {:s}\n".format("datetime64",row5)
 
         return string
 
@@ -195,10 +191,8 @@ class ColNone():
             non_value = str(non_value)
         elif dtype == "datetime64":
             non_value = np.datetime64(non_value)
-        elif dtype == "timedelta64":
-            non_value = np.timedelta64(non_value)
         else:
-            raise KeyError("int, float, str, datetime64, timedelta64 are the attributes to modify.")
+            raise KeyError("int, float, str, datetime64 are the attributes to modify.")
 
         super().__setattr__(dtype,non_value)
 
@@ -207,18 +201,260 @@ class ColNone():
         nones_dict = {}
 
         if len(args)==0:
-            args = self._ColNone__types
+            args = self._nones__types
 
         for arg in args:
             nones_dict[f'none_{arg}'] = getattr(self,arg)
 
         return nones_dict
 
-class ColArr():
+class array():
+
+    def __init__(self,unit=None,**kwargs):
+
+        self.nones = nones()
+
+        dtype = kwargs.get('dtype')
+
+        if dtype is None:
+            dtype = np.dtype('float64')
+        elif isinstance(dtype,str):
+            dtype = np.dtype(dtype)
+
+        if dtype.type is np.dtype('int').type:
+            arr_ = self._arrint(**kwargs)
+        elif dtype.type is np.dtype('float').type:
+            arr_ = self._arrfloat(unit,**kwargs)
+        elif dtype.type is np.dtype('str').type:
+            arr_ = self._arrstr_fromarrays(**kwargs)
+        elif dtype.type is np.dtype('datetime64').type:
+            try:
+                arr_ = self._arrdatetime64(**kwargs)
+            except TypeError:
+                arr_ = self._arrdatetime64_fromarrays(**kwargs)
+        else:
+            raise ValueError(f"dtype is not int, float, str or datetime64, given {dtype=}")
+
+        return arr_
+
+    def get_time_dtype(self,time):
+
+        if isinstance(time,str):
+            time = parser.parse(time)
+            if time.second!=0:
+                return np.dtype('datetime64[s]')
+            elif time.minute!=0:
+                return np.dtype('datetime64[m]')
+            elif time.hour!=0:
+                return np.dtype('datetime64[h]')
+            elif time.day!=0:
+                return np.dtype('datetime64[D]')
+            elif time.month!=0:
+                return np.dtype('datetime64[M]')
+            elif time.year!=0:
+                return np.dtype('datetime64[Y]')
+        elif isinstance(time,datetime.datetime):
+            return np.dtype('datetime64[s]')
+        elif isinstance(time,datetime.date):
+            return np.dtype('datetime64[D]')
+        elif isinstance(time,np.datetime64):
+            return time.dtype
+        else:
+            return None
+
+    def get_datetime(self,time):
+
+        if time=="today":
+            datetime_ = datetime.date.today()
+        elif time=="yesterday":
+            datetime_ = datetime.date.today()
+            datetime_ += relativedelta.relativedelta(days=-1)
+        elif time=="tomorrow":
+            datetime_ = datetime.date.today()
+            datetime_ += relativedelta.relativedelta(days=+1)
+        else:
+            datetime_ = parser.parse(time)
+
+    def _arrint(self,dtype=None,start=0,stop=None,step=1,size=None):
+
+        if dtype is None:
+            dtype = np.dtype('int32')
+        elif isinstance(dtype,str):
+            dtype = np.dtype(dtype)
+
+        if size is None:
+            if stop is None:
+                raise ValueError("stop value must be provided!")
+            return np.arange(start,stop,step,dtype=dtype)
+        else:
+            if stop is None:
+                stop = start+size*step
+            return np.linspace(start,stop,size,endpoint=False,dtype=dtype)
+
+    def _arrfloat(self,unit='dimensionless',dtype=None,start=0.,stop=None,step=1.,step_unit='dimensionless',size=None):
+
+        if unit!=step_unit:
+            unrg = pint.UnitRegistry()
+            step = unrg.Quantity(step,step_unit).to(unit).magnitude
+
+        if dtype is None:
+            dtype = np.dtype('float64')
+        elif isinstance(dtype,str):
+            dtype = np.dtype(dtype)
+
+        if size is None:
+            if stop is None:
+                raise ValueError("stop value must be provided!")
+            return np.arange(start,stop,step,dtype=dtype)
+        else:
+            if stop is None:
+                stop = start+size*step
+            return np.linspace(start,stop,size,dtype=dtype)
+
+    def _arrstr_fromarrays(self,space=None):
+        
+        return np.array([" "*num for num in space])
+
+    def _arrdatetime64(self,dtype=None,start=None,stop="today",step=1,step_unit=None,size=None):
+
+        if step_unit is None:
+            step_unit = 'D'
+
+        if isinstance(dtype,str):
+            dtype = np.dtype(dtype)
+
+        if dtype is None:
+            dtype = self.get_time_dtype(start)
+
+        if dtype is None:
+            dtype = self.get_time_dtype(stop)
+
+        if dtype is None:
+            dtype = np.dtype(f"datetime64[{step_unit}]")
+
+        
+
+        if start=="today":
+            start = datetime.datetime.today()
+        elif start=="yesterday":
+            start = datetime.datetime.today()
+            start += relativedelta.relativedelta(days=-1)
+        elif start=="tomorrow":
+            start = datetime.datetime.today()
+            start += relativedelta.relativedelta(days=+1)
+        else:
+            start = parser.parse(start)
+
+        if step_unit == "Y":
+            delta = relativedelta.relativedelta(years=int(step//1),months=int(step%1*12),days=(step%1*12-step_months)*30)
+        elif step_unit == "M":
+            delta = relativedelta.relativedelta(months=int(step//1),days=step%1*30)
+        elif step_unit == "D":
+            delta = relativedelta.relativedelta(days=step)
+        elif step_unit == "h":
+            delta = relativedelta.relativedelta(hours=step)
+        elif step_unit == "m":
+            delta = relativedelta.relativedelta(minutes=step)
+        elif step_unit == "s":
+            delta = relativedelta.relativedelta(seconds=step)
+        else:
+            raise ValueError("step_unit can not be anything other than 'Y','M','D','h','m','s'.")
+
+        if isinstance(start,datetime.date):
+            pass
+        elif isinstance(start,str):
+
+        elif start is None:
+            start = stop-delta*size
+        else:
+            raise TypeError(f"start can not be the type {type(start)}")
+
+        date = copy.copy(start)
+
+        arr_date = []
+
+        while date<stop:
+
+            arr_date.append(date)
+
+            date += delta
+
+        return np.array(arr_date,dtype='datetime64')
+
+    def _arrdatetime64_fromarrays(dtype=None,year=None,month=None,day=-1,hour=0,minute=0,second=0):
+
+        if size is None:
+            for arg in (year,month,day):
+                if not isinstance(arg,str) and hasattr(arg,"__len__"):
+                    size = len(arg)
+
+        if size is None:
+            size = 50
+
+        if isinstance(year,int):
+            arr_y = np.array([year]*size).astype("str")
+        elif isinstance(year,str):
+            arr_y = np.array([year]*size)
+        elif not hasattr(year,"__len__"):
+            raise TypeError(f"year can not be the type {type(year)}")
+        elif not isinstance(year,np.ndarray):
+            arr_y = np.array(year).astype("str")
+        else:
+            arr_y = year.astype("str")
+
+        if isinstance(month,int):
+            arr_m = np.array([month]*size).astype("str")
+        elif isinstance(month,str):
+            if len(month)<=2:
+                month = datetime.datetime.strptime(month,"%m").month
+            elif len(month)==3:
+                month = datetime.datetime.strptime(month,"%b").month
+            else:
+                month = datetime.datetime.strptime(month,"%B").month
+            arr_m = np.array([month]*size).astype("str")
+        elif not hasattr(month,"__len__"):
+            raise TypeError(f"month can not be the type {type(month)}")
+        elif not isinstance(month,np.ndarray):
+            arr_m = np.array(month).astype("str")
+        else:
+            arr_m = month.astype("str")
+
+        if isinstance(day,int):
+            arr_d = np.array([day]*size)
+        elif isinstance(day,str):
+            arr_d = np.array([int(day)]*size)
+        elif not hasattr(day,"__len__"):
+            raise TypeError(f"day can not be the type {type(day)}")
+        elif not isinstance(month,np.ndarray):
+            arr_d = np.array(day)
+        else:
+            arr_d = day[:]
+
+        arr_date = []
+
+        for str_y,str_m,int_d in zip(arr_y,arr_m,arr_d):
+
+            int_y,int_m = int(str_y),int(str_m)
+
+            if (int_y==self.nones.int) or (int_m==self.nones.int) or (int_d==self.nones.int):
+                arr_date.append(None)
+
+            else:
+
+                if int_d<0:
+                    int_d += calendar.monthrange(int_y,int_m)[1]+1
+
+                str_date = "-".join((str_y,str_m,str(int_d)))
+
+                arr_date.append(parser.parse(str_date))
+
+        return np.array(arr_date,dtype='datetime64')
+
+class column():
     """It is a numpy array of shape (N,) with additional attributes of head, unit and info."""
 
     """INITIALIZATION"""
-    def __init__(self,vals=None,dtype=None,head=None,unit=None,info=None,**kwargs):
+    def __init__(self,vals=None,head=None,unit=None,info=None,**kwargs):
         """Initializes a column with vals of numpy array (N,) and additional attributes."""
 
         """
@@ -229,81 +465,68 @@ class ColArr():
         
         2) Generating a numpy array by defining dtype and sending the keywords for array creating methods.
         
-        The argument "dtype" is optional and can be any of the {int, float, str, np.datetime64}
+        The argument "dtype" is optional and can be any of the {int, float, str, datetime64}
 
         """
 
-        self.nones = ColNone()
+        self.nones = nones()
 
-        if vals is not None and dtype is None:
+        self._valsarr(vals,kwargs.get('size'))
 
-            self._valsarr_(vals,kwargs.get("size"))
-            self.astype()
+        self.astype(kwargs.get('dtype'))
 
-        elif vals is not None and dtype is not None:
-            self._valsarr_(vals,kwargs.get("size"))
-            self.astype(dtype)
+        self._valshead(head)
+        self._valsunit(unit)
+        self._valsinfo(info)
 
-        elif vals is None and dtype is not None:
+    def _valsarr(self,vals=None,size=None):
+        """Sets the vals of column."""
 
-            if isinstance(dtype,str):
-                dtype = np.dtype(dtype)
-
-            if dtype.type is np.dtype('int').type:
-                self._valsarr_(self._arrint_(**kwargs))
-            elif dtype.type is np.dtype('float').type:
-                self._valsarr_(self._arrfloat_(**kwargs))
-            elif dtype.type is np.dtype('str').type:
-                self._valsarr_(self._arrstr_(**kwargs))
-            elif dtype.type is np.dtype('datetime64').type:
-                self._valsarr_(self._arrdatetime64_(**kwargs))
-            else:
-                raise ValueError(f"dtype is not int, float, str or np.datetime64, given {dtype=}")
-
-        elif vals is None and dtype is None:
-
-            if len(kwargs)==0:
-                self._valsarr_(self._arrfloat_(size=0))
-            else:
-                self._valsarr_(self._arrfloat_(**kwargs))
-
-        self._valshead_(head)
-        self._valsunit_(unit)
-        self._valsinfo_(info)
-
-    def _valsarr_(self,vals,size=None):
-        """Sets the vals of ColArr."""
-
-        if size is None:
-            size = 1
-
-        if isinstance(vals,int):
-            arr = np.array([vals,]*size)
+        if vals is None:
+            num = 1 if size is None else size
+            arr = np.array([np.nan]*num)
+        elif isinstance(vals,int):
+            num = 1 if size is None else size
+            arr = np.array([vals,]*num)
         elif isinstance(vals,float):
-            arr = np.array([vals,]*size)
+            num = 1 if size is None else size
+            arr = np.array([vals,]*num)
         elif isinstance(vals,str):
-            arr = np.array([vals,]*size)
+            num = 1 if size is None else size
+            arr = np.array([vals,]*num)
         elif isinstance(vals,datetime.datetime):
-            arr = np.array([vals,]*size,dtype='datetime64[s]')
+            num = 1 if size is None else size
+            arr = np.array([vals,]*num,dtype='datetime64[s]')
         elif isinstance(vals,datetime.date):
-            arr = np.array([vals,]*size,dtype='datetime64[D]')
+            num = 1 if size is None else size
+            arr = np.array([vals,]*num,dtype='datetime64[D]')
         elif isinstance(vals,np.datetime64):
-            arr = np.array([vals,]*size)
+            num = 1 if size is None else size
+            arr = np.array([vals,]*num)
         elif isinstance(vals,np.ndarray):
             arr = vals.flatten()
+            rep = 1 if size is None else int(np.ceil(size/arr.size))
+            num = arr.size if size is None else size
+            arr = arr if size is None else np.tile(arr,rep)[:num]
         elif isinstance(vals,list):
             arr = np.array(vals).flatten()
+            rep = 1 if size is None else int(np.ceil(size/arr.size))
+            num = arr.size if size is None else size
+            arr = arr if size is None else np.tile(arr,rep)[:num]
         elif isinstance(vals,tuple):
             arr = np.array(vals).flatten()
+            rep = 1 if size is None else int(np.ceil(size/arr.size))
+            num = arr.size if size is None else size
+            arr = arr if size is None else np.tile(arr,rep)[:num]
         else:
             logging.warning(f"Unexpected object type {type(arr)}.")
 
         super().__setattr__("vals",arr)
 
-        self._valsunit_()
+        self._valsunit()
 
-    def _valshead_(self,head=None):
-        """Sets the head of ColArr."""
+    def _valshead(self,head=None):
+        """Sets the head of column."""
 
         if head is None:
             if hasattr(self,"head"):
@@ -313,10 +536,10 @@ class ColArr():
         else:
             super().__setattr__("head",re.sub(r"[^\w]","",str(head)))
 
-    def _valsunit_(self,unit=None):
-        """Sets the unit of ColArr."""
+    def _valsunit(self,unit=None):
+        """Sets the unit of column."""
 
-        if self.vals.dtype.type is np.float64:
+        if self.dtype.type is np.dtype('float').type:
             if unit is None:
                 if hasattr(self,"unit"):
                     if self.unit is None:
@@ -335,8 +558,8 @@ class ColArr():
         else:
             super().__setattr__("unit",None)
 
-    def _valsinfo_(self,info=None):
-        """Sets the info of ColArr."""
+    def _valsinfo(self,info=None):
+        """Sets the info of column."""
 
         if info is None:
             if hasattr(self,"info"):
@@ -347,7 +570,7 @@ class ColArr():
             super().__setattr__("info",str(info))
 
     def astype(self,dtype=None):
-        """It changes the dtype of the ColArr and alters the None values accordingly."""
+        """It changes the dtype of the column and alters the None values accordingly."""
 
         if isinstance(dtype,str):
             dtype = np.dtype(dtype)
@@ -382,171 +605,9 @@ class ColArr():
         vals_arr[isnone] = none
         vals_arr[~isnone] = self.vals[~isnone].astype(dtype=dtype)
 
-        self.vals = vals_arr
+        super().__setattr__("vals",vals_arr)
 
-    def _arrint_(self,start:int=0,stop:int=None,step:int=1,size:int=None):
-
-        if size is None:
-            stop = start+50 if stop is None else stop
-            return np.arange(start,stop,step,dtype=int)
-        else:
-            stop = start+size if stop is None else stop
-            return np.linspace(start,stop,size,endpoint=False,dtype=int)
-
-    def _arrfloat_(self,start:float=0.,stop:float=None,step:float=1.,size:int=None):
-
-        if size is None:
-            stop = start+50 if stop is None else stop
-            return np.arange(start,stop,step,dtype=float)
-        else:
-            stop = start+size if stop is None else stop
-            return np.linspace(start,stop,size,dtype=float)
-
-    def _arrstr_(self,phrase=None,size=None,spaces=None):
-
-        if spaces is None:
-            if phrase is None:
-                arr_ = np.empty((size,),dtype="U30")
-            else:
-                arr_ = np.full((size,),str(phrase))
-        else:
-            spaces = ColArr(spaces,dtype='int')
-            size = len(spaces) if size is None else size
-            temp = spaces.vals if size is None else np.full((size,),spaces.vals[0])
-            arr_ = np.array([" "*t for t in temp])
-
-        return arr_
-
-    def _arrdatetime64_(self,start=None,stop="today",step=1,step_unit="D",size=None,year=None,month=None,day=-1):
-
-        if (year is None) or (month is None):
-
-            if size is None:
-                size = 50
-
-            if step_unit == "D":
-                delta = relativedelta.relativedelta(days=step)
-            elif step_unit == "M":
-                delta = relativedelta.relativedelta(months=step)
-            elif step_unit == "Y":
-                delta = relativedelta.relativedelta(years=step)
-            else:
-                raise ValueError("step_unit can not be anything other than 'D', 'M', 'Y'.")
-
-            if isinstance(stop,datetime.date):
-                pass
-            elif isinstance(stop,str):
-                if stop=="today":
-                    stop = datetime.datetime.today()
-                elif stop=="yesterday":
-                    stop = datetime.datetime.today()
-                    stop += relativedelta.relativedelta(days=-1)
-                elif stop=="tomorrow":
-                    stop = datetime.datetime.today()
-                    stop += relativedelta.relativedelta(days=+1)
-                else:
-                    stop = parser.parse(stop)
-            else:
-                raise TypeError(f"stop can not be the type {type(stop)}")
-
-            if isinstance(start,datetime.date):
-                pass
-            elif isinstance(start,str):
-                if start=="today":
-                    start = datetime.datetime.today()
-                elif start=="yesterday":
-                    start = datetime.datetime.today()
-                    start += relativedelta.relativedelta(days=-1)
-                elif start=="tomorrow":
-                    start = datetime.datetime.today()
-                    start += relativedelta.relativedelta(days=+1)
-                else:
-                    start = parser.parse(start)
-            elif start is None:
-                start = stop-delta*size
-            else:
-                raise TypeError(f"start can not be the type {type(start)}")
-
-            date = copy.copy(start)
-
-            arr_date = []
-
-            while date<stop:
-
-                arr_date.append(date)
-
-                date += delta
-
-            return np.array(arr_date,dtype=np.datetime64)
-
-        else: # this is the case when we create datetime array from given year, month, day arrays
-
-            if size is None:
-                for arg in (year,month,day):
-                    if not isinstance(arg,str) and hasattr(arg,"__len__"):
-                        size = len(arg)
-
-            if size is None:
-                size = 50
-
-            if isinstance(year,int):
-                arr_y = np.array([year]*size).astype("str")
-            elif isinstance(year,str):
-                arr_y = np.array([year]*size)
-            elif not hasattr(year,"__len__"):
-                raise TypeError(f"year can not be the type {type(year)}")
-            elif not isinstance(year,np.ndarray):
-                arr_y = np.array(year).astype("str")
-            else:
-                arr_y = year.astype("str")
-
-            if isinstance(month,int):
-                arr_m = np.array([month]*size).astype("str")
-            elif isinstance(month,str):
-                if len(month)<=2:
-                    month = datetime.datetime.strptime(month,"%m").month
-                elif len(month)==3:
-                    month = datetime.datetime.strptime(month,"%b").month
-                else:
-                    month = datetime.datetime.strptime(month,"%B").month
-                arr_m = np.array([month]*size).astype("str")
-            elif not hasattr(month,"__len__"):
-                raise TypeError(f"month can not be the type {type(month)}")
-            elif not isinstance(month,np.ndarray):
-                arr_m = np.array(month).astype("str")
-            else:
-                arr_m = month.astype("str")
-
-            if isinstance(day,int):
-                arr_d = np.array([day]*size)
-            elif isinstance(day,str):
-                arr_d = np.array([int(day)]*size)
-            elif not hasattr(day,"__len__"):
-                raise TypeError(f"day can not be the type {type(day)}")
-            elif not isinstance(month,np.ndarray):
-                arr_d = np.array(day)
-            else:
-                arr_d = day[:]
-
-            arr_date = []
-
-            for str_y,str_m,int_d in zip(arr_y,arr_m,arr_d):
-
-                int_y,int_m = int(str_y),int(str_m)
-
-                if (int_y==self.nones.int) or (int_m==self.nones.int) or (int_d==self.nones.int):
-                    arr_date.append(None)
-
-                else:
-
-                    if int_d<0:
-                        int_d += calendar.monthrange(int_y,int_m)[1]+1
-
-                    str_date = "-".join((str_y,str_m,str(int_d)))
-
-                    arr_date.append(parser.parse(str_date))
-
-            return np.array(arr_date,dtype=np.datetime64)
+        self._valsunit()
 
     def fromstring(self,dtype,regex=None,sep_thousand=",",sep_decimal="."):
 
@@ -561,7 +622,7 @@ class ColArr():
             dnone = self.nones.todict("str","float")
             regex = f"[-+]?(?:\\d*\\{sep_thousand}*\\d*\\{sep_decimal}\\d+|\\d+)" if regex is None else regex
             self.vals = str2float(self.vals,regex=regex,**dnone)
-            self._valsunit_()
+            self._valsunit()
         elif dtype.type is np.dtype('str').type:
             dnone = self.nones.todict("str")
             self.vals = str2str(self.vals,regex=regex,**dnone)
@@ -569,7 +630,7 @@ class ColArr():
             dnone = self.nones.todict("str","datetime64")
             self.vals = str2datetime64(self.vals,regex=regex,**dnone)
         else:
-            raise TypeError("dtype can be either int, float, str or np.datetime64")
+            raise TypeError("dtype can be either int, float, str or datetime64")
 
     def tostring(self,fstring=None,upper=False,lower=False,zfill=None):
         """It has more capabilities than str2str on the outputting part."""
@@ -618,7 +679,7 @@ class ColArr():
 
     """REPRESENTATION"""
     def _valstr_(self,num=None):
-        """It outputs ColArr.vals in string format. If num is not defined it edites numpy.ndarray.__str__()."""
+        """It outputs column.vals in string format. If num is not defined it edites numpy.ndarray.__str__()."""
 
         if num is None:
 
@@ -678,12 +739,12 @@ class ColArr():
             return vals_str.format(*self.vals[:part1],*self.vals[-part2:])
 
     def __repr__(self):
-        """Console representation of ColArr."""
+        """Console representation of column."""
 
-        return f'ColArr(head="{self.head}", unit="{self.unit}", info="{self.info}", vals={self._valstr_(2)})'
+        return f'column(head="{self.head}", unit="{self.unit}", info="{self.info}", vals={self._valstr_(2)})'
 
     def __str__(self):
-        """Print representation of ColArr."""
+        """Print representation of column."""
 
         string = "{}\n"*4
 
@@ -696,7 +757,7 @@ class ColArr():
 
     """COMPARISON"""
     def isnone(self):
-        """It return boolean array by comparing the values of vals to none types defined by ColArr."""
+        """It return boolean array by comparing the values of vals to none types defined by column."""
 
         if self.vals.dtype.type is np.object_:
 
@@ -746,7 +807,7 @@ class ColArr():
         return bool_arr
 
     def nondim(self):
-        """It checks whether ColArr has unit or not."""
+        """It checks whether column has unit or not."""
 
         if self.vals.dtype.type is np.float64:
             return self.unit=="dimensionless"
@@ -756,7 +817,7 @@ class ColArr():
     def __lt__(self,other):
         """Implementing '<' operator."""
         
-        if isinstance(other,ColArr):
+        if isinstance(other,column):
             if self.unit!=other.unit:
                 other = other.convert(self.unit)
             return self.vals<other.vals
@@ -766,7 +827,7 @@ class ColArr():
     def __le__(self,other):
         """Implementing '<=' operator."""
         
-        if isinstance(other,ColArr):
+        if isinstance(other,column):
             if self.unit!=other.unit:
                 other = other.convert(self.unit)
             return self.vals<=other.vals
@@ -776,7 +837,7 @@ class ColArr():
     def __gt__(self,other):
         """Implementing '>' operator."""
         
-        if isinstance(other,ColArr):
+        if isinstance(other,column):
             if self.unit!=other.unit:
                 other = other.convert(self.unit)
             return self.vals>other.vals
@@ -786,7 +847,7 @@ class ColArr():
     def __ge__(self,other):
         """Implementing '>=' operator."""
 
-        if isinstance(other,ColArr):
+        if isinstance(other,column):
             if self.unit!=other.unit:
                 other = other.convert(self.unit)
             return self.vals>=other.vals
@@ -796,7 +857,7 @@ class ColArr():
     def __eq__(self,other,tol=1e-12):
         """Implementing '==' operator."""
 
-        if isinstance(other,ColArr):
+        if isinstance(other,column):
             if self.unit!=other.unit:
                 other = other.convert(self.unit)
                 return np.abs(self.vals-other.vals)<tol*np.maximum(np.abs(self.vals),np.abs(other.vals))
@@ -809,7 +870,7 @@ class ColArr():
     def __ne__(self,other,tol=1e-12):
         """Implementing '!=' operator."""
         
-        if isinstance(other,ColArr):
+        if isinstance(other,column):
             if self.unit!=other.unit:
                 other = other.convert(self.unit)
                 return np.abs(self.vals-other.vals)>tol*np.maximum(np.abs(self.vals),np.abs(other.vals))
@@ -836,19 +897,19 @@ class ColArr():
     def __setattr__(self,name,value):
 
         if name=="vals":
-            self._valsarr_(value)
+            self._valsarr(value)
         elif name=="unit":
-            self._valsunit_(value)
+            self._valsunit(value)
         elif name=="head":
-            self._valshead_(value)
+            self._valshead(value)
         elif name=="info":
-            self._valsinfo_(value)
+            self._valsinfo(value)
         else:
             super().__setattr__(name,value)
 
     """CONTAINER METHODS"""
     def min(self):
-        """It returns none-minimum value of ColArr."""
+        """It returns none-minimum value of column."""
 
         if self.vals.dtype.type is np.int32:
             return self.vals[~self.isnone()].min()
@@ -860,7 +921,7 @@ class ColArr():
             return np.nanmin(self.vals)
 
     def max(self):
-        """It returns none-maximum value of ColArr."""
+        """It returns none-maximum value of column."""
 
         if self.vals.dtype.type is np.int32:
             return self.vals[~self.isnone()].max()
@@ -872,7 +933,7 @@ class ColArr():
             return np.nanmax(self.vals)
 
     def maxchar(self,string=False):
-        """It returns the maximum character count in stringified ColArr."""
+        """It returns the maximum character count in stringified column."""
 
         if self.vals.dtype.type is np.str_:
             vals = self.vals
@@ -922,7 +983,8 @@ class ColArr():
 
     def __getitem__(self,key):
 
-        column_ = copy.copy(self)
+        column_ = copy.deepcopy(self)
+
         column_.vals = self.vals[key]
 
         return column_
@@ -938,8 +1000,6 @@ class ColArr():
 
         if self.dtype.type is not np.dtype('float').type:
             column_.astype('float')
-        # elif self.unit=="dimensionless":
-        #     logging.warning(f"converting dimensionless array to {unit}")
         else:
             unrg = pint.UnitRegistry()
             unrg.Quantity(column_.vals,column_.unit).ito(unit)
@@ -954,82 +1014,74 @@ class ColArr():
         column_ = copy.deepcopy(self)
 
         if column_.dtype.type is np.dtype('int').type:
-            delta_ = ColArr(delta,unit=deltaunit)
-            if not delta_.dtype.type is np.dtype('int').type:
-                delta_.astype('int')
+            delta_ = column(delta,dtype='int')
             vals_shifted = column_.vals+delta_.vals
         elif column_.dtype.type is np.dtype('float').type:
-            delta_ = ColArr(delta,unit=deltaunit)
-            if not delta_.dtype.type is np.dtype('float').type:
-                delta_.astype('float')
+            delta_ = column(delta,dtype='float',unit=deltaunit)
             delta_ = delta_.convert(column_.unit)
             vals_shifted = column_.vals+delta_.vals
         elif column_.dtype.type is np.dtype('str').type:
-            delta_ = ColArr(dtype='str',spaces=delta)
+            delta_ = column(None,dtype='str',space=delta)
             vals_shifted = np.char.add(delta_.vals,column_)
         elif column_.dtype.type is np.dtype('datetime64').type:
             if deltaunit is None:
                 arr_y = column_.year[:]
                 arr_m = column_.month[:]
-
-                if delta=="BOM":
-                    arr_d = 1
-                elif delta=="EOM":
-                    arr_d = column_.eom[:]
-
+                arr_d = 1 if delta=="BOM" else column_.eom[:]
                 vals_shifted = column_._arrdatetime64_(year=arr_y,month=arr_m,day=arr_d)
-
             elif deltaunit == "Y":
                 year0 = column_.year
                 year1 = year0+delta
-
                 feb28_bool = np.logical_and(column_.month==2,column_.day==28)
                 feb29_bool = np.logical_and(column_.month==2,column_.day==29)
-
                 year0_leap_bool = year0%4==0
                 year0_leap_bool[year0%100==0] = False
                 year0_leap_bool[year0%400==0] = True
                 year0_leap_bool[column_.month>2] = False
                 year0_leap_bool[feb29_bool] = False
-
                 year1_leap_bool = year1%4==0
                 year1_leap_bool[year1%100==0] = False
                 year1_leap_bool[year1%400==0] = True
                 year1_leap_bool[column_.month>2] = False
                 year1_leap_bool[np.logical_and(~year0_leap_bool,feb28_bool)] = False
                 year1_leap_bool[feb29_bool] = False
-                
                 leap_year_count4 = year1//4-year0//4
                 leap_year_count100 = year1//100-year0//100
                 leap_year_count400 = year1//400-year0//400
                 leap_year_count = leap_year_count4-leap_year_count100+leap_year_count400
-                
                 day_arr = 365*delta+leap_year_count+year0_leap_bool-year1_leap_bool
                 day_arr = day_arr.astype("str")
-
                 day_arr[column_.isnone()] = "NaT"
-
                 vals_shifted = column_.vals+day_arr.astype("timedelta64[D]")
-
             elif deltaunit == "M":
+                delta_ = column(delta,size=len(column_),dtype='float',unit='months')
+                delta_month = (delta_.vals//1).astype('int')
                 vals_shifted = []
-
-                # if len(delta)==1:
-
-
-                delta = relativedelta.relativedelta(months=delta)
-
-                for val in column_.vals.tolist():
+                for (val,delta) in zip(column_.vals.tolist(),delta_month):
+                    delta = relativedelta.relativedelta(months=delta)
                     if val is not None:
                         vals_shifted.append(val+delta)
                     else:
                         vals_shifted.append(None)
-
-                vals_shifted = np.array(vals_shifted,dtype=np.datetime64)
-
+                vals_shifted = np.array(vals_shifted,dtype=column_.dtype)
+                delta_monthfraction_ = (delta_.vals%1)
+                cond_days = np.logical_and(~np.isnan(vals_shifted),delta_monthfraction_!=0)
+                column_temp = column(vals_shifted[cond_days],dtype=column_.dtype)
+                delta_monthfraction = delta_monthfraction_[cond_days]
+                day_ = column_temp.day
+                eom_ = column_temp.eom
+                eonm_ = column_temp.eonm
+                cond1 = (eom_-day_)/eom_>delta_monthfraction
+                cond2 = ~cond1
+                delta_day = np.empty(column_temp.vals.shape,dtype='float')
+                fraction = (eom_[cond2]-eonm_[cond2])*(eom_[cond2]-day_[cond2])/eom_[cond2]
+                delta_day[cond1] = delta_monthfraction[cond1]*eom_[cond1]
+                delta_day[cond2] = delta_monthfraction[cond2]*eonm_[cond2]+fraction
+                for index,(val,delta) in enumerate(zip(column_temp.vals,delta_day)):
+                    column_temp.vals[index] += relativedelta.relativedelta(days=delta)
+                vals_shifted[cond_days] = column_temp.vals
             else:
                 timedelta = np.timedelta64(delta,deltaunit)
-
                 vals_shifted = column_.vals+timedelta
 
         column_.vals = vals_shifted
@@ -1041,8 +1093,8 @@ class ColArr():
 
         curnt = copy.deepcopy(self)
 
-        if not isinstance(other,ColArr):
-            other = ColArr(other)
+        if not isinstance(other,column):
+            other = column(other)
 
         if curnt.dtype.type is np.dtype('int').type:
             if not other.dtype.type is np.dtype('int').type:
@@ -1060,25 +1112,11 @@ class ColArr():
         elif curnt.dtype.type is np.dtype('datetime64').type:
             unrg = pint.UnitRegistry()
             unit = unrg.Unit(other.unit).__str__()
-            other.astype('int')
-            if unit=="year":
-                spaces = ColArr(spaces,dtype='int')
-                curnt.shift()
-                other.vals.astype('timedelta64[Y]')
-            elif unit=="month":
-                other.vals.astype('timedelta64[M]')
-            elif unit=="week":
-                curnt.vals += other.vals.astype('timedelta64[W]')
-            elif unit=="day":
-                curnt.vals += other.vals.astype('timedelta64[D]')
-            elif unit=="hour":
-                curnt.vals += other.vals.astype('timedelta64[h]')
-            elif unit=="minute":
-                curnt.vals += other.vals.astype('timedelta64[m]')
-            elif unit=="second":
-                curnt.vals += other.vals.astype('timedelta64[s]')
+            if unit is None:
+                raise TypeError(f"Only floats with delta time unit is supported.")
+            else:
+                curnt = curnt.shift(other.vals,deltaunit=unit)
 
-            
         return curnt
 
     def __floordiv__(self,other):
@@ -1086,7 +1124,7 @@ class ColArr():
 
         column_ = copy.copy(self)
 
-        if isinstance(other,ColArr):
+        if isinstance(other,column):
             # ureg = pint.UnitRegistry()
             # unit = ureg.Unit(f"{self.unit}/({other.unit})").__str__()
 
@@ -1100,7 +1138,7 @@ class ColArr():
                 unit = f"{self.unit}/({other.unit})"
 
             column_.vals = self.vals//other.vals
-            column_._valsunit_(unit)
+            column_._valsunit(unit)
 
         else:
             column_.vals = self.vals//other
@@ -1112,14 +1150,14 @@ class ColArr():
 
         column_ = copy.copy(self)
 
-        if isinstance(other,ColArr):
+        if isinstance(other,column):
         #     ureg = pint.UnitRegistry()
         #     unit = ureg.Unit(f"{self.unit}/({other.unit})").__str__()
-        #     return ColArr(self.vals%other.vals,unit=unit)
+        #     return column(self.vals%other.vals,unit=unit)
             if other.nondim():
                 column_.vals = self.vals%other.vals
             else:
-                raise TypeError(f"unsupported operand type for dimensional ColArr arrays.")
+                raise TypeError(f"unsupported operand type for dimensional column arrays.")
         else:
             column_.vals = self.vals%other
             
@@ -1130,7 +1168,7 @@ class ColArr():
 
         column_ = copy.copy(self)
 
-        if isinstance(other,ColArr):
+        if isinstance(other,column):
             # ur = pint.UnitRegistry()
             # unit = ur.Unit(f"{self.unit}*{other.unit}").__str__()
 
@@ -1142,7 +1180,7 @@ class ColArr():
                 unit = f"{self.unit}*{other.unit}"
 
             column_.vals = self.vals*other.vals
-            column_._valsunit_(unit)
+            column_._valsunit(unit)
         else:
             column_.vals = self.vals*other
 
@@ -1157,7 +1195,7 @@ class ColArr():
             # ureg = pint.UnitRegistry()
             # unit = ureg.Unit(f"{self.unit}^{other}").__str__()
             column_.vals = self.vals**other
-            column_._valsunit_(f"({self.unit})**{other}")
+            column_._valsunit(f"({self.unit})**{other}")
         else:
             raise TypeError(f"unsupported operand type for non-int or non-float entries.")
 
@@ -1168,7 +1206,7 @@ class ColArr():
 
         column_ = copy.copy(self)
 
-        if isinstance(other,ColArr):
+        if isinstance(other,column):
             if self.unit!=other.unit:
                 other = other.convert(self.unit)
             column_.vals = self.vals-other.vals
@@ -1182,7 +1220,7 @@ class ColArr():
 
         column_ = copy.copy(self)
 
-        if isinstance(other,ColArr):
+        if isinstance(other,column):
             # ur = pint.UnitRegistry()
             # unit = ur.Unit(f"{self.unit}/({other.unit})").__str__()
 
@@ -1196,7 +1234,7 @@ class ColArr():
                 unit = f"{self.unit}/({other.unit})"
 
             column_.vals = self.vals/other.vals
-            column_._valsunit_(unit)
+            column_._valsunit(unit)
         else:
             column_.vals = self.vals/other
         
@@ -1205,7 +1243,7 @@ class ColArr():
     """PROPERTY METHODS"""
     @property
     def dtype(self):
-        """Return dtype of ColArr.vals."""
+        """Return dtype of column.vals."""
 
         if self.vals.dtype.type is np.object_:
             array_ = self.vals[~self.isnone()]
@@ -1257,7 +1295,8 @@ class ColArr():
         return month_arr
 
     @property
-    def eom(self):
+    def eom(self): # End of Month
+        """It returns the day count in the month in the datetime array."""
 
         if self.vals.dtype.type is not np.datetime64:
             return
@@ -1268,6 +1307,44 @@ class ColArr():
             if dt is None:
                 days_arr[index] = self.nones.int
             else:
+                days_arr[index] = calendar.monthrange(dt.year,dt.month)[1]
+
+        return days_arr
+
+    @property
+    def eonm(self): # End of Next Month
+        """It returns the day count in the next month in the datetime array."""
+
+        if self.vals.dtype.type is not np.datetime64:
+            return
+
+        days_arr = np.empty(self.vals.shape,dtype=int)
+
+        for index,dt in enumerate(self.vals.tolist()):
+
+            if dt is None:
+                days_arr[index] = self.nones.int
+            else:
+                dt += relativedelta.relativedelta(months=1)
+                days_arr[index] = calendar.monthrange(dt.year,dt.month)[1]
+
+        return days_arr
+
+    @property
+    def eopm(self): # End of Previous Month
+        """It returns the day count in the next month in the datetime array."""
+
+        if self.vals.dtype.type is not np.datetime64:
+            return
+
+        days_arr = np.empty(self.vals.shape,dtype=int)
+
+        for index,dt in enumerate(self.vals.tolist()):
+
+            if dt is None:
+                days_arr[index] = self.nones.int
+            else:
+                dt -= relativedelta.relativedelta(months=1)
                 days_arr[index] = calendar.monthrange(dt.year,dt.month)[1]
 
         return days_arr
@@ -1429,9 +1506,9 @@ class DataFrame(DirBase):
 
         if key in self.heads:
             index_key = self.heads.index(key)
-            self.running[index_key] = ColArr(vals=vals,head=key)
+            self.running[index_key] = column(vals=vals,head=key)
         else:
-            self.running.append(ColArr(vals=vals,head=key))
+            self.running.append(column(vals=vals,head=key))
 
     def __iter__(self):
 
@@ -1457,7 +1534,7 @@ class DataFrame(DirBase):
         elif isinstance(key,tuple):
             return [np.asarray(self[KEY].vals) for KEY in key]
         elif isinstance(key,slice):
-            return [np.asarray(column.vals) for column in self.running[key]]
+            return [np.asarray(column_.vals) for column_ in self.running[key]]
         else:
             raise TypeError(f"The key cannot be type={type(key)}.") 
 
@@ -1499,7 +1576,7 @@ class DataFrame(DirBase):
         running = np.array(running,dtype=str).T
 
         for index,(vals,head) in enumerate(zip(running,headers),start=idcol):
-            self.running.insert(index,ColArr(vals=vals,head=head))
+            self.running.insert(index,column(vals=vals,head=head))
 
         # line = re.sub(r"[^\w]","",line)
         # line = "_"+line if line[0].isnumeric() else line
@@ -1562,10 +1639,10 @@ class DataFrame(DirBase):
             sort_index = np.flip(sort_index)
 
         if inplace:
-            self._running = [column[sort_index] for column in self._running]
-            self.running = [np.asarray(column) for column in self._running]
+            self._running = [column_[sort_index] for column_ in self._running]
+            self.running = [np.asarray(column_) for column_ in self._running]
         else:
-            self.running = [np.asarray(column[sort_index]) for column in self._running]
+            self.running = [np.asarray(column_[sort_index]) for column_ in self._running]
 
         if returnFlag:
             return sort_index
@@ -1600,10 +1677,10 @@ class DataFrame(DirBase):
             match_index = match_vectr(self._running[idcols[0]].tolist())
 
         if inplace:
-            self._running = [column[match_index] for column in self._running]
-            self.running = [np.asarray(column) for column in self._running]
+            self._running = [column_[match_index] for column_ in self._running]
+            self.running = [np.asarray(column_) for column_ in self._running]
         else:
-            self.running = [np.asarray(column[match_index]) for column in self._running]
+            self.running = [np.asarray(column_[match_index]) for column_ in self._running]
 
     def unique(self,cols):
 
@@ -1626,7 +1703,7 @@ class DataFrame(DirBase):
         _,idrows = np.unique(Z,axis=0,return_index=True)
 
         # if inplace:
-        self.running = [column[idrows] for column in self.running]
+        self.running = [column_[idrows] for column_ in self.running]
             # self.running = [np.asarray(column) for column in self._running]
         # else:
         #     self.running = [np.asarray(column[idrows]) for column in self.running]
@@ -1654,8 +1731,8 @@ class DataFrame(DirBase):
 
         filepath = self.get_abspath(f"{filename}.npz",homeFlag=True)
 
-        for header,column in zip(self._headers,self._running):
-            kwargs[header] = column
+        for header,column_ in zip(self._headers,self._running):
+            kwargs[header] = column_
 
         np.savez_compressed(filepath,**kwargs)
 
@@ -1663,22 +1740,22 @@ class DataFrame(DirBase):
     @property
     def types(self):
 
-        return [column.vals.dtype.type for column in self.running]
+        return [column_.vals.dtype.type for column_ in self.running]
 
     @property
     def heads(self):
 
-        return [column.head for column in self.running]
+        return [column_.head for column_ in self.running]
 
     @property
     def units(self):
 
-        return [column.unit for column in self.running]
+        return [column_.unit for column_ in self.running]
 
     @property
     def infos(self):
 
-        return [column.info for column in self.running]
+        return [column_.info for column_ in self.running]
 
 class Glossary():
     """It is a table of lines vs heads"""
@@ -1737,10 +1814,10 @@ class Glossary():
             if isinstance(lines,dict):
                 return lines[key2]
             elif isinstance(lines,list):
-                column = []
+                column_ = []
                 for line in lines:
-                    column.append(line[key2])
-                return column
+                    column_.append(line[key2])
+                return column_
         else:
             raise TypeError(f"Glossary key can not be {type(key)}, int, slice or str is accepted.")
 
@@ -1752,10 +1829,10 @@ class Glossary():
 
         for head in self.heads:
             
-            column = self[:,head]
-            column.append(head)
+            column_ = self[:,head]
+            column_.append(head)
             
-            char_count = max([len(str(value)) for value in column])
+            char_count = max([len(str(value)) for value in column_])
 
             fstring += f"{{:<{char_count}}}   "
             
@@ -1857,14 +1934,14 @@ class RegText(DataFrame):
 
         if nondigitflag:
             row = line.split(delimiter)
-            dtypes = [float if column.isdigit() else str for column in row]
+            dtypes = [float if column_.isdigit() else str for column_ in row]
             columns = []
             for index,dtype in enumerate(dtypes):
-                column = np.loadtxt(filepath,dtype=dtype,delimiter=delimiter,skiprows=skiprows,usecols=[index],encoding="latin1")
-                columns.append(column)
+                column_ = np.loadtxt(filepath,dtype=dtype,delimiter=delimiter,skiprows=skiprows,usecols=[index],encoding="latin1")
+                columns.append(column_)
         else:
             data = np.loadtxt(filepath,comments="#",delimiter=delimiter,skiprows=skiprows,encoding="latin1")
-            columns = [column for column in data.transpose()]
+            columns = [column_ for column_ in data.transpose()]
 
         frame.set_running(*columns,init=True)
 
@@ -2021,7 +2098,7 @@ class LogASCII(DataFrame):
 
             logdata[logdata==value_null] = np.nan
 
-            columns = [column for column in logdata.transpose()]
+            columns = [column_ for column_ in logdata.transpose()]
 
         else:
 
@@ -2032,13 +2109,13 @@ class LogASCII(DataFrame):
 
             for index,dtype in enumerate(dtypes):
 
-                column = np.loadtxt(filepath,
+                column_ = np.loadtxt(filepath,
                     dtype=dtype,
                     skiprows=skiprows,
                     usecols=[index],
                     encoding="latin1")
 
-                columns.append(column)
+                columns.append(column_)
 
         frame.set_running(*columns,cols=range(len(columns)))
 
@@ -2080,14 +2157,14 @@ class LogASCII(DataFrame):
             # file.write("\n\tLOG NUMBER {}\n".format(idframes))
             print("\n\tLOG NUMBER {}".format(index))
 
-            for header,unit,detail,column in iterator:
+            for header,unit,detail,column_ in iterator:
 
-                if np.all(np.isnan(column)):
+                if np.all(np.isnan(column_)):
                     minXval = np.nan
                     maxXval = np.nan
                 else:
-                    minXval = np.nanmin(column)
-                    maxXval = np.nanmax(column)
+                    minXval = np.nanmin(column_)
+                    maxXval = np.nanmax(column_)
 
                 tab_num = math.ceil((mnemonic_space-len(header))/tab_space)
                 tab_spc = "\t"*tab_num if tab_num>0 else "\t"
@@ -2106,7 +2183,7 @@ class LogASCII(DataFrame):
 
         for index in idframes:
 
-            columns = [np.flip(column) for column in self.frames[index].running]
+            columns = [np.flip(column_) for column_ in self.frames[index].running]
 
             self.frames[index].set_running(*columns,cols=range(len(columns)))
             
@@ -2129,10 +2206,10 @@ class LogASCII(DataFrame):
             depth_cond = np.logical_and(depth>self.top,depth<self.bottom)
 
             if inplace:
-                self.frames[index]._running = [column[depth_cond] for column in self.frames[index]._running]
-                self.frames[index].running = [np.asarray(column) for column in self.frames[index]._running]
+                self.frames[index]._running = [column_[depth_cond] for column_ in self.frames[index]._running]
+                self.frames[index].running = [np.asarray(column_) for column_ in self.frames[index]._running]
             else:
-                self.frames[index].running = [np.asarray(column[depth_cond]) for column in self.frames[index]._running]
+                self.frames[index].running = [np.asarray(column_[depth_cond]) for column_ in self.frames[index]._running]
 
     def get_interval(self,top,bottom,idframes=None,curveID=None):
 
@@ -2585,9 +2662,9 @@ class IrrText(DataFrame):
 
         nparray = np.array(_running).T
 
-        self._running = [np.asarray(column) for column in nparray]
+        self._running = [np.asarray(column_) for column_ in nparray]
 
-        self.running = [np.asarray(column) for column in self._running]
+        self.running = [np.asarray(column_) for column_ in self._running]
 
     def write(self):
 
@@ -2644,11 +2721,11 @@ class WSchedule(DataFrame):
         self._headers.insert(header_index,title)
         self._running.insert(header_index,np.asarray(nparray))
 
-        for index,column in enumerate(self._running):
+        for index,column_ in enumerate(self._running):
             self._running[index] = np.array(self._running[index][firstocc:][~match_index[firstocc:]])
 
         self.headers = self._headers
-        self.running = [np.asarray(column) for column in self._running]
+        self.running = [np.asarray(column_) for column_ in self._running]
 
     def get_wells(self,wellname=None):
 
