@@ -6,6 +6,22 @@ import re
 
 import numpy as np
 
+def isnumber(string_):
+    try:
+        float(string_)
+    except ValueError:
+        return False
+    else:
+        return True
+
+def addyear(datetime_,delta:float):
+
+    pass
+
+def addmonth(datetime_,delta:float):
+
+    pass
+
 def str2int(
     string: str,
     none_str: str = "",
