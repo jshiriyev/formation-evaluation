@@ -1,13 +1,7 @@
 import datetime
-
 from dateutil import relativedelta
-
 import logging
-
-import os
-
 import unittest
-
 import numpy as np
 import pint
 
@@ -57,8 +51,28 @@ class TestArray(unittest.TestCase):
 
     def test_init(self):
 
-        pass
+        arr_ = array(5)
+        np.testing.assert_array_equal(arr_,np.arange(5))
 
+        arr_ = array(5.)
+        np.testing.assert_array_equal(arr_,np.arange(5,dtype='float64'))
+
+        arr_ = array('E')
+        np.testing.assert_array_equal(arr_,np.array(['A','B','C','D','E']))
+
+        arr_ = array('2022-05-01','2022-07-29')
+        arr_true = np.array([
+            datetime.date(2022,5,1),
+            datetime.date(2022,6,1),
+            datetime.date(2022,7,1)],
+            dtype='datetime64[s]')
+
+        np.testing.assert_array_equal(arr_,arr_true)
+
+        arr_ = array(('Python','NumPy','Great!'),dtype='str')
+
+        np.testing.assert_array_equal(arr_,np.array(['Python','NumPy','Great!']))
+        
 class TestColumn(unittest.TestCase):
 
     def test_init(self):

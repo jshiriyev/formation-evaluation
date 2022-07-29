@@ -1,32 +1,14 @@
+import calendar
 import datetime
 
 from dateutil import parser
+from dateutil import relativedelta
 
 import re
 
 import numpy as np
 
-def isnumber(string_):
-    try:
-        float(string_)
-    except ValueError:
-        return False
-    else:
-        return True
-
-def addyear(datetime_,delta:float):
-
-    pass
-
-def addmonth(datetime_,delta:float):
-
-    pass
-
-def str2int(
-    string: str,
-    none_str: str = "",
-    none_int: int = -99_999,
-    regex: str = None) -> int:
+def str2int(string:str,none_str:str="",none_int:int=-99_999,regex:str=None) -> int:
     """It returns integer converted from string."""
 
     # common expression for int type is r"[-+]?\d+\b"
@@ -47,13 +29,7 @@ def str2int(
         
 str2int = np.vectorize(str2int,otypes=[int],excluded=["none_str","none_int","regex"])
 
-def str2float(
-    string: str,
-    none_str: str = "",
-    none_float: float = np.nan,
-    sep_decimal: str = ".",
-    sep_thousand: str = ",",
-    regex: str = None) -> float:
+def str2float(string:str,none_str:str="",none_float:float=np.nan,sep_decimal:str=".",sep_thousand:str=",",regex:str=None) -> float:
     """It returns float after removing thousand separator and setting decimal separator as full stop."""
 
     # common regular expression for float type is f"[-+]?(?:\\d*\\{sep_thousand}*\\d*\\{sep_decimal}\\d+|\\d+)"
@@ -79,51 +55,6 @@ def str2float(
             return float(match.group())
 
 str2float = np.vectorize(str2float,otypes=[float],excluded=["none_str","none_float","sep_decimal","sep_thousand","regex"])
-
-def str2str(
-    string: str,
-    none_str: str = "",
-    regex: str = None,
-    fstring: str = None) -> str:
-
-    fstring = "{:s}" if fstring is None else fstring
-
-    if regex is None:
-        if string==none_str:
-            return fstring.format(none_str)
-        else:
-            return fstring.format(string)
-
-    else:
-        match = re.search(regex,string)
-
-        if match is None:
-            return fstring.format(none_str)
-        else:
-            return fstring.format(match.group())
-
-str2str = np.vectorize(str2str,otypes=[str],excluded=["none_str","regex","fstring"])
-
-def str2datetime64(
-    string: str,
-    none_str: str = "",
-    none_datetime64: np.datetime64 = np.datetime64('NaT'),
-    regex: str = None) -> np.datetime64:
-
-    if regex is None:
-        if string==none_str:
-            return none_datetime64
-        else:
-            return np.datetime64(parser.parse(string))
-    else:
-        match = re.search(regex,string)
-
-        if match is None:
-            return none_datetime64
-        else:
-            return np.datetime64(match.group())
-
-str2datetime64 = np.vectorize(str2datetime64,otypes=[np.datetime64],excluded=["none_str","none_datetime64","regex"])
 
 def starsplit(text,default=1.0):
     """It returns star splitted list repeating post-star pre-star times."""
@@ -152,40 +83,94 @@ def starsplit(text,default=1.0):
 
     return float_list
 
-def starsplit_numpy(array):
-    """It returns star splitted array repeating post-star pre-star times."""
+# starsplit_npvect = np.vectorize(starsplit_npvect_,signature='()->(),()')
 
-    ints = np.ones(array.shape,dtype=int)
-
-    flts = np.empty(array.shape,dtype=float)
-
-    # array = np.char.split(array,sep="*",maxsplit=1)
-
-    # for i,pylist in enumerate(array):
-
-    #     if len(pylist)==1:
-    #         flts[i] = float(pylist[0])
-    #     else:
-    #         ints[i],flts[i] = int(pylist[0]),float(pylist[1])
-    for i,string in enumerate(array):
-
-        row = string.split("*",maxsplit=1)
-
-        if len(row)==1:
-            flts[i] = float(row[0])
-        else:
-            ints[i],flts[i] = int(row[0]),float(row[1])
-
-    return np.repeat(flts,ints)
-
-def starsplit_npvect_(string):
-    """It returns integer and floating number in star multiplied string."""
-    
-    row = string.split("*",maxsplit=1)
-
-    if len(row)==1:
-        return 1,float(row[0])
+def isnumber(string_):
+    try:
+        float(string_)
+    except ValueError:
+        return False
     else:
-        return int(row[0]),float(row[1])
+        return True
 
-starsplit_npvect = np.vectorize(starsplit_npvect_,signature='()->(),()')
+def str2str(string:str,none_str:str="",regex:str=None,fstring:str=None) -> str:
+
+    fstring = "{:s}" if fstring is None else fstring
+
+    if regex is None:
+        if string==none_str:
+            return fstring.format(none_str)
+        else:
+            return fstring.format(string)
+
+    else:
+        match = re.search(regex,string)
+
+        if match is None:
+            return fstring.format(none_str)
+        else:
+            return fstring.format(match.group())
+
+str2str = np.vectorize(str2str,otypes=[str],excluded=["none_str","regex","fstring"])
+
+def str2datetime64(string:str,none_str:str="",none_datetime64:np.datetime64=np.datetime64('NaT'),regex:str=None) -> np.datetime64:
+
+    if regex is None:
+        if string==none_str:
+            return none_datetime64
+        else:
+            return np.datetime64(parser.parse(string))
+    else:
+        match = re.search(regex,string)
+
+        if match is None:
+            return none_datetime64
+        else:
+            return np.datetime64(match.group())
+
+str2datetime64 = np.vectorize(str2datetime64,otypes=[np.datetime64],excluded=["none_str","none_datetime64","regex"])
+
+def datetime_addyears(dtcurr:datetime.datetime,delta:float) -> datetime.datetime:
+
+    if dtcurr is None:
+        return
+
+    delta_year = int(delta//1)
+
+    delta_year_fraction = delta%1
+
+    dtcurr += relativedelta.relativedelta(years=delta_year)
+
+    if delta_year_fraction==0:
+        return dtcurr
+    else:
+        return datetime_addmonths(dtcurr,delta_year_fraction)
+
+def datetime_addmonths(dtcurr:datetime.datetime,delta:float) -> datetime.datetime:
+
+    if dtcurr is None:
+        return
+
+    delta_month = int(delta//1)
+
+    delta_month_fraction = delta%1
+
+    dtcurr += relativedelta.relativedelta(months=delta_month)
+
+    if delta_month_fraction==0:
+        return dtcurr
+
+    mrange = calendar.monthrange(dtcurr.year,dtcurr.month)[1]
+
+    delta_day = delta_month_fraction*mrange
+
+    dttemp = dtcurr+relativedelta.relativedelta(days=delta_day)
+
+    month_diff = (dttemp.year-dtcurr.year)*12+dttemp.month-dtcurr.month
+
+    if month_diff<2:
+        return ddtemp
+
+    dtcurr += relativedelta.relativedelta(months=1)
+    
+    return datetime.datetime(dtcurr.year,dtcurr.month,dtcurr.day,23,59,59) #,999999
