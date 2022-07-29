@@ -22,6 +22,7 @@ from cypy.vectorpy import str2datetime64
 
 from cypy.vectorpy import datetime_addyears
 from cypy.vectorpy import datetime_addmonths
+from cypy.vectorpy import datetime_adddelta
 
 class nones():
     """Base class to manage none values for int, float, str, datetime64."""
@@ -1030,69 +1031,44 @@ class column():
             delta_ = column(None,dtype='str',space=delta)
             vals_shifted = np.char.add(delta_.vals,column_)
         elif column_.dtype.type is np.dtype('datetime64').type:
-            if deltaunit is None:
-                arr_y = column_.year[:]
-                arr_m = column_.month[:]
-                arr_d = 1 if delta=="BOM" else column_.eom[:]
-                vals_shifted = column_._arrdatetime64_(year=arr_y,month=arr_m,day=arr_d)
-            elif deltaunit == "Y":
-                year0 = column_.year
-                year1 = year0+delta
-                feb28_bool = np.logical_and(column_.month==2,column_.day==28)
-                feb29_bool = np.logical_and(column_.month==2,column_.day==29)
-                year0_leap_bool = year0%4==0
-                year0_leap_bool[year0%100==0] = False
-                year0_leap_bool[year0%400==0] = True
-                year0_leap_bool[column_.month>2] = False
-                year0_leap_bool[feb29_bool] = False
-                year1_leap_bool = year1%4==0
-                year1_leap_bool[year1%100==0] = False
-                year1_leap_bool[year1%400==0] = True
-                year1_leap_bool[column_.month>2] = False
-                year1_leap_bool[np.logical_and(~year0_leap_bool,feb28_bool)] = False
-                year1_leap_bool[feb29_bool] = False
-                leap_year_count4 = year1//4-year0//4
-                leap_year_count100 = year1//100-year0//100
-                leap_year_count400 = year1//400-year0//400
-                leap_year_count = leap_year_count4-leap_year_count100+leap_year_count400
-                day_arr = 365*delta+leap_year_count+year0_leap_bool-year1_leap_bool
-                day_arr = day_arr.astype("str")
-                day_arr[column_.isnone()] = "NaT"
-                vals_shifted = column_.vals+day_arr.astype("timedelta64[D]")
-            elif deltaunit == "M":
-                delta_ = column(delta,size=len(column_),dtype='float',unit='months')
-                delta_month = (delta_.vals//1).astype('int')
-                vals_shifted = []
-                for (val,delta) in zip(column_.vals.tolist(),delta_month):
-                    delta = relativedelta.relativedelta(months=delta)
-                    if val is not None:
-                        vals_shifted.append(val+delta)
-                    else:
-                        vals_shifted.append(None)
-                vals_shifted = np.array(vals_shifted,dtype=column_.dtype)
-                delta_monthfraction_ = (delta_.vals%1)
-                cond_days = np.logical_and(~np.isnan(vals_shifted),delta_monthfraction_!=0)
-                column_temp = column(vals_shifted[cond_days],dtype=column_.dtype)
-                delta_monthfraction = delta_monthfraction_[cond_days]
-                day_ = column_temp.day
-                eom_ = column_temp.eom
-                eonm_ = column_temp.eonm
-                cond1 = (eom_-day_)/eom_>delta_monthfraction
-                cond2 = ~cond1
-                delta_day = np.empty(column_temp.vals.shape,dtype='float')
-                fraction = (eom_[cond2]-eonm_[cond2])*(eom_[cond2]-day_[cond2])/eom_[cond2]
-                delta_day[cond1] = delta_monthfraction[cond1]*eom_[cond1]
-                delta_day[cond2] = delta_monthfraction[cond2]*eonm_[cond2]+fraction
-                for index,(val,delta) in enumerate(zip(column_temp.vals,delta_day)):
-                    column_temp.vals[index] += relativedelta.relativedelta(days=delta)
-                vals_shifted[cond_days] = column_temp.vals
-            else:
-                timedelta = np.timedelta64(delta,deltaunit)
-                vals_shifted = column_.vals+timedelta
+            vals_shifted = self.add_deltatime(delta,deltaunit)
 
         column_.vals = vals_shifted
 
         return column_
+
+    def add_deltatime(self,delta,unit=None):
+
+        if unit is None:
+            unit = "M"
+
+        if unit == "Y":
+            vals_shifted = datetime_addyears(self.vals,delta)
+        elif unit == "M":
+            vals_shifted = datetime_addmonths(self.vals,delta)
+        elif unit == "D":
+            vals_shifted = datetime_adddelta(self.vals,days=delta)
+        elif unit == "h":
+            vals_shifted = datetime_adddelta(self.vals,hours=delta)
+        elif unit == "m":
+            vals_shifted = datetime_adddelta(self.vals,minutes=delta)
+        elif unit == "s":
+            vals_shifted = datetime_adddelta(self.vals,seconds=delta)
+        else:
+            raise TypeError("units can be either of Y, M, D, h, m or s.")
+
+        return vals_shifted
+
+    def shift_eom(self):
+
+        arr_y = column_.year[:]
+        arr_m = column_.month[:]
+        arr_d = 1 if delta=="BOM" else column_.eom[:]
+        vals_shifted = column_._arrdatetime64_(year=arr_y,month=arr_m,day=arr_d)
+
+    def shift_bom(self):
+
+        return
 
     def __add__(self,other):
         """Implementing '+' operator."""
