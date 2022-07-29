@@ -89,7 +89,98 @@ class nones():
 
         return nones_dict
 
-def array(*args,**kwargs):
+def arr2arr(*args,**kwargs):
+    """Sets the vals of column."""
+
+    pass
+
+class _arr2arr:
+
+    def toarray(var_,size=None):
+
+        if type(var_).__module__=="numpy":
+            arr_ = var_.flatten()
+        elif type(var_) is str:
+            arr_ = np.array([var_])
+        elif hasattr(var_,"__iter__"):
+            arr_ = np.array(list(var_))
+        else:
+            arr_ = np.array([var_])
+
+        if size is None:
+            return arr_
+
+        rep_ = int(np.ceil(size/arr_.size))
+
+        arr_ = np.tile(arr_,rep_)[:size]
+
+        return arr_
+
+    def toiterator(*args,size=None):
+
+        arrs = [_arr2arr.toarray(arg) for arg in args]
+
+        if size is None:
+            size = len(max(arrs,key=len))
+
+        for index,arr_ in enumerate(arrs):
+            rep_ = int(np.ceil(size/arr_.size))
+            arrs[index] = np.tile(arr_,rep_)[:size]
+
+        return zip(*arrs)
+
+    def arrint(*args,size=None,dtype=None):
+
+        return 
+
+    def arrfloat(*args,size=None,dtype=None):
+
+        pass
+
+    def arrstr(*args,phrases=None,repeats=None,size=None,dtype=None):
+
+        if phrases is None:
+            phrases = " "
+
+        if repeats is None:
+            repeats = 1
+
+        if isinstance(dtype,str):
+            dtype = np.dtype(dtype)
+
+        iter_ = arr2arr_master.get_iterator(phrases,repeats,size=size)
+
+        arr_ = np.array([name*num for name,num in iter_])
+
+        if dtype is None:
+            return arr_
+        else:
+            return arr_.astype(dtype)
+
+    def arrdatetime64(*args,year=2000,month=1,day=-1,hour=0,minute=0,second=0,size=None,dtype=None):
+
+        items = [year,month,day,hour,minute,second]
+
+        if isinstance(dtype,str):
+            dtype = np.dtype(dtype)
+
+        iter_ = get_iterator.get_iterator(*items,size=size)
+
+        if dtype is None:
+            dtype = np.dtype(f"datetime64[s]")
+
+        arr_date = []
+
+        for arguments in iter_:
+            if arguments[2]<=0:
+                arguments[2] += calendar.monthrange(*arguments[:2])[1]
+            if arguments[2]<=0:
+                arguments[2] = 1
+            arr_date.append(datetime.datetime(*arguments))
+
+        return np.array(arr_date,dtype=dtype)
+
+def key2arr(*args,**kwargs):
 
     dtype = kwargs.get('dtype')
 
@@ -117,7 +208,7 @@ def array(*args,**kwargs):
 
     return arr_
 
-class array_master:
+class _key2arr:
 
     def get_arg_dtype(argument):
 
@@ -146,34 +237,6 @@ class array_master:
             return argument.dtype
         else:
             return
-
-    def get_iterator(*args):
-
-        size = 1
-
-        items = []
-
-        for index,arg in enumerate(args):
-            if not hasattr(arg,'__len__'):
-                items.append([arg])
-            elif isinstance(arg,str):
-                items.append([arg])
-            elif isinstance(arg,list):
-                items.append(arg)
-            elif isinstance(arg,tuple):
-                items.append(list(arg))
-            elif isinstance(arg,np.ndarray):
-                items.append(arg.tolist())
-            else:
-                raise TypeError(f"input should be list, not type={type(arg)}")
-
-            size = max(size,len(items[index]))
-
-        for index,item in enumerate(items):
-            rep = int(np.ceil(size/len(item))) 
-            items[index] = (item*rep)[:size]
-
-        return zip(*items)
 
     def get_datetime_datetime(datetimevariable):
 
@@ -324,35 +387,6 @@ class array_master:
         else:
             return arr_
 
-    def _arrstr_fromarrs(*args,phrases=None,repeats=None,dtype=None):
-
-        if len(args)<1:
-            pass
-        elif len(args)<2:
-            phrases, = args
-        elif len(args)<3:
-            phrases,repeats = args
-        else:
-            raise TypeError(f"tried to create string array from arrays, failed because of argument size {len(args)}")
-
-        if phrases is None:
-            phrases = " "
-
-        if repeats is None:
-            repeats = 1
-
-        if isinstance(dtype,str):
-            dtype = np.dtype(dtype)
-
-        iter_ = array_master.get_iterator(phrases,repeats)
-
-        arr_ = np.array([name*num for name,num in iter_])
-
-        if dtype is None:
-            return arr_
-        else:
-            return arr_.astype(dtype)
-
     def _arrdatetime64(*args,start=None,stop="today",step=1,size=None,dtype=None,step_unit='M'):
 
         if len(args)==1:
@@ -427,35 +461,6 @@ class array_master:
                 date += relativedelta.relativedelta(microseconds=dus)
                 arr_date.append(date)
             return np.array(arr_date,dtype=dtype)
-
-    def _arrdatetime64_fromarrs(*args,year=2000,month=1,day=-1,hour=0,minute=0,second=0,dtype=None):
-
-        items = []
-
-        for index in range(6):
-            try:
-                items.append(args[index])
-            except IndexError:
-                items.append(0)
-
-        if isinstance(dtype,str):
-            dtype = np.dtype(dtype)
-
-        iter_ = array_master.get_iterator(*items)
-
-        if dtype is None:
-            dtype = np.dtype(f"datetime64[s]")
-
-        arr_date = []
-
-        for arguments in iter_:
-            if arguments[2]<=0:
-                arguments[2] += calendar.monthrange(*arguments[:2])[1]
-            if arguments[2]<=0:
-                arguments[2] = 1
-            arr_date.append(datetime.datetime(*arguments))
-
-        return np.array(arr_date,dtype=dtype)
 
 class column():
     """It is a numpy array of shape (N,) with additional attributes of head, unit and info."""
