@@ -132,6 +132,9 @@ str2datetime64 = np.vectorize(str2datetime64_,otypes=[np.datetime64],excluded=["
 
 def datetime_adddelta_(dtcurr:datetime.datetime,days:float=0.,hours:float=0.,minutes:float=0.,seconds:float=0.) -> datetime.datetime:
 
+    if dtcurr is None:
+        return
+        
     dtcurr += relativedelta.relativedelta(days=days,hours=hours,minutes=minutes,seconds=seconds)
 
     return dtcurr

@@ -1,14 +1,15 @@
 import calendar
 import copy
 import datetime
+
 from dateutil import parser
 from dateutil import relativedelta
-from difflib import SequenceMatcher
+
 import itertools
 import logging
-import math
 import re
-import string as pystr
+import string
+
 import numpy as np
 import pint
 
@@ -51,16 +52,16 @@ class nones():
 
         count = len(max((row0,row2,row3,row4,row5),key=len))
 
-        string = ""
+        text = ""
 
-        string += "{:>10s}  {:s}\n".format("Data-Types",row0)
-        string += "{:>10s}  {:s}\n".format("-"*10,"-"*count)
-        string += "{:>10s}  {:s}\n".format("integers",row2)
-        string += "{:>10s}  {:s}\n".format("floats",row3)
-        string += "{:>10s}  {:s}\n".format("strings",row4)
-        string += "{:>10s}  {:s}\n".format("datetime64",row5)
+        text += "{:>10s}  {:s}\n".format("Data-Types",row0)
+        text += "{:>10s}  {:s}\n".format("-"*10,"-"*count)
+        text += "{:>10s}  {:s}\n".format("integers",row2)
+        text += "{:>10s}  {:s}\n".format("floats",row3)
+        text += "{:>10s}  {:s}\n".format("strings",row4)
+        text += "{:>10s}  {:s}\n".format("datetime64",row5)
 
-        return string
+        return text
 
     def __setattr__(self,dtype,non_value):
 
@@ -89,390 +90,17 @@ class nones():
 
         return nones_dict
 
-def arr2arr(*args,**kwargs):
-    """Sets the vals of column."""
-
-    pass
-
-class _arr2arr:
-
-    def toarray(var_,size=None):
-
-        if type(var_).__module__=="numpy":
-            arr_ = var_.flatten()
-        elif type(var_) is str:
-            arr_ = np.array([var_])
-        elif hasattr(var_,"__iter__"):
-            arr_ = np.array(list(var_))
-        else:
-            arr_ = np.array([var_])
-
-        if size is None:
-            return arr_
-
-        rep_ = int(np.ceil(size/arr_.size))
-
-        arr_ = np.tile(arr_,rep_)[:size]
-
-        return arr_
-
-    def toiterator(*args,size=None):
-
-        arrs = [_arr2arr.toarray(arg) for arg in args]
-
-        if size is None:
-            size = len(max(arrs,key=len))
-
-        for index,arr_ in enumerate(arrs):
-            rep_ = int(np.ceil(size/arr_.size))
-            arrs[index] = np.tile(arr_,rep_)[:size]
-
-        return zip(*arrs)
-
-    def arrint(*args,size=None,dtype=None):
-
-        return 
-
-    def arrfloat(*args,size=None,dtype=None):
-
-        pass
-
-    def arrstr(*args,phrases=None,repeats=None,size=None,dtype=None):
-
-        if phrases is None:
-            phrases = " "
-
-        if repeats is None:
-            repeats = 1
-
-        if isinstance(dtype,str):
-            dtype = np.dtype(dtype)
-
-        iter_ = arr2arr_master.get_iterator(phrases,repeats,size=size)
-
-        arr_ = np.array([name*num for name,num in iter_])
-
-        if dtype is None:
-            return arr_
-        else:
-            return arr_.astype(dtype)
-
-    def arrdatetime64(*args,year=2000,month=1,day=-1,hour=0,minute=0,second=0,size=None,dtype=None):
-
-        items = [year,month,day,hour,minute,second]
-
-        if isinstance(dtype,str):
-            dtype = np.dtype(dtype)
-
-        iter_ = get_iterator.get_iterator(*items,size=size)
-
-        if dtype is None:
-            dtype = np.dtype(f"datetime64[s]")
-
-        arr_date = []
-
-        for arguments in iter_:
-            if arguments[2]<=0:
-                arguments[2] += calendar.monthrange(*arguments[:2])[1]
-            if arguments[2]<=0:
-                arguments[2] = 1
-            arr_date.append(datetime.datetime(*arguments))
-
-        return np.array(arr_date,dtype=dtype)
-
-def key2arr(*args,**kwargs):
-
-    dtype = kwargs.get('dtype')
-
-    if dtype is None:
-        dtype = array_master.get_arg_dtype(args)
-    elif isinstance(dtype,str):
-        dtype = np.dtype(dtype)
-
-    if dtype.type is np.dtype('int').type:    
-        arr_ = array_master._arrint(*args,**kwargs)
-    elif dtype.type is np.dtype('float').type:
-        arr_ = array_master._arrfloat(*args,**kwargs)
-    elif dtype.type is np.dtype('str').type:
-        try:
-            arr_ = array_master._arrstr(*args,**kwargs)
-        except TypeError:
-            arr_ = array_master._arrstr_fromarrs(*args,**kwargs)
-    elif dtype.type is np.dtype('datetime64').type:
-        try:
-            arr_ = array_master._arrdatetime64(*args,**kwargs)
-        except TypeError:
-            arr_ = array_master._arrdatetime64_fromarrs(*args,**kwargs)
-    else:
-        raise ValueError(f"dtype.type is not int, float, str or datetime64, given {dtype.type=}")
-
-    return arr_
-
-class _key2arr:
-
-    def get_arg_dtype(argument):
-
-        if isinstance(argument,tuple) and len(argument)==0:
-            return
-        elif isinstance(argument,tuple):
-            argument = argument[0]
-
-        if argument is None:
-            return
-        elif type(argument) is int:
-            return np.dtype(type(argument))
-        elif type(argument) is float:
-            return np.dtype(type(argument))
-        elif type(argument) is str:
-            argument = array_master.get_datetime_datetime(argument)
-            if argument is None:
-                return np.str_(argument).dtype
-            else:
-                return np.dtype('datetime64[s]')
-        elif type(argument) is datetime.datetime:
-            return np.dtype('datetime64[s]')
-        elif type(argument) is datetime.date:
-            return np.dtype('datetime64[D]')
-        elif type(argument) is np.datetime64:
-            return argument.dtype
-        else:
-            return
-
-    def get_datetime_datetime(datetimevariable):
-
-        if datetimevariable is None:
-            return
-        elif isinstance(datetimevariable,str):
-            if datetimevariable=="now":
-                datetime_ = datetime.datetime.today()
-            elif datetimevariable=="today":
-                datetime_ = datetime.date.today()
-            elif datetimevariable=="yesterday":
-                datetime_ = datetime.date.today()+relativedelta.relativedelta(days=-1)
-            elif datetimevariable=="tomorrow":
-                datetime_ = datetime.date.today()+relativedelta.relativedelta(days=+1)
-            else:
-                try:
-                    datetime_ = parser.parse(datetimevariable)
-                except parser.ParserError:
-                    datetime_ = None
-        elif isinstance(datetimevariable,np.datetime64):
-            datetime_ = datetimevariable.tolist()
-
-        if isinstance(datetime_,datetime.datetime):
-            return datetime_
-        elif isinstance(datetime_,datetime.date):
-            return datetime.datetime.combine(datetime_,datetime.datetime.min.time())
-
-    def _arrint(*args,start=0,stop=None,step=1,size=None,dtype=None):
-
-        if len(args)==1:
-            stop, = args
-        elif len(args)==2:
-            start,stop = args
-        elif len(args)==3:
-            start,stop,size = args
-        elif len(args)==4:
-            start,stop,size,dtype = args
-        else:
-            raise TypeError("Arguments are too many!")
-
-        if dtype is None:
-            dtype = np.dtype('int32')
-        elif isinstance(dtype,str):
-            dtype = np.dtype(dtype)
-
-        if size is None:
-            if stop is None:
-                raise ValueError("stop value must be provided!")
-            return np.arange(start,stop,step,dtype=dtype)
-        else:
-            if stop is None:
-                stop = start+size*step
-            return np.linspace(start,stop,size,endpoint=False,dtype=dtype)
-
-    def _arrfloat(*args,start=0.,stop=None,step=1.,size=None,dtype=None,unit='dimensionless',step_unit='dimensionless'):
-
-        if len(args)==1:
-            stop, = args
-        elif len(args)==2:
-            start,stop = args
-        elif len(args)==3:
-            start,stop,size = args
-        elif len(args)==4:
-            start,stop,size,dtype = args
-        else:
-            raise TypeError("Arguments are too many!")
-
-        if unit!=step_unit:
-            unrg = pint.UnitRegistry()
-            step = unrg.Quantity(step,step_unit).to(unit).magnitude
-
-        if dtype is None:
-            dtype = np.dtype('float64')
-        elif isinstance(dtype,str):
-            dtype = np.dtype(dtype)
-
-        if size is None:
-            if stop is None:
-                raise ValueError("stop value must be provided!")
-            return np.arange(start,stop,step,dtype=dtype)
-        else:
-            if stop is None:
-                stop = start+size*step
-            return np.linspace(start,stop,size,dtype=dtype)
-
-    def _arrstr(*args,start='A',stop=None,step=1,size=None,dtype=None):
-
-        if len(args)==1:
-            stop, = args
-        elif len(args)==2:
-            start,stop = args
-        elif len(args)==3:
-            start,stop,size = args
-        elif len(args)==4:
-            start,stop,size,dtype = args
-        else:
-            raise TypeError("Arguments are too many!")
-
-        if start is not None:
-            if len(start)>5:
-                raise TypeError(f'tried excel like letters and failed because of size of start {len(start)}!')
-            elif not all([char in pystr.ascii_letters for char in start]):
-                raise TypeError(f'tried excel like letters and failed because of {start=}!')
-            start = start.upper()
-
-        if stop is not None:
-            if len(stop)>5:
-                raise TypeError(f'tried excel like letters and failed because of size of stop {len(stop)}!')  
-            elif not all([char in pystr.ascii_letters for char in stop]):
-                raise TypeError(f'tried excel like letters and failed because of {stop=}!!')
-            stop = stop.upper()
-
-        if size is not None:
-            if size>1000_000:
-                raise TypeError(f'tried excel like letters and failed because of {size=}!')
-
-        if isinstance(dtype,str):
-            dtype = np.dtype(str)
-
-        def excel_column_headers():
-            n = 1
-            while True:
-                yield from (
-                    ''.join(group) for group in itertools.product(
-                        pystr.ascii_uppercase,repeat=n
-                        )
-                    )
-                n += 1
-
-        for start_index,combo in enumerate(excel_column_headers()):
-            if start==combo:
-                break
-
-        if size is None:
-            if stop is None:
-                raise ValueError("stop value must be provided!")
-            for stop_index,combo in enumerate(excel_column_headers(),start=1):
-                if stop==combo:
-                    break
-            arr_ = np.array(list(itertools.islice(excel_column_headers(),stop_index)))[start_index:stop_index]
-            arr_ = arr_[::step]
-        else:
-            arr_ = np.array(list(itertools.islice(excel_column_headers(),start_index+size*step)))[start_index:]
-            arr_ = arr_[::step]
-
-        if dtype is not None:
-            return arr_.astype(dtype)
-        else:
-            return arr_
-
-    def _arrdatetime64(*args,start=None,stop="today",step=1,size=None,dtype=None,step_unit='M'):
-
-        if len(args)==1:
-            start, = args
-        elif len(args)==2:
-            start,stop = args
-        elif len(args)==3:
-            start,stop,size = args
-        elif len(args)==4:
-            start,stop,size,dtype = args
-        else:
-            raise TypeError("Arguments are too many!")
-
-        if dtype is None:
-            dtype = np.dtype(f"datetime64[s]")
-        elif isinstance(dtype,str):
-            dtype = np.dtype(dtype)
-
-        start = array_master.get_datetime_datetime(start)
-        stop = array_master.get_datetime_datetime(stop)
-
-        def datetime_adddays(dtcurr,delta):
-            return dtcurr+relativedelta.relativedelta(days=delta)
-
-        def datetime_addhours(dtcurr,delta):
-            return dtcurr+relativedelta.relativedelta(hours=delta)
-
-        def datetime_addminutes(dtcurr,delta):
-            return dtcurr+relativedelta.relativedelta(minutes=delta)
-
-        def datetime_addseconds(dtcurr,delta):
-            return dtcurr+relativedelta.relativedelta(seconds=delta)
-        
-        if step_unit == "Y":
-            func = datetime_addyears
-        elif step_unit == "M":
-            func = datetime_addmonths
-        elif step_unit == "D":
-            func = datetime_adddays
-        elif step_unit == "h":
-            func = datetime_addhours
-        elif step_unit == "m":
-            func = datetime_addminutes
-        elif step_unit == "s":
-            func = datetime_addseconds
-        else:
-            raise ValueError("step_unit can be anything from 'Y','M','D','h','m' or 's'.")
-
-        if size is None:
-            if start is None:
-                raise ValueError("start value must be provided!")
-            date = copy.deepcopy(start)
-            arr_date = []
-            while date<stop:
-                arr_date.append(date)
-                date = func(date,step)
-            return np.array(arr_date,dtype=dtype)
-        elif start is None:
-            date = copy.deepcopy(stop)
-            arr_date = []
-            for index in range(size):
-                date = func(date,-index*step)
-                arr_date.append(date)
-            return np.flip(np.array(arr_date,dtype=dtype))
-        else:
-            delta_ = stop-start
-            delta_ = (delta_.days*86_400+delta_.seconds)*1000_000+delta_.microseconds
-            delta_us = np.linspace(0,delta_dt,size)
-            date = copy.deepcopy(start)
-            arr_date = []
-            for dus in delta_us:
-                date += relativedelta.relativedelta(microseconds=dus)
-                arr_date.append(date)
-            return np.array(arr_date,dtype=dtype)
-
 class column():
     """It is a numpy array of shape (N,) with additional attributes of head, unit and info."""
 
     """INITIALIZATION"""
-    def __init__(self,vals=None,head=None,unit=None,info=None,**kwargs):
+    def __init__(self,vals,head=None,unit=None,info=None,dtype=None,size=None):
         """Initializes a column with vals of numpy array (N,) and additional attributes."""
 
         """
         Initialization can be done in two ways:
         
-        1) Defining vals by sending int, float, string, datetime.date, numpy.datetime64 as standalone or
+        1) Defining vals by sending int, float, str, datetime, numpy as standalone or
         in a list, tuple or numpy.array
         
         2) Generating a numpy array by defining dtype and sending the keywords for array creating methods.
@@ -483,57 +111,19 @@ class column():
 
         self.nones = nones()
 
-        self._valsarr(vals,kwargs.get('size'))
+        super().__setattr__("vals",array1d(vals,size))
 
-        self.astype(kwargs.get('dtype'))
+        self.astype(dtype)
 
         self._valshead(head)
         self._valsunit(unit)
         self._valsinfo(info)
 
-    def _valsarr(self,vals=None,size=None):
-        """Sets the vals of column."""
+    def _valsarr(self,vals):
 
-        if vals is None:
-            num = 1 if size is None else size
-            arr = np.array([np.nan]*num)
-        elif isinstance(vals,int):
-            num = 1 if size is None else size
-            arr = np.array([vals,]*num)
-        elif isinstance(vals,float):
-            num = 1 if size is None else size
-            arr = np.array([vals,]*num)
-        elif isinstance(vals,str):
-            num = 1 if size is None else size
-            arr = np.array([vals,]*num)
-        elif isinstance(vals,datetime.datetime):
-            num = 1 if size is None else size
-            arr = np.array([vals,]*num,dtype='datetime64[s]')
-        elif isinstance(vals,datetime.date):
-            num = 1 if size is None else size
-            arr = np.array([vals,]*num,dtype='datetime64[D]')
-        elif isinstance(vals,np.datetime64):
-            num = 1 if size is None else size
-            arr = np.array([vals,]*num)
-        elif isinstance(vals,np.ndarray):
-            arr = vals.flatten()
-            rep = 1 if size is None else int(np.ceil(size/arr.size))
-            num = arr.size if size is None else size
-            arr = arr if size is None else np.tile(arr,rep)[:num]
-        elif isinstance(vals,list):
-            arr = np.array(vals).flatten()
-            rep = 1 if size is None else int(np.ceil(size/arr.size))
-            num = arr.size if size is None else size
-            arr = arr if size is None else np.tile(arr,rep)[:num]
-        elif isinstance(vals,tuple):
-            arr = np.array(vals).flatten()
-            rep = 1 if size is None else int(np.ceil(size/arr.size))
-            num = arr.size if size is None else size
-            arr = arr if size is None else np.tile(arr,rep)[:num]
-        else:
-            logging.warning(f"Unexpected object type {type(arr)}.")
+        super().__setattr__("vals",array1d(vals))
 
-        super().__setattr__("vals",arr)
+        self.astype()
 
         self._valsunit()
 
@@ -592,7 +182,7 @@ class column():
         elif not isinstance(dtype,np.dtype):
             raise TypeError(f"dtype must be numpy.dtype, not type={type(dtype)}")
         elif dtype.type is np.object_:
-            raise TypeError(f"Unexpected numpy.dtype, {dtype=}")
+            raise TypeError(f"Unsupported numpy.dtype, {dtype=}")
         elif self.dtype==dtype:
             return
 
@@ -612,10 +202,13 @@ class column():
 
         isnone = self.isnone()
 
-        vals_arr = np.empty(self.vals.size,dtype=dtype)
-
-        vals_arr[isnone] = none
-        vals_arr[~isnone] = self.vals[~isnone].astype(dtype=dtype)
+        if self.vals.dtype.type is np.object_:
+            vals_arr = np.empty(self.vals.size,dtype=dtype)
+            vals_arr[isnone] = none
+            vals_arr[~isnone] = self.vals[~isnone].astype(dtype=dtype)
+        else:
+            vals_arr = self.vals.astype(dtype=dtype)
+            vals_arr[isnone] = none
 
         super().__setattr__("vals",vals_arr)
 
@@ -663,25 +256,25 @@ class column():
                 continue
 
             if isinstance(val,datetime.date):
-                string = val.strftime(fstring_inner[1:-1])
+                text = val.strftime(fstring_inner[1:-1])
             else:
-                string = fstring_inner.format(val)
+                text = fstring_inner.format(val)
 
             if zfill is not None:
-                string = string.zfill(zfill)
+                text = text.zfill(zfill)
 
             if upper:
-                string = string.upper()
+                text = text.upper()
             elif lower:
-                string = string.lower()
+                text = text.lower()
 
-            string = fstring_clean.format(string)
+            text = fstring_clean.format(text)
 
-            vals_str.append(string)
+            vals_str.append(text)
 
         vals_str = np.array(vals_str,dtype="str")
 
-        column_ = copy.copy(self)
+        column_ = copy.deepcopy(self)
 
         column_.astype("str")
 
@@ -691,7 +284,7 @@ class column():
 
     """REPRESENTATION"""
     def _valstr_(self,num=None):
-        """It outputs column.vals in string format. If num is not defined it edites numpy.ndarray.__str__()."""
+        """It outputs column.vals. If num is not defined it edites numpy.ndarray.__str__()."""
 
         if num is None:
 
@@ -758,14 +351,14 @@ class column():
     def __str__(self):
         """Print representation of column."""
 
-        string = "{}\n"*4
+        text = "{}\n"*4
 
         head = f"head\t: {self.head}"
         unit = f"unit\t: {self.unit}"
         info = f"info\t: {self.info}"
         vals = f"vals\t: {self._valstr_(2)}"
 
-        return string.format(head,unit,info,vals)
+        return text.format(head,unit,info,vals)
 
     """COMPARISON"""
     def isnone(self):
@@ -944,7 +537,7 @@ class column():
         elif self.vals.dtype.type is np.datetime64:
             return np.nanmax(self.vals)
 
-    def maxchar(self,string=False):
+    def maxchar(self,return_value=False):
         """It returns the maximum character count in stringified column."""
 
         if self.vals.dtype.type is np.str_:
@@ -954,7 +547,7 @@ class column():
 
         charsize = np.dtype(f"{vals.dtype.char}1").itemsize
 
-        if string:
+        if return_value:
             return max(vals,key=len)
         else:
             return int(vals.dtype.itemsize/charsize)
@@ -1033,7 +626,7 @@ class column():
             delta_ = delta_.convert(column_.unit)
             vals_shifted = column_.vals+delta_.vals
         elif column_.dtype.type is np.dtype('str').type:
-            delta_ = column(None,dtype='str',space=delta)
+            delta_ = any2column(phrases=' ',repeats=delta,dtype='str')
             vals_shifted = np.char.add(delta_.vals,column_)
         elif column_.dtype.type is np.dtype('datetime64').type:
             vals_shifted = self.add_deltatime(delta,deltaunit)
@@ -1047,33 +640,48 @@ class column():
         if unit is None:
             unit = "M"
 
-        if unit == "Y":
+        if unit == "Y" or unit == "year":
             vals_shifted = datetime_addyears(self.vals,delta)
-        elif unit == "M":
+        elif unit == "M" or unit == "month":
             vals_shifted = datetime_addmonths(self.vals,delta)
-        elif unit == "D":
+        elif unit == "D" or unit == "day":
             vals_shifted = datetime_adddelta(self.vals,days=delta)
-        elif unit == "h":
+        elif unit == "h" or unit == "hour":
             vals_shifted = datetime_adddelta(self.vals,hours=delta)
-        elif unit == "m":
+        elif unit == "m" or unit == "minute":
             vals_shifted = datetime_adddelta(self.vals,minutes=delta)
-        elif unit == "s":
+        elif unit == "s" or unit == "second":
             vals_shifted = datetime_adddelta(self.vals,seconds=delta)
         else:
             raise TypeError("units can be either of Y, M, D, h, m or s.")
 
         return vals_shifted
 
-    def shift_eom(self):
+    def toeom(self):
 
-        arr_y = column_.year[:]
-        arr_m = column_.month[:]
-        arr_d = 1 if delta=="BOM" else column_.eom[:]
-        vals_shifted = column_._arrdatetime64_(year=arr_y,month=arr_m,day=arr_d)
+        dt = copy.deepcopy(self)
 
-    def shift_bom(self):
+        dt_ = dt[~dt.isnone()]
 
-        return
+        arr_ = _any2column.arrdatetime64(
+            year=dt_.year,month=dt_.month,day=0,dtype=dt_.dtype)
+
+        dt[~self.isnone()] = arr_
+
+        return dt
+
+    def tobom(self):
+
+        dt = copy.deepcopy(self)
+
+        dt_ = dt[~dt.isnone()]
+
+        arr_ = _any2column.arrdatetime64(
+            year=dt_.year,month=dt_.month,day=1,dtype=dt_.dtype)
+
+        dt[~self.isnone()] = arr_
+
+        return dt
 
     def __add__(self,other):
         """Implementing '+' operator."""
@@ -1109,7 +717,7 @@ class column():
     def __floordiv__(self,other):
         """Implementing '//' operator."""
 
-        column_ = copy.copy(self)
+        column_ = copy.deepcopy(self)
 
         if isinstance(other,column):
             # ureg = pint.UnitRegistry()
@@ -1135,7 +743,7 @@ class column():
     def __mod__(self,other):
         """Implementing '%' operator."""
 
-        column_ = copy.copy(self)
+        column_ = copy.deepcopy(self)
 
         if isinstance(other,column):
         #     ureg = pint.UnitRegistry()
@@ -1153,7 +761,7 @@ class column():
     def __mul__(self,other):
         """Implementing '*' operator."""
 
-        column_ = copy.copy(self)
+        column_ = copy.deepcopy(self)
 
         if isinstance(other,column):
             # ur = pint.UnitRegistry()
@@ -1176,7 +784,7 @@ class column():
     def __pow__(self,other):
         """Implementing '**' operator."""
 
-        column_ = copy.copy(self)
+        column_ = copy.deepcopy(self)
 
         if isinstance(other,int) or isinstance(other,float):
             # ureg = pint.UnitRegistry()
@@ -1191,7 +799,7 @@ class column():
     def __sub__(self,other):
         """Implementing '-' operator."""
 
-        column_ = copy.copy(self)
+        column_ = copy.deepcopy(self)
 
         if isinstance(other,column):
             if self.unit!=other.unit:
@@ -1205,7 +813,7 @@ class column():
     def __truediv__(self,other):
         """Implementing '/' operator."""
 
-        column_ = copy.copy(self)
+        column_ = copy.deepcopy(self)
 
         if isinstance(other,column):
             # ur = pint.UnitRegistry()
@@ -1236,11 +844,11 @@ class column():
             array_ = self.vals[~self.isnone()]
 
             if array_.size==0:
-                dtype_ = np.dtype('U1')
+                dtype_ = np.dtype('float64')
             elif isinstance(array_[0],datetime.datetime):
-                dtype_ = np.dtype('M8[s]')
+                dtype_ = np.dtype('datetime64[s]')
             elif isinstance(array_[0],datetime.date):
-                dtype_ = np.dtype('M8[D]')
+                dtype_ = np.dtype('datetime64[D]')
             else:
                 dtype_ = np.array([array_[0]]).dtype
 
@@ -1282,7 +890,7 @@ class column():
         return month_arr
 
     @property
-    def eom(self): # End of Month
+    def monthrange(self):
         """It returns the day count in the month in the datetime array."""
 
         if self.vals.dtype.type is not np.datetime64:
@@ -1299,7 +907,7 @@ class column():
         return days_arr
 
     @property
-    def eonm(self): # End of Next Month
+    def nextmonthrange(self):
         """It returns the day count in the next month in the datetime array."""
 
         if self.vals.dtype.type is not np.datetime64:
@@ -1318,7 +926,7 @@ class column():
         return days_arr
 
     @property
-    def eopm(self): # End of Previous Month
+    def prevmonthrange(self):
         """It returns the day count in the next month in the datetime array."""
 
         if self.vals.dtype.type is not np.datetime64:
@@ -1352,7 +960,485 @@ class column():
 
         return day_arr
 
-class alphabet():
+def array1d(arg,size=None):
+
+    if type(arg).__module__=="numpy":
+        arr_ = arg.flatten()
+    elif type(arg) is str:
+        arr_ = np.array([arg])
+    elif hasattr(arg,"__iter__"):
+        arr_ = np.array(list(arg))
+    else:
+        arr_ = np.array([arg])
+
+    if arr_.dtype.type is np.object_:
+        arr_temp = arr_[arr_!=None]
+
+        if arr_temp.size==0:
+            arr_ = arr_.astype(None)
+        elif isinstance(arr_temp[0],datetime.datetime):
+            arr_ = arr_.astype('datetime64[s]')
+        elif isinstance(arr_temp[0],datetime.date):
+            arr_ = arr_.astype('datetime64[D]')
+
+    if size is None or arr_.size==0:
+        return arr_
+
+    rep_ = int(np.ceil(size/arr_.size))
+
+    arr_ = np.tile(arr_,rep_)[:size]
+
+    return arr_
+
+def any2column(*args,**kwargs):
+    """Sets the vals of column."""
+
+    try:
+        head = kwargs.pop('head')
+    except KeyError:
+        head = None
+
+    try:
+        unit = kwargs.pop('unit')
+    except KeyError:
+        unit = None
+
+    try:
+        info = kwargs.pop('info')
+    except KeyError:
+        info = None
+
+    dtype = kwargs.get('dtype')
+
+    if dtype is None:
+        dtype = _any2column.get_dtype(args)
+    elif isinstance(dtype,str):
+        dtype = np.dtype(dtype)
+
+    if dtype.type is np.object_:
+        pass
+    elif dtype.type is np.dtype('int').type:    
+        arr_ = _any2column.arrint(*args,**kwargs)
+    elif dtype.type is np.dtype('float').type:
+        arr_ = _any2column.arrfloat(*args,**kwargs)
+    elif dtype.type is np.dtype('str').type:
+        arr_ = _any2column.arrstr(*args,**kwargs)
+    elif dtype.type is np.dtype('datetime64').type:
+        arr_ = _any2column.arrdatetime64(*args,**kwargs)
+    else:
+        raise ValueError(f"dtype.type is not int, float, str or datetime64, given {dtype.type=}")
+
+    return column(arr_,head=head,unit=unit,info=info,dtype=dtype)
+
+def key2column(*args,**kwargs):
+
+    head = kwargs.get('head')
+    unit = kwargs.get('unit')
+    info = kwargs.get('info')
+
+    [kwargs.pop(item) for item in ('head','unit','info') if kwargs.get(item) is not None]
+
+    dtype = kwargs.get('dtype')
+
+    if dtype is None:
+        dtype = _key2column.get_dtype(args)
+    elif isinstance(dtype,str):
+        dtype = np.dtype(dtype)
+
+    if dtype.type is np.dtype('int').type:    
+        arr_ = _key2column.arrint(*args,**kwargs)
+    elif dtype.type is np.dtype('float').type:
+        arr_ = _key2column.arrfloat(*args,**kwargs)
+    elif dtype.type is np.dtype('str').type:
+        arr_ = _key2column.arrstr(*args,**kwargs)
+    elif dtype.type is np.dtype('datetime64').type:
+        arr_ = _key2column.arrdatetime64(*args,**kwargs)
+    else:
+        raise ValueError(f"dtype.type is not int, float, str or datetime64, given {dtype.type=}")
+
+    return column(arr_,head=head,unit=unit,info=info,dtype=dtype)
+
+class _any2column:
+
+    def get_dtype(args):
+
+        if len(args)==0:
+            return
+
+        arg = args[0]
+
+        arg = array1d(arg)
+
+        return arg.dtype
+
+    def toiterator(*args,size=None):
+
+        arrs = [array1d(arg) for arg in args]
+
+        if size is None:
+            size = len(max(arrs,key=len))
+
+        for index,arr_ in enumerate(arrs):
+            rep_ = int(np.ceil(size/arr_.size))
+            arrs[index] = np.tile(arr_,rep_)[:size]
+
+        return zip(*arrs)
+
+    def arrint(*args,size=None,dtype=None):
+
+        if len(args)==0:
+            return
+        elif len(args)==1:
+            arr_ = array1d(args[0],size)
+
+        if dtype is None:
+            return arr_
+        else:
+            return arr_.astype(dtype)
+
+    def arrfloat(*args,size=None,dtype=None):
+
+        if len(args)==0:
+            return
+        elif len(args)==1:
+            arr_ = array1d(args[0],size)
+
+        if dtype is None:
+            return arr_
+        else:
+            return arr_.astype(dtype)
+
+    def arrstr(*args,phrases=None,repeats=None,size=None,dtype=None):
+
+        if isinstance(dtype,str):
+            dtype = np.dtype(dtype)
+
+        if len(args)==0:
+            if phrases is None:
+                phrases = " "
+            if repeats is None:
+                repeats = 1
+
+            iter_ = _any2column.toiterator(phrases,repeats,size=size)
+
+            arr_ = np.array(["".join([name]*num) for name,num in iter_])
+
+        elif len(args)==1:
+            arr_ = array1d(args[0],size)
+        else:
+            raise TypeError("Number of arguments can not be larger than 1!")
+
+        if dtype is None:
+            return arr_
+        else:
+            return arr_.astype(dtype)
+
+    def arrdatetime64(*args,year=2000,month=1,day=-1,hour=0,minute=0,second=0,size=None,dtype=None):
+
+        if isinstance(dtype,str):
+            dtype = np.dtype(dtype)
+
+        if len(args)==0:
+
+            items = [year,month,day,hour,minute,second]
+
+            iter_ = _any2column.toiterator(*items,size=size)
+
+            if dtype is None:
+                dtype = np.dtype(f"datetime64[s]")
+
+            arr_date = []
+
+            for row in iter_:
+                arguments = list(row)
+                if arguments[2]<=0:
+                    arguments[2] += calendar.monthrange(*arguments[:2])[1]
+                if arguments[2]<=0:
+                    arguments[2] = 1
+                arr_date.append(datetime.datetime(*arguments))
+
+            return np.array(arr_date,dtype=dtype)
+
+        elif len(args)==1:
+
+            arr_ = array1d(args[0],size)
+
+            if dtype is None:
+                return arr_
+            
+            try:
+                return arr_.astype(dtype)
+            except ValueError:
+                arr_date = [parser.parse(dt) for dt in arr_]
+                return np.array(arr_date,dtype=dtype)
+
+class _key2column:
+
+    def get_dtype(args):
+
+        if len(args)==0:
+            return
+
+        arg = args[0]
+
+        if arg is None:
+            return
+        elif type(arg) is int:
+            return np.dtype(type(arg))
+        elif type(arg) is float:
+            return np.dtype(type(arg))
+        elif type(arg) is str:
+            arg = _key2column.todatetime(arg)
+            if arg is None:
+                return np.str_(arg).dtype
+            else:
+                return np.dtype('datetime64[s]')
+        elif type(arg) is datetime.datetime:
+            return np.dtype('datetime64[s]')
+        elif type(arg) is datetime.date:
+            return np.dtype('datetime64[D]')
+        elif type(arg) is np.datetime64:
+            return arg.dtype
+        else:
+            return
+
+    def todatetime(var_):
+
+        if var_ is None:
+            return
+        elif isinstance(var_,str):
+            if var_=="now":
+                datetime_ = datetime.datetime.today()
+            elif var_=="today":
+                datetime_ = datetime.date.today()
+            elif var_=="yesterday":
+                datetime_ = datetime.date.today()+relativedelta.relativedelta(days=-1)
+            elif var_=="tomorrow":
+                datetime_ = datetime.date.today()+relativedelta.relativedelta(days=+1)
+            else:
+                try:
+                    datetime_ = parser.parse(var_)
+                except parser.ParserError:
+                    datetime_ = None
+        elif isinstance(var_,np.datetime64):
+            datetime_ = var_.tolist()
+        elif type(var_).__module__=="datetime":
+            datetime_ = var_
+        else:
+            return
+
+        if isinstance(datetime_,datetime.datetime):
+            return datetime_
+        elif isinstance(datetime_,datetime.date):
+            return datetime.datetime.combine(datetime_,datetime.datetime.min.time())
+
+    def arrint(*args,start=0,stop=None,step=1,size=None,dtype=None):
+
+        if len(args)==0:
+            pass
+        elif len(args)==1:
+            stop, = args
+        elif len(args)==2:
+            start,stop = args
+        elif len(args)==3:
+            start,stop,size = args
+        elif len(args)==4:
+            start,stop,size,dtype = args
+        else:
+            raise TypeError("Arguments are too many!")
+
+        if dtype is None:
+            dtype = np.dtype('int32')
+        elif isinstance(dtype,str):
+            dtype = np.dtype(dtype)
+
+        if size is None:
+            if stop is None:
+                raise ValueError("stop value must be provided!")
+            return np.arange(start,stop,step,dtype=dtype)
+        else:
+            if stop is None:
+                stop = start+size*step
+            return np.linspace(start,stop,size,endpoint=False,dtype=dtype)
+
+    def arrfloat(*args,start=0.,stop=None,step=1.,size=None,dtype=None,unit='dimensionless',step_unit='dimensionless'):
+
+        if len(args)==0:
+            pass
+        elif len(args)==1:
+            stop, = args
+        elif len(args)==2:
+            start,stop = args
+        elif len(args)==3:
+            start,stop,size = args
+        elif len(args)==4:
+            start,stop,size,dtype = args
+        else:
+            raise TypeError("Arguments are too many!")
+
+        if unit!=step_unit:
+            unrg = pint.UnitRegistry()
+            step = unrg.Quantity(step,step_unit).to(unit).magnitude
+
+        if dtype is None:
+            dtype = np.dtype('float64')
+        elif isinstance(dtype,str):
+            dtype = np.dtype(dtype)
+
+        if size is None:
+            if stop is None:
+                raise ValueError("stop value must be provided!")
+            return np.arange(start,stop,step,dtype=dtype)
+        else:
+            if stop is None:
+                stop = start+size*step
+            return np.linspace(start,stop,size,dtype=dtype)
+
+    def arrstr(*args,start='A',stop=None,step=1,size=None,dtype=None):
+
+        if len(args)==0:
+            pass
+        elif len(args)==1:
+            stop, = args
+        elif len(args)==2:
+            start,stop = args
+        elif len(args)==3:
+            start,stop,size = args
+        elif len(args)==4:
+            start,stop,size,dtype = args
+        else:
+            raise TypeError("Arguments are too many!")
+
+        if start is not None:
+            if len(start)>5:
+                raise TypeError(f'tried excel like letters and failed because of size of start {len(start)}!')
+            elif not all([char in string.ascii_letters for char in start]):
+                raise TypeError(f'tried excel like letters and failed because of {start=}!')
+            start = start.upper()
+
+        if stop is not None:
+            if len(stop)>5:
+                raise TypeError(f'tried excel like letters and failed because of size of stop {len(stop)}!')  
+            elif not all([char in string.ascii_letters for char in stop]):
+                raise TypeError(f'tried excel like letters and failed because of {stop=}!!')
+            stop = stop.upper()
+
+        if size is not None:
+            if size>1000_000:
+                raise TypeError(f'tried excel like letters and failed because of {size=}!')
+
+        if isinstance(dtype,str):
+            dtype = np.dtype(str)
+
+        def excel_column_headers():
+            n = 1
+            while True:
+                yield from (
+                    ''.join(group) for group in itertools.product(
+                        string.ascii_uppercase,repeat=n
+                        )
+                    )
+                n += 1
+
+        for start_index,combo in enumerate(excel_column_headers()):
+            if start==combo:
+                break
+
+        if size is None:
+            if stop is None:
+                raise ValueError("stop value must be provided!")
+            for stop_index,combo in enumerate(excel_column_headers(),start=1):
+                if stop==combo:
+                    break
+            arr_ = np.array(list(itertools.islice(excel_column_headers(),stop_index)))[start_index:stop_index]
+            arr_ = arr_[::step]
+        else:
+            arr_ = np.array(list(itertools.islice(excel_column_headers(),start_index+size*step)))[start_index:]
+            arr_ = arr_[::step]
+
+        if dtype is not None:
+            return arr_.astype(dtype)
+        else:
+            return arr_
+
+    def arrdatetime64(*args,start=None,stop="today",step=1,size=None,dtype=None,step_unit='M'):
+
+        if len(args)==0:
+            pass
+        elif len(args)==1:
+            start, = args
+        elif len(args)==2:
+            start,stop = args
+        elif len(args)==3:
+            start,stop,size = args
+        elif len(args)==4:
+            start,stop,size,dtype = args
+        else:
+            raise TypeError("Arguments are too many!")
+
+        if dtype is None:
+            dtype = np.dtype(f"datetime64[s]")
+        elif isinstance(dtype,str):
+            dtype = np.dtype(dtype)
+
+        start = _key2column.todatetime(start)
+        stop = _key2column.todatetime(stop)
+
+        def datetime_adddays(dtcurr,delta):
+            return dtcurr+relativedelta.relativedelta(days=delta)
+
+        def datetime_addhours(dtcurr,delta):
+            return dtcurr+relativedelta.relativedelta(hours=delta)
+
+        def datetime_addminutes(dtcurr,delta):
+            return dtcurr+relativedelta.relativedelta(minutes=delta)
+
+        def datetime_addseconds(dtcurr,delta):
+            return dtcurr+relativedelta.relativedelta(seconds=delta)
+        
+        if step_unit == "Y":
+            func = datetime_addyears
+        elif step_unit == "M":
+            func = datetime_addmonths
+        elif step_unit == "D":
+            func = datetime_adddays
+        elif step_unit == "h":
+            func = datetime_addhours
+        elif step_unit == "m":
+            func = datetime_addminutes
+        elif step_unit == "s":
+            func = datetime_addseconds
+        else:
+            raise ValueError("step_unit can be anything from 'Y','M','D','h','m' or 's'.")
+
+        if size is None:
+            if start is None:
+                raise ValueError("start value must be provided!")
+            date = copy.deepcopy(start)
+            arr_date = []
+            while date<stop:
+                arr_date.append(date)
+                date = func(date,step)
+            return np.array(arr_date,dtype=dtype)
+        elif start is None:
+            date = copy.deepcopy(stop)
+            arr_date = []
+            for index in range(size):
+                date = func(date,-index*step)
+                arr_date.append(date)
+            return np.flip(np.array(arr_date,dtype=dtype))
+        else:
+            delta_ = stop-start
+            delta_us = (delta_.days*86_400+delta_.seconds)*1000_000+delta_.microseconds
+            deltas = np.linspace(0,delta_us,size)
+            date = copy.deepcopy(start)
+            arr_date = []
+            for delta_us in deltas:
+                date += relativedelta.relativedelta(microseconds=delta_us)
+                arr_date.append(date)
+            return np.array(arr_date,dtype=dtype)
+
+class _alphabet():
 
     aze_cyril_lower = [
         "а","б","ҹ","ч","д","е","я","ф","ҝ","ғ","һ","х","ы","и","ж","к",
@@ -1370,9 +1456,9 @@ class alphabet():
         "A","B","C","Ç","D","E","Ə","F","G","Ğ","H","X","I","İ","J","K",
         "Q","L","M","N","O","Ö","P","R","S","Ş","T","U","Ü","V","Y","Z"]
 
-    def __init__(self,string):
+    def __init__(self,text):
 
-        self.string = string
+        self.text = text
 
     def convert(self,language="aze",from_="cyril",to="latin"):
 
@@ -1383,10 +1469,10 @@ class alphabet():
         to_upper = getattr(self,f"{language}_{to}_upper")
 
         for from_letter,to_letter in zip(from_lower,to_lower):
-            self.string.replace(from_letter,to_letter)
+            self.text.replace(from_letter,to_letter)
 
         for from_letter,to_letter in zip(from_upper,to_upper):
-            self.string.replace(from_letter,to_letter)
+            self.text.replace(from_letter,to_letter)
 
 if __name__ == "__main__":
 
