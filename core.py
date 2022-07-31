@@ -94,7 +94,8 @@ class column():
     """It is a numpy array of shape (N,) with additional attributes of head, unit and info."""
 
     """INITIALIZATION"""
-    def __init__(self,vals,head=None,unit=None,info=None,dtype=None,size=None):
+
+    def __init__(self,vals,head=None,unit=None,info=None,size=None,dtype=None):
         """Initializes a column with vals of numpy array (N,) and additional attributes."""
 
         """
@@ -216,26 +217,30 @@ class column():
 
     def fromstring(self,dtype,regex=None,sep_thousand=",",sep_decimal="."):
 
+        col_ = copy.deepcopy(self)
+
         if isinstance(dtype,str):
             dtype = np.dtype(dtype)
 
         if dtype.type is np.dtype('int').type:
             dnone = self.nones.todict("str","int")
             regex = r"[-+]?\d+\b" if regex is None else regex
-            self.vals = str2int(self.vals,regex=regex,**dnone)
+            col_.vals = str2int(col_.vals,regex=regex,**dnone)
         elif dtype.type is np.dtype('float').type:
             dnone = self.nones.todict("str","float")
             regex = f"[-+]?(?:\\d*\\{sep_thousand}*\\d*\\{sep_decimal}\\d+|\\d+)" if regex is None else regex
-            self.vals = str2float(self.vals,regex=regex,**dnone)
-            self._valsunit()
+            col_.vals = str2float(col_.vals,regex=regex,**dnone)
+            col_._valsunit()
         elif dtype.type is np.dtype('str').type:
             dnone = self.nones.todict("str")
-            self.vals = str2str(self.vals,regex=regex,**dnone)
+            col_.vals = str2str(col_.vals,regex=regex,**dnone)
         elif dtype.type is np.dtype('datetime64').type:
             dnone = self.nones.todict("str","datetime64")
-            self.vals = str2datetime64(self.vals,regex=regex,**dnone)
+            col_.vals = str2datetime64(col_.vals,regex=regex,**dnone)
         else:
             raise TypeError("dtype can be either int, float, str or datetime64")
+
+        return col_
 
     def tostring(self,fstring=None,upper=False,lower=False,zfill=None):
         """It has more capabilities than str2str on the outputting part."""
@@ -283,6 +288,7 @@ class column():
         return column_
 
     """REPRESENTATION"""
+
     def _valstr_(self,num=None):
         """It outputs column.vals. If num is not defined it edites numpy.ndarray.__str__()."""
 
@@ -361,6 +367,7 @@ class column():
         return text.format(head,unit,info,vals)
 
     """COMPARISON"""
+
     def isnone(self):
         """It return boolean array by comparing the values of vals to none types defined by column."""
 
@@ -513,6 +520,7 @@ class column():
             super().__setattr__(name,value)
 
     """CONTAINER METHODS"""
+
     def min(self):
         """It returns none-minimum value of column."""
 
@@ -595,6 +603,7 @@ class column():
         return column_
 
     """OPERATIONS"""
+
     def convert(self,unit):
         """It converts the vals to the new unit."""
 
@@ -659,27 +668,33 @@ class column():
 
     def toeom(self):
 
+        if self.vals.dtype.type is not np.datetime64:
+            return
+
         dt = copy.deepcopy(self)
 
         dt_ = dt[~dt.isnone()]
 
         arr_ = _any2column.arrdatetime64(
-            year=dt_.year,month=dt_.month,day=0,dtype=dt_.dtype)
+            year=dt_.year,month=dt_.month,day=0,dtype=dt.dtype)
 
-        dt[~self.isnone()] = arr_
+        dt[~dt.isnone()] = arr_
 
         return dt
 
     def tobom(self):
 
+        if self.vals.dtype.type is not np.datetime64:
+            return
+
         dt = copy.deepcopy(self)
 
         dt_ = dt[~dt.isnone()]
 
         arr_ = _any2column.arrdatetime64(
-            year=dt_.year,month=dt_.month,day=1,dtype=dt_.dtype)
+            year=dt_.year,month=dt_.month,day=1,dtype=dt.dtype)
 
-        dt[~self.isnone()] = arr_
+        dt[~dt.isnone()] = arr_
 
         return dt
 
@@ -836,6 +851,7 @@ class column():
         return column_
 
     """PROPERTY METHODS"""
+
     @property
     def dtype(self):
         """Return dtype of column.vals."""

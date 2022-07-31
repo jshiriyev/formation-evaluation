@@ -49,36 +49,6 @@ class TestNones(unittest.TestCase):
         nones_dict = Nones.todict("int","str")
 
         self.assertEqual(len(nones_dict),2)
-
-class TestArray(unittest.TestCase):
-
-    def test_init(self):
-
-        arr_ = key2column(5)
-        np.testing.assert_array_equal(arr_,np.arange(5))
-
-        arr_ = key2column(5.)
-        np.testing.assert_array_equal(arr_,np.arange(5,dtype='float64'))
-
-        arr_ = key2column('E')
-        np.testing.assert_array_equal(arr_,np.array(['A','B','C','D','E']))
-
-        arr_ = key2column('2022-05-01','2022-07-29')
-        arr_true = np.array([
-            datetime.date(2022,5,1),
-            datetime.date(2022,6,1),
-            datetime.date(2022,7,1)],
-            dtype='datetime64[s]')
-
-        np.testing.assert_array_equal(arr_,arr_true)
-
-        arr_ = any2column(('Python','NumPy','Great!'),dtype='str')
-        arr2 = any2column(('Python','NumPy','Great!'))
-
-        np.testing.assert_array_equal(
-            arr_.vals,np.array(['Python','NumPy','Great!']))
-
-        np.testing.assert_array_equal(arr_.vals,arr2.vals)
         
 class TestColumn(unittest.TestCase):
 
@@ -236,7 +206,7 @@ class TestColumn(unittest.TestCase):
         col_.astype("float")
         self.assertEqual(col_.unit,"dimensionless")
 
-    def test_tostring(self):
+    def test_from_or_to_string(self):
 
         col_ = column(np.arange(1,5))
         col_ = col_.tostring(fstring="{:d}")
@@ -256,6 +226,13 @@ class TestColumn(unittest.TestCase):
         col_ = col_.tostring(fstring="{:15s}")
         np.testing.assert_array_equal(col_.vals,np.array(['78,.45,2       ',
             '98,3.,28       ','1,75,3,.       ']))
+        self.assertEqual(col_.head,"HEAD")
+        self.assertEqual(col_.unit,None)
+        self.assertEqual(col_.info," ")
+
+        col_ = column(np.array(["john 78,45.2","valeria 98,3.28","throne 1,75,3.0"]))
+        col_ = col_.fromstring('float64')
+        np.testing.assert_array_equal(col_.vals,np.array([7845.2,983.28,1753.0]))
         self.assertEqual(col_.head,"HEAD")
         self.assertEqual(col_.unit,None)
         self.assertEqual(col_.info," ")
@@ -545,7 +522,37 @@ class TestColumn(unittest.TestCase):
         col_ = column(np.arange(1,4))
 
         # self.assertEqual(col_.year,None)
-                       
+
+class TestArray(unittest.TestCase):
+
+    def test_init(self):
+
+        arr_ = key2column(5)
+        np.testing.assert_array_equal(arr_,np.arange(5))
+
+        arr_ = key2column(5.)
+        np.testing.assert_array_equal(arr_,np.arange(5,dtype='float64'))
+
+        arr_ = key2column('E')
+        np.testing.assert_array_equal(arr_,np.array(['A','B','C','D','E']))
+
+        arr_ = key2column('2022-05-01','2022-07-29')
+        arr_true = np.array([
+            datetime.date(2022,5,1),
+            datetime.date(2022,6,1),
+            datetime.date(2022,7,1)],
+            dtype='datetime64[s]')
+
+        np.testing.assert_array_equal(arr_,arr_true)
+
+        arr_ = any2column(('Python','NumPy','Great!'),dtype='str')
+        arr2 = any2column(('Python','NumPy','Great!'))
+
+        np.testing.assert_array_equal(
+            arr_.vals,np.array(['Python','NumPy','Great!']))
+
+        np.testing.assert_array_equal(arr_.vals,arr2.vals)
+
 if __name__ == "__main__":
 
     unittest.main()

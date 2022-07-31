@@ -52,7 +52,12 @@ def str2float_(string:str,none_str:str="",none_float:float=np.nan,sep_decimal:st
         if match is None:
             return none_float
         else:
-            return float(match.group())
+            string = match.group()
+            if string.count(sep_thousand)>0:
+                string = string.replace(sep_thousand,"")
+            if sep_decimal!=".":
+                string = string.replace(sep_decimal,".")
+            return float(string)
 
 str2float = np.vectorize(str2float_,otypes=[float],excluded=["none_str","none_float","sep_decimal","sep_thousand","regex"])
 
