@@ -13,19 +13,20 @@ def str2int_(string:str,none_str:str="",none_int:int=-99_999,regex:str=None) -> 
 
     # common expression for int type is r"[-+]?\d+\b"
 
+    if string==none_str:
+        return none_int
+
     if regex is None:
-        if string==none_str:
-            return none_int
-        else:
-            return int(string)
+        return int(string)
 
-    else:
-        match = re.search(regex,string)
+    match = re.search(regex,string)
 
-        if match is None:
-            return none_int
-        else:
-            return int(match.group())
+    if match is None:
+        return none_int
+
+    string = match.group()
+            
+    return int(string)
         
 str2int = np.vectorize(str2int_,otypes=[int],excluded=["none_str","none_int","regex"])
 
@@ -34,30 +35,29 @@ def str2float_(string:str,none_str:str="",none_float:float=np.nan,sep_decimal:st
 
     # common regular expression for float type is f"[-+]?(?:\\d*\\{sep_thousand}*\\d*\\{sep_decimal}\\d+|\\d+)"
 
+    if string.count(sep_decimal)>1:
+        raise ValueError(f"String contains more than one {sep_decimal=}, {string}")
+
+    if string.count(sep_thousand)>0:
+        string = string.replace(sep_thousand,"")
+
+    if sep_decimal!=".":
+        string = string.replace(sep_decimal,".")
+
+    if string==none_str:
+        return none_float
+
     if regex is None:
-        if string==none_str:
-            return none_float
-        elif string.count(sep_decimal)>1:
-            raise ValueError(f"String contains more than one {sep_decimal=}, {string}")
-        else:
-            if string.count(sep_thousand)>0:
-                string = string.replace(sep_thousand,"")
-            if sep_decimal!=".":
-                string = string.replace(sep_decimal,".")
-            return float(string)
+        return float(string)
 
-    else:
-        match = re.search(regex,string)
+    match = re.search(regex,string)
 
-        if match is None:
-            return none_float
-        else:
-            string = match.group()
-            if string.count(sep_thousand)>0:
-                string = string.replace(sep_thousand,"")
-            if sep_decimal!=".":
-                string = string.replace(sep_decimal,".")
-            return float(string)
+    if match is None:
+        return none_float
+
+    string = match.group()
+    
+    return float(string)
 
 str2float = np.vectorize(str2float_,otypes=[float],excluded=["none_str","none_float","sep_decimal","sep_thousand","regex"])
 

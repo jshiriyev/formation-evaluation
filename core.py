@@ -99,14 +99,11 @@ class column():
         """Initializes a column with vals of numpy array (N,) and additional attributes."""
 
         """
-        Initialization can be done in two ways:
+        Initialization can be done by sending int, float, str, datetime, numpy as standalone or
+        in a list, tuple or numpy.ndarray
         
-        1) Defining vals by sending int, float, str, datetime, numpy as standalone or
-        in a list, tuple or numpy.array
-        
-        2) Generating a numpy array by defining dtype and sending the keywords for array creating methods.
-        
-        The argument "dtype" is optional and can be any of the {int, float, str, datetime64}
+        The argument "size" is optional and dicates the size of 1 dimensional numpy array.
+        The argument "dtype" is optional and can be any type in {int, float, str, datetime64}
 
         """
 
@@ -114,17 +111,58 @@ class column():
 
         super().__setattr__("vals",array1d(vals,size))
 
-        self.astype(dtype)
-
+        self._astype(dtype)
         self._valshead(head)
         self._valsunit(unit)
         self._valsinfo(info)
 
     def _valsarr(self,vals):
+        """Sets the vals of column."""
 
         super().__setattr__("vals",array1d(vals))
 
-        self.astype()
+        self._astype()
+
+        self._valsunit()
+
+    def _astype(self,dtype=None):
+        """It changes the dtype of the column and alters the None values accordingly."""
+
+        if isinstance(dtype,str):
+            dtype = np.dtype(dtype)
+
+        if dtype is None:
+            pass
+        elif not isinstance(dtype,np.dtype):
+            raise TypeError(f"dtype must be numpy.dtype, not type={type(dtype)}")
+        elif dtype.type is np.object_:
+            raise TypeError(f"Unsupported numpy.dtype, {dtype=}")
+        elif self.dtype==dtype:
+            return self
+
+        if dtype is None:
+            dtype = self.dtype
+
+        if dtype.type is np.dtype('int').type:
+            none = getattr(self.nones,'int')
+        elif dtype.type is np.dtype('float').type:
+            none = getattr(self.nones,'float')
+        elif dtype.type is np.dtype('str').type:
+            none = getattr(self.nones,'str')
+        elif dtype.type is np.dtype('datetime64').type:
+            none = getattr(self.nones,'datetime64')
+        else:
+            raise TypeError(f"Unexpected numpy.dtype, {dtype=}")
+
+        if self.vals.dtype.type is np.object_:
+            vals_arr = np.empty(self.vals.size,dtype=dtype)
+            vals_arr[self.isnone] = none
+            vals_arr[~self.isnone] = self.vals[~self.isnone].astype(dtype=dtype)
+        else:
+            vals_arr = self.vals.astype(dtype=dtype)
+            vals_arr[self.isnone] = none
+
+        object.__setattr__(self,"vals",vals_arr)
 
         self._valsunit()
 
@@ -172,124 +210,9 @@ class column():
         else:
             super().__setattr__("info",str(info))
 
-    def astype(self,dtype=None):
-        """It changes the dtype of the column and alters the None values accordingly."""
-
-        if isinstance(dtype,str):
-            dtype = np.dtype(dtype)
-
-        if dtype is None:
-            pass
-        elif not isinstance(dtype,np.dtype):
-            raise TypeError(f"dtype must be numpy.dtype, not type={type(dtype)}")
-        elif dtype.type is np.object_:
-            raise TypeError(f"Unsupported numpy.dtype, {dtype=}")
-        elif self.dtype==dtype:
-            return
-
-        if dtype is None:
-            dtype = self.dtype
-
-        if dtype.type is np.dtype('int').type:
-            none = getattr(self.nones,'int')
-        elif dtype.type is np.dtype('float').type:
-            none = getattr(self.nones,'float')
-        elif dtype.type is np.dtype('str').type:
-            none = getattr(self.nones,'str')
-        elif dtype.type is np.dtype('datetime64').type:
-            none = getattr(self.nones,'datetime64')
-        else:
-            raise TypeError(f"Unexpected numpy.dtype, {dtype=}")
-
-        isnone = self.isnone()
-
-        if self.vals.dtype.type is np.object_:
-            vals_arr = np.empty(self.vals.size,dtype=dtype)
-            vals_arr[isnone] = none
-            vals_arr[~isnone] = self.vals[~isnone].astype(dtype=dtype)
-        else:
-            vals_arr = self.vals.astype(dtype=dtype)
-            vals_arr[isnone] = none
-
-        super().__setattr__("vals",vals_arr)
-
-        self._valsunit()
-
-    def fromstring(self,dtype,regex=None,sep_thousand=",",sep_decimal="."):
-
-        col_ = copy.deepcopy(self)
-
-        if isinstance(dtype,str):
-            dtype = np.dtype(dtype)
-
-        if dtype.type is np.dtype('int').type:
-            dnone = self.nones.todict("str","int")
-            regex = r"[-+]?\d+\b" if regex is None else regex
-            col_.vals = str2int(col_.vals,regex=regex,**dnone)
-        elif dtype.type is np.dtype('float').type:
-            dnone = self.nones.todict("str","float")
-            regex = f"[-+]?(?:\\d*\\{sep_thousand}*\\d*\\{sep_decimal}\\d+|\\d+)" if regex is None else regex
-            col_.vals = str2float(col_.vals,regex=regex,**dnone)
-            col_._valsunit()
-        elif dtype.type is np.dtype('str').type:
-            dnone = self.nones.todict("str")
-            col_.vals = str2str(col_.vals,regex=regex,**dnone)
-        elif dtype.type is np.dtype('datetime64').type:
-            dnone = self.nones.todict("str","datetime64")
-            col_.vals = str2datetime64(col_.vals,regex=regex,**dnone)
-        else:
-            raise TypeError("dtype can be either int, float, str or datetime64")
-
-        return col_
-
-    def tostring(self,fstring=None,upper=False,lower=False,zfill=None):
-        """It has more capabilities than str2str on the outputting part."""
-
-        if fstring is None:
-            fstring_inner = "{}"
-            fstring_clean = "{}"
-        else:
-            fstring_inner = re.search(r"\{(.*?)\}",fstring).group()
-            fstring_clean = re.sub(r"\{(.*?)\}","{}",fstring,count=1)
-
-        vals_str = []
-
-        for val,none_bool in zip(self.vals.tolist(),self.isnone()):
-
-            if none_bool:
-                vals_str.append(self.nones.str)
-                continue
-
-            if isinstance(val,datetime.date):
-                text = val.strftime(fstring_inner[1:-1])
-            else:
-                text = fstring_inner.format(val)
-
-            if zfill is not None:
-                text = text.zfill(zfill)
-
-            if upper:
-                text = text.upper()
-            elif lower:
-                text = text.lower()
-
-            text = fstring_clean.format(text)
-
-            vals_str.append(text)
-
-        vals_str = np.array(vals_str,dtype="str")
-
-        column_ = copy.deepcopy(self)
-
-        column_.astype("str")
-
-        column_.vals = vals_str
-
-        return column_
-
     """REPRESENTATION"""
 
-    def _valstr_(self,num=None):
+    def _valstr(self,num=None):
         """It outputs column.vals. If num is not defined it edites numpy.ndarray.__str__()."""
 
         if num is None:
@@ -352,7 +275,7 @@ class column():
     def __repr__(self):
         """Console representation of column."""
 
-        return f'column(head="{self.head}", unit="{self.unit}", info="{self.info}", vals={self._valstr_(2)})'
+        return f'column(head="{self.head}", unit="{self.unit}", info="{self.info}", vals={self._valstr(2)})'
 
     def __str__(self):
         """Print representation of column."""
@@ -362,69 +285,11 @@ class column():
         head = f"head\t: {self.head}"
         unit = f"unit\t: {self.unit}"
         info = f"info\t: {self.info}"
-        vals = f"vals\t: {self._valstr_(2)}"
+        vals = f"vals\t: {self._valstr(2)}"
 
         return text.format(head,unit,info,vals)
 
     """COMPARISON"""
-
-    def isnone(self):
-        """It return boolean array by comparing the values of vals to none types defined by column."""
-
-        if self.vals.dtype.type is np.object_:
-
-            bool_arr = np.full(self.vals.shape,False,dtype=bool)
-
-            for index,val in enumerate(self.vals):
-                if val is None:
-                    bool_arr[index] = True
-                elif isinstance(val,int):
-                    if val==self.nones.int:
-                        bool_arr[index] = True
-                elif isinstance(val,float):
-                    if np.isnan(val):
-                        bool_arr[index] = True
-                    elif not np.isnan(self.nones.float):
-                        if val==self.nones.float:
-                            bool_arr[index] = True
-                elif isinstance(val,str):
-                    if val==self.nones.str:
-                        bool_arr[index] = True
-                elif isinstance(val,np.datetime64):
-                    if np.isnat(val):
-                        bool_arr[index] = True
-                    elif not np.isnat(self.nones.datetime64):
-                        if val==self.nones.datetime64:
-                            bool_arr[index] = True
-
-        elif self.dtype.type is np.dtype("int").type:
-            bool_arr = self.vals==self.nones.int
-
-        elif self.dtype.type is np.dtype("float").type:
-            bool_arr = np.isnan(self.vals)
-            if not np.isnan(self.nones.float):
-                bool_arr = np.logical_or(bool_arr,self.vals==self.nones.float)
-
-        elif self.dtype.type is np.dtype("str").type:
-            bool_arr = self.vals == self.nones.str
-
-        elif self.dtype.type is np.dtype("datetime64").type:
-            bool_arr = np.isnat(self.vals)
-            if not np.isnat(self.nones.datetime64):
-                bool_arr = np.logical_or(bool_arr,self.vals==self.nones.datetime64)
-
-        else:
-            raise TypeError(f"Unidentified problem with column dtype={self.vals.dtype.type}")
-
-        return bool_arr
-
-    def nondim(self):
-        """It checks whether column has unit or not."""
-
-        if self.vals.dtype.type is np.float64:
-            return self.unit=="dimensionless"
-        else:
-            return True
 
     def __lt__(self,other):
         """Implementing '<' operator."""
@@ -519,17 +384,17 @@ class column():
         else:
             super().__setattr__(name,value)
 
-    """CONTAINER METHODS"""
+    """SEARCH METHODS"""
 
     def min(self):
         """It returns none-minimum value of column."""
 
         if self.vals.dtype.type is np.int32:
-            return self.vals[~self.isnone()].min()
+            return self.vals[~self.isnone].min()
         elif self.vals.dtype.type is np.float64:
             return np.nanmin(self.vals)
         elif self.vals.dtype.type is np.str_:
-            return min(self.vals[~self.isnone()],key=len)
+            return min(self.vals[~self.isnone],key=len)
         elif self.vals.dtype.type is np.datetime64:
             return np.nanmin(self.vals)
 
@@ -537,11 +402,11 @@ class column():
         """It returns none-maximum value of column."""
 
         if self.vals.dtype.type is np.int32:
-            return self.vals[~self.isnone()].max()
+            return self.vals[~self.isnone].max()
         elif self.vals.dtype.type is np.float64:
             return np.nanmax(self.vals)
         elif self.vals.dtype.type is np.str_:
-            return max(self.vals[~self.isnone()],key=len)
+            return max(self.vals[~self.isnone],key=len)
         elif self.vals.dtype.type is np.datetime64:
             return np.nanmax(self.vals)
 
@@ -560,27 +425,7 @@ class column():
         else:
             return int(vals.dtype.itemsize/charsize)
 
-    def replace(self,new=None,old=None,method="upper"):
-        """It replaces old with new. If old is not defined, it replaces nones.
-        If new is not defined, it uses upper or lower values to replace the olds."""
-
-        if old is None:
-            conds = self.isnone()
-        else:
-            conds = self.vals == old
-
-        if new is None:
-
-            if method=="upper":
-                for index in range(self.vals.size):
-                    if conds[index]:
-                        self.vals[index] = self.vals[index-1]
-            elif method=="lower":
-                for index in range(self.vals.size):
-                    if conds[index]:
-                        self.vals[index] = self.vals[index+1]
-        else:
-            self.vals[conds] = new
+    """CONTAINER METHODS"""
 
     def __setitem__(self,key,vals):
 
@@ -602,7 +447,37 @@ class column():
 
         return column_
 
-    """OPERATIONS"""
+    """CONVERSION OPERATIONS"""
+
+    def astype(self,dtype=None):
+
+        col_ = copy.deepcopy(self)
+
+        col_._astype(dtype)
+
+        return col_
+
+    def replace(self,new=None,old=None,method="upper"):
+        """It replaces old with new. If old is not defined, it replaces nones.
+        If new is not defined, it uses upper or lower values to replace the olds."""
+
+        if old is None:
+            conds = self.isnone
+        else:
+            conds = self.vals == old
+
+        if new is None:
+
+            if method=="upper":
+                for index in range(self.vals.size):
+                    if conds[index]:
+                        self.vals[index] = self.vals[index-1]
+            elif method=="lower":
+                for index in range(self.vals.size):
+                    if conds[index]:
+                        self.vals[index] = self.vals[index+1]
+        else:
+            self.vals[conds] = new
 
     def convert(self,unit):
         """It converts the vals to the new unit."""
@@ -613,7 +488,7 @@ class column():
         column_ = copy.deepcopy(self)
 
         if self.dtype.type is not np.dtype('float').type:
-            column_.astype('float')
+            column_ = column_.astype('float')
         else:
             unrg = pint.UnitRegistry()
             unrg.Quantity(column_.vals,column_.unit).ito(unit)
@@ -621,6 +496,80 @@ class column():
         column_.unit = unit
 
         return column_
+
+    def fromstring(self,dtype,regex=None):
+
+        col_ = copy.deepcopy(self)
+
+        if isinstance(dtype,str):
+            dtype = np.dtype(dtype)
+
+        if dtype.type is np.dtype('int').type:
+            dnone = self.nones.todict("str","int")
+            regex = r"[-+]?\d+\b" if regex is None else regex
+            col_.vals = str2int(col_.vals,regex=regex,**dnone)
+        elif dtype.type is np.dtype('float').type:
+            dnone = self.nones.todict("str","float")
+            regex = r"[-+]?[0-9]*\.?[0-9]+" if regex is None else regex
+            col_.vals = str2float(col_.vals,regex=regex,**dnone)
+            col_._valsunit()
+        elif dtype.type is np.dtype('str').type:
+            dnone = self.nones.todict("str")
+            col_.vals = str2str(col_.vals,regex=regex,**dnone)
+        elif dtype.type is np.dtype('datetime64').type:
+            dnone = self.nones.todict("str","datetime64")
+            col_.vals = str2datetime64(col_.vals,regex=regex,**dnone)
+        else:
+            raise TypeError("dtype can be either int, float, str or datetime64")
+
+        return col_
+
+    def tostring(self,fstring=None,upper=False,lower=False,zfill=None):
+        """It has more capabilities than str2str on the outputting part."""
+
+        if fstring is None:
+            fstring_inner = "{}"
+            fstring_clean = "{}"
+        else:
+            fstring_inner = re.search(r"\{(.*?)\}",fstring).group()
+            fstring_clean = re.sub(r"\{(.*?)\}","{}",fstring,count=1)
+
+        vals_str = []
+
+        for val,none_bool in zip(self.vals.tolist(),self.isnone):
+
+            if none_bool:
+                vals_str.append(self.nones.str)
+                continue
+
+            if isinstance(val,datetime.date):
+                text = val.strftime(fstring_inner[1:-1])
+            else:
+                text = fstring_inner.format(val)
+
+            if zfill is not None:
+                text = text.zfill(zfill)
+
+            if upper:
+                text = text.upper()
+            elif lower:
+                text = text.lower()
+
+            text = fstring_clean.format(text)
+
+            vals_str.append(text)
+
+        vals_str = np.array(vals_str,dtype="str")
+
+        column_ = copy.deepcopy(self)
+
+        column_ = column_.astype("str")
+
+        column_.vals = vals_str
+
+        return column_
+
+    """SHIFTING"""
     
     def shift(self,delta,deltaunit=None):
         """Shifting the entries depending on its dtype."""
@@ -638,13 +587,78 @@ class column():
             delta_ = any2column(phrases=' ',repeats=delta,dtype='str')
             vals_shifted = np.char.add(delta_.vals,column_)
         elif column_.dtype.type is np.dtype('datetime64').type:
-            vals_shifted = self.add_deltatime(delta,deltaunit)
+            vals_shifted = self._add_deltatime(delta,deltaunit)
 
         column_.vals = vals_shifted
 
         return column_
 
-    def add_deltatime(self,delta,unit=None):
+    def toeom(self):
+
+        if self.vals.dtype.type is not np.datetime64:
+            return
+
+        dt = copy.deepcopy(self)
+
+        dt_ = dt[~dt.isnone]
+
+        arr_ = _any2column.arrdatetime64(
+            year=dt_.year,month=dt_.month,day=0,dtype=dt.dtype)
+
+        dt[~dt.isnone] = arr_
+
+        return dt
+
+    def tobom(self):
+
+        if self.vals.dtype.type is not np.datetime64:
+            return
+
+        dt = copy.deepcopy(self)
+
+        dt_ = dt[~dt.isnone]
+
+        arr_ = _any2column.arrdatetime64(
+            year=dt_.year,month=dt_.month,day=1,dtype=dt.dtype)
+
+        dt[~dt.isnone] = arr_
+
+        return dt
+
+    """MATHEMATICAL OPERATIONS"""
+
+    def __add__(self,other):
+        """Implementing '+' operator."""
+
+        curnt = copy.deepcopy(self)
+
+        if not isinstance(other,column):
+            other = column(other)
+
+        if curnt.dtype.type is np.dtype('int').type:
+            if not other.dtype.type is np.dtype('int').type:
+                other = other.astype('int')
+            curnt.vals += other.vals
+        elif curnt.dtype.type is np.dtype('float').type:
+            if not other.dtype.type is np.dtype('float').type:
+                other = other.astype('float')
+            other = other.convert(curnt.unit)
+            curnt.vals += other.vals
+        elif curnt.dtype.type is np.dtype('str').type:
+            if not other.dtype.type is np.dtype('str').type:
+                other = other.astype('str')
+            curnt.vals = np.char.add(curnt.vals,other.vals)
+        elif curnt.dtype.type is np.dtype('datetime64').type:
+            unrg = pint.UnitRegistry()
+            unit = unrg.Unit(other.unit).__str__()
+            if unit is None:
+                raise TypeError(f"Only floats with delta time unit is supported.")
+            else:
+                curnt = curnt.shift(other.vals,deltaunit=unit)
+
+        return curnt
+
+    def _add_deltatime(self,delta,unit=None):
 
         if unit is None:
             unit = "M"
@@ -666,69 +680,6 @@ class column():
 
         return vals_shifted
 
-    def toeom(self):
-
-        if self.vals.dtype.type is not np.datetime64:
-            return
-
-        dt = copy.deepcopy(self)
-
-        dt_ = dt[~dt.isnone()]
-
-        arr_ = _any2column.arrdatetime64(
-            year=dt_.year,month=dt_.month,day=0,dtype=dt.dtype)
-
-        dt[~dt.isnone()] = arr_
-
-        return dt
-
-    def tobom(self):
-
-        if self.vals.dtype.type is not np.datetime64:
-            return
-
-        dt = copy.deepcopy(self)
-
-        dt_ = dt[~dt.isnone()]
-
-        arr_ = _any2column.arrdatetime64(
-            year=dt_.year,month=dt_.month,day=1,dtype=dt.dtype)
-
-        dt[~dt.isnone()] = arr_
-
-        return dt
-
-    def __add__(self,other):
-        """Implementing '+' operator."""
-
-        curnt = copy.deepcopy(self)
-
-        if not isinstance(other,column):
-            other = column(other)
-
-        if curnt.dtype.type is np.dtype('int').type:
-            if not other.dtype.type is np.dtype('int').type:
-                other.astype('int')
-            curnt.vals += other.vals
-        elif curnt.dtype.type is np.dtype('float').type:
-            if not other.dtype.type is np.dtype('float').type:
-                other.astype('float')
-            other = other.convert(curnt.unit)
-            curnt.vals += other.vals
-        elif curnt.dtype.type is np.dtype('str').type:
-            if not other.dtype.type is np.dtype('str').type:
-                other.astype('str')
-            curnt.vals = np.char.add(curnt.vals,other.vals)
-        elif curnt.dtype.type is np.dtype('datetime64').type:
-            unrg = pint.UnitRegistry()
-            unit = unrg.Unit(other.unit).__str__()
-            if unit is None:
-                raise TypeError(f"Only floats with delta time unit is supported.")
-            else:
-                curnt = curnt.shift(other.vals,deltaunit=unit)
-
-        return curnt
-
     def __floordiv__(self,other):
         """Implementing '//' operator."""
 
@@ -738,11 +689,11 @@ class column():
             # ureg = pint.UnitRegistry()
             # unit = ureg.Unit(f"{self.unit}/({other.unit})").__str__()
 
-            if other.nondim() and self.nondim():
+            if other.nondim and self.nondim:
                 unit = "dimensionless"
-            elif not other.nondim() and self.nondim():
+            elif not other.nondim and self.nondim:
                 unit = f"1/{other.unit}"
-            elif other.nondim() and not self.nondim():
+            elif other.nondim and not self.nondim:
                 unit = self.unit
             else:
                 unit = f"{self.unit}/({other.unit})"
@@ -764,7 +715,7 @@ class column():
         #     ureg = pint.UnitRegistry()
         #     unit = ureg.Unit(f"{self.unit}/({other.unit})").__str__()
         #     return column(self.vals%other.vals,unit=unit)
-            if other.nondim():
+            if other.nondim:
                 column_.vals = self.vals%other.vals
             else:
                 raise TypeError(f"unsupported operand type for dimensional column arrays.")
@@ -782,9 +733,9 @@ class column():
             # ur = pint.UnitRegistry()
             # unit = ur.Unit(f"{self.unit}*{other.unit}").__str__()
 
-            if other.nondim():
+            if other.nondim:
                 unit = self.unit
-            elif self.nondim():
+            elif self.nondim:
                 unit = other.unit
             else:
                 unit = f"{self.unit}*{other.unit}"
@@ -834,11 +785,11 @@ class column():
             # ur = pint.UnitRegistry()
             # unit = ur.Unit(f"{self.unit}/({other.unit})").__str__()
 
-            if other.nondim() and self.nondim():
+            if other.nondim and self.nondim:
                 unit = "dimensionless"
-            elif not other.nondim() and self.nondim():
+            elif not other.nondim and self.nondim:
                 unit = f"1/{other.unit}"
-            elif other.nondim() and not self.nondim():
+            elif other.nondim and not self.nondim:
                 unit = self.unit
             else:
                 unit = f"{self.unit}/({other.unit})"
@@ -850,14 +801,14 @@ class column():
         
         return column_
 
-    """PROPERTY METHODS"""
+    """GENERAL PROPERTIES"""
 
     @property
     def dtype(self):
         """Return dtype of column.vals."""
 
         if self.vals.dtype.type is np.object_:
-            array_ = self.vals[~self.isnone()]
+            array_ = self.vals[~self.isnone]
 
             if array_.size==0:
                 dtype_ = np.dtype('float64')
@@ -872,7 +823,69 @@ class column():
             dtype_ = self.vals.dtype
 
         return dtype_
+
+    @property
+    def isnone(self):
+        """It return boolean array by comparing the values of vals to none types defined by column."""
+
+        if self.vals.dtype.type is np.object_:
+
+            bool_arr = np.full(self.vals.shape,False,dtype=bool)
+
+            for index,val in enumerate(self.vals):
+                if val is None:
+                    bool_arr[index] = True
+                elif isinstance(val,int):
+                    if val==self.nones.int:
+                        bool_arr[index] = True
+                elif isinstance(val,float):
+                    if np.isnan(val):
+                        bool_arr[index] = True
+                    elif not np.isnan(self.nones.float):
+                        if val==self.nones.float:
+                            bool_arr[index] = True
+                elif isinstance(val,str):
+                    if val==self.nones.str:
+                        bool_arr[index] = True
+                elif isinstance(val,np.datetime64):
+                    if np.isnat(val):
+                        bool_arr[index] = True
+                    elif not np.isnat(self.nones.datetime64):
+                        if val==self.nones.datetime64:
+                            bool_arr[index] = True
+
+        elif self.dtype.type is np.dtype("int").type:
+            bool_arr = self.vals==self.nones.int
+
+        elif self.dtype.type is np.dtype("float").type:
+            bool_arr = np.isnan(self.vals)
+            if not np.isnan(self.nones.float):
+                bool_arr = np.logical_or(bool_arr,self.vals==self.nones.float)
+
+        elif self.dtype.type is np.dtype("str").type:
+            bool_arr = self.vals == self.nones.str
+
+        elif self.dtype.type is np.dtype("datetime64").type:
+            bool_arr = np.isnat(self.vals)
+            if not np.isnat(self.nones.datetime64):
+                bool_arr = np.logical_or(bool_arr,self.vals==self.nones.datetime64)
+
+        else:
+            raise TypeError(f"Unidentified problem with column dtype={self.vals.dtype.type}")
+
+        return bool_arr
+
+    @property
+    def nondim(self):
+        """It checks whether column has unit or not."""
+
+        if self.vals.dtype.type is np.float64:
+            return self.unit=="dimensionless"
+        else:
+            return True
     
+    """DATE-TIME PROPERTIES"""
+
     @property
     def year(self):
 
@@ -1047,6 +1060,7 @@ def any2column(*args,**kwargs):
     return column(arr_,head=head,unit=unit,info=info,dtype=dtype)
 
 def key2column(*args,**kwargs):
+    "Generating column by defining dtype and sending the keywords for array creating methods."
 
     head = kwargs.get('head')
     unit = kwargs.get('unit')
