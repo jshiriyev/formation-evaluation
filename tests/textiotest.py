@@ -85,12 +85,10 @@ class TestDataFrame(unittest.TestCase):
         self.assertEqual(len(df.heads),3,"Initialization of DataFrame Headers has failed!")
         self.assertEqual(len(df.running),3,"Initialization of DataFrame Headers has failed!")
 
-        df = DataFrame(col0=[],col1=[])
         a = np.array([1,2,3.])
         b = np.array([4,5,6.])
 
-        df["col0"] = a
-        df["col1"] = b
+        df = DataFrame(col0=a,col1=b)
 
         self.assertCountEqual(df.heads,["col0","col1"],"Initialization of DataFrame Running has failed!")
 
@@ -100,7 +98,7 @@ class TestDataFrame(unittest.TestCase):
         np.testing.assert_array_equal(df["col0"],b)
         np.testing.assert_array_equal(df["col1"],a)
 
-    def test_col__astype(self):
+    def test_col_astype(self):
 
         a = np.array([1,2,3,4,5])
         b = np.array([1.,3.4,np.nan,4.7,8])
@@ -111,7 +109,7 @@ class TestDataFrame(unittest.TestCase):
         df = DataFrame(a=a,b=b,c=c,d=d,e=e)
 
         for dtype in ("int","str","float"):
-            df[0].astype(dtype)
+            df['a'] = df['a'].astype(dtype)
 
         bb = [
             np.array([1,3,-99999,4,8]),
@@ -120,67 +118,60 @@ class TestDataFrame(unittest.TestCase):
             ]
 
         for index,dtype in enumerate(("int","str","float")):
-            df[1].astype(dtype)
-            np.testing.assert_array_equal(df[1].vals,bb[index])
+            df['b'] = df['b'].astype(dtype)
+            np.testing.assert_array_equal(df['b'].vals,bb[index])
 
         for dtype in ("str","datetime64[D]"):
-            df[2].astype(dtype)
+            df['c'] = df['c'].astype(dtype)
 
         for dtype in ("str","int","float"):
 
             if dtype=="int":
-                df[3].fromstring(dtype="int",regex=r"[-+]?\d+\b")
-                df[3].astype(dtype)
+                df['d'] = df['d'].fromstring(dtype="int",regex=r"[-+]?\d+\b")
+                df['d'] = df['d'].astype(dtype)
             else:
-                df[3].astype(dtype)
+                df['d'] = df['d'].astype(dtype)
 
         for dtype in ("str","datetime64[D]"):
-            df[4].astype(dtype)
+            df['e'] = df['e'].astype(dtype)
 
     def test_representation_methods(self):
-
-        df = DataFrame(col0=[],col1=[])
 
         a = np.random.randint(0,100,20)
         b = np.random.randint(0,100,20)
 
-        df["a"] = a
-        df["b"] = b
+        df = DataFrame(a=a,b=b)
 
     def test_add_attrs(self):
 
         df = DataFrame(col0=[],col1=[])
 
-        df.add_attrs(name="raw_data")
+        df.name = "main_data"
 
-        with self.assertLogs() as captured:
-            df.add_attrs(name="raw_data_2")
+        with self.assertRaises(KeyError):
+            df.name = "other_data"
+            
+        # self.assertEqual(captured.records[0].getMessage(),
+        #     "object already has 'name' attribute.")
 
-        self.assertEqual(captured.records[0].getMessage(),
-            "Added value after replacing name with name_1.")
+        self.assertEqual(df.name,"main_data")
 
-        self.assertEqual(df.name,"raw_data")
-        self.assertEqual(df.name_1,"raw_data_2")
-
-    def test_add_glossary(self):
+    def test_setglossary(self):
 
         df = DataFrame(A=[],B=[])
 
-        df.add_glossary("child",first_name=str,last_name=str)
+        df.setglossary("child",first_name=str,last_name=str)
 
         df.child.add_line(first_name="john",last_name="smith")
 
-        with self.assertLogs() as captured:
-            df.add_glossary("child","first_name")
-
-        self.assertEqual(captured.records[0].getMessage(),
-            "child already exists.")
+        with self.assertRaises(KeyError):
+            df.setglossary("child","first_name")
 
         self.assertEqual(df.child[0,"first_name"],"john")
         self.assertEqual(df.child["john","first_name"],"john")
         self.assertEqual(df.child["john","last_name"],"smith")
 
-        df.add_glossary("glos",Mnemonic=str,Unit=str,Value=float,Description=str)
+        df.setglossary("glos",Mnemonic=str,Unit=str,Value=float,Description=str)
 
         start = {
             "unit" : "M",
@@ -228,8 +219,6 @@ class TestDataFrame(unittest.TestCase):
         df['a'] = a
         df['b'] = b
 
-        np.testing.assert_array_equal(df["b"],df[1])
-
     def test_str2cols(self):
 
         head = "first name\tlast name"
@@ -267,12 +256,12 @@ class TestDataFrame(unittest.TestCase):
         df["A"] = A
         df["B"] = B
 
-        df.unique(cols=(0,1))
+        df.unique(heads=("A","B"))
 
-        np.testing.assert_array_equal(df[0].vals,
+        np.testing.assert_array_equal(df["A"].vals,
             np.array([1,1,2,2,3,4,5,6,6]),err_msg="DataFrame.unique() has an issue!")
 
-        np.testing.assert_array_equal(df.running[1],
+        np.testing.assert_array_equal(df["B"].vals,
             np.array(['A','B','B','C','C','C','D','E','F']),err_msg="DataFrame.unique() has an issue!")
 
     def test_write(self):
@@ -281,13 +270,10 @@ class TestDataFrame(unittest.TestCase):
 
     def test_writeb(self):
 
-        df = DataFrame(col0=[],col1=[])
-
         a = np.random.randint(0,100,20)
         b = np.random.randint(0,100,20)
 
-        df["a"] = a
-        df["b"] = b
+        df = DataFrame(a=a,b=b)
 
 class TestGlossary(unittest.TestCase):
 

@@ -1,14 +1,9 @@
-import calendar
-import copy
 import datetime
-
-from dateutil import parser, relativedelta
 
 from difflib import SequenceMatcher
 
 import logging
 
-import math
 import os
 import re
 
@@ -20,23 +15,18 @@ import lasio
 if __name__ == "__main__":
     import setup
 
-from core import array
 from core import column
-from core import nones
+from core import any2column
+from core import key2column
 
-from cypy.vectorpy import str2int
-from cypy.vectorpy import str2float
-from cypy.vectorpy import str2str
-from cypy.vectorpy import str2datetime64
 
 """
-1. DataFrame attributes and glossary
-2. DataFrame sort, filter, unique
-3. DataFrame read, write
-4. Finalize RegText
-5. Finalize LogASCII
-6. Finalize Excel
-7. loadtext should be working well
+1. DataFrame conversion, sort, filter, unique
+2. DataFrame read, write
+3. Finalize RegText
+4. Finalize LogASCII
+5. Finalize Excel
+6. loadtext should be working well
 """
 
 class DirBase():
@@ -151,7 +141,8 @@ class DataFrame(DirBase):
     """It stores equal-size one-dimensional numpy arrays in a list."""
 
     """INITIALIZATION"""
-    def __init__(self,**kwargs):
+
+    def __init__(self,*args,**kwargs):
         """Initializes DataFrame with headers & running and parent class DirBase."""
 
         homedir = kwargs.get('homedir')
@@ -167,166 +158,130 @@ class DataFrame(DirBase):
 
         self.running = []
 
+        self._setcolumn(*args)
+
         for key,vals in kwargs.items():
-            self[key] = vals
+            self.__setitem__(key,vals)
+
+    def _setcolumn(self,*args):
+
+        for arg in args:
+
+            if type(arg) is not column:
+                raise TypeError(f"Argument/s need/s to be column type only!")
+
+            if self.shape[1]!=0 and self.shape[0]!=arg.size:
+                raise ValueError(f"Attached column size is not the same as of dataframe.")
+
+            if arg.head in self.heads:
+                self.running[self._index(arg.head)[0]] = arg
+            else:
+                self.running.append(arg)
 
     """REPRESENTATION"""
+
     def __str__(self):
         """It prints to the console limited number of rows with headers."""
 
-        cols = range(len(self.running))
+        print_limit = 20
 
-        nrows = 0 if len(self)==0 else self[0].vals.size
+        print_limit = int(print_limit)
+
+        upper = int(np.ceil(print_limit/2))
+        lower = int(np.floor(print_limit/2))
 
         headers = self.heads
 
-        headcount = [len(headers[col]) for col in cols]
-        bodycount = [self[col].maxchar() for col in cols]
-
+        headcount = [len(head) for head in headers]
+        bodycount = [col_.maxchar() for col_ in self.running]
         charcount = [max(hc,bc) for (hc,bc) in zip(headcount,bodycount)]
 
         fstring = " ".join(["{{:>{}s}}".format(cc) for cc in charcount])
         fstring = "{}\n".format(fstring)
 
-        headers = fstring.format(*headers)
-
-        unlines = " ".join(["-"*cc for cc in charcount])
-        unlines = "{}\n".format(unlines)
-
-        string = ""
-
-        print_limit = 20
+        heads_str = fstring.format(*headers)
+        lines_str = fstring.format(*["-"*count for count in charcount])
+        large_str = fstring.format(*[".." for _ in charcount])
 
         vprint = np.vectorize(lambda *args: fstring.format(*args))
 
-        if nrows<=int(print_limit):
-            rows = range(nrows)
-
-            string += headers
-            string += unlines
-
-            bodycols = [self[col][rows].tostring() for col in cols]
-
-            string += "".join(vprint(*bodycols))
-
+        if self.shape[0]>print_limit:
+            rows,lower = list(range(upper)),list(range(-lower,0,1))
+            rows.extend(lower)
         else:
-            rows1 = list(range(int(print_limit/2)))
-            rows2 = list(range(-1,-int(print_limit/2)-1,-1))
+            rows = slice(None,None,None)
 
-            rows2.reverse()
+        bodycols = vprint(*[col_[rows].tostring() for col_ in self.running]).tolist()
 
-            string += headers
-            string += unlines
+        if self.shape[0]>print_limit:
+            [bodycols.insert(upper,large_str) for _ in range(3)]
 
-            bodycols1 = [self[col][rows1].tostring() for col in cols]
-            bodycols2 = [self[col][rows2].tostring() for col in cols]
-
-            string += "".join(vprint(*bodycols1))
-            string += fstring.format(*[".." for _ in charcount])
-            string += fstring.format(*[".." for _ in charcount])
-            string += fstring.format(*[".." for _ in charcount])
-            string += "".join(vprint(*bodycols2))
+        string = ""
+        string += heads_str
+        string += lines_str
+        string += "".join(bodycols)
 
         return string
 
-    """ATTRIBUTES AND GLOSSARY"""
-    def add_attrs(self,**kwargs):
+    """ATTRIBUTE ACCESS"""
 
-        for key,value in kwargs.items():
+    def setglossary(self,key,*args,**kwargs):
 
-            if not hasattr(self,key):
-                setattr(self,key,value)
-                continue
-            else:
-                key_edited = f"{key}_{1}"
+        gloss = Glossary(*args,**kwargs)
 
-            for i in range(2,100):
-                if hasattr(self,key_edited):
-                    key_edited = f"{key}_{i}"
-                else:
-                    break
-            else:
-                logging.critical(f"Could not add Glossary, copy limit of key reached 100!")
-            
-            setattr(self,key_edited,value)
+        setattr(self,key,gloss)
 
-            logging.info(f"Added value after replacing {key} with {key_edited}.")
+    def __setattr__(self,key,vals):
 
-    def add_glossary(self,title,*args,**kwargs):
-
-        if not hasattr(self,title):
-
-            setattr(self,title,Glossary(*args,**kwargs))
-
+        if not hasattr(self,key):
+            super().__setattr__(key,vals)
         else:
-
-            logging.warning(f"{title} already exists.")
+            raise KeyError(f"DataFrame instance already has '{key}' attribute.")
 
     """CONTAINER METHODS"""
-    def index(self,*args):
 
-        indices = []
-
-        for key in args:
-
-            if isinstance(key,str):
-                indices.append(self.heads.index(key))
-            elif isinstance(key,int):
-                indices.append(key)
-            else:
-                raise TypeError(f"The input/s can be str or int, not type={type(key)}.")
+    def _index(self,*args):
 
         if len(args)==0:
             raise TypeError(f"Index expected at least 1 argument, got 0")
-        else:
-            return tuple(indices)
+
+        if any([type(arg) is not str for arg in args]):
+            raise TypeError(f"argument/s must be string!")
+
+        return tuple([self.heads.index(key) for key in args])
 
     def __setitem__(self,key,vals):
 
         if not isinstance(key,str):
             raise TypeError(f"The key can be str, not type={type(key)}.")
 
-        if key in self.heads:
-            index_key = self.heads.index(key)
-            self.running[index_key] = column(vals=vals,head=key)
-        else:
-            self.running.append(column(vals=vals,head=key))
+        col_ = column(vals,head=key)
 
+        self._setcolumn(col_)
+        
     def __iter__(self):
 
-        return iter(self.running)
+        return iter(self.running[:])
 
     def __len__(self):
 
-        return len(self.running)
+        return self.shape[0]
 
     def __getitem__(self,key):
 
-        if key is None:
-            key = slice(None,None,None)
-
-        if isinstance(key,int):
-            return self.running[key]
-        elif isinstance(key,str):
-            return self.running[self.index(key)[0]]
-        elif isinstance(key,range):
-            return [np.asarray(self[KEY].vals) for KEY in key]
-        elif isinstance(key,list):
-            return [np.asarray(self[KEY].vals) for KEY in key]
-        elif isinstance(key,tuple):
-            return [np.asarray(self[KEY].vals) for KEY in key]
-        elif isinstance(key,slice):
-            return [np.asarray(column_.vals) for column_ in self.running[key]]
+        if isinstance(key,str):
+            return self.running[self._index(key)[0]]
         else:
-            raise TypeError(f"The key cannot be type={type(key)}.") 
+            return DataFrame(*[col_[key] for col_ in self.running])
 
-    """OPERATIONS"""
+    """CONVERSION METHODS"""
+
     def str2cols(self,col=None,delimiter=None,maxsplit=None):
 
         if isinstance(col,int):
             idcol = col
         elif isinstance(col,str):
-            idcol = self.index(col)[0]
+            idcol = self._index(col)[0]
         else:
             logging.critical(f"Excpected col is int or str, input is {type(col)}")
 
@@ -367,11 +322,11 @@ class DataFrame(DirBase):
         # self.headers = self._headers
         # self.running = [np.asarray(column) for column in self._running]
 
-    def cols2str(self,cols=None,header_new=None,fstring=None):
+    def cols2str(self,heads=None,header_new=None,fstring=None):
 
-        idcols = self.index(*cols)
+        # idcols = self._index(*cols)
 
-        column_new = self[cols]
+        column_new = [self[head] for head in heads]
 
         if fstring is None:
             fstring = ("{} "*len(column_new)).strip()
@@ -384,7 +339,7 @@ class DataFrame(DirBase):
 
         if header_new is None:
             fstring_header = ("{}_"*len(column_new))[:-1]
-            header_new = fstring_header.format(*[self.heads[idcol] for idcol in idcols])
+            header_new = fstring_header.format(*heads)
 
         return column_new
         # self._headers.append(header_new)
@@ -392,6 +347,8 @@ class DataFrame(DirBase):
 
         # self.headers = self._headers
         # self.running = [np.asarray(column) for column in self._running]
+
+    """ADVANCED METHODS"""
             
     def sort(self,cols=None,reverse=False,inplace=False,returnFlag=False):
 
@@ -464,19 +421,19 @@ class DataFrame(DirBase):
         else:
             self.running = [np.asarray(column_[match_index]) for column_ in self._running]
 
-    def unique(self,cols):
+    def unique(self,heads):
 
-        if isinstance(cols,int):
-            cols = (cols,)
-        elif isinstance(cols,str):
-            cols = (cols,)
+        # if isinstance(cols,int):
+        #     cols = (cols,)
+        # elif isinstance(cols,str):
+        #     cols = (cols,)
 
-        idcols = self.index(*cols)
+        # idcols = self._index(*cols)
+        column_new = [self[head] for head in heads]
 
         Z = []
 
-        for idcol in idcols:
-            column_ = self[idcol][:]
+        for column_ in column_new:
             column_.astype("str")
             Z.append(column_.vals)
 
@@ -485,12 +442,20 @@ class DataFrame(DirBase):
         _,idrows = np.unique(Z,axis=0,return_index=True)
 
         # if inplace:
-        self.running = [column_[idrows] for column_ in self.running]
+        super().__setattr__("running",[column_[idrows] for column_ in self.running])
+        # self.running = 
             # self.running = [np.asarray(column) for column in self._running]
         # else:
         #     self.running = [np.asarray(column[idrows]) for column in self.running]
 
     """CONTEXT MANAGERS"""
+
+    def read(self):
+        pass
+
+    def readb(self):
+        pass
+
     def write(self,filepath,fstring=None,**kwargs):
         """It writes text form of DataFrame."""
 
@@ -519,25 +484,34 @@ class DataFrame(DirBase):
         np.savez_compressed(filepath,**kwargs)
 
     """PROPERTY METHODS"""
+
+    @property
+    def shape(self):
+
+        if len(self.running)>0:
+            return (max([len(col_) for col_ in self.running]),len(self.running))
+        else:
+            return (0,0)
+
     @property
     def types(self):
 
-        return [column_.vals.dtype.type for column_ in self.running]
+        return [col_.vals.dtype.type for col_ in self.running]
 
     @property
     def heads(self):
 
-        return [column_.head for column_ in self.running]
+        return [col_.head for col_ in self.running]
 
     @property
     def units(self):
 
-        return [column_.unit for column_ in self.running]
+        return [col_.unit for col_ in self.running]
 
     @property
     def infos(self):
 
-        return [column_.info for column_ in self.running]
+        return [col_.info for col_ in self.running]
 
 class Glossary():
     """It is a table of lines vs heads"""
@@ -816,7 +790,7 @@ class LogASCII(DataFrame):
 
                     else:
 
-                        frame.add_glossary(title,
+                        frame.setglossary(title,
                             mnemonic=mnemonics,
                             unit=units,
                             value=values,
@@ -918,7 +892,7 @@ class LogASCII(DataFrame):
                     minXval = np.nanmin(column_)
                     maxXval = np.nanmax(column_)
 
-                tab_num = math.ceil((mnemonic_space-len(header))/tab_space)
+                tab_num = int(np.ceil((mnemonic_space-len(header))/tab_space))
                 tab_spc = "\t"*tab_num if tab_num>0 else "\t"
 
                 # file.write("Curve: {}{}Units: {}\tMin: {}\tMax: {}\tDescription: {}\n".format(

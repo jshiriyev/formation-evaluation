@@ -154,13 +154,11 @@ class column():
         else:
             raise TypeError(f"Unexpected numpy.dtype, {dtype=}")
 
-        if self.vals.dtype.type is np.object_:
-            vals_arr = np.empty(self.vals.size,dtype=dtype)
-            vals_arr[self.isnone] = none
-            vals_arr[~self.isnone] = self.vals[~self.isnone].astype(dtype=dtype)
-        else:
-            vals_arr = self.vals.astype(dtype=dtype)
-            vals_arr[self.isnone] = none
+        vals_arr = self.vals.astype(np.object_)
+
+        vals_arr[self.isnone] = none
+
+        vals_arr = vals_arr.astype(dtype=dtype)
 
         object.__setattr__(self,"vals",vals_arr)
 
@@ -447,7 +445,7 @@ class column():
 
         return column_
 
-    """CONVERSION OPERATIONS"""
+    """CONVERSION METHODS"""
 
     def astype(self,dtype=None):
 
@@ -824,6 +822,10 @@ class column():
 
         return dtype_
 
+    @property
+    def size(self):
+        return len(self.vals)
+    
     @property
     def isnone(self):
         """It return boolean array by comparing the values of vals to none types defined by column."""
