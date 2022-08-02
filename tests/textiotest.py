@@ -219,39 +219,89 @@ class TestDataFrame(unittest.TestCase):
         df['a'] = a
         df['b'] = b
 
-    def test_str2cols(self):
+    def test_str2col(self):
 
         head = "first name\tlast name"
 
         full_names = np.array(["elthon\tsmith","bill\tgates\tjohn"])
 
         df = DataFrame(head=full_names)
+        # print('\n')
+        # print(df)
 
-        df.str2cols("head",delimiter="\t")
+        df.str2col("head",delimiter="\t")
 
-        self.assertEqual(df.heads,["head","head_1","head_2"],
+        self.assertEqual(df.heads,["head_0","head_1","head_2"],
             "Splitting headers while splitting col_ has failed!")
-        np.testing.assert_array_equal(df["head"],np.array(["elthon","bill"]))
+        np.testing.assert_array_equal(df["head_0"],np.array(["elthon","bill"]))
         np.testing.assert_array_equal(df["head_1"],np.array(["smith","gates"]))
         np.testing.assert_array_equal(df["head_2"],np.array(["","john"]))
 
-    def test_cols2str(self):
+        # print(df)
 
-        names = np.array(["elthon","john"])
-        nicks = np.array(["smith","verdin"])
+    def test_col2str(self):
+
+        names = np.array(["elthon","john","tommy"])
+        nicks = np.array(["smith","verdin","brian"])
 
         df = DataFrame(names=names,nicks=nicks)
         
-        col__ = df.cols2str(["names","nicks"])
+        col_ = df.col2str(["names","nicks"])
 
-        np.testing.assert_array_equal(col__,np.array(["elthon smith","john verdin"]))
+        np.testing.assert_array_equal(col_.vals,
+            np.array(["elthon smith","john verdin","tommy brian"]))
+
+    def test_filter(self):
+
+        df = DataFrame()
+
+        A = np.array([
+            1,1,1,2,2,
+            3,3,3,4,5,
+            6,6,6,6])
+
+        B = np.array([
+            "A","12text5","text345","125text","C",
+            "C","C","C","C","D",
+            "E","F","F","F"])
+
+        df["A"] = A
+        df["B"] = B
+
+        df = df.filter("B",["E","F"])
+
+        np.testing.assert_array_equal(df["A"].vals,
+            np.array([6,6,6,6]))
+
+        np.testing.assert_array_equal(df["B"].vals,
+            np.array(["E","F","F","F"]))
+
+        df = DataFrame()
+
+        df["A"] = A
+        df["B"] = B
+
+        df = df.filter("B",regex=r".*\d")
+
+        np.testing.assert_array_equal(df["A"].vals,
+            np.array([1,1,2]))
+
+        np.testing.assert_array_equal(df["B"].vals,
+            np.array(["12text5","text345","125text"]))
 
     def test_unique(self):
 
         df = DataFrame()
 
-        A = np.array([1,1,1,2,2,3,3,3,4,5,6,6,6,6])
-        B = np.array(["A","A","B","B","C","C","C","C","C","D","E","F","F","F"])
+        A = np.array([
+            1,1,1,2,2,
+            3,3,3,4,5,
+            6,6,6,6])
+
+        B = np.array([
+            "A","A","B","B","C",
+            "C","C","C","C","D",
+            "E","F","F","F"])
 
         df["A"] = A
         df["B"] = B

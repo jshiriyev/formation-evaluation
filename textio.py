@@ -21,12 +21,14 @@ from core import key2column
 
 
 """
-1. DataFrame conversion, sort, filter, unique
-2. DataFrame read, write
-3. Finalize RegText
-4. Finalize LogASCII
-5. Finalize Excel
-6. loadtext should be working well
+1. Column version of sort, filter, unique
+2. Tostruct method to numpy conversion
+3. DataFrame version of sort, filter, unique
+4. DataFrame read, write
+5. Finalize RegText
+6. Finalize LogASCII
+7. Finalize Excel
+8. loadtext should be working well
 """
 
 class DirBase():
@@ -240,13 +242,20 @@ class DataFrame(DirBase):
 
     """CONTAINER METHODS"""
 
+    def pop(self,key):
+
+        return self.running.pop(self._index(key)[0])
+
     def _index(self,*args):
 
         if len(args)==0:
             raise TypeError(f"Index expected at least 1 argument, got 0")
 
-        if any([type(arg) is not str for arg in args]):
+        if any([type(key) is not str for key in args]):
             raise TypeError(f"argument/s must be string!")
+
+        if any([key not in self.heads for key in args]):
+            raise ValueError(f"The dataframe does not have key specified in {args}.")
 
         return tuple([self.heads.index(key) for key in args])
 
@@ -276,77 +285,59 @@ class DataFrame(DirBase):
 
     """CONVERSION METHODS"""
 
-    def str2cols(self,col=None,delimiter=None,maxsplit=None):
+    def str2col(self,key=None,delimiter=None,maxsplit=None):
+        """Breaks the column into new columns by splitting based on delimiter and maxsplit."""
 
-        if isinstance(col,int):
-            idcol = col
-        elif isinstance(col,str):
-            idcol = self._index(col)[0]
-        else:
-            logging.critical(f"Excpected col is int or str, input is {type(col)}")
+        idcol_ = self._index(key)[0]
 
-        column_ = self.running.pop(idcol)
-        
-        header_string = column_.head
-        column_string = np.asarray(column_.vals)
+        col_ = self.pop(key)
 
         if maxsplit is None:
-            maxsplit = np.char.count(column_,delimiter).max()
+            maxsplit = np.char.count(col_,delimiter).max()
 
-        headers = [header_string,]
-
-        [headers.append("{}_{}".format(header_string,index)) for index in range(1,maxsplit+1)]
+        heads = ["{}_{}".format(col_.head,index) for index in range(maxsplit+1)]
 
         running = []
 
-        for index,string in enumerate(column_string):
+        for index,string in enumerate(col_.vals):
 
-            # string = re.sub(delimiter+'+',delimiter,string)
             row = string.split(delimiter,maxsplit=maxsplit)
 
             if maxsplit+1>len(row):
-                indices = range(maxsplit+1-len(row))
-                [row.append("") for index in indices]
+                [row.append(col_.nones.str) for _ in range(maxsplit+1-len(row))]
 
             running.append(row)
 
         running = np.array(running,dtype=str).T
 
-        for index,(vals,head) in enumerate(zip(running,headers),start=idcol):
-            self.running.insert(index,column(vals=vals,head=head))
+        for index,(vals,head) in enumerate(zip(running,heads),start=idcol_):
+            col_new = col_[:]
+            col_new.vals = vals
+            col_new.head = head
+            self.running.insert(index,col_new)
 
-        # line = re.sub(r"[^\w]","",line)
-        # line = "_"+line if line[0].isnumeric() else line
-        # vmatch = np.vectorize(lambda x: bool(re.compile('[Ab]').match(x)))
-        
-        # self.headers = self._headers
-        # self.running = [np.asarray(column) for column in self._running]
+    def col2str(self,heads=None,headnew=None,fstring=None):
 
-    def cols2str(self,heads=None,header_new=None,fstring=None):
+        if heads is None:
+            heads = self.heads
 
-        # idcols = self._index(*cols)
-
-        column_new = [self[head] for head in heads]
+        arr_ = [self[head].vals for head in heads]
 
         if fstring is None:
-            fstring = ("{} "*len(column_new)).strip()
+            fstring = ("{} "*len(arr_))[:-1]
 
         vprint = np.vectorize(lambda *args: fstring.format(*args))
 
-        # column_new = [np.asarray(self._running[idcol]) for idcol in idcols]
+        arrnew = vprint(*arr_)
 
-        column_new = vprint(*column_new)
+        if headnew is None:
+            fstring = ("{}_"*len(arr_))[:-1]
+            headnew = fstring.format(*heads)
 
-        if header_new is None:
-            fstring_header = ("{}_"*len(column_new))[:-1]
-            header_new = fstring_header.format(*heads)
+        return column(arrnew,head=headnew)
 
-        return column_new
-        # self._headers.append(header_new)
-        # self._running.append(column_new)
-
-        # self.headers = self._headers
-        # self.running = [np.asarray(column) for column in self._running]
+    def tostruct(self):
+        pass
 
     """ADVANCED METHODS"""
             
@@ -386,40 +377,24 @@ class DataFrame(DirBase):
         if returnFlag:
             return sort_index
 
-    def filter(self,cols=None,keywords=None,regex=None,year=None):
+    def filter(self,key,keywords=None,regex=None):
         """It should allow multiple header indices filtering"""
 
-        if cols is None:
-            return
-        elif isinstance(cols,int):
-            idcols = (cols,)
-        elif isinstance(cols,str):
-            idcols = (self._headers.index(cols),)
-        elif isinstance(cols,list) or isinstance(cols,tuple):
-            if isinstance(cols[0],int):
-                idcols = cols
-            elif isinstance(cols[0],str):
-                idcols = [self._headers.index(col) for col in cols]
-            else:
-                logging.critical(f"Expected cols is the list or tuple of integer or string; input is {cols}")
-        else:
-            logging.critical(f"Expected cols is integer or string or their list or tuples; input is {cols}")
+        col_ = self[key]
 
         if keywords is not None:
-            match_array = np.array(keywords).reshape((-1,1))
-            match_index = np.any(self._running[idcols[0]]==match_array,axis=0)
+            match = [index for index,val in enumerate(col_) if val in keywords]
+            # numpy way of doing the same thing:
+            # kywrd = np.array(keywords).reshape((-1,1))
+            # match = np.any(col_.vals==kywrd,axis=0)
         elif regex is not None:
-            match_vectr = np.vectorize(lambda x: bool(re.compile(regex).match(x)))
-            match_index = match_vectr(self._running[idcols[0]])
-        elif year is not None:
-            match_vectr = np.vectorize(lambda x: x.year==year)
-            match_index = match_vectr(self._running[idcols[0]].tolist())
+            pttrn = re.compile(regex)
+            match = [index for index,val in enumerate(col_) if pttrn.match(val)]
+            # numpy way of doing the same thing:
+            # vectr = np.vectorize(lambda x: bool(re.compile(regex).match(x)))
+            # match = vectr(col_.vals)
 
-        if inplace:
-            self._running = [column_[match_index] for column_ in self._running]
-            self.running = [np.asarray(column_) for column_ in self._running]
-        else:
-            self.running = [np.asarray(column_[match_index]) for column_ in self._running]
+        return DataFrame(*[col_[match] for col_ in self.running])
 
     def unique(self,heads):
 

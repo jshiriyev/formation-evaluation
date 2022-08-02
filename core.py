@@ -499,6 +499,8 @@ class column():
 
         col_ = copy.deepcopy(self)
 
+        # line = re.sub(r"[^\w]","",line) # cleans non-alphanumerics, keeps 0-9, A-Z, a-z, or underscore.
+
         if isinstance(dtype,str):
             dtype = np.dtype(dtype)
 
