@@ -492,6 +492,22 @@ class TestColumn(unittest.TestCase):
         col_/2
         col_/col_
 
+    def test_advanced_methods(self):
+
+        col_ = column(["sabrina","john","timathy"])
+        colnew = col_.sort()
+        np.testing.assert_array_equal(colnew.vals,np.array(["john","sabrina","timathy"]))
+
+        col_ = column(["A","12text5","text345","125text","C","C","C","C","C","D","E","F","F","F"])
+        colnew = col_.filter(["E","F"])
+        np.testing.assert_array_equal(colnew.vals,np.array(["E","F","F","F"]))
+
+        colnew = col_.filter(regex=r".*\d")
+        np.testing.assert_array_equal(colnew.vals,np.array(["12text5","text345","125text"]))
+
+        colnew = col_.unique()
+        np.testing.assert_array_equal(colnew.vals,np.array(["125text","12text5","A","C","D","E","F","text345"]))
+
     def test_property_general_nondim(self):
         
         col_ = column(["1.","2"],unit="m")

@@ -251,19 +251,26 @@ class TestDataFrame(unittest.TestCase):
         np.testing.assert_array_equal(col_.vals,
             np.array(["elthon smith","john verdin","tommy brian"]))
 
+    def test_tostruct(self):
+
+        names = np.array(["elthon","john","tommy"])
+        lasts = np.array(["smith","verdin","brian"])
+        ages = np.array([23,45,38])
+
+        df = DataFrame(names=names,lasts=lasts,ages=ages)
+
+        arr_ = df.tostruct()
+
+        np.testing.assert_array_equal(arr_[0].tolist(),('elthon', 'smith', 23))
+
     def test_filter(self):
 
         df = DataFrame()
 
-        A = np.array([
-            1,1,1,2,2,
-            3,3,3,4,5,
-            6,6,6,6])
+        A = np.array([1,1,1,2,2,3,3,3,4,5,6,6,6,6])
 
         B = np.array([
-            "A","12text5","text345","125text","C",
-            "C","C","C","C","D",
-            "E","F","F","F"])
+            "A","12text5","text345","125text","C","C","C","C","C","D","E","F","F","F"])
 
         df["A"] = A
         df["B"] = B
@@ -293,15 +300,10 @@ class TestDataFrame(unittest.TestCase):
 
         df = DataFrame()
 
-        A = np.array([
-            1,1,1,2,2,
-            3,3,3,4,5,
-            6,6,6,6])
+        A = np.array([1,1,1,2,2,3,3,3,4,5,6,6,6,6])
 
         B = np.array([
-            "A","A","B","B","C",
-            "C","C","C","C","D",
-            "E","F","F","F"])
+            "A","A","B","B","C","C","C","C","C","D","E","F","F","F"])
 
         df["A"] = A
         df["B"] = B

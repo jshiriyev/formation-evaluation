@@ -801,6 +801,47 @@ class column():
         
         return column_
 
+    """ADVANCED METHODS"""
+
+    def sort(self,reverse=False,return_indices=False):
+        
+        sort_index = np.argsort(self.vals)
+
+        if reverse:
+            sort_index = np.flip(sort_index)
+
+        if return_indices:
+            return sort_index
+        else:
+            return self[sort_index]
+
+    def filter(self,keywords=None,regex=None,return_indices=False):
+        
+        if keywords is not None:
+            match = [index for index,val in enumerate(self.vals) if val in keywords]
+            # numpy way of doing the same thing:
+            # kywrd = np.array(keywords).reshape((-1,1))
+            # match = np.any(col_.vals==kywrd,axis=0)
+        elif regex is not None:
+            pttrn = re.compile(regex)
+            match = [index for index,val in enumerate(self.vals) if pttrn.match(val)]
+            # numpy way of doing the same thing:
+            # vectr = np.vectorize(lambda x: bool(re.compile(regex).match(x)))
+            # match = vectr(col_.vals)
+
+        if return_indices:
+            return match
+        else:
+            return self[match]
+            
+    def unique(self):
+
+        col_ = copy.deepcopy(self)
+
+        col_.vals = np.unique(self.vals)
+
+        return col_
+
     """GENERAL PROPERTIES"""
 
     @property

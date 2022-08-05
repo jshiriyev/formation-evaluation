@@ -21,14 +21,12 @@ from core import key2column
 
 
 """
-1. Column version of sort, filter, unique
-2. Tostruct method to numpy conversion
-3. DataFrame version of sort, filter, unique
-4. DataFrame read, write
-5. Finalize RegText
-6. Finalize LogASCII
-7. Finalize Excel
-8. loadtext should be working well
+1. DataFrame version of sort, filter, unique
+2. DataFrame read, write
+3. Finalize RegText
+4. Finalize LogASCII
+5. Finalize Excel
+6. loadtext should be working well
 """
 
 class DirBase():
@@ -270,7 +268,7 @@ class DataFrame(DirBase):
         
     def __iter__(self):
 
-        return iter(self.running[:])
+        return iter([row for row in zip(*self.running)])
 
     def __len__(self):
 
@@ -337,7 +335,13 @@ class DataFrame(DirBase):
         return column(arrnew,head=headnew)
 
     def tostruct(self):
-        pass
+        """Returns numpy structure of dataframe."""
+
+        dtype_str_ = [col_.vals.dtype.str for col_ in self.running]
+
+        dtypes_ = [dtype_ for dtype_ in zip(self.heads,dtype_str_)]
+
+        return np.array([row for row in self],dtypes_)
 
     """ADVANCED METHODS"""
             
@@ -467,6 +471,11 @@ class DataFrame(DirBase):
             return (max([len(col_) for col_ in self.running]),len(self.running))
         else:
             return (0,0)
+
+    @property
+    def dtypes(self):
+
+        return [col_.vals.dtype for col_ in self.running]
 
     @property
     def types(self):
