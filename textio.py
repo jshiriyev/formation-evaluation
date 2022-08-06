@@ -1,3 +1,5 @@
+import copy
+
 import datetime
 
 from difflib import SequenceMatcher
@@ -21,12 +23,11 @@ from core import key2column
 
 
 """
-1. DataFrame version of sort, filter, unique
-2. DataFrame read, write
-3. Finalize RegText
-4. Finalize LogASCII
-5. Finalize Excel
-6. loadtext should be working well
+1. DataFrame read, write
+2. Finalize RegText
+3. Finalize LogASCII
+4. Finalize Excel
+5. loadtext should be working well
 """
 
 class DirBase():
@@ -278,8 +279,15 @@ class DataFrame(DirBase):
 
         if isinstance(key,str):
             return self.running[self._index(key)[0]]
-        else:
-            return DataFrame(*[col_[key] for col_ in self.running])
+
+        if isinstance(key,list) or isinstance(key,tuple):
+
+            if all([type(_key) is str for _key in key]):
+                return DataFrame(*[self.running[i] for i in self._index(*key)])
+            elif any([type(_key) is str for _key in key]):
+                raise ValueError("Arguments can not contain non-string and string entries together.")
+        
+        return DataFrame(*[col_[key] for col_ in self.running])
 
     """CONVERSION METHODS"""
 
@@ -345,87 +353,60 @@ class DataFrame(DirBase):
 
     """ADVANCED METHODS"""
             
-    def sort(self,cols=None,reverse=False,inplace=False,returnFlag=False):
+    def sort(self,heads,reverse=False,return_indices=False):
+        """Returns sorted dataframe."""
 
-        if cols is None:
-            idcols = range(len(self._running))
-        elif isinstance(cols,int):
-            idcols = (cols,)
-        elif isinstance(cols,str):
-            idcols = (self._headers.index(cols),)
-        elif isinstance(cols,list) or isinstance(cols,tuple):
-            if isinstance(cols[0],int):
-                idcols = cols
-            elif isinstance(cols[0],str):
-                idcols = [self._headers.index(col) for col in cols]
-            else:
-                logging.critical(f"Expected cols is the list or tuple of integer or string; input, however, is {cols}")
-        else:
-            logging.critical(f"Other than None, expected cols is integer or string or their list or tuples; input, however, is {cols}")
+        if not (isinstance(heads,list) or isinstance(heads,tuple)):
+            raise TypeError("heads must be list or tuple.")
 
-        columns = [self._running[idcol] for idcol in idcols]
+        cols_ = self[heads]
 
-        columns.reverse()
-
-        sort_index = np.lexsort(columns)
+        match = np.argsort(cols_.tostruct(),axis=0)
 
         if reverse:
-            sort_index = np.flip(sort_index)
+            match = np.flip(match)
 
-        if inplace:
-            self._running = [column_[sort_index] for column_ in self._running]
-            self.running = [np.asarray(column_) for column_ in self._running]
+        if return_indices:
+            return match
         else:
-            self.running = [np.asarray(column_[sort_index]) for column_ in self._running]
+            return DataFrame(*[col_[match] for col_ in self.running])
 
-        if returnFlag:
-            return sort_index
-
-    def filter(self,key,keywords=None,regex=None):
-        """It should allow multiple header indices filtering"""
+    def filter(self,key,keywords=None,regex=None,return_indices=False):
+        """Returns filtered dataframe based on keywords or regex."""
 
         col_ = self[key]
 
-        if keywords is not None:
-            match = [index for index,val in enumerate(col_) if val in keywords]
-            # numpy way of doing the same thing:
-            # kywrd = np.array(keywords).reshape((-1,1))
-            # match = np.any(col_.vals==kywrd,axis=0)
-        elif regex is not None:
-            pttrn = re.compile(regex)
-            match = [index for index,val in enumerate(col_) if pttrn.match(val)]
-            # numpy way of doing the same thing:
-            # vectr = np.vectorize(lambda x: bool(re.compile(regex).match(x)))
-            # match = vectr(col_.vals)
+        match = col_.filter(keywords,regex,return_indices=True)
 
-        return DataFrame(*[col_[match] for col_ in self.running])
+        if return_indices:
+            return match
+        else:
+            return DataFrame(*[col_[match] for col_ in self.running])
 
     def unique(self,heads):
+        """Returns dataframe with unique entries of column/s.
+        The number of columns will be equal to the length of heads."""
 
-        # if isinstance(cols,int):
-        #     cols = (cols,)
-        # elif isinstance(cols,str):
-        #     cols = (cols,)
+        if not (isinstance(heads,list) or isinstance(heads,tuple)):
+            raise TypeError("heads must be list or tuple.")
 
-        # idcols = self._index(*cols)
-        column_new = [self[head] for head in heads]
+        df = self[heads]
 
-        Z = []
+        npstruct = df.tostruct()
 
-        for column_ in column_new:
-            column_.astype("str")
-            Z.append(column_.vals)
+        npstruct = np.unique(npstruct,axis=0)
 
-        Z = np.array(Z,dtype=str).T
+        cols_ = []
 
-        _,idrows = np.unique(Z,axis=0,return_index=True)
+        for head in heads:
 
-        # if inplace:
-        super().__setattr__("running",[column_[idrows] for column_ in self.running])
-        # self.running = 
-            # self.running = [np.asarray(column) for column in self._running]
-        # else:
-        #     self.running = [np.asarray(column[idrows]) for column in self.running]
+            col_ = copy.deepcopy(self[head])
+
+            col_.vals = npstruct[head]
+
+            cols_.append(col_)
+
+        return DataFrame(*cols_)
 
     """CONTEXT MANAGERS"""
 

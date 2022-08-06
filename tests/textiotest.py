@@ -263,6 +263,41 @@ class TestDataFrame(unittest.TestCase):
 
         np.testing.assert_array_equal(arr_[0].tolist(),('elthon', 'smith', 23))
 
+    def test_sort(self):
+
+        A = np.array([ 6 , 6 , 2 , 2 , 3 , 5 , 3 , 4 , 3 , 1 , 2 , 1 ])
+        B = np.array(["A","B","C","D","D","C","C","C","C","E","F","F"])
+
+        df = DataFrame(A=A,B=B)
+
+        df = df.sort(('A',))
+
+        np.testing.assert_array_equal(df["A"].vals,
+            np.array([1,1,2,2,2,3,3,3,4,5,6,6]))
+
+        np.testing.assert_array_equal(df["B"].vals,
+            np.array(["E","F","C","D","F","D","C","C","C","C","A","B"]))
+
+        df = DataFrame(A=A,B=B)
+
+        df = df.sort(('A','B'))
+
+        np.testing.assert_array_equal(df["A"].vals,
+            np.array([1,1,2,2,2,3,3,3,4,5,6,6]))
+
+        np.testing.assert_array_equal(df["B"].vals,
+            np.array(["E","F","C","D","F","C","C","D","C","C","A","B"]))
+
+        df = DataFrame(A=A,B=B)
+
+        df = df.sort(('A','B'),reverse=True)
+
+        np.testing.assert_array_equal(df["A"].vals,
+            np.array([6,6,5,4,3,3,3,2,2,2,1,1]))
+
+        np.testing.assert_array_equal(df["B"].vals,
+            np.array(["B","A","C","C","D","C","C","F","D","C","F","E"]))
+
     def test_filter(self):
 
         df = DataFrame()
@@ -308,13 +343,18 @@ class TestDataFrame(unittest.TestCase):
         df["A"] = A
         df["B"] = B
 
-        df.unique(heads=("A","B"))
+        df = df.unique(("A","B"))
 
         np.testing.assert_array_equal(df["A"].vals,
             np.array([1,1,2,2,3,4,5,6,6]),err_msg="DataFrame.unique() has an issue!")
 
         np.testing.assert_array_equal(df["B"].vals,
             np.array(['A','B','B','C','C','C','D','E','F']),err_msg="DataFrame.unique() has an issue!")
+
+        df = df.unique(("A",))
+
+        np.testing.assert_array_equal(df["A"].vals,
+            np.array([1,2,3,4,5,6]),err_msg="DataFrame.unique() has an issue!")
 
     def test_write(self):
 
