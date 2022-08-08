@@ -649,11 +649,13 @@ class column():
                 other = other.astype('str')
             curnt.vals = np.char.add(curnt.vals,other.vals)
         elif curnt.dtype.type is np.dtype('datetime64').type:
-            unrg = pint.UnitRegistry()
-            unit = unrg.Unit(other.unit).__str__()
-            if unit is None:
+            if not other.dtype.type is np.dtype('float').type:
+                raise TypeError(f"Only floats with delta time unit is supported.")
+            elif other.unit=="dimensionless":
                 raise TypeError(f"Only floats with delta time unit is supported.")
             else:
+                unrg = pint.UnitRegistry()
+                unit = unrg.Unit(other.unit).__str__()
                 curnt = curnt.shift(other.vals,deltaunit=unit)
 
         return curnt
@@ -841,6 +843,31 @@ class column():
         col_.vals = np.unique(self.vals)
 
         return col_
+
+    """APPENDING"""
+
+    def append(self,other):
+
+        if not isinstance(other,column):
+            other = column(other)
+
+        if self.dtype.type is np.dtype('int').type:
+            if not other.dtype.type is np.dtype('int').type:
+                other = other.astype('int')
+        elif self.dtype.type is np.dtype('float').type:
+            if not other.dtype.type is np.dtype('float').type:
+                other = other.astype('float')
+            other = other.convert(self.unit)
+        elif self.dtype.type is np.dtype('str').type:
+            if not other.dtype.type is np.dtype('str').type:
+                other = other.astype('str')
+        elif self.dtype.type is np.dtype('datetime64').type:
+            if not other.dtype.type is np.dtype('datetime64').type:
+                other = other.astype('datetime64')
+                
+        arr_ = np.append(self.vals,other.vals)
+        
+        super().__setattr__("vals",arr_)
 
     """GENERAL PROPERTIES"""
 

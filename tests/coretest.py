@@ -508,6 +508,22 @@ class TestColumn(unittest.TestCase):
         colnew = col_.unique()
         np.testing.assert_array_equal(colnew.vals,np.array(["125text","12text5","A","C","D","E","F","text345"]))
 
+    def test_appending(self):
+
+        a = np.array([1,2,3,4,5])
+        b = np.array([1.,3.4,np.nan,4.7,8])
+        c = np.array([datetime.date(2022,1,1)])
+        # d = np.array(["1.","","5.7","6",""])
+        # e = c.astype("datetime64")
+
+        a = column(a)
+        a.append(b)
+        np.testing.assert_array_equal(a.vals,np.array([1,2,3,4,5,1,3,-99999,4,8]))
+
+        c = column(c)
+        c.append(c)
+        np.testing.assert_array_equal(c.vals,np.array([np.datetime64('2022-01-01'),np.datetime64('2022-01-01')]))
+
     def test_property_general_nondim(self):
         
         col_ = column(["1.","2"],unit="m")

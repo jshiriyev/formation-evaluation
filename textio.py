@@ -47,10 +47,10 @@ class DirBase():
         elif not os.path.isdir(path):
             path = os.path.dirname(path)
 
-        if os.path.isabs(path):
-            self.homedir = path
-        else:
-            self.homedir = os.path.normpath(os.path.join(os.getcwd(),path))
+        if not os.path.isabs(path):
+            path = os.path.normpath(os.path.join(os.getcwd(),path))
+
+        super().__setattr__("homedir",path)
 
     def set_filedir(self,path=None):
         """Sets file directory to get inputs."""
@@ -60,10 +60,10 @@ class DirBase():
         elif not os.path.isdir(path):
             path = os.path.dirname(path)
 
-        if os.path.isabs(path):
-            self.filedir = path
-        else:
-            self.filedir = os.path.normpath(os.path.join(self.homedir,path))
+        if not os.path.isabs(path):
+            path = os.path.normpath(os.path.join(self.homedir,path))
+
+        super().__setattr__("filedir",path)
 
     def get_abspath(self,path,homeFlag=False):
         """Returns absolute path for a given relative path."""
@@ -1161,7 +1161,6 @@ class Excel(DataFrame):
 
         self.books = []
         self.sheets = []
-        self.frames = []
 
         self.add_books(filepaths)
 
@@ -1178,7 +1177,9 @@ class Excel(DataFrame):
 
             filepath = self.get_abspath(filepath)
 
-            self.books.append(opxl.load_workbook(filepath,read_only=True,data_only=True))
+            book = opxl.load_workbook(filepath,read_only=True,data_only=True)
+
+            self.books.append(book)
 
             logging.info(f"Loaded {filepath} as expected.")
 
@@ -1192,9 +1193,9 @@ class Excel(DataFrame):
 
             idbook,page = sheet
 
-            frame = self.read((idbook,page),**kwargs)
+            sheet = self.read((idbook,page),**kwargs)
 
-            self.frames.append(frame)
+            self.sheets.append(sheet)
 
     def read(self,sheet,hrows=0,min_row=1,min_col=1,max_row=None,max_col=None):
         """It reads excel worksheet and returns it as a DataFrame."""
