@@ -22,10 +22,10 @@ from core import any2column
 from core import key2column
 
 """
-1. DataFrame read, write
-2. Finalize RegText
-3. Finalize LogASCII
-4. Finalize Excel
+1. DataFrame reading, writing
+2. Finalize RegText reading, writing
+3. Finalize LogASCII reading, writing
+4. Finalize Excel writing
 5. loadtext should be working well
 """
 
@@ -158,12 +158,12 @@ class DataFrame(DirBase):
 
         self.running = []
 
-        self._setcolumn(*args)
+        self._setup(*args)
 
         for key,vals in kwargs.items():
             self.__setitem__(key,vals)
 
-    def _setcolumn(self,*args):
+    def _setup(self,*args):
 
         for arg in args:
 
@@ -177,6 +177,20 @@ class DataFrame(DirBase):
                 self.running[self._index(arg.head)[0]] = arg
             else:
                 self.running.append(arg)
+
+    def _append(self,*args):
+
+        if len(args)==0:
+            return
+        elif len(set([len(arg) for arg in args]))!=1:
+            raise ValueError("columns have variable lenghts.")
+
+        if self.shape[1]==0:
+            self._setup(*args)
+        elif self.shape[1]!=len(args):
+            raise ValueError("Number of columns does not match columns in dataframe.")
+        else:
+            [col_.append(arg_) for col_,arg_ in zip(self.running,args)]
 
     """REPRESENTATION"""
 
@@ -264,7 +278,7 @@ class DataFrame(DirBase):
 
         col_ = column(vals,head=key)
 
-        self._setcolumn(col_)
+        self._setup(col_)
         
     def __iter__(self):
 
@@ -587,9 +601,9 @@ class RegText(DataFrame):
 
         self.frames = []
 
-        self.add_frames(filepaths,**kwargs)
+        self.read(filepaths,**kwargs)
 
-    def add_frames(self,filepaths,**kwargs):
+    def read(self,filepaths,**kwargs):
 
         if filepaths is None:
             return
@@ -645,9 +659,9 @@ class LogASCII(DataFrame):
 
         self.frames = []
 
-        self.add_frames(filepaths,**kwargs)
+        self.read(filepaths,**kwargs)
 
-    def add_frames(self,filepaths,**kwargs):
+    def read(self,filepaths,**kwargs):
 
         if filepaths is None:
             return
@@ -1245,47 +1259,56 @@ class Excel(DataFrame):
             if any(col):
                 info = " ".join([str(cell) for cell in col[:hrows] if cell is not None])
                 col_ = column(col[hrows:],head=heads_[index],info=info)
-                frame._setcolumn(col_)
+                frame._setup(col_)
 
         return frame
 
-    def merge(self,idframes=None,idcols=None,infosearch=False):
+    def merge(self,cols=None,idframes=None,infosearch=False):
         """It merges all the frames as a single DataFrame under the Excel class."""
+
+        if cols is None:
+            pass
+        elif type(cols) is int:
+            cols = (cols,)
+        elif type(cols) is str:
+            cols = (cols,)
+        else:
+            cols = tuple(cols)
 
         if idframes is None:
             idframes = range(len(self.frames))
-        elif isinstance(idframes,int):
+        elif type(idframes) is int:
+            idframes = (idframes,)
+        elif type(idframes) is str:
             idframes = (idframes,)
         else:
             idframes = tuple(idframes)
-
-        if idcols is None:
-            idcols = slice(None,None,None)
-        elif isinstance(idcols,int):
-            idcols = (idcols,)
-        elif isinstance(idcols,str):
-            idcols = (idcols,)
-        else:
-            idcols = tuple(idcols)
 
         for idframe in idframes:
 
             frame = self.frames[idframe]
 
-            if idcols is None:
+            if cols is None:
+                cols_ = [col_ for col_ in frame.running]
+            elif not infosearch:
+                cols_ = []
+                for index in tuple(cols):
+                    if type(index) is int:
+                        cols_.append(frame.running[index])
+                    elif type(index) is str:
+                        cols_.append(frame[index])
+                    else:
+                        raise TypeError(f"cols type should be either int or str, not {type(index)}")
+            else:
+                cols_ = []
+                for index in tuple(cols):
+                    if type(index) is str:
+                        scores = [SequenceMatcher(None,info,index).ratio() for info in frame.infos]
+                        cols_.append(frame.running[scores.index(max(scores))])
+                    else:
+                        raise TypeError(f"cols type should be str, not {type(index)}")
 
-                idcols = []
-
-                for header in self._headers:
-                    scores = []
-                    for header_read in frame._headers:
-                        score = SequenceMatcher(None,header,header_read).ratio() if isinstance(header_read,str) else 0
-                        scores.append(score)
-                    idcols.append(scores.index(max(scores)))
-
-            cols_ = [frame.running[idcol] for idcol in idcols]
-
-            self.set_running(*columns,cols=range(len(idcols)))
+            self._append(*cols_)
 
     def write(self,filepath,title):
 
@@ -1310,11 +1333,11 @@ class IrrText(DataFrame):
         if filepath is not None:
             self.filepath = self.get_abspath(filepath,homeFlag=False)
 
-    def set_batch(self,filepaths):
+    def read(self,filepaths):
 
         self.filepaths = filepaths
 
-    def read(self,skiprows=0,headerline=None,comment="--",endline="/",endfile="END"):
+    def _read(self,skiprows=0,headerline=None,comment="--",endline="/",endfile="END"):
 
         # While looping inside the file it does not read lines:
         # - starting with comment phrase, e.g., comment = "--"
@@ -1373,6 +1396,10 @@ class IrrText(DataFrame):
 
         self.running = [numpy.asarray(column_) for column_ in self._running]
 
+    def merge(self):
+
+        pass
+
     def write(self):
 
         pass
@@ -1398,6 +1425,10 @@ class WSchedule(DataFrame):
         pass
 
     def read(self):
+
+        pass
+
+    def _read(self):
 
         pass
 
@@ -1527,6 +1558,10 @@ class VTKit(DataFrame):
         pass
 
     def read(self,):
+
+        pass
+
+    def _read(self):
 
         pass
 
