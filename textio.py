@@ -1,5 +1,5 @@
+import contextlib
 import copy
-
 import datetime
 
 from difflib import SequenceMatcher
@@ -9,8 +9,8 @@ import logging
 import os
 import re
 
-import numpy as np
-import openpyxl as opxl
+import numpy
+import openpyxl
 import pint
 import lasio
 
@@ -20,7 +20,6 @@ if __name__ == "__main__":
 from core import column
 from core import any2column
 from core import key2column
-
 
 """
 1. DataFrame read, write
@@ -188,8 +187,8 @@ class DataFrame(DirBase):
 
         print_limit = int(print_limit)
 
-        upper = int(np.ceil(print_limit/2))
-        lower = int(np.floor(print_limit/2))
+        upper = int(numpy.ceil(print_limit/2))
+        lower = int(numpy.floor(print_limit/2))
 
         headers = self.heads
 
@@ -204,7 +203,7 @@ class DataFrame(DirBase):
         lines_str = fstring.format(*["-"*count for count in charcount])
         large_str = fstring.format(*[".." for _ in charcount])
 
-        vprint = np.vectorize(lambda *args: fstring.format(*args))
+        vprint = numpy.vectorize(lambda *args: fstring.format(*args))
 
         if self.shape[0]>print_limit:
             rows,lower = list(range(upper)),list(range(-lower,0,1))
@@ -230,7 +229,7 @@ class DataFrame(DirBase):
 
         gloss = Glossary(*args,**kwargs)
 
-        setattr(self,key,gloss)
+        setattr(self,key,gloss) 
 
     def __setattr__(self,key,vals):
 
@@ -299,7 +298,7 @@ class DataFrame(DirBase):
         col_ = self.pop(key)
 
         if maxsplit is None:
-            maxsplit = np.char.count(col_,delimiter).max()
+            maxsplit = numpy.char.count(col_,delimiter).max()
 
         heads = ["{}_{}".format(col_.head,index) for index in range(maxsplit+1)]
 
@@ -314,7 +313,7 @@ class DataFrame(DirBase):
 
             running.append(row)
 
-        running = np.array(running,dtype=str).T
+        running = numpy.array(running,dtype=str).T
 
         for index,(vals,head) in enumerate(zip(running,heads),start=idcol_):
             col_new = col_[:]
@@ -332,7 +331,7 @@ class DataFrame(DirBase):
         if fstring is None:
             fstring = ("{} "*len(arr_))[:-1]
 
-        vprint = np.vectorize(lambda *args: fstring.format(*args))
+        vprint = numpy.vectorize(lambda *args: fstring.format(*args))
 
         arrnew = vprint(*arr_)
 
@@ -349,7 +348,7 @@ class DataFrame(DirBase):
 
         dtypes_ = [dtype_ for dtype_ in zip(self.heads,dtype_str_)]
 
-        return np.array([row for row in self],dtypes_)
+        return numpy.array([row for row in self],dtypes_)
 
     """ADVANCED METHODS"""
             
@@ -361,10 +360,10 @@ class DataFrame(DirBase):
 
         cols_ = self[heads]
 
-        match = np.argsort(cols_.tostruct(),axis=0)
+        match = numpy.argsort(cols_.tostruct(),axis=0)
 
         if reverse:
-            match = np.flip(match)
+            match = numpy.flip(match)
 
         if return_indices:
             return match
@@ -394,7 +393,7 @@ class DataFrame(DirBase):
 
         npstruct = df.tostruct()
 
-        npstruct = np.unique(npstruct,axis=0)
+        npstruct = numpy.unique(npstruct,axis=0)
 
         cols_ = []
 
@@ -426,7 +425,7 @@ class DataFrame(DirBase):
         else:
             running_fstring = fstring
 
-        vprint = np.vectorize(lambda *args: running_fstring.format(*args))
+        vprint = numpy.vectorize(lambda *args: running_fstring.format(*args))
 
         with open(filepath,"w",encoding='utf-8') as wfile:
             wfile.write(header_fstring.format(*self._headers))
@@ -441,7 +440,7 @@ class DataFrame(DirBase):
         for header,column_ in zip(self._headers,self._running):
             kwargs[header] = column_
 
-        np.savez_compressed(filepath,**kwargs)
+        numpy.savez_compressed(filepath,**kwargs)
 
     """PROPERTY METHODS"""
 
@@ -598,10 +597,10 @@ class RegText(DataFrame):
             filepaths = (filepaths,)
 
         for filepath in filepaths:
-            self.frames.append(self.read(filepath,**kwargs))
+            self.frames.append(self._read(filepath,**kwargs))
             logging.info(f"Loaded {filepath} as expected.")
 
-    def read(self,filepath,delimiter="\t",comments="#",skiprows=None,nondigitflag=False):
+    def _read(self,filepath,delimiter="\t",comments="#",skiprows=None,nondigitflag=False):
 
         filepath = self.get_abspath(filepath)
 
@@ -628,10 +627,10 @@ class RegText(DataFrame):
             dtypes = [float if column_.isdigit() else str for column_ in row]
             columns = []
             for index,dtype in enumerate(dtypes):
-                column_ = np.loadtxt(filepath,dtype=dtype,delimiter=delimiter,skiprows=skiprows,usecols=[index],encoding="latin1")
+                column_ = numpy.loadtxt(filepath,dtype=dtype,delimiter=delimiter,skiprows=skiprows,usecols=[index],encoding="latin1")
                 columns.append(column_)
         else:
-            data = np.loadtxt(filepath,comments="#",delimiter=delimiter,skiprows=skiprows,encoding="latin1")
+            data = numpy.loadtxt(filepath,comments="#",delimiter=delimiter,skiprows=skiprows,encoding="latin1")
             columns = [column_ for column_ in data.transpose()]
 
         frame.set_running(*columns,init=True)
@@ -657,10 +656,14 @@ class LogASCII(DataFrame):
             filepaths = (filepaths,)
 
         for filepath in filepaths:
-            self.frames.append(self.read(filepath,**kwargs))
+
+            frame = self._read(filepath,**kwargs)
+
+            self.frames.append(frame)
+
             logging.info(f"Loaded {filepath} as expected.")
 
-    def read(self,filepath):
+    def _read(self,filepath):
 
         filepath = self.get_abspath(filepath)
 
@@ -771,7 +774,7 @@ class LogASCII(DataFrame):
 
         if all([dtype is float for dtype in dtypes]):
 
-            logdata = np.loadtxt(filepath,
+            logdata = numpy.loadtxt(filepath,
                 comments="#",
                 skiprows=skiprows,
                 usecols=usecols,
@@ -787,7 +790,7 @@ class LogASCII(DataFrame):
             else:
                 value_null = -999.25
 
-            logdata[logdata==value_null] = np.nan
+            logdata[logdata==value_null] = numpy.nan
 
             columns = [column_ for column_ in logdata.transpose()]
 
@@ -800,7 +803,7 @@ class LogASCII(DataFrame):
 
             for index,dtype in enumerate(dtypes):
 
-                column_ = np.loadtxt(filepath,
+                column_ = numpy.loadtxt(filepath,
                     dtype=dtype,
                     skiprows=skiprows,
                     usecols=[index],
@@ -850,14 +853,14 @@ class LogASCII(DataFrame):
 
             for header,unit,detail,column_ in iterator:
 
-                if np.all(np.isnan(column_)):
-                    minXval = np.nan
-                    maxXval = np.nan
+                if numpy.all(numpy.isnan(column_)):
+                    minXval = numpy.nan
+                    maxXval = numpy.nan
                 else:
-                    minXval = np.nanmin(column_)
-                    maxXval = np.nanmax(column_)
+                    minXval = numpy.nanmin(column_)
+                    maxXval = numpy.nanmax(column_)
 
-                tab_num = int(np.ceil((mnemonic_space-len(header))/tab_space))
+                tab_num = int(numpy.ceil((mnemonic_space-len(header))/tab_space))
                 tab_spc = "\t"*tab_num if tab_num>0 else "\t"
 
                 # file.write("Curve: {}{}Units: {}\tMin: {}\tMax: {}\tDescription: {}\n".format(
@@ -874,7 +877,7 @@ class LogASCII(DataFrame):
 
         for index in idframes:
 
-            columns = [np.flip(column_) for column_ in self.frames[index].running]
+            columns = [numpy.flip(column_) for column_ in self.frames[index].running]
 
             self.frames[index].set_running(*columns,cols=range(len(columns)))
             
@@ -894,13 +897,13 @@ class LogASCII(DataFrame):
 
             depth = self.frames[index].columns(0)
 
-            depth_cond = np.logical_and(depth>self.top,depth<self.bottom)
+            depth_cond = numpy.logical_and(depth>self.top,depth<self.bottom)
 
             if inplace:
                 self.frames[index]._running = [column_[depth_cond] for column_ in self.frames[index]._running]
-                self.frames[index].running = [np.asarray(column_) for column_ in self.frames[index]._running]
+                self.frames[index].running = [numpy.asarray(column_) for column_ in self.frames[index]._running]
             else:
-                self.frames[index].running = [np.asarray(column_[depth_cond]) for column_ in self.frames[index]._running]
+                self.frames[index].running = [numpy.asarray(column_[depth_cond]) for column_ in self.frames[index]._running]
 
     def get_interval(self,top,bottom,idframes=None,curveID=None):
 
@@ -920,7 +923,7 @@ class LogASCII(DataFrame):
             except ValueError:
                 depth = las.columns("DEPT")
 
-            depth_cond = np.logical_and(depth>top,depth<bottom)
+            depth_cond = numpy.logical_and(depth>top,depth<bottom)
 
             if curveID is None:
                 returningList.append(depth_cond)
@@ -934,27 +937,27 @@ class LogASCII(DataFrame):
         lowerend = depthsR<depthsO.min()
         upperend = depthsR>depthsO.max()
 
-        interior = np.logical_and(~lowerend,~upperend)
+        interior = numpy.logical_and(~lowerend,~upperend)
 
         depths_interior = depthsR[interior]
 
-        indices_lower = np.empty(depths_interior.shape,dtype=int)
-        indices_upper = np.empty(depths_interior.shape,dtype=int)
+        indices_lower = numpy.empty(depths_interior.shape,dtype=int)
+        indices_upper = numpy.empty(depths_interior.shape,dtype=int)
 
         for index,depth in enumerate(depths_interior):
 
             diff = depthsO-depth
 
-            indices_lower[index] = np.where(diff<0,diff,-np.inf).argmax()
-            indices_upper[index] = np.where(diff>0,diff,np.inf).argmin()
+            indices_lower[index] = numpy.where(diff<0,diff,-numpy.inf).argmax()
+            indices_upper[index] = numpy.where(diff>0,diff,numpy.inf).argmin()
 
         grads = (depths_interior-depthsO[indices_lower])/(depthsO[indices_upper]-depthsO[indices_lower])
 
-        dataR = np.empty(depthsR.shape,dtype=float)
+        dataR = numpy.empty(depthsR.shape,dtype=float)
 
-        dataR[lowerend] = np.nan
+        dataR[lowerend] = numpy.nan
         dataR[interior] = dataO[indices_lower]+grads*(dataO[indices_upper]-dataO[indices_lower])
-        dataR[upperend] = np.nan
+        dataR[upperend] = numpy.nan
 
         return dataR
 
@@ -1004,14 +1007,14 @@ class LogASCII(DataFrame):
             lowerend = depthsR<depthsO.min()
             upperend = depthsR>depthsO.max()
 
-            interior = np.logical_and(~lowerend,~upperend)
+            interior = numpy.logical_and(~lowerend,~upperend)
 
             depths_interior = depthsR[interior]
 
             diff = depthsO-depths_interior.reshape((-1,1))
 
-            indices_lower = np.where(diff<0,diff,-np.inf).argmax(axis=1)
-            indices_upper = np.where(diff>0,diff,np.inf).argmin(axis=1)
+            indices_lower = numpy.where(diff<0,diff,-numpy.inf).argmax(axis=1)
+            indices_upper = numpy.where(diff>0,diff,numpy.inf).argmin(axis=1)
 
             grads = (depths_interior-depthsO[indices_lower])/(depthsO[indices_upper]-depthsO[indices_lower])
 
@@ -1028,11 +1031,11 @@ class LogASCII(DataFrame):
 
                 curve = las.columns(indexJ)
 
-                dataR = np.empty(depthsR.shape,dtype=float)
+                dataR = numpy.empty(depthsR.shape,dtype=float)
 
-                dataR[lowerend] = np.nan
+                dataR[lowerend] = numpy.nan
                 dataR[interior] = curve[indices_lower]+grads*(curve[indices_upper]-curve[indices_lower])
-                dataR[upperend] = np.nan
+                dataR[upperend] = numpy.nan
 
                 if curveID is None:
                     running.append(dataR)
@@ -1062,17 +1065,17 @@ class LogASCII(DataFrame):
 
                 xvals2 = self.frames[fileIDs][curveName]
 
-                xvals1[np.isnan(xvals1)] = xvals2[np.isnan(xvals1)]
+                xvals1[numpy.isnan(xvals1)] = xvals2[numpy.isnan(xvals1)]
 
             return depth,xvals1
 
-        elif np.unique(np.array(fileIDs)).size==len(fileIDs):
+        elif numpy.unique(numpy.array(fileIDs)).size==len(fileIDs):
 
             if isinstance(curveNames,str):
                 curveNames = (curveNames,)*len(fileIDs)
 
-            depth = np.array([])
-            xvals = np.array([])
+            depth = numpy.array([])
+            xvals = numpy.array([])
 
             for (fileID,curveName) in zip(fileIDs,curveNames):
 
@@ -1083,13 +1086,13 @@ class LogASCII(DataFrame):
 
                 xvals_loc = self.frames[fileID][curveName]
 
-                depth_loc = depth_loc[~np.isnan(xvals_loc)]
-                xvals_loc = xvals_loc[~np.isnan(xvals_loc)]
+                depth_loc = depth_loc[~numpy.isnan(xvals_loc)]
+                xvals_loc = xvals_loc[~numpy.isnan(xvals_loc)]
 
                 depth_max = 0 if depth.size==0 else depth.max()
 
-                depth = np.append(depth,depth_loc[depth_loc>depth_max])
-                xvals = np.append(xvals,xvals_loc[depth_loc>depth_max])
+                depth = numpy.append(depth,depth_loc[depth_loc>depth_max])
+                xvals = numpy.append(xvals,xvals_loc[depth_loc>depth_max])
 
             return depth,xvals
 
@@ -1126,7 +1129,7 @@ class LogASCII(DataFrame):
                     unit="",
                     value="",
                     descr="Depth index",
-                    data=np.arange(data[0].size))
+                    data=numpy.arange(data[0].size))
                 lasfile.append_curve_item(curve)            
 
         for index,(mnemonic,datum) in enumerate(zip(mnemonics,data)):
@@ -1153,95 +1156,117 @@ class LogASCII(DataFrame):
         with open(filepath, mode='w') as filePathToWrite:
             lasfile.write(filePathToWrite)
 
+@contextlib.contextmanager
+def xlopen(filepath):
+    xlbook = openpyxl.load_workbook(filepath,read_only=True,data_only=True)
+    try:
+        yield xlbook
+    finally:
+        book._archive.close()
+
 class Excel(DataFrame):
 
-    def __init__(self,filepaths=None,**kwargs):
+    def __init__(self,filepaths=None,sheetnames=None,**kwargs):
 
-        super().__init__(**kwargs)
+        super().__init__()
 
-        self.books = []
-        self.sheets = []
+        self.frames = []
 
-        self.add_books(filepaths)
+        self.read(filepaths,sheetnames,**kwargs)
 
-    def add_books(self,filepaths):
-        """It adds excel workbooks with the filepaths specified to the self.books."""
+    def read(self,filepaths,sheetnames=None,**kwargs):
+        """It add frames from the excel worksheet provided with filepaths and sheetnames."""
 
         if filepaths is None:
             return
-
-        if not isinstance(filepaths,list) and not isinstance(filepaths,tuple):
+        elif type(filepaths) is str:
             filepaths = (filepaths,)
+        else:
+            filepaths = tuple(filepaths)
+
+        if sheetnames is None:
+            sheets = (sheetnames,)
+        elif type(sheetnames) is str:
+            sheets = (sheetnames,)
+        else:
+            sheets = tuple(sheetnames)
 
         for filepath in filepaths:
 
             filepath = self.get_abspath(filepath)
 
-            book = opxl.load_workbook(filepath,read_only=True,data_only=True)
+            with xlopen(filepath) as book:
 
-            self.books.append(book)
+                for sheet in sheets:
 
-            logging.info(f"Loaded {filepath} as expected.")
+                    frame = self._read(book,sheet,**kwargs)
 
-    def add_sheets(self,sheets=None,**kwargs):
-        """It add frames from the excel worksheet."""
+                    self.frames.append(frame)
 
-        if sheets is None:
-            sheets = [(idbook,0) for idbook in range(len(self.books))]
-
-        for sheet in sheets:
-
-            idbook,page = sheet
-
-            sheet = self.read((idbook,page),**kwargs)
-
-            self.sheets.append(sheet)
-
-    def read(self,sheet,hrows=0,min_row=1,min_col=1,max_row=None,max_col=None):
-        """It reads excel worksheet and returns it as a DataFrame."""
-
-        idbook,page = sheet
+    def _read(self,book,sheet,sheetsearch=False,min_row=1,min_col=1,max_row=None,max_col=None,hrows=0):
+        """It reads provided excel worksheet and returns it as a DataFrame."""
 
         frame = DataFrame()
 
-        if page is None:
-            idsheet = 0
-        elif isinstance(page,str):
-            scores = []
-            for sheetname in self.books[idbook].sheetnames:
-                scores.append(SequenceMatcher(None,sheetname,page).ratio())
-            idsheet = scores.index(max(scores))
-        elif isinstance(page,int):
-            idsheet = page
+        if sheet is None:
+            sheetname = book.sheetnames[0]
+        elif isinstance(sheet,int):
+            sheetname = book.sheetnames[sheet]
+        elif isinstance(sheet,str) and sheetsearch:
+            srcscores = [SequenceMatcher(None,page,sheet).ratio() for page in book.sheetnames]
+            sheetname = book.sheetnames[srcscores.index(max(srcscores))]
+        elif isinstance(sheet,str):
+            if sheet in book.sheetnames:
+                sheetname = sheet
+            else:
+                raise ValueError(f"'{sheet}' could not be found in the xlbook, try sheetsearch=True.")
         else:
-            logging.critical(f"Expected sheet[1] is either none, str or int, but the input type is {type(sheet[1])}.")
-
-        sheetname = self.books[idbook].sheetnames[idsheet]
+            raise TypeError(f"Expected sheet is either none, int or str, but the input type is {type(sheet[1])}.")
 
         frame.sheetname = sheetname
 
-        rows = self.books[idbook][sheetname].iter_rows(
-            min_row=min_row,min_col=min_col,
-            max_row=max_row,max_col=max_col,
+        rows = book[sheetname].iter_rows(
+            min_row=min_row,max_row=max_row,
+            min_col=min_col,max_col=max_col,
             values_only=True)
 
-        rows = [row for row in list(rows) if any(row)]
+        cols = []
+    
+        for index,row in enumerate(rows):
+            if index==0:
+                [cols.append([]) for _ in row]
+            if any(row):
+                [col.append(cell) for cell,col in zip(row,cols)]
 
-        frame.set_headers(colnum=len(rows[0]),init=True)
+        heads_ = key2column(size=(len(cols)+min_col-1),dtype='str')
+        heads_ = heads_.vals[min_col-1:]
 
-        frame.hrows = rows[:hrows]
-
-        frame.set_rows(rows[hrows:])
+        for index,col in enumerate(cols):
+            if any(col):
+                info = " ".join([str(cell) for cell in col[:hrows] if cell is not None])
+                col_ = column(col[hrows:],head=heads_[index],info=info)
+                frame._setcolumn(col_)
 
         return frame
 
-    def merge(self,idframes=None,idcols=None):
+    def merge(self,idframes=None,idcols=None,infosearch=False):
         """It merges all the frames as a single DataFrame under the Excel class."""
 
         if idframes is None:
             idframes = range(len(self.frames))
         elif isinstance(idframes,int):
             idframes = (idframes,)
+        else:
+            idframes = tuple(idframes)
+
+        if idcols is None:
+            idcols = slice(None,None,None)
+        elif isinstance(idcols,int):
+            idcols = (idcols,)
+        elif isinstance(idcols,str):
+            idcols = (idcols,)
+        else:
+            idcols = tuple(idcols)
 
         for idframe in idframes:
 
@@ -1258,13 +1283,13 @@ class Excel(DataFrame):
                         scores.append(score)
                     idcols.append(scores.index(max(scores)))
 
-            columns = frame.columns(cols=idcols)
+            cols_ = [frame.running[idcol] for idcol in idcols]
 
             self.set_running(*columns,cols=range(len(idcols)))
 
     def write(self,filepath,title):
 
-        wb = opxl.Workbook()
+        wb = openpyxl.Workbook()
 
         sheet = wb.active
 
@@ -1275,16 +1300,6 @@ class Excel(DataFrame):
             sheet.append(line)
 
         wb.save(filepath)
-
-    def close(self,idbooks=None):
-
-        if idbooks is None:
-            idbooks = range(len(self.books))
-        elif isinstance(idbooks,int):
-            idbooks = (idbooks,)
-
-        for idbook in idbooks:
-            self.books[idbook]._archive.close()
 
 class IrrText(DataFrame):
 
@@ -1352,11 +1367,11 @@ class IrrText(DataFrame):
         elif skiprows!=0:
             self.set_headers(headers=self.title[headerline],init=False)
 
-        nparray = np.array(_running).T
+        nparray = numpy.array(_running).T
 
-        self._running = [np.asarray(column_) for column_ in nparray]
+        self._running = [numpy.asarray(column_) for column_ in nparray]
 
-        self.running = [np.asarray(column_) for column_ in self._running]
+        self.running = [numpy.asarray(column_) for column_ in self._running]
 
     def write(self):
 
@@ -1388,36 +1403,36 @@ class WSchedule(DataFrame):
 
     def set_subheaders(self,header_index=None,header=None,regex=None,regex_builtin="INC_HEADERS",title="SUB-HEADERS"):
 
-        nparray = np.array(self._running[header_index])
+        nparray = numpy.array(self._running[header_index])
 
         if regex is None and regex_builtin=="INC_HEADERS":
             regex = r'^[A-Z]+$'                         #for strings with only capital letters no digits
         elif regex is None and regex_builtin=="INC_DATES":
             regex = r'^\d{1,2} [A-Za-z]{3} \d{2}\d{2}?$'   #for strings with [1 or 2 digits][space][3 capital letters][space][2 or 4 digits], e.g. DATES
 
-        vmatch = np.vectorize(lambda x: bool(re.compile(regex).match(x)))
+        vmatch = numpy.vectorize(lambda x: bool(re.compile(regex).match(x)))
 
         match_index = vmatch(nparray)
 
-        firstocc = np.argmax(match_index)
+        firstocc = numpy.argmax(match_index)
 
-        lower = np.where(match_index)[0]
-        upper = np.append(lower[1:],nparray.size)
+        lower = numpy.where(match_index)[0]
+        upper = numpy.append(lower[1:],nparray.size)
 
         repeat_count = upper-lower-1
 
         match_content = nparray[match_index]
 
-        nparray[firstocc:][~match_index[firstocc:]] = np.repeat(match_content,repeat_count)
+        nparray[firstocc:][~match_index[firstocc:]] = numpy.repeat(match_content,repeat_count)
 
         self._headers.insert(header_index,title)
-        self._running.insert(header_index,np.asarray(nparray))
+        self._running.insert(header_index,numpy.asarray(nparray))
 
         for index,column_ in enumerate(self._running):
-            self._running[index] = np.array(self._running[index][firstocc:][~match_index[firstocc:]])
+            self._running[index] = numpy.array(self._running[index][firstocc:][~match_index[firstocc:]])
 
         self.headers = self._headers
-        self.running = [np.asarray(column_) for column_ in self._running]
+        self.running = [numpy.asarray(column_) for column_ in self._running]
 
     def get_wells(self,wellname=None):
 
@@ -1437,7 +1452,7 @@ class WSchedule(DataFrame):
             wefffac = schedule.running[1]=="WEFAC"
             welopen = schedule.running[1]=="WELOPEN"
 
-            for date in np.unique(schedule.running[0]):
+            for date in numpy.unique(schedule.running[0]):
 
                 currentdate = schedule.running[0]==date
 
@@ -1450,7 +1465,7 @@ class WSchedule(DataFrame):
                 wfile.write("/\n\n")
 
                 if any(currentcont=="WELSPECS"):
-                    indices = np.logical_and(currentdate,welspec)
+                    indices = numpy.logical_and(currentdate,welspec)
                     wfile.write("WELSPECS\n")
                     for detail in schedule.running[2][indices]:
                         wfile.write(detail)
@@ -1458,7 +1473,7 @@ class WSchedule(DataFrame):
                     wfile.write("/\n\n")
 
                 if any(currentcont=="COMPDATMD"):
-                    indices = np.logical_and(currentdate,compdat)
+                    indices = numpy.logical_and(currentdate,compdat)
                     wfile.write("COMPDATMD\n")
                     for detail in schedule.running[2][indices]:
                         wfile.write(detail)
@@ -1466,7 +1481,7 @@ class WSchedule(DataFrame):
                     wfile.write("/\n\n")
 
                 if any(currentcont=="COMPORD"):
-                    indices = np.logical_and(currentdate,compord)
+                    indices = numpy.logical_and(currentdate,compord)
                     wfile.write("COMPORD\n")
                     for detail in schedule.running[2][indices]:
                         wfile.write(detail)
@@ -1474,7 +1489,7 @@ class WSchedule(DataFrame):
                     wfile.write("/\n\n")
 
                 if any(currentcont=="WCONHIST"):
-                    indices = np.logical_and(currentdate,prodhst)
+                    indices = numpy.logical_and(currentdate,prodhst)
                     wfile.write("WCONHIST\n")
                     for detail in schedule.running[2][indices]:
                         wfile.write(detail)
@@ -1482,7 +1497,7 @@ class WSchedule(DataFrame):
                     wfile.write("/\n\n")
 
                 if any(currentcont=="WCONINJH"):
-                    indices = np.logical_and(currentdate,injdhst)
+                    indices = numpy.logical_and(currentdate,injdhst)
                     wfile.write("WCONINJH\n")
                     for detail in schedule.running[2][indices]:
                         wfile.write(detail)
@@ -1490,7 +1505,7 @@ class WSchedule(DataFrame):
                     wfile.write("/\n\n")
 
                 if any(currentcont=="WEFAC"):
-                    indices = np.logical_and(currentdate,wefffac)
+                    indices = numpy.logical_and(currentdate,wefffac)
                     wfile.write("WEFAC\n")
                     for detail in schedule.running[2][indices]:
                         wfile.write(detail)
@@ -1498,7 +1513,7 @@ class WSchedule(DataFrame):
                     wfile.write("/\n\n")
 
                 if any(currentcont=="WELOPEN"):
-                    indices = np.logical_and(currentdate,welopen)
+                    indices = numpy.logical_and(currentdate,welopen)
                     wfile.write("WELOPEN\n")
                     for detail in schedule.running[2][indices]:
                         wfile.write(detail)
