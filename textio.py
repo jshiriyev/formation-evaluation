@@ -74,6 +74,12 @@ class DirBase():
         else:
             return os.path.normpath(os.path.join(self.filedir,path))
 
+    def file_exists(self,path,homeFlag=False):
+
+        path = self.get_abspath(path,homeFlag=homeFlag)
+
+        return os.path.exists(path)
+
     def get_dirpath(self,path,homeFlag=False):
         """Returns absolute directory path for a given relative path."""
 
@@ -279,6 +285,26 @@ class DataFrame(DirBase):
         col_ = column(vals,head=key)
 
         self._setup(col_)
+
+    def __delitem__(self,key):
+
+        if isinstance(key,str):
+            self.pop(key)
+            return
+
+        if isinstance(key,list) or isinstance(key,tuple):
+
+            if all([type(_key) is str for _key in key]):
+                [self.pop(_key) for _key in key]
+                return
+            elif any([type(_key) is str for _key in key]):
+                raise ValueError("Arguments can not contain non-string and string entries together.")
+        
+        dataframe_ = copy.deepcopy(self)
+        object.__setattr__(dataframe_,'running',
+            [np.delete(col_,key) for col_ in self.running])
+
+        return dataframe_
         
     def __iter__(self):
 
@@ -296,11 +322,18 @@ class DataFrame(DirBase):
         if isinstance(key,list) or isinstance(key,tuple):
 
             if all([type(_key) is str for _key in key]):
-                return DataFrame(*[self.running[i] for i in self._index(*key)])
+                dataframe_ = copy.deepcopy(self)
+                object.__setattr__(dataframe_,'running',
+                    [self.running[i] for i in self._index(*key)])
+                return dataframe_
             elif any([type(_key) is str for _key in key]):
                 raise ValueError("Arguments can not contain non-string and string entries together.")
         
-        return DataFrame(*[col_[key] for col_ in self.running])
+        dataframe_ = copy.deepcopy(self)
+        object.__setattr__(dataframe_,'running',
+            [col_[key] for col_ in self.running])
+
+        return dataframe_
 
     """CONVERSION METHODS"""
 
@@ -382,7 +415,10 @@ class DataFrame(DirBase):
         if return_indices:
             return match
         else:
-            return DataFrame(*[col_[match] for col_ in self.running])
+            dataframe_ = copy.deepcopy(self)
+            object.__setattr__(dataframe_,'running',
+                [col_[match] for col_ in self.running])
+            return dataframe_
 
     def filter(self,key,keywords=None,regex=None,return_indices=False):
         """Returns filtered dataframe based on keywords or regex."""
@@ -394,7 +430,10 @@ class DataFrame(DirBase):
         if return_indices:
             return match
         else:
-            return DataFrame(*[col_[match] for col_ in self.running])
+            dataframe_ = copy.deepcopy(self)
+            object.__setattr__(dataframe_,'running',
+                [col_[match] for col_ in self.running])
+            return dataframe_
 
     def unique(self,heads):
         """Returns dataframe with unique entries of column/s.
@@ -409,7 +448,9 @@ class DataFrame(DirBase):
 
         npstruct = numpy.unique(npstruct,axis=0)
 
-        cols_ = []
+        dataframe_ = copy.deepcopy(self)
+
+        object.__setattr__(dataframe_,'running',[])
 
         for head in heads:
 
@@ -417,9 +458,9 @@ class DataFrame(DirBase):
 
             col_.vals = npstruct[head]
 
-            cols_.append(col_)
+            dataframe_.running.append(col_)
 
-        return DataFrame(*cols_)
+        return dataframe_
 
     """CONTEXT MANAGERS"""
 
@@ -1170,19 +1211,11 @@ class LogASCII(DataFrame):
         with open(filepath, mode='w') as filePathToWrite:
             lasfile.write(filePathToWrite)
 
-@contextlib.contextmanager
-def xlopen(filepath):
-    xlbook = openpyxl.load_workbook(filepath,read_only=True,data_only=True)
-    try:
-        yield xlbook
-    finally:
-        book._archive.close()
-
 class Excel(DataFrame):
 
     def __init__(self,filepaths=None,sheetnames=None,**kwargs):
 
-        super().__init__()
+        super().__init__(**kwargs)
 
         self.frames = []
 
@@ -1209,9 +1242,11 @@ class Excel(DataFrame):
 
             filepath = self.get_abspath(filepath)
 
-            with xlopen(filepath) as book:
+            with Excel.xlopen(filepath) as book:
 
                 for sheet in sheets:
+
+                    print("Loading {} {}".format(filepath,sheet))
 
                     frame = self._read(book,sheet,**kwargs)
 
@@ -1323,6 +1358,14 @@ class Excel(DataFrame):
             sheet.append(line)
 
         wb.save(filepath)
+
+    @contextlib.contextmanager
+    def xlopen(filepath):
+        xlbook = openpyxl.load_workbook(filepath,read_only=True,data_only=True)
+        try:
+            yield xlbook
+        finally:
+            xlbook._archive.close()
 
 class IrrText(DataFrame):
 

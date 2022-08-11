@@ -158,7 +158,10 @@ class column():
 
         vals_arr[self.isnone] = none
 
-        vals_arr = vals_arr.astype(dtype=dtype)
+        try:
+            vals_arr = vals_arr.astype(dtype=dtype)
+        except ValueError:
+            vals_arr = vals_arr.astype(dtype='str')
 
         object.__setattr__(self,"vals",vals_arr)
 
@@ -428,6 +431,10 @@ class column():
     def __setitem__(self,key,vals):
 
         self.vals[key] = vals
+
+    def __delitem__(self,key):
+
+        return np.delete(self.vals,key)
 
     def __iter__(self):
 
