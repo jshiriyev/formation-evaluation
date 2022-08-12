@@ -144,23 +144,23 @@ class column():
             dtype = self.dtype
 
         if dtype.type is np.dtype('int').type:
-            none = getattr(self.nones,'int')
+            none = self.nones.int
         elif dtype.type is np.dtype('float').type:
-            none = getattr(self.nones,'float')
+            none = self.nones.float
         elif dtype.type is np.dtype('str').type:
-            none = getattr(self.nones,'str')
+            none = self.nones.str
         elif dtype.type is np.dtype('datetime64').type:
-            none = getattr(self.nones,'datetime64')
+            none = self.nones.datetime64
         else:
             raise TypeError(f"Unexpected numpy.dtype, {dtype=}")
 
         vals_arr = self.vals.astype(np.object_)
 
-        vals_arr[self.isnone] = none
-
         try:
+            vals_arr[self.isnone] = none
             vals_arr = vals_arr.astype(dtype=dtype)
         except ValueError:
+            vals_arr[self.isnone] = self.nones.str
             vals_arr = vals_arr.astype(dtype='str')
 
         object.__setattr__(self,"vals",vals_arr)
@@ -414,17 +414,17 @@ class column():
     def maxchar(self,return_value=False):
         """It returns the maximum character count in stringified column."""
 
+        if return_value:
+            return max(self.vals.astype('str_'),key=len)
+
         if self.vals.dtype.type is np.str_:
             vals = self.vals
         else:
             vals = self.tostring().vals
 
         charsize = np.dtype(f"{vals.dtype.char}1").itemsize
-
-        if return_value:
-            return max(vals,key=len)
-        else:
-            return int(vals.dtype.itemsize/charsize)
+        
+        return int(vals.dtype.itemsize/charsize)
 
     """CONTAINER METHODS"""
 
@@ -548,9 +548,22 @@ class column():
             if none_bool:
                 vals_str.append(self.nones.str)
                 continue
-
-            if isinstance(val,datetime.date):
-                text = val.strftime(fstring_inner[1:-1])
+            
+            if isinstance(val,float):
+                if fstring is None:
+                    text = '{:g}'.format(val)
+                else:
+                    text = fstring_inner.format(val)
+            elif isinstance(val,datetime.datetime):
+                if fstring is None:
+                    text = val.strftime("%Y-%m-%d || %H:%M:%S")
+                else:
+                    text = val.strftime(fstring_inner[1:-1])
+            elif isinstance(val,datetime.date):
+                if fstring is None:
+                    text = val.strftime("%Y-%m-%d")
+                else:
+                    text = val.strftime(fstring_inner[1:-1])
             else:
                 text = fstring_inner.format(val)
 
@@ -887,6 +900,10 @@ class column():
 
             if array_.size==0:
                 dtype_ = np.dtype('float64')
+            elif isinstance(array_[0],int):
+                dtype_ = np.dtype('float64')
+            elif isinstance(array_[0],str):
+                dtype_ = np.dtype('str_')
             elif isinstance(array_[0],datetime.datetime):
                 dtype_ = np.dtype('datetime64[s]')
             elif isinstance(array_[0],datetime.date):

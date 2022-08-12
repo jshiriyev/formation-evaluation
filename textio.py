@@ -210,28 +210,28 @@ class DataFrame(DirBase):
         upper = int(numpy.ceil(print_limit/2))
         lower = int(numpy.floor(print_limit/2))
 
-        headers = self.heads
+        if self.shape[0]>print_limit:
+            rows = list(range(upper))
+            rows.extend(list(range(-lower,0,1)))
+        else:
+            rows = list(range(self.shape[0]))
 
-        headcount = [len(head) for head in headers]
-        bodycount = [col_.maxchar() for col_ in self.running]
+        frame_ = self[rows]
+
+        headcount = [len(head) for head in frame_.heads]
+        bodycount = [col_.maxchar() for col_ in frame_.running]
         charcount = [max(hc,bc) for (hc,bc) in zip(headcount,bodycount)]
 
         fstring = " ".join(["{{:>{}s}}".format(cc) for cc in charcount])
         fstring = "{}\n".format(fstring)
 
-        heads_str = fstring.format(*headers)
+        heads_str = fstring.format(*frame_.heads)
         lines_str = fstring.format(*["-"*count for count in charcount])
         large_str = fstring.format(*[".." for _ in charcount])
 
         vprint = numpy.vectorize(lambda *args: fstring.format(*args))
 
-        if self.shape[0]>print_limit:
-            rows,lower = list(range(upper)),list(range(-lower,0,1))
-            rows.extend(lower)
-        else:
-            rows = slice(None,None,None)
-
-        bodycols = vprint(*[col_[rows].tostring() for col_ in self.running]).tolist()
+        bodycols = vprint(*[col_.tostring() for col_ in frame_.running]).tolist()
 
         if self.shape[0]>print_limit:
             [bodycols.insert(upper,large_str) for _ in range(3)]
