@@ -322,16 +322,24 @@ class DataFrame(DirBase):
         if isinstance(key,list) or isinstance(key,tuple):
 
             if all([type(_key) is str for _key in key]):
+
+                cols_ = [self.running[i] for i in self._index(*key)]
+
                 dataframe_ = copy.deepcopy(self)
-                object.__setattr__(dataframe_,'running',
-                    [self.running[i] for i in self._index(*key)])
+
+                object.__setattr__(dataframe_,'running',cols_)
+
                 return dataframe_
+
             elif any([type(_key) is str for _key in key]):
+                
                 raise ValueError("Arguments can not contain non-string and string entries together.")
         
+        cols_ = [col_[key] for col_ in self.running]
+
         dataframe_ = copy.deepcopy(self)
-        object.__setattr__(dataframe_,'running',
-            [col_[key] for col_ in self.running])
+
+        object.__setattr__(dataframe_,'running',cols_)
 
         return dataframe_
 
