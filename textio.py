@@ -407,7 +407,7 @@ class DataFrame(DirBase):
 
         cols_ = self[heads]
 
-        match = numpy.argsort(cols_.tostruct(),axis=0)
+        match = numpy.argsort(cols_.tostruct(),axis=0,order=heads)
 
         if reverse:
             match = numpy.flip(match)
