@@ -90,17 +90,17 @@ class DirBase():
         else:
             return os.path.dirname(path)
 
-    def get_fnames(self,path=None,prefix=None,extension=None,returnAbsFlag=False,returnDirsFlag=False):
+    def get_fnames(self,path=None,homeFlag=False,prefix=None,extension=None,returnAbsFlag=False,returnDirsFlag=False):
         """Return directory(folder)/file names for a given relative path."""
 
         if path is None:
-            path = self.filedir
+            path = self.filedir if homeFlag is False else self.homedir
         else:
-            path = self.get_dirpath(path)
+            path = self.get_dirpath(path,homeFlag=homeFlag)
 
         fnames = os.listdir(path)
 
-        fpaths = [self.get_abspath(fname,homeFlag=False) for fname in fnames]
+        fpaths = [self.get_abspath(fname,homeFlag=homeFlag) for fname in fnames]
 
         if returnDirsFlag:
 
