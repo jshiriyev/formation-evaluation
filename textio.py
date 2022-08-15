@@ -222,6 +222,8 @@ class DataFrame(DirBase):
         bodycount = [col_.maxchar() for col_ in frame_.running]
         charcount = [max(hc,bc) for (hc,bc) in zip(headcount,bodycount)]
 
+        # print(headcount,bodycount,charcount)
+
         fstring = " ".join(["{{:>{}s}}".format(cc) for cc in charcount])
         fstring = "{}\n".format(fstring)
 

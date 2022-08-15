@@ -418,7 +418,7 @@ class column():
             return max(self.vals.astype('str_'),key=len)
 
         if self.vals.dtype.type is np.str_:
-            vals = self.vals
+            vals = np.array(self.vals.tolist())
         else:
             vals = self.tostring().vals
 
@@ -1100,11 +1100,22 @@ def array1d(arg,size=None):
         arr_temp = arr_[arr_!=None]
 
         if arr_temp.size==0:
-            arr_ = arr_.astype(None)
+            dtype_ = np.dtype('float64')
+        elif isinstance(arr_temp[0],int):
+            dtype_ = np.dtype('float64')
+        elif isinstance(arr_temp[0],str):
+            dtype_ = np.dtype('str_')
         elif isinstance(arr_temp[0],datetime.datetime):
-            arr_ = arr_.astype('datetime64[s]')
+            dtype_ = np.dtype('datetime64[s]')
         elif isinstance(arr_temp[0],datetime.date):
-            arr_ = arr_.astype('datetime64[D]')
+            dtype_ = np.dtype('datetime64[D]')
+        else:
+            dtype_ = np.array([arr_temp[0]]).dtype
+
+        try:
+            arr_ = arr_.astype(dtype_)
+        except ValueError:
+            arr_ = arr_.astype('str_')
 
     if size is None or arr_.size==0:
         return arr_
