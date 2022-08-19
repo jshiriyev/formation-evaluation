@@ -1,10 +1,12 @@
+from io import StringIO 
+
 import re
 
 import matplotlib.pyplot as plt
 
 import numpy as np
 
-from cypy.vector import starsplit
+from cypy.vectorpy import starsplit
 
 Nx,Ny,Nz = (1,1,2)
 
@@ -19,22 +21,27 @@ endsection = "/"
 headers = ["COORD","ZCORN"]
 running = [coord,zcorn]
 
-lines = ""
+test_lines = "\
+\n\
+\n\
+COORD\n\
+0  0  0 0  0  10000\n\
+10 0  0 10 0  10000\n\
+0  10 0 0  10 10000\n\
+10 10 0 10 10 10000\n\
+/\
+\n\
+\n\
+ZCORN\n\
+4*2003 8*2015 4*2032\n\
+/\
+"
 
-with open("grid.grdecl","r") as text:
-	
-	for line in text:
+file = StringIO(test_lines)
 
-		if line=="":
-			continue
+text = file.read()
 
-		if comment is not None:
-			if line[:len(comment)] == comment:
-				continue
-
-		lines += line
-
-sections = lines.split(endsection)
+sections = text.split(endsection)
 
 for section in sections:
 
@@ -80,4 +87,4 @@ ax.set_xlabel("x-axis")
 ax.set_ylabel("y-axis")
 ax.set_zlabel("z-axis")
 
-# plt.show()
+plt.show()

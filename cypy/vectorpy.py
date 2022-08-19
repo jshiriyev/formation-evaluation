@@ -61,10 +61,8 @@ def str2float_(string:str,none_str:str="",none_float:float=np.nan,sep_decimal:st
 
 str2float = np.vectorize(str2float_,otypes=[float],excluded=["none_str","none_float","sep_decimal","sep_thousand","regex"])
 
-def starsplit_(text,default=1.0):
+def starsplit(string_list,default=1.0):
     """It returns star splitted list repeating post-star pre-star times."""
-
-    string_list - text.split(" ")
 
     float_list = []
 
@@ -83,12 +81,9 @@ def starsplit_(text,default=1.0):
                 float_list.append(val)
 
         else:
-            
             float_list.append(float(string_value))
 
     return float_list
-
-# starsplit_npvect = np.vectorize(starsplit_,signature='()->(),()')
 
 def isnumber(string_):
     try:

@@ -855,6 +855,10 @@ class column():
             return match
         else:
             return self[match]
+
+    def flip(self):
+
+        pass
             
     def unique(self):
 

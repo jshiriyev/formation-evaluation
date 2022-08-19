@@ -430,6 +430,10 @@ class DataFrame(DirBase):
                 [col_[match] for col_ in self.running])
             return dataframe_
 
+    def flip(self):
+
+        pass
+
     def filter(self,key,keywords=None,regex=None,return_indices=False):
         """Returns filtered dataframe based on keywords or regex."""
 
@@ -506,6 +510,37 @@ class DataFrame(DirBase):
             kwargs[header] = column_
 
         numpy.savez_compressed(filepath,**kwargs)
+
+    def _not_merged_to_dataframe_yet_read_write_b(self):
+
+        A = numpy.random.randint(0,1000,1_000_000)
+        B = numpy.random.randint(0,1000,1_000_000)
+        C = numpy.random.randint(0,1000,1_000_000)
+
+        ##A = numpy.random.rand(1_000_000)
+        ##B = numpy.random.rand(1_000_000)
+        ##C = numpy.random.rand(1_000_000)
+
+        ## WRITING TEXT FILE
+
+        Z = numpy.empty((A.size,3))
+        Z[:,0] = A
+        Z[:,1] = B
+        Z[:,2] = C
+        numpy.savetxt("data.txt",Z.astype(int),fmt="%i",header="a b c")
+
+        ## WRITING BINARY NPZ FILE
+        numpy.savez_compressed('data.npz', a=A, b=B, c=C)
+
+
+        ## READING TEXT FILE
+        T = numpy.loadtxt("data.txt",dtype=int)
+
+        ## READING BINARY NPZ FILE
+        B = numpy.load('data.npz')
+
+        for key in B.keys():
+            print(key)
 
     """PROPERTY METHODS"""
 
@@ -932,6 +967,87 @@ class LogASCII(DataFrame):
                 #     curve.mnemonic,tab_spc,curve.unit,minXval,maxXval,curve.descr))
                 print("Curve: {}{}Units: {}\tMin: {}\tMax: {}\tDescription: {}".format(
                     header,tab_spc,unit,minXval,maxXval,detail))
+
+    def set_nangraph(self,idframe):
+
+        self.fig_nan,self.axis_nan = plt.subplots()
+
+        las = self.frames[idframe]
+
+        yvals = []
+        zvals = []
+
+        depth = las.columns(0)
+
+        for index,column in enumerate(las.running):
+
+            isnan = np.isnan(column)
+
+            L_shift = np.ones(column.shape,dtype=bool)
+            R_shift = np.ones(column.shape,dtype=bool)
+
+            L_shift[:-1] = isnan[1:]
+            R_shift[1:] = isnan[:-1]
+
+            lower = np.where(np.logical_and(~isnan,R_shift))[0]
+            upper = np.where(np.logical_and(~isnan,L_shift))[0]
+
+            zval = np.concatenate((lower,upper),dtype=int).reshape((2,-1)).T.flatten()
+
+            yval = np.full(zval.size,index,dtype=float)
+            
+            yval[::2] = np.nan
+
+            yvals.append(yval)
+            zvals.append(zval)
+
+        qvals = np.unique(np.concatenate(zvals))
+
+        for (yval,zval) in zip(yvals,zvals):
+            self.axis_nan.step(np.where(qvals==zval.reshape((-1,1)))[1],yval)
+
+        self.axis_nan.set_xlim((-1,qvals.size))
+        self.axis_nan.set_ylim((-1,len(las.running)))
+
+        self.axis_nan.set_xticks(np.arange(qvals.size))
+        self.axis_nan.set_xticklabels(depth[qvals],rotation=90)
+
+        self.axis_nan.set_yticks(np.arange(len(las.running)))
+        self.axis_nan.set_yticklabels(las.headers)
+
+        self.axis_nan.grid(True,which="both",axis='x')
+
+        self.fig_nan.tight_layout()
+
+    def set_histogram(self,idframe,idcol,logscale=False):
+
+        self.fig_hist,self.axis_hist = plt.subplots()
+
+        las = self.frames[idframe]
+
+        yaxis = las.running[idcol]
+
+        if logscale:
+            yaxis = np.log10(yaxis[np.nonzero(yaxis)[0]])
+
+        try:
+            unit = las.units[idcol]
+        except IndexError:
+            unit = "not-defined"
+
+        try:
+            descr = las.details[idcol]
+        except IndexError:
+            descr = las.headers[idcol]
+
+        if logscale:
+            xlabel = "log10(nonzero-{}) [{}]".format(descr,unit)
+        else:
+            xlabel = "{} [{}]".format(descr,unit)
+
+        self.axis_hist.hist(yaxis,density=True,bins=30)  # density=False would make counts
+        self.axis_hist.set_ylabel("Probability")
+        self.axis_hist.set_xlabel(xlabel)
 
     def flip(self,idframes=None):
 

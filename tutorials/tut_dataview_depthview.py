@@ -9,7 +9,7 @@ FS_b = 3700
 
 filenames = []
 
-filenames.append("sample.las")
+filenames.append("tut_dataview_lasfile.las")
 
 logs = plotLogs(filenames)
 
