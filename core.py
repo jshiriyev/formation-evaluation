@@ -858,7 +858,11 @@ class column():
 
     def flip(self):
 
-        pass
+        col_ = copy.deepcopy(self)
+
+        col_.vals = np.flip(self.vals)
+
+        return col_
             
     def unique(self):
 
@@ -922,6 +926,7 @@ class column():
 
     @property
     def size(self):
+        """It returns the size of array in the column."""
         return len(self.vals)
     
     @property
@@ -988,6 +993,7 @@ class column():
 
     @property
     def year(self):
+        """It returns the year in the given datetime64 array."""
 
         if self.vals.dtype.type is not np.datetime64:
             return
@@ -1004,6 +1010,7 @@ class column():
 
     @property
     def month(self):
+        """It returns the month in the given datetime64 array."""
 
         if self.vals.dtype.type is not np.datetime64:
             return
@@ -1020,7 +1027,7 @@ class column():
 
     @property
     def monthrange(self):
-        """It returns the day count in the month in the datetime array."""
+        """It returns the day count in the month in the datetime64 array."""
 
         if self.vals.dtype.type is not np.datetime64:
             return
@@ -1075,6 +1082,7 @@ class column():
 
     @property
     def day(self):
+        """It returns the day in the given datetime64 array."""
 
         if self.vals.dtype.type is not np.datetime64:
             return

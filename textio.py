@@ -426,13 +426,17 @@ class DataFrame(DirBase):
             return match
         else:
             dataframe_ = copy.deepcopy(self)
-            object.__setattr__(dataframe_,'running',
-                [col_[match] for col_ in self.running])
+            running_ = [col_[match] for col_ in self.running]
+            object.__setattr__(dataframe_,'running',running_)
             return dataframe_
 
     def flip(self):
 
-        pass
+        dataframe_ = copy.deepcopy(self)
+
+        running_ = [col_.flip() for col_ in self.running]
+
+        object.__setattr__(dataframe_,'running',running_)
 
     def filter(self,key,keywords=None,regex=None,return_indices=False):
         """Returns filtered dataframe based on keywords or regex."""
