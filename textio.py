@@ -857,55 +857,112 @@ class LogASCII(DataFrame):
 
         return frame
 
-    def _read_parameter_data_line_program(self):
-        """LAS Version 3.0"""
+    def _read_version(self,lasfile):
+        """It returns the version of file."""
+
+        lasfile.seek(0)
+
+        line = next(lasfile).strip()
+
+        while not line.startswith("~V"):
+
+            line = next(lasfile).strip()
+
+        line = next(lasfile).strip()
+
+        pattern = r"\s*VERS\s*\.\s+([^:]*)\s*:"
+
+        program = re.compile(pattern)
+
+        version = program.match(line).groups()[0]
+
+        return version.strip()
+
+    def _read_parameter_data_line_program(self,version="2.0"):
+        """It returns the program that compiles the version checked regular expression to retrieve parameter data."""
 
         """
         Mnemonic:
 
+        LAS Version 2.0
+        This mnemonic can be of any length but must not contain any internal spaces, dots, or colons.
+
+        LAS Version 3.0
         Any length >0, but must not contain periods, colons, embedded spaces, tabs, {}, [], |
         (bar) characters, leading or trailing spaces are ignored. It ends at (but does not include)
         the first period encountered on the line.
         
         """
-        mnemonic = r"[^:\{\}\|\s\t\[\]\.]+"
+
+        if version == "2.0":
+            mnemonic = r"[^:\s\.]+"
+        elif version == "3.0":
+            mnemonic = r"[^:\{\}\|\s\[\]\.]+"
 
         """
         Unit:
+        
+        LAS Version 2.0
+        The units if used, must be located directly after the dot. There must be not spaces
+        between the units and the dot. The units can be of any length but must not contain any
+        colons or internal spaces.
 
-        Any length, but must not contain colons, embedded spaces, tabs, {} or | characters. If
-        present, it must begin at the next character after the first period on the line. The Unit
-        ends at (but does not include) the first space or first colon after the first period on the
-        line.
+        LAS Version 3.0
+        Any length, but must not contain colons, embedded spaces, tabs, {} or | characters. If present,
+        it must begin at the next character after the first period on the line. The Unitends at
+        (but does not include) the first space or first colon after the first period on the line.
         
         """
-        unit = r"[^:\{\}\|\s\t]*"
+
+        if version == "2.0":
+            unit = r"[^:\s]*"
+        elif version == "3.0":
+            unit = r"[^:\{\}\|\s]*"
 
         """
         Value:
+        
+        LAS Version 2.0
+        This value can be of any length and can contain spaces or dots as appropriate, but must not contain any colons.
+        It must be preceded by at least one space to demarcate it from the units and must be to the left of the colon.
 
+        LAS Version 3.0
         Any length, but must not contain colons, {} or | characters. If the Unit field is present,
         at least one space must exist between the unit and the first character of the Value field.
         The Value field ends at (but does not include) the last colon on the line.
         
         """
-        value = r"[^:\{\}\|]*"
+
+        if version == "2.0":
+            value = r"[^:]*"
+        elif version == "3.0":
+            value = r"[^:\{\}\|]*"
 
         """
         Description:
+
+        LAS Version 2.0
+        It is always located to the right of the colon. Its length is limited by the total
+        line length limit of 256 characters which includes a carriage return and a line feed.
         
+        LAS Version 3.0
         Any length, Begins as the first character after the last colon on the line, and ends at the
         last { (left brace), or the last | (bar), or the end of the line, whichever is encountered
         first.
 
         """
+
         description = r".*"
 
-        pattern = f"\\s*({mnemonic})\\s*.({unit})\\s+({value})\\s*:\\s*({description})"
+        pattern = f"\\s*({mnemonic})\\s*\\.({unit})\\s+({value})\\s*:\\s*({description})"
 
         program = re.compile(pattern)
 
         return program
+
+    def _read_section(self,lasfile):
+
+        pass
 
     def _read_column_data_types(self,line):
 
@@ -924,6 +981,10 @@ class LogASCII(DataFrame):
                 return float
 
         return types
+
+    def _read_column_data(self,filepath):
+
+        pass
 
     def printwells(self,idframes=None):
 
@@ -1782,9 +1843,9 @@ if __name__ == "__main__":
 
     import unittest
 
-    from tests import textiotest
+    from tests import textio_test
 
-    unittest.main(textiotest)
+    unittest.main(textio_test)
 
     """
     For numpy.datetime64, the issue with following deltatime units
