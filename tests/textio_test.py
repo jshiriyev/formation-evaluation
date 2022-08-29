@@ -16,6 +16,7 @@ if __name__ == "__main__":
 
 from textio import DirBase
 from textio import DataFrame
+from textio import Glossary
 from textio import RegText
 from textio import LogASCII
 from textio import Excel
@@ -371,7 +372,12 @@ class TestGlossary(unittest.TestCase):
 
     def test_init(self):
 
-        pass
+        gloss = Glossary(mnem=str,unit=str,value=float,descr=str)
+
+        gloss.add_line()
+
+        print()
+        print(gloss)
 
 class TestLoadtxt(unittest.TestCase):
 

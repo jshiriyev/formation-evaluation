@@ -588,18 +588,19 @@ class Glossary():
 
         self.lines = []
         self.heads = []
-        self.forms = []
+        self.types = [] # it should be python types
 
-        for arg in args:
-            self.heads.append(arg.lower())
-            self.forms.append(str)
+        for head in args:
+            self.heads.append(head.lower())
+            self.types.append(str)
 
-        for key,value in kwargs.items():
-            self.heads.append(key.lower())
-            self.forms.append(value)
+        for head,pytype in kwargs.items():
+            self.heads.append(head.lower())
+            self.types.append(pytype)
 
-        self.forms[0] = str
+        self.types[0] = str
 
+    # def __setitem__(self,key,vals):
     def add_line(self,**kwargs):
 
         line = {}
@@ -608,7 +609,7 @@ class Glossary():
 
             if head in kwargs.keys():
                 try:
-                    line[head] = self.forms[index](kwargs[head])
+                    line[head] = self.types[index](kwargs[head])
                 except ValueError:
                     line[head] = kwargs[head]
                 finally:
@@ -771,6 +772,8 @@ class LogASCII(DataFrame):
 
         filepath = self.get_abspath(filepath)
 
+        program = self._read_parameter_data_line_program()
+
         datasection = "{}ASCII".format("~")
 
         skiprows = 1
@@ -784,7 +787,6 @@ class LogASCII(DataFrame):
             while not line.startswith(datasection[:2]):
 
                 if line.startswith("~"):
-
                     title = line[1:].split()[0].lower()
 
                     mnemonics,units,values,descriptions = [],[],[],[]
@@ -795,46 +797,23 @@ class LogASCII(DataFrame):
                 elif line.startswith("#"):
                     pass
 
-                elif line.find(".")<0:
-                    pass
-
-                elif line.find(":")<0:
-                    pass
-
-                elif line.index(".")>line.index(":"):
-                    pass
-
                 else:
-
                     line = re.sub(r'[^\x00-\x7F]+','',line)
 
-                    mnemonic,rest = line.split(".",maxsplit=1)
-                    rest,descrptn = rest.split(":",maxsplit=1)
+                    fields = program.match(line).groups()
 
-                    rest = rest.rstrip()
-
-                    if len(rest)==0:
-                        unit,value = "",""
-                    elif rest.startswith(" ") or rest.startswith("\t"):
-                        unit,value = "",rest.lstrip()
-                    elif len(rest.split(" ",maxsplit=1))==1:
-                        unit,value = rest,""
-                    else:
-                        unit,value = rest.split(" ",maxsplit=1)
+                    mnemonic,unit,value,description = fields
 
                     mnemonics.append(mnemonic.strip())
+
                     units.append(unit.strip())
 
                     try:
-                        value = int(value.strip())
+                        value = values.append(float(value.strip()))
                     except ValueError:
-                        try:
-                            value = float(value.strip())
-                        except ValueError:
-                            value = value.strip()
+                        value = values.append(value.strip())
 
-                    values.append(value)
-                    descriptions.append(descrptn.strip())
+                    descriptions.append(description.strip())
 
                 skiprows += 1
 
@@ -842,47 +821,13 @@ class LogASCII(DataFrame):
 
                 if line.startswith("~"):
 
-                    if title=="version":
+                    frame.setglossary(title,mnemonic=mnemonics,unit=units,value=values,description=descriptions)
 
-                        vnumb = "LAS {}".format(values[mnemonics.index("VERS")])
-                        vinfo = descriptions[mnemonics.index("VERS")]
-                        mtype = "Un-wrapped" if values[mnemonics.index("WRAP")]=="NO" else "Wrapped"
-                        minfo = descriptions[mnemonics.index("WRAP")]
+            types = self._read_column_data_types(next(text))
 
-                        frame.add_attrs(info=vnumb)
-                        frame.add_attrs(infodetail=vinfo)
-                        frame.add_attrs(mode=mtype)
-                        frame.add_attrs(modedetail=minfo)
+        if all([type_ is float for type_ in types]):
 
-                    elif title=="curve":
-
-                        frame.set_headers(*mnemonics)
-                        frame.add_attrs(units=units)
-                        frame.add_attrs(details=descriptions)
-
-                    else:
-
-                        frame.setglossary(title,
-                            mnemonic=mnemonics,
-                            unit=units,
-                            value=values,
-                            description=descriptions)
-
-            line = next(text).strip()
-
-            row = re.sub(' +',' ',line).split(" ")
-
-            dtypes = [float if isnumber(cell) else str for cell in row]
-
-        usecols = None
-
-        if all([dtype is float for dtype in dtypes]):
-
-            logdata = numpy.loadtxt(filepath,
-                comments="#",
-                skiprows=skiprows,
-                usecols=usecols,
-                encoding="latin1")
+            logdata = numpy.loadtxt(filepath,comments="#",skiprows=skiprows,encoding="latin1")
 
             if hasattr(frame,"well"):
                 try:
@@ -900,24 +845,85 @@ class LogASCII(DataFrame):
 
         else:
 
-            # usecols_flt = [index for index,dtype in enumerate(dtypes) if dtype is float]
-            # usecols_str = [index for index,dtype in enumerate(dtypes) if dtype is str]
-
             columns = []
 
-            for index,dtype in enumerate(dtypes):
+            for index,type_ in enumerate(types):
 
-                column_ = numpy.loadtxt(filepath,
-                    dtype=dtype,
-                    skiprows=skiprows,
-                    usecols=[index],
-                    encoding="latin1")
+                column_ = numpy.loadtxt(filepath,dtype=type_,skiprows=skiprows,usecols=(index,),encoding="latin1")
 
                 columns.append(column_)
 
         frame.set_running(*columns,cols=range(len(columns)))
 
         return frame
+
+    def _read_parameter_data_line_program(self):
+        """LAS Version 3.0"""
+
+        """
+        Mnemonic:
+
+        Any length >0, but must not contain periods, colons, embedded spaces, tabs, {}, [], |
+        (bar) characters, leading or trailing spaces are ignored. It ends at (but does not include)
+        the first period encountered on the line.
+        
+        """
+        mnemonic = r"[^:\{\}\|\s\t\[\]\.]+"
+
+        """
+        Unit:
+
+        Any length, but must not contain colons, embedded spaces, tabs, {} or | characters. If
+        present, it must begin at the next character after the first period on the line. The Unit
+        ends at (but does not include) the first space or first colon after the first period on the
+        line.
+        
+        """
+        unit = r"[^:\{\}\|\s\t]*"
+
+        """
+        Value:
+
+        Any length, but must not contain colons, {} or | characters. If the Unit field is present,
+        at least one space must exist between the unit and the first character of the Value field.
+        The Value field ends at (but does not include) the last colon on the line.
+        
+        """
+        value = r"[^:\{\}\|]*"
+
+        """
+        Description:
+        
+        Any length, Begins as the first character after the last colon on the line, and ends at the
+        last { (left brace), or the last | (bar), or the end of the line, whichever is encountered
+        first.
+
+        """
+        description = r".*"
+
+        pattern = f"\\s*({mnemonic})\\s*.({unit})\\s+({value})\\s*:\\s*({description})"
+
+        program = re.compile(pattern)
+
+        return program
+
+    def _read_column_data_types(self,line):
+
+        line = line.strip()
+
+        row = re.sub(' +',' ',line).split(" ")
+
+        types = [vtype(value) for value in row]
+
+        def vtype(value):
+            try:
+                float(value)
+            except ValueError:
+                return str
+            else:
+                return float
+
+        return types
 
     def printwells(self,idframes=None):
 

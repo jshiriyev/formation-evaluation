@@ -2,7 +2,9 @@ import matplotlib.pyplot as plt
 
 import setup
 
-from stream.graphics import plotLogs
+from textio import LogASCII
+
+from dataview import DepthView
 
 FS_t = 3670
 FS_b = 3700
@@ -11,7 +13,7 @@ filenames = []
 
 filenames.append("tut_dataview_lasfile.las")
 
-logs = plotLogs(filenames)
+logs = LogASCII(filenames)
 
 logs.print_well_info(0)
 logs.print_curve_info()
