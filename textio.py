@@ -21,6 +21,8 @@ from core import column
 from core import any2column
 from core import key2column
 
+from cypy.vectorpy import pytype
+
 """
 1. DataFrame reading, writing
 2. Finalize RegText reading, writing
@@ -32,37 +34,57 @@ from core import key2column
 class DirBase():
     """Base directory class to manage files in the input & output directories."""
 
-    def __init__(self,homedir=None,filedir=None):
+    def __init__(self,homedir=None,filedir=None,filepath=None):
         """Initializes base directory class with home & file directories."""
 
         self.set_homedir(homedir)
         self.set_filedir(filedir)
 
+        self.set_filepath(filepath)
+
     def set_homedir(self,path=None):
-        """Sets home directory to put outputs."""
+        """Sets the home directory to put outputs."""
 
         if path is None:
             path = os.getcwd()
-        elif not os.path.isdir(path):
-            path = os.path.dirname(path)
 
         if not os.path.isabs(path):
             path = os.path.normpath(os.path.join(os.getcwd(),path))
 
+        if not os.path.isdir(path):
+            path = os.path.dirname(path)
+
         super().__setattr__("homedir",path)
 
     def set_filedir(self,path=None):
-        """Sets file directory to get inputs."""
+        """Sets the file directory to get inputs."""
 
         if path is None:
             path = self.homedir
-        elif not os.path.isdir(path):
-            path = os.path.dirname(path)
 
         if not os.path.isabs(path):
-            path = os.path.normpath(os.path.join(self.homedir,path))
+            path = self.get_abspath(path,homeFlag=True)
+
+        if not os.path.isdir(path):
+            path = os.path.dirname(path)
 
         super().__setattr__("filedir",path)
+
+    def set_filepath(self,path=None):
+        """Sets the file path for the cases when it is working on a single file."""
+
+        if path is None:
+            return
+
+        if os.path.isabs(path):
+            self.set_filedir(path)
+        else:
+            path = self.get_abspath(path)
+
+        if os.path.isdir(path):
+            return
+
+        super().__setattr__("filepath",path)
 
     def get_abspath(self,path,homeFlag=False):
         """Returns absolute path for a given relative path."""
@@ -143,6 +165,18 @@ class DirBase():
                 else:
                     return [filename for filename in filenames if filename.startswith(prefix) and filename.endswith(extension)]
 
+    @property
+    def basename(self):
+        return os.path.basename(self.filepath)
+
+    @property
+    def rootname(self):
+        return os.path.splitext(self.basename)[0]
+
+    @property
+    def extension(self):
+        return os.path.splitext(self.filepath)[1]
+
 class DataFrame(DirBase):
     """It stores equal-size one-dimensional numpy arrays in a list."""
 
@@ -154,15 +188,20 @@ class DataFrame(DirBase):
         homedir = kwargs.get('homedir')
         filedir = kwargs.get('filedir')
 
-        super().__init__(homedir=homedir,filedir=filedir)
+        filepath = kwargs.get('filepath')
+
+        super().__init__(homedir=homedir,filedir=filedir,filepath=filepath)
 
         if homedir is not None:
-            homedir = kwargs.pop('homedir')
+            kwargs.pop('homedir')
 
         if filedir is not None:
-            filedir = kwargs.pop('filedir')
+            kwargs.pop('filedir')
 
-        self.running = []
+        if filepath is not None:
+            kwargs.pop('filepath')
+
+        super().__setattr__("running",[])
 
         self._setup(*args)
 
@@ -247,18 +286,12 @@ class DataFrame(DirBase):
 
     """ATTRIBUTE ACCESS"""
 
-    def setglossary(self,key,*args,**kwargs):
-
-        gloss = Glossary(*args,**kwargs)
-
-        setattr(self,key,gloss) 
-
     def __setattr__(self,key,vals):
 
-        if not hasattr(self,key):
+        if isinstance(vals,FrontMatterTable):
             super().__setattr__(key,vals)
         else:
-            raise KeyError(f"DataFrame instance already has '{key}' attribute.")
+            raise AttributeError(f"'DataFrame' object has no attribute '{key}'.")
 
     """CONTAINER METHODS"""
 
@@ -482,10 +515,42 @@ class DataFrame(DirBase):
 
     """CONTEXT MANAGERS"""
 
+    def loadtxt(path,classname=None,**kwargs):
+
+        if classname is None:
+            if path.lower().endswith(".txt"):
+                obj = RegText()
+            elif path.lower().endswith(".las"):
+                obj = LogASCII()
+            elif path.lower().endswith(".xlsx"):
+                obj = Excel()
+            elif path.lower().endswith(".vtk"):
+                obj = VTKit()
+            else:
+                obj = IrrText()
+        elif classname.lower()=="regtext":
+            obj = RegText()
+        elif classname.lower()=="logascii":
+            obj = LogASCII()
+        elif classname.lower()=="excel":
+            obj = Excel()
+        elif classname.lower()=="irrtext":
+            obj = IrrText()
+        elif classname.lower()=="wschedule":
+            obj = WSchedule()
+        elif classname.lower()=="vtkit":
+            obj = VTKit()
+
+        frame = obj.read(path,**kwargs)
+
+        return frame
+
     def read(self):
+
         pass
 
     def readb(self):
+
         pass
 
     def write(self,filepath,fstring=None,**kwargs):
@@ -581,70 +646,41 @@ class DataFrame(DirBase):
 
         return [col_.info for col_ in self.running]
 
-class Glossary():
-    """It is a table of lines vs heads"""
+class FrontMatterTable():
+    """It is a table of fields, columns are fields, rows are data"""
 
-    def __init__(self,*args,**kwargs):
+    def __init__(self,**kwargs):
 
-        self.lines = []
-        self.heads = []
-        self.types = [] # it should be python types
+        self.matter = []
 
-        for head in args:
-            self.heads.append(head.lower())
-            self.types.append(str)
+        class field: pass
 
-        for head,pytype in kwargs.items():
-            self.heads.append(head.lower())
-            self.types.append(pytype)
+        for name,data in kwargs.items():
+            self.matter.append(setattr(field,name,data))
 
-        self.types[0] = str
+    def index(self,key):
 
-    # def __setitem__(self,key,vals):
-    def add_line(self,**kwargs):
+        for field in matter:
+            if field.name==key:
+                return field
 
-        line = {}
+    def append(self,row):
 
-        for index,head in enumerate(self.heads):
+        for field,value in zip(self.matter,row):
+            field.data.append(value)
 
-            if head in kwargs.keys():
-                try:
-                    line[head] = self.types[index](kwargs[head])
-                except ValueError:
-                    line[head] = kwargs[head]
-                finally:
-                    kwargs.pop(head)
-            elif index==0:
-                raise KeyError(f"Missing {self.heads[0]}, it must be defined!")
-            else:
-                line[head] = " "
+    def __getattr__(self,key):
 
-        self.lines.append(line)
+        return self.index(key).data
 
     def __getitem__(self,key):
-        
-        if isinstance(key,slice):
-            return self.lines[key]
-        elif isinstance(key,int):
-            return self.lines[key]
-        elif isinstance(key,str):
-            for line in self:
-                if key==line[self.heads[0]]:
-                    return line
-            else:
-                raise ValueError(f"Glossary does not contain line with {key} in its {self.heads[0]}.")
-        elif isinstance(key,tuple):
-            key1,key2 = key
-            lines = self[key1]
-            if isinstance(lines,dict):
-                return lines[key2]
-            elif isinstance(lines,list):
-                column_ = []
-                for line in lines:
-                    column_.append(line[key2])
-                return column_
+
+        if isinstance(key,str):
+            for row in self:
+                if row[0]==key:
+                    return row
         else:
-            raise TypeError(f"Glossary key can not be {type(key)}, int, slice or str is accepted.")
+            return [field.data[key] for field in self.matter]
 
     def __repr__(self):
 
@@ -652,10 +688,10 @@ class Glossary():
         
         underline = []
 
-        for head in self.heads:
+        for field in self.matter:
             
-            column_ = self[:,head]
-            column_.append(head)
+            column_ = field.data
+            column_.append(field.name)
             
             char_count = max([len(str(value)) for value in column_])
 
@@ -665,23 +701,30 @@ class Glossary():
 
         fstring += "\n"
 
-        text = fstring.format(*[head.capitalize() for head in self.heads])
+        text = fstring.format(*[name.capitalize() for name in self.names])
         
         text += fstring.format(*underline)
         
-        for line in self:
-            text += fstring.format(*line.values())
+        for row in self:
+            text += fstring.format(*row)
 
         return text
 
     def __iter__(self):
 
-        return iter(self.lines)
+        return iter([row for row in zip(*self.matter)])
 
     def __len__(self):
 
-        return len(self.lines)
+        if len(self.matter)==0:
+            return 0
+        else:
+            return len(self.matter[0])
 
+    @property
+    def names(self):
+        return [field.name for field in self.matter]
+    
 # Collective Data Input/Output Classes
 
 class RegText(DataFrame):
@@ -770,116 +813,54 @@ class LogASCII(DataFrame):
 
     def _read(self,filepath):
 
-        filepath = self.get_abspath(filepath)
+        frame = DataFrame(filepath=filepath)
 
-        program = self._read_parameter_data_line_program()
+        with open(frame.filepath,"r",encoding="latin1") as lasfile:
 
-        datasection = "{}ASCII".format("~")
+            version = self._read_version(lasfile)
+            program = self._read_program(version)
+            
+            frame,skiprows,types = self._read_frontmatter(frame,lasfile,program)
 
-        skiprows = 1
-
-        frame = DataFrame(filedir=filepath)
-
-        with open(filepath,"r",encoding="latin1") as text:
-
-            line = next(text).strip()
-
-            while not line.startswith(datasection[:2]):
-
-                if line.startswith("~"):
-                    title = line[1:].split()[0].lower()
-
-                    mnemonics,units,values,descriptions = [],[],[],[]
-
-                elif len(line)<1:
-                    pass
-
-                elif line.startswith("#"):
-                    pass
-
-                else:
-                    line = re.sub(r'[^\x00-\x7F]+','',line)
-
-                    fields = program.match(line).groups()
-
-                    mnemonic,unit,value,description = fields
-
-                    mnemonics.append(mnemonic.strip())
-
-                    units.append(unit.strip())
-
-                    try:
-                        value = values.append(float(value.strip()))
-                    except ValueError:
-                        value = values.append(value.strip())
-
-                    descriptions.append(description.strip())
-
-                skiprows += 1
-
-                line = next(text).strip()
-
-                if line.startswith("~"):
-
-                    frame.setglossary(title,mnemonic=mnemonics,unit=units,value=values,description=descriptions)
-
-            types = self._read_column_data_types(next(text))
-
-        if all([type_ is float for type_ in types]):
-
-            logdata = numpy.loadtxt(filepath,comments="#",skiprows=skiprows,encoding="latin1")
-
-            if hasattr(frame,"well"):
-                try:
-                    value_null = frame.well.get_row(mnemonic="NULL")["value"]
-                except TypeError:
-                    value_null = -999.25
-                except KeyError:
-                    value_null = -999.25
-            else:
-                value_null = -999.25
-
-            logdata[logdata==value_null] = numpy.nan
-
-            columns = [column_ for column_ in logdata.transpose()]
-
-        else:
-
-            columns = []
-
-            for index,type_ in enumerate(types):
-
-                column_ = numpy.loadtxt(filepath,dtype=type_,skiprows=skiprows,usecols=(index,),encoding="latin1")
-
-                columns.append(column_)
-
-        frame.set_running(*columns,cols=range(len(columns)))
+        frame = self._read_columns(frame,skiprows,types)
 
         return frame
 
     def _read_version(self,lasfile):
         """It returns the version of file."""
 
-        lasfile.seek(0)
-
-        line = next(lasfile).strip()
-
-        while not line.startswith("~V"):
-
-            line = next(lasfile).strip()
-
-        line = next(lasfile).strip()
-
         pattern = r"\s*VERS\s*\.\s+([^:]*)\s*:"
 
         program = re.compile(pattern)
 
-        version = program.match(line).groups()[0]
+        lasfile.seek(0)
 
-        return version.strip()
+        while True:
 
-    def _read_parameter_data_line_program(self,version="2.0"):
-        """It returns the program that compiles the version checked regular expression to retrieve parameter data."""
+            line = next(lasfile).strip()
+
+            if line.startswith("~V"):
+                break
+
+        line = next(lasfile).strip()
+
+        version = program.match(line)
+
+        while version is None:
+            line = next(lasfile).strip()
+
+            if line.startswith("~"):
+                break
+            else:
+                version = program.match(line)
+
+        if version is None:
+            return
+        else:
+            return version.groups()[0].strip()
+
+    def _read_program(self,version="2.0"):
+        """It returns the program that compiles the regular expression to retrieve parameter data."""
 
         """
         Mnemonic:
@@ -960,31 +941,122 @@ class LogASCII(DataFrame):
 
         return program
 
-    def _read_section(self,lasfile):
+    def _read_frontmatter(self,frame,lasfile,program):
 
-        pass
+        lasfile.seek(0)
 
-    def _read_column_data_types(self,line):
+        while True:
 
-        line = line.strip()
+            line = next(lasfile).strip()
 
-        row = re.sub(' +',' ',line).split(" ")
+            if line.startswith("~A"):
+                break
+            elif line.startswith("~"):
+                title = line[1:].split()[0].lower()
+                section = self._read_section(lasfile,program)
+                setattr(frame,title,section)
 
-        types = [vtype(value) for value in row]
+        skiprows = self._read_skiprows(lasfile)
 
-        def vtype(value):
-            try:
-                float(value)
-            except ValueError:
-                return str
-            else:
-                return float
+        types = self._read_types(lasfile)
+
+        return frame,skiprows,types
+
+    def _read_section(self,lasfile,program):
+
+        mnemonic,unit,value,description = [],[],[],[]
+
+        while True:
+
+            line = next(lasfile).strip()
+
+            if len(line)<1:
+                pass
+            
+            if line.startswith("#"):
+                pass
+
+            if line.startswith("~"):
+                break
+
+            line = re.sub(r'[^\x00-\x7F]+','',line)
+
+            mnemonic,unit,value,description = program.match(line).groups()
+
+            mnemonics.append(mnemonic.strip())
+
+            units.append(unit.strip())
+
+            values.append(value.strip())
+
+            descriptions.append(description.strip())
+
+        section = FrontMatterTable(mnemonic=mnemonics,unit=units,value=values,description=descriptions)
+
+        return section
+
+    def _read_skiprows(self,lasfile):
+
+        lasfile.seek(0)
+
+        skiprows = 1
+
+        while True:
+
+            line = next(lasfile).strip()
+
+            if line.startswith("~A"):
+                break
+
+            skiprows += 1
+
+        return skiprows
+
+    def _read_types(self,lasfile):
+
+        while True:
+
+            line = next(lasfile).strip()
+
+            if len(line)<1:
+                pass
+            
+            if line.startswith("#"):
+                pass
+
+            break
+
+        row = re.sub(r"\s+"," ",line).split(" ")
+
+        types = [pytype(value) for value in row]
 
         return types
 
-    def _read_column_data(self,filepath):
+    def _read_columns(self,frame,skiprows,types):
 
-        pass
+        value_null = float(frame.well['NULL'].value)
+
+        floatFlag = all([pytype is float for pytype in types])
+
+        dtypes = [np.dtype(pytype) for pytype in types]
+
+        if floatFlag:
+            matrix = numpy.loadtxt(frame.filepath,comments="#",skiprows=skiprows,encoding="latin1")
+        else:
+            matrix = numpy.loadtxt(frame.filepath,comments="#",skiprows=skiprows,encoding="latin1",dtype='str')
+
+        for index,(vals,dtype) in enumerate(zip(matrix.transpose(),dtypes)):
+
+            if dtype.type is numpy.dtype('float').type:
+                vals[vals==value_null] = numpy.nan
+            
+            head = frame.curve.mnemonics[index]
+            unit = frame.curve.units[index]
+            info = frame.curve.info[index]
+
+            frame._setup(column(vals,head=head,unit=unit,info=info))
+
+        return frame
 
     def printwells(self,idframes=None):
 
@@ -1808,36 +1880,6 @@ class VTKit(DataFrame):
     def write(self,):
 
         pass
-
-def loadtxt(path,classname=None,**kwargs):
-
-    if classname is None:
-        if path.lower().endswith(".txt"):
-            obj = RegText()
-        elif path.lower().endswith(".las"):
-            obj = LogASCII()
-        elif path.lower().endswith(".xlsx"):
-            obj = Excel()
-        elif path.lower().endswith(".vtk"):
-            obj = VTKit()
-        else:
-            obj = IrrText()
-    elif classname.lower()=="regtext":
-        obj = RegText()
-    elif classname.lower()=="logascii":
-        obj = LogASCII()
-    elif classname.lower()=="excel":
-        obj = Excel()
-    elif classname.lower()=="irrtext":
-        obj = IrrText()
-    elif classname.lower()=="wschedule":
-        obj = WSchedule()
-    elif classname.lower()=="vtkit":
-        obj = VTKit()
-
-    frame = obj.read(path,**kwargs)
-
-    return frame
 
 if __name__ == "__main__":
 

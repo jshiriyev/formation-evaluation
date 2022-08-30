@@ -16,7 +16,7 @@ if __name__ == "__main__":
 
 from textio import DirBase
 from textio import DataFrame
-from textio import Glossary
+from textio import FrontMatterTable
 from textio import RegText
 from textio import LogASCII
 from textio import Excel
@@ -368,11 +368,11 @@ class TestDataFrame(unittest.TestCase):
 
         df = DataFrame(a=a,b=b)
 
-class TestGlossary(unittest.TestCase):
+class TestFrontMatterTable(unittest.TestCase):
 
     def test_init(self):
 
-        gloss = Glossary(mnem=str,unit=str,value=float,descr=str)
+        gloss = FrontMatterTable(mnem=str,unit=str,value=float,descr=str)
 
         gloss.add_line()
 

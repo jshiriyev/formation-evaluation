@@ -8,6 +8,19 @@ import re
 
 import numpy as np
 
+def pytype(string):
+
+    for attempt in (float,dateutil.parser.parse):
+
+        try:
+            attempt(string)
+        except ValueError:
+            continue
+
+        return attempt
+
+    return str
+
 def str2int_(string:str,none_str:str="",none_int:int=-99_999,regex:str=None) -> int:
     """It returns integer converted from string."""
 
