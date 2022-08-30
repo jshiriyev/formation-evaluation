@@ -31,153 +31,9 @@ from cypy.vectorpy import pytype
 5. loadtext should be working well
 """
 
-class DirBase():
-    """Base directory class to manage files in the input & output directories."""
+# Main Data Frame
 
-    def __init__(self,homedir=None,filedir=None,filepath=None):
-        """Initializes base directory class with home & file directories."""
-
-        self.set_homedir(homedir)
-        self.set_filedir(filedir)
-
-        self.set_filepath(filepath)
-
-    def set_homedir(self,path=None):
-        """Sets the home directory to put outputs."""
-
-        if path is None:
-            path = os.getcwd()
-
-        if not os.path.isabs(path):
-            path = os.path.normpath(os.path.join(os.getcwd(),path))
-
-        if not os.path.isdir(path):
-            path = os.path.dirname(path)
-
-        super().__setattr__("homedir",path)
-
-    def set_filedir(self,path=None):
-        """Sets the file directory to get inputs."""
-
-        if path is None:
-            path = self.homedir
-
-        if not os.path.isabs(path):
-            path = self.get_abspath(path,homeFlag=True)
-
-        if not os.path.isdir(path):
-            path = os.path.dirname(path)
-
-        super().__setattr__("filedir",path)
-
-    def set_filepath(self,path=None):
-        """Sets the file path for the cases when it is working on a single file."""
-
-        if path is None:
-            return
-
-        if os.path.isabs(path):
-            self.set_filedir(path)
-        else:
-            path = self.get_abspath(path)
-
-        if os.path.isdir(path):
-            return
-
-        super().__setattr__("filepath",path)
-
-    def get_abspath(self,path,homeFlag=False):
-        """Returns absolute path for a given relative path."""
-
-        if os.path.isabs(path):
-            return path
-        elif homeFlag:
-            return os.path.normpath(os.path.join(self.homedir,path))
-        else:
-            return os.path.normpath(os.path.join(self.filedir,path))
-
-    def file_exists(self,path,homeFlag=False):
-
-        path = self.get_abspath(path,homeFlag=homeFlag)
-
-        return os.path.exists(path)
-
-    def get_dirpath(self,path,homeFlag=False):
-        """Returns absolute directory path for a given relative path."""
-
-        path = self.get_abspath(path,homeFlag=homeFlag)
-
-        if os.path.isdir(path):
-            return path
-        else:
-            return os.path.dirname(path)
-
-    def get_fnames(self,path=None,homeFlag=False,prefix=None,extension=None,returnAbsFlag=False,returnDirsFlag=False):
-        """Return directory(folder)/file names for a given relative path."""
-
-        if path is None:
-            path = self.filedir if homeFlag is False else self.homedir
-        else:
-            path = self.get_dirpath(path,homeFlag=homeFlag)
-
-        fnames = os.listdir(path)
-
-        fpaths = [self.get_abspath(fname,homeFlag=homeFlag) for fname in fnames]
-
-        if returnDirsFlag:
-
-            foldernames = [fname for (fname,fpath) in zip(fnames,fpaths) if os.path.isdir(fpath)]
-            folderpaths = [fpath for fpath in fpaths if os.path.isdir(fpath)]
-
-            if prefix is None:
-                if returnAbsFlag:
-                    return folderpaths
-                else:
-                    return foldernames
-            else:
-                if returnAbsFlag:
-                    return [folderpath for (folderpath,foldername) in zip(folderpaths,foldernames) if foldername.startswith(prefix)]
-                else:
-                    return [foldername for foldername in foldernames if foldername.startswith(prefix)]
-        else:
-
-            filenames = [fname for (fname,fpath) in zip(fnames,fpaths) if not os.path.isdir(fpath)]
-            filepaths = [fpath for fpath in fpaths if not os.path.isdir(fpath)]
-
-            if prefix is None and extension is None:
-                if returnAbsFlag:
-                    return filepaths
-                else:
-                    return filenames
-            elif prefix is None and extension is not None:
-                if returnAbsFlag:
-                    return [filepath for (filepath,filename) in zip(filepaths,filenames) if filename.endswith(extension)]
-                else:
-                    return [filename for filename in filenames if filename.endswith(extension)]
-            elif prefix is not None and extension is None:
-                if returnAbsFlag:
-                    return [filepath for (filepath,filename) in zip(filepaths,filenames) if filename.startswith(prefix)]
-                else:
-                    return [filename for filename in filenames if filename.startswith(prefix)]
-            else:
-                if returnAbsFlag:
-                    return [filepath for (filepath,filename) in zip(filepaths,filenames) if filename.startswith(prefix) and filename.endswith(extension)]
-                else:
-                    return [filename for filename in filenames if filename.startswith(prefix) and filename.endswith(extension)]
-
-    @property
-    def basename(self):
-        return os.path.basename(self.filepath)
-
-    @property
-    def rootname(self):
-        return os.path.splitext(self.basename)[0]
-
-    @property
-    def extension(self):
-        return os.path.splitext(self.filepath)[1]
-
-class DataFrame(DirBase):
+class DataFrame():
     """It stores equal-size one-dimensional numpy arrays in a list."""
 
     """INITIALIZATION"""
@@ -188,18 +44,13 @@ class DataFrame(DirBase):
         homedir = kwargs.get('homedir')
         filedir = kwargs.get('filedir')
 
-        filepath = kwargs.get('filepath')
-
-        super().__init__(homedir=homedir,filedir=filedir,filepath=filepath)
+        super().__init__(homedir=homedir,filedir=filedir)
 
         if homedir is not None:
             kwargs.pop('homedir')
 
         if filedir is not None:
             kwargs.pop('filedir')
-
-        if filepath is not None:
-            kwargs.pop('filepath')
 
         super().__setattr__("running",[])
 
@@ -288,7 +139,7 @@ class DataFrame(DirBase):
 
     def __setattr__(self,key,vals):
 
-        if isinstance(vals,FrontMatterTable):
+        if isinstance(vals,header):
             super().__setattr__(key,vals)
         else:
             raise AttributeError(f"'DataFrame' object has no attribute '{key}'.")
@@ -515,44 +366,6 @@ class DataFrame(DirBase):
 
     """CONTEXT MANAGERS"""
 
-    def loadtxt(path,classname=None,**kwargs):
-
-        if classname is None:
-            if path.lower().endswith(".txt"):
-                obj = RegText()
-            elif path.lower().endswith(".las"):
-                obj = LogASCII()
-            elif path.lower().endswith(".xlsx"):
-                obj = Excel()
-            elif path.lower().endswith(".vtk"):
-                obj = VTKit()
-            else:
-                obj = IrrText()
-        elif classname.lower()=="regtext":
-            obj = RegText()
-        elif classname.lower()=="logascii":
-            obj = LogASCII()
-        elif classname.lower()=="excel":
-            obj = Excel()
-        elif classname.lower()=="irrtext":
-            obj = IrrText()
-        elif classname.lower()=="wschedule":
-            obj = WSchedule()
-        elif classname.lower()=="vtkit":
-            obj = VTKit()
-
-        frame = obj.read(path,**kwargs)
-
-        return frame
-
-    def read(self):
-
-        pass
-
-    def readb(self):
-
-        pass
-
     def write(self,filepath,fstring=None,**kwargs):
         """It writes text form of DataFrame."""
 
@@ -580,7 +393,7 @@ class DataFrame(DirBase):
 
         numpy.savez_compressed(filepath,**kwargs)
 
-    def _not_merged_to_dataframe_yet_read_write_b(self):
+    def _not_merged_to_dataframe_yet_read_writeb(self):
 
         A = numpy.random.randint(0,1000,1_000_000)
         B = numpy.random.randint(0,1000,1_000_000)
@@ -646,7 +459,157 @@ class DataFrame(DirBase):
 
         return [col_.info for col_ in self.running]
 
-class FrontMatterTable():
+# Directory Management
+
+class directory():
+    """Base directory class to manage files in the input & output directories."""
+
+    def __init__(self,homedir=None,filedir=None,filepath=None):
+        """Initializes base directory class with home & file directories."""
+
+        self.set_homedir(homedir)
+        self.set_filedir(filedir)
+
+        self.set_filepath(filepath)
+
+    def set_homedir(self,path=None):
+        """Sets the home directory to put outputs."""
+
+        if path is None:
+            path = os.getcwd()
+
+        if not os.path.isabs(path):
+            path = os.path.normpath(os.path.join(os.getcwd(),path))
+
+        if not os.path.isdir(path):
+            path = os.path.dirname(path)
+
+        super().__setattr__("homedir",path)
+
+    def set_filedir(self,path=None):
+        """Sets the file directory to get inputs."""
+
+        if path is None:
+            path = self.homedir
+
+        if not os.path.isabs(path):
+            path = self.get_abspath(path,homeFlag=True)
+
+        if not os.path.isdir(path):
+            path = os.path.dirname(path)
+
+        super().__setattr__("filedir",path)
+
+    def set_filepath(self,path=None):
+        """Sets the file path for the cases when it is working on a single file."""
+
+        if path is None:
+            return
+
+        if os.path.isabs(path):
+            self.set_filedir(path)
+        else:
+            path = self.get_abspath(path)
+
+        if os.path.isdir(path):
+            return
+
+        super().__setattr__("filepath",path)
+
+    def get_abspath(self,path,homeFlag=False):
+        """Returns absolute path for a given relative path."""
+
+        if os.path.isabs(path):
+            return path
+        elif homeFlag:
+            return os.path.normpath(os.path.join(self.homedir,path))
+        else:
+            return os.path.normpath(os.path.join(self.filedir,path))
+
+    def file_exists(self,path,homeFlag=False):
+
+        path = self.get_abspath(path,homeFlag=homeFlag)
+
+        return os.path.exists(path)
+
+    def get_dirpath(self,path,homeFlag=False):
+        """Returns absolute directory path for a given relative path."""
+
+        path = self.get_abspath(path,homeFlag=homeFlag)
+
+        if os.path.isdir(path):
+            return path
+        else:
+            return os.path.dirname(path)
+
+    def get_fnames(self,path=None,homeFlag=False,prefix=None,extension=None,returnAbsFlag=False,returnDirsFlag=False):
+        """Return directory(folder)/file names for a given relative path."""
+
+        if path is None:
+            path = self.filedir if homeFlag is False else self.homedir
+        else:
+            path = self.get_dirpath(path,homeFlag=homeFlag)
+
+        fnames = os.listdir(path)
+
+        fpaths = [self.get_abspath(fname,homeFlag=homeFlag) for fname in fnames]
+
+        if returnDirsFlag:
+
+            foldernames = [fname for (fname,fpath) in zip(fnames,fpaths) if os.path.isdir(fpath)]
+            folderpaths = [fpath for fpath in fpaths if os.path.isdir(fpath)]
+
+            if prefix is None:
+                if returnAbsFlag:
+                    return folderpaths
+                else:
+                    return foldernames
+            else:
+                if returnAbsFlag:
+                    return [folderpath for (folderpath,foldername) in zip(folderpaths,foldernames) if foldername.startswith(prefix)]
+                else:
+                    return [foldername for foldername in foldernames if foldername.startswith(prefix)]
+        else:
+
+            filenames = [fname for (fname,fpath) in zip(fnames,fpaths) if not os.path.isdir(fpath)]
+            filepaths = [fpath for fpath in fpaths if not os.path.isdir(fpath)]
+
+            if prefix is None and extension is None:
+                if returnAbsFlag:
+                    return filepaths
+                else:
+                    return filenames
+            elif prefix is None and extension is not None:
+                if returnAbsFlag:
+                    return [filepath for (filepath,filename) in zip(filepaths,filenames) if filename.endswith(extension)]
+                else:
+                    return [filename for filename in filenames if filename.endswith(extension)]
+            elif prefix is not None and extension is None:
+                if returnAbsFlag:
+                    return [filepath for (filepath,filename) in zip(filepaths,filenames) if filename.startswith(prefix)]
+                else:
+                    return [filename for filename in filenames if filename.startswith(prefix)]
+            else:
+                if returnAbsFlag:
+                    return [filepath for (filepath,filename) in zip(filepaths,filenames) if filename.startswith(prefix) and filename.endswith(extension)]
+                else:
+                    return [filename for filename in filenames if filename.startswith(prefix) and filename.endswith(extension)]
+
+    @property
+    def basename(self):
+        return os.path.basename(self.filepath)
+
+    @property
+    def rootname(self):
+        return os.path.splitext(self.basename)[0]
+
+    @property
+    def extension(self):
+        return os.path.splitext(self.filepath)[1]
+
+# A File Front Information
+
+class header():
     """It is a table of fields, columns are fields, rows are data"""
 
     def __init__(self,**kwargs):
@@ -724,31 +687,44 @@ class FrontMatterTable():
     @property
     def names(self):
         return [field.name for field in self.matter]
-    
-# Collective Data Input/Output Classes
 
-class RegText(DataFrame):
+# A File Input/Output Classes
 
-    def __init__(self,filepaths=None,**kwargs):
+class iobinary(directory):
 
-        super().__init__(**kwargs)
+    def __init__(self):
 
-        self.frames = []
+        pass
 
-        self.read(filepaths,**kwargs)
+class iotext(directory):
 
-    def read(self,filepaths,**kwargs):
+    def __init__(self,skiprows,types):
 
-        if filepaths is None:
-            return
-        if not isinstance(filepaths,list) and not isinstance(filepaths,tuple):
-            filepaths = (filepaths,)
+        value_null = float(frame.well['NULL'].value)
 
-        for filepath in filepaths:
-            self.frames.append(self._read(filepath,**kwargs))
-            logging.info(f"Loaded {filepath} as expected.")
+        floatFlag = all([pytype is float for pytype in types])
 
-    def _read(self,filepath,delimiter="\t",comments="#",skiprows=None,nondigitflag=False):
+        dtypes = [np.dtype(pytype) for pytype in types]
+
+        if floatFlag:
+            matrix = numpy.loadtxt(frame.filepath,comments="#",skiprows=skiprows,encoding="latin1")
+        else:
+            matrix = numpy.loadtxt(frame.filepath,comments="#",skiprows=skiprows,encoding="latin1",dtype='str')
+
+        for index,(vals,dtype) in enumerate(zip(matrix.transpose(),dtypes)):
+
+            if dtype.type is numpy.dtype('float').type:
+                vals[vals==value_null] = numpy.nan
+            
+            head = frame.curve.mnemonics[index]
+            unit = frame.curve.units[index]
+            info = frame.curve.info[index]
+
+            frame._setup(column(vals,head=head,unit=unit,info=info))
+
+        return frame
+
+    def txt(self,delimiter="\t",comments="#",skiprows=None,nondigitflag=False):
 
         filepath = self.get_abspath(filepath)
 
@@ -785,33 +761,104 @@ class RegText(DataFrame):
 
         return frame
 
-class LogASCII(DataFrame):
+    def generic(self,skiprows=0,headerline=None,comment="--",endline="/",endfile="END"):
 
-    def __init__(self,filepaths=None,**kwargs):
+        # While looping inside the file it does not read lines:
+        # - starting with comment phrase, e.g., comment = "--"
+        # - after the end of line phrase, e.g., endline = "/"
+        # - after the end of file keyword e.g., endfile = "END"
 
-        super().__init__(**kwargs)
+        if headerline is None:
+            headerline = skiprows-1
+        elif headerline<skiprows:
+            headerline = headerline
+        else:
+            headerline = skiprows-1
 
-        self.frames = []
+        _running = []
 
-        self.read(filepaths,**kwargs)
+        with open(self.filepath,"r") as text:
 
-    def read(self,filepaths,**kwargs):
+            for line in text:
 
-        if filepaths is None:
-            return
+                line = line.split('\n')[0].strip()
 
-        if not isinstance(filepaths,list) and not isinstance(filepaths,tuple):
-            filepaths = (filepaths,)
+                line = line.strip(endline)
 
-        for filepath in filepaths:
+                line = line.strip()
+                line = line.strip("\t")
+                line = line.strip()
 
-            frame = self._read(filepath,**kwargs)
+                if line=="":
+                    continue
 
-            self.frames.append(frame)
+                if comment is not None:
+                    if line[:len(comment)] == comment:
+                        continue
 
-            logging.info(f"Loaded {filepath} as expected.")
+                if endfile is not None:
+                    if line[:len(endfile)] == endfile:
+                        break
 
-    def _read(self,filepath):
+                _running.append([line])
+
+        self.title = []
+
+        for _ in range(skiprows):
+            self.title.append(_running.pop(0))
+
+        num_cols = len(_running[0])
+
+        if skiprows==0:
+            self.set_headers(num_cols=num_cols,init=False)
+        elif skiprows!=0:
+            self.set_headers(headers=self.title[headerline],init=False)
+
+        nparray = numpy.array(_running).T
+
+    def subheaders(self,header_index=None,header=None,regex=None,regex_builtin="INC_HEADERS",title="SUB-HEADERS"):
+
+        nparray = numpy.array(self._running[header_index])
+
+        if regex is None and regex_builtin=="INC_HEADERS":
+            regex = r'^[A-Z]+$'                         #for strings with only capital letters no digits
+        elif regex is None and regex_builtin=="INC_DATES":
+            regex = r'^\d{1,2} [A-Za-z]{3} \d{2}\d{2}?$'   #for strings with [1 or 2 digits][space][3 capital letters][space][2 or 4 digits], e.g. DATES
+
+        vmatch = numpy.vectorize(lambda x: bool(re.compile(regex).match(x)))
+
+        match_index = vmatch(nparray)
+
+        firstocc = numpy.argmax(match_index)
+
+        lower = numpy.where(match_index)[0]
+        upper = numpy.append(lower[1:],nparray.size)
+
+        repeat_count = upper-lower-1
+
+        match_content = nparray[match_index]
+
+        nparray[firstocc:][~match_index[firstocc:]] = numpy.repeat(match_content,repeat_count)
+
+        self._headers.insert(header_index,title)
+        self._running.insert(header_index,numpy.asarray(nparray))
+
+        for index,column_ in enumerate(self._running):
+            self._running[index] = numpy.array(self._running[index][firstocc:][~match_index[firstocc:]])
+
+        self.headers = self._headers
+        self.running = [numpy.asarray(column_) for column_ in self._running]
+
+class iolas(directory):
+
+    def __init__(self,filepath,**kwargs):
+
+        filepath = kwargs.get('filepath')
+
+        DirBase().__init__(filepath=filepath)
+
+        if filepath is not None:
+            kwargs.pop('filepath')
 
         frame = DataFrame(filepath=filepath)
 
@@ -820,13 +867,13 @@ class LogASCII(DataFrame):
             version = self._read_version(lasfile)
             program = self._read_program(version)
             
-            frame,skiprows,types = self._read_frontmatter(frame,lasfile,program)
+            frame,skiprows,types = self._read_header(frame,lasfile,program)
 
         frame = self._read_columns(frame,skiprows,types)
 
         return frame
 
-    def _read_version(self,lasfile):
+    def _version(self,lasfile):
         """It returns the version of file."""
 
         pattern = r"\s*VERS\s*\.\s+([^:]*)\s*:"
@@ -859,7 +906,7 @@ class LogASCII(DataFrame):
         else:
             return version.groups()[0].strip()
 
-    def _read_program(self,version="2.0"):
+    def _program(self,version="2.0"):
         """It returns the program that compiles the regular expression to retrieve parameter data."""
 
         """
@@ -941,7 +988,7 @@ class LogASCII(DataFrame):
 
         return program
 
-    def _read_frontmatter(self,frame,lasfile,program):
+    def _header(self,frame,lasfile,program):
 
         lasfile.seek(0)
 
@@ -962,7 +1009,7 @@ class LogASCII(DataFrame):
 
         return frame,skiprows,types
 
-    def _read_section(self,lasfile,program):
+    def _section(self,lasfile,program):
 
         mnemonic,unit,value,description = [],[],[],[]
 
@@ -991,11 +1038,11 @@ class LogASCII(DataFrame):
 
             descriptions.append(description.strip())
 
-        section = FrontMatterTable(mnemonic=mnemonics,unit=units,value=values,description=descriptions)
+        section = header(mnemonic=mnemonics,unit=units,value=values,description=descriptions)
 
         return section
 
-    def _read_skiprows(self,lasfile):
+    def _skiprows(self,lasfile):
 
         lasfile.seek(0)
 
@@ -1012,7 +1059,7 @@ class LogASCII(DataFrame):
 
         return skiprows
 
-    def _read_types(self,lasfile):
+    def _types(self,lasfile):
 
         while True:
 
@@ -1032,31 +1079,131 @@ class LogASCII(DataFrame):
 
         return types
 
-    def _read_columns(self,frame,skiprows,types):
+class iotnavsched(directory):
 
-        value_null = float(frame.well['NULL'].value)
+    def write_program(self)
 
-        floatFlag = all([pytype is float for pytype in types])
+        # KEYWORDS: DATES,COMPDATMD,COMPORD,WCONHIST,WCONINJH,WEFAC,WELOPEN 
 
-        dtypes = [np.dtype(pytype) for pytype in types]
+        dates      = " {} / "#.format(date)
+        welspecs   = " '{}'\t1*\t2* / "
+        compdatop  = " '{}'\t1*\t{}\t{}\tMD\t{}\t2*\t0.14 / "#.format(wellname,top,bottom,optype)
+        compdatsh  = " '{}'\t1*\t{}\t{}\tMD\t{} / "#.format(wellname,top,bottom,optype)
+        compord    = " '{}'\tINPUT\t/ "#.format(wellname)
+        prodhist   = " '{}'\tOPEN\tORAT\t{}\t{}\t{} / "#.format(wellname,oilrate,waterrate,gasrate)
+        injhist    = " '{}'\tWATER\tOPEN\t{}\t7*\tRATE / "#.format(wellname,waterrate)
+        wefac      = " '{}'\t{} / "#.format(wellname,efficiency)
+        welopen    = " '{}'\tSHUT\t3* / "#.format(wellname)
 
-        if floatFlag:
-            matrix = numpy.loadtxt(frame.filepath,comments="#",skiprows=skiprows,encoding="latin1")
-        else:
-            matrix = numpy.loadtxt(frame.filepath,comments="#",skiprows=skiprows,encoding="latin1",dtype='str')
+    def write(self):
 
-        for index,(vals,dtype) in enumerate(zip(matrix.transpose(),dtypes)):
+        path = os.path.join(self.workdir,self.schedule_filename)
 
-            if dtype.type is numpy.dtype('float').type:
-                vals[vals==value_null] = numpy.nan
-            
-            head = frame.curve.mnemonics[index]
-            unit = frame.curve.units[index]
-            info = frame.curve.info[index]
+        with open(path,"w",encoding='utf-8') as wfile:
 
-            frame._setup(column(vals,head=head,unit=unit,info=info))
+            welspec = schedule.running[1]=="WELSPECS"
+            compdat = schedule.running[1]=="COMPDATMD"
+            compord = schedule.running[1]=="COMPORD"
+            prodhst = schedule.running[1]=="WCONHIST"
+            injdhst = schedule.running[1]=="WCONINJH"
+            wefffac = schedule.running[1]=="WEFAC"
+            welopen = schedule.running[1]=="WELOPEN"
 
-        return frame
+            for date in numpy.unique(schedule.running[0]):
+
+                currentdate = schedule.running[0]==date
+
+                currentcont = schedule.running[1][currentdate]
+
+                wfile.write("\n\n")
+                wfile.write("DATES\n")
+                wfile.write(self.schedule_dates.format(date.strftime("%d %b %Y").upper()))
+                wfile.write("\n")
+                wfile.write("/\n\n")
+
+                if any(currentcont=="WELSPECS"):
+                    indices = numpy.logical_and(currentdate,welspec)
+                    wfile.write("WELSPECS\n")
+                    for detail in schedule.running[2][indices]:
+                        wfile.write(detail)
+                        wfile.write("\n")
+                    wfile.write("/\n\n")
+
+                if any(currentcont=="COMPDATMD"):
+                    indices = numpy.logical_and(currentdate,compdat)
+                    wfile.write("COMPDATMD\n")
+                    for detail in schedule.running[2][indices]:
+                        wfile.write(detail)
+                        wfile.write("\n")
+                    wfile.write("/\n\n")
+
+                if any(currentcont=="COMPORD"):
+                    indices = numpy.logical_and(currentdate,compord)
+                    wfile.write("COMPORD\n")
+                    for detail in schedule.running[2][indices]:
+                        wfile.write(detail)
+                        wfile.write("\n")
+                    wfile.write("/\n\n")
+
+                if any(currentcont=="WCONHIST"):
+                    indices = numpy.logical_and(currentdate,prodhst)
+                    wfile.write("WCONHIST\n")
+                    for detail in schedule.running[2][indices]:
+                        wfile.write(detail)
+                        wfile.write("\n")
+                    wfile.write("/\n\n")
+
+                if any(currentcont=="WCONINJH"):
+                    indices = numpy.logical_and(currentdate,injdhst)
+                    wfile.write("WCONINJH\n")
+                    for detail in schedule.running[2][indices]:
+                        wfile.write(detail)
+                        wfile.write("\n")
+                    wfile.write("/\n\n")
+
+                if any(currentcont=="WEFAC"):
+                    indices = numpy.logical_and(currentdate,wefffac)
+                    wfile.write("WEFAC\n")
+                    for detail in schedule.running[2][indices]:
+                        wfile.write(detail)
+                        wfile.write("\n")
+                    wfile.write("/\n\n")
+
+                if any(currentcont=="WELOPEN"):
+                    indices = numpy.logical_and(currentdate,welopen)
+                    wfile.write("WELOPEN\n")
+                    for detail in schedule.running[2][indices]:
+                        wfile.write(detail)
+                        wfile.write("\n")
+                    wfile.write("/\n\n")
+
+# Collective Data Input/Output Classes
+
+class lasbatch(directory):
+
+    def __init__(self,filepaths=None,**kwargs):
+
+        super().__init__(**kwargs)
+
+        self.frames = []
+
+        self.read(filepaths,**kwargs)
+
+    def loadall(self,filepaths,**kwargs):
+
+        if filepaths is None:
+            return
+
+        if not isinstance(filepaths,list) and not isinstance(filepaths,tuple):
+            filepaths = (filepaths,)
+
+        for filepath in filepaths:
+
+            frame = self._read(filepath,**kwargs)
+
+            self.frames.append(frame)
+
+            logging.info(f"Loaded {filepath} as expected.")
 
     def printwells(self,idframes=None):
 
@@ -1191,19 +1338,6 @@ class LogASCII(DataFrame):
         self.axis_hist.hist(yaxis,density=True,bins=30)  # density=False would make counts
         self.axis_hist.set_ylabel("Probability")
         self.axis_hist.set_xlabel(xlabel)
-
-    def flip(self,idframes=None):
-
-        if idframes is None:
-            idframes = range(len(self.frames))
-        elif isinstance(idframes,int):
-            idframes = (idframes,)
-
-        for index in idframes:
-
-            columns = [numpy.flip(column_) for column_ in self.frames[index].running]
-
-            self.frames[index].set_running(*columns,cols=range(len(columns)))
             
     def set_interval(self,top,bottom,idframes=None,inplace=False):
 
@@ -1480,7 +1614,7 @@ class LogASCII(DataFrame):
         with open(filepath, mode='w') as filePathToWrite:
             lasfile.write(filePathToWrite)
 
-class Excel(DataFrame):
+class xlbatch(directory):
 
     def __init__(self,filepaths=None,sheetnames=None,**kwargs):
 
@@ -1490,7 +1624,7 @@ class Excel(DataFrame):
 
         self.read(filepaths,sheetnames,**kwargs)
 
-    def read(self,filepaths,sheetnames=None,**kwargs):
+    def loadall(self,filepaths,sheetnames=None,**kwargs):
         """It add frames from the excel worksheet provided with filepaths and sheetnames."""
 
         if filepaths is None:
@@ -1517,11 +1651,11 @@ class Excel(DataFrame):
 
                     print("Loading {} {}".format(filepath,sheet))
 
-                    frame = self._read(book,sheet,**kwargs)
+                    frame = self.load(book,sheet,**kwargs)
 
                     self.frames.append(frame)
 
-    def _read(self,book,sheet,sheetsearch=False,min_row=1,min_col=1,max_row=None,max_col=None,hrows=0):
+    def load(self,book,sheet,sheetsearch=False,min_row=1,min_col=1,max_row=None,max_col=None,hrows=0):
         """It reads provided excel worksheet and returns it as a DataFrame."""
 
         frame = DataFrame()
@@ -1635,251 +1769,6 @@ class Excel(DataFrame):
             yield xlbook
         finally:
             xlbook._archive.close()
-
-class IrrText(DataFrame):
-
-    def __init__(self,filepath,**kwargs):
-
-        super().__init__(**kwargs)
-
-        if filepath is not None:
-            self.filepath = self.get_abspath(filepath,homeFlag=False)
-
-    def read(self,filepaths):
-
-        self.filepaths = filepaths
-
-    def _read(self,skiprows=0,headerline=None,comment="--",endline="/",endfile="END"):
-
-        # While looping inside the file it does not read lines:
-        # - starting with comment phrase, e.g., comment = "--"
-        # - after the end of line phrase, e.g., endline = "/"
-        # - after the end of file keyword e.g., endfile = "END"
-
-        if headerline is None:
-            headerline = skiprows-1
-        elif headerline<skiprows:
-            headerline = headerline
-        else:
-            headerline = skiprows-1
-
-        _running = []
-
-        with open(self.filepath,"r") as text:
-
-            for line in text:
-
-                line = line.split('\n')[0].strip()
-
-                line = line.strip(endline)
-
-                line = line.strip()
-                line = line.strip("\t")
-                line = line.strip()
-
-                if line=="":
-                    continue
-
-                if comment is not None:
-                    if line[:len(comment)] == comment:
-                        continue
-
-                if endfile is not None:
-                    if line[:len(endfile)] == endfile:
-                        break
-
-                _running.append([line])
-
-        self.title = []
-
-        for _ in range(skiprows):
-            self.title.append(_running.pop(0))
-
-        num_cols = len(_running[0])
-
-        if skiprows==0:
-            self.set_headers(num_cols=num_cols,init=False)
-        elif skiprows!=0:
-            self.set_headers(headers=self.title[headerline],init=False)
-
-        nparray = numpy.array(_running).T
-
-        self._running = [numpy.asarray(column_) for column_ in nparray]
-
-        self.running = [numpy.asarray(column_) for column_ in self._running]
-
-    def merge(self):
-
-        pass
-
-    def write(self):
-
-        pass
-
-class WSchedule(DataFrame):
-
-    # KEYWORDS: DATES,COMPDATMD,COMPORD,WCONHIST,WCONINJH,WEFAC,WELOPEN 
-
-    headers    = ["DATE","KEYWORD","DETAILS",]
-
-    dates      = " {} / "#.format(date)
-    welspecs   = " '{}'\t1*\t2* / "
-    compdatop  = " '{}'\t1*\t{}\t{}\tMD\t{}\t2*\t0.14 / "#.format(wellname,top,bottom,optype)
-    compdatsh  = " '{}'\t1*\t{}\t{}\tMD\t{} / "#.format(wellname,top,bottom,optype)
-    compord    = " '{}'\tINPUT\t/ "#.format(wellname)
-    prodhist   = " '{}'\tOPEN\tORAT\t{}\t{}\t{} / "#.format(wellname,oilrate,waterrate,gasrate)
-    injhist    = " '{}'\tWATER\tOPEN\t{}\t7*\tRATE / "#.format(wellname,waterrate)
-    wefac      = " '{}'\t{} / "#.format(wellname,efficiency)
-    welopen    = " '{}'\tSHUT\t3* / "#.format(wellname)
-
-    def __init__(self):
-
-        pass
-
-    def read(self):
-
-        pass
-
-    def _read(self):
-
-        pass
-
-    def set_subheaders(self,header_index=None,header=None,regex=None,regex_builtin="INC_HEADERS",title="SUB-HEADERS"):
-
-        nparray = numpy.array(self._running[header_index])
-
-        if regex is None and regex_builtin=="INC_HEADERS":
-            regex = r'^[A-Z]+$'                         #for strings with only capital letters no digits
-        elif regex is None and regex_builtin=="INC_DATES":
-            regex = r'^\d{1,2} [A-Za-z]{3} \d{2}\d{2}?$'   #for strings with [1 or 2 digits][space][3 capital letters][space][2 or 4 digits], e.g. DATES
-
-        vmatch = numpy.vectorize(lambda x: bool(re.compile(regex).match(x)))
-
-        match_index = vmatch(nparray)
-
-        firstocc = numpy.argmax(match_index)
-
-        lower = numpy.where(match_index)[0]
-        upper = numpy.append(lower[1:],nparray.size)
-
-        repeat_count = upper-lower-1
-
-        match_content = nparray[match_index]
-
-        nparray[firstocc:][~match_index[firstocc:]] = numpy.repeat(match_content,repeat_count)
-
-        self._headers.insert(header_index,title)
-        self._running.insert(header_index,numpy.asarray(nparray))
-
-        for index,column_ in enumerate(self._running):
-            self._running[index] = numpy.array(self._running[index][firstocc:][~match_index[firstocc:]])
-
-        self.headers = self._headers
-        self.running = [numpy.asarray(column_) for column_ in self._running]
-
-    def get_wells(self,wellname=None):
-
-        pass
-
-    def write(self):
-
-        path = os.path.join(self.workdir,self.schedule_filename)
-
-        with open(path,"w",encoding='utf-8') as wfile:
-
-            welspec = schedule.running[1]=="WELSPECS"
-            compdat = schedule.running[1]=="COMPDATMD"
-            compord = schedule.running[1]=="COMPORD"
-            prodhst = schedule.running[1]=="WCONHIST"
-            injdhst = schedule.running[1]=="WCONINJH"
-            wefffac = schedule.running[1]=="WEFAC"
-            welopen = schedule.running[1]=="WELOPEN"
-
-            for date in numpy.unique(schedule.running[0]):
-
-                currentdate = schedule.running[0]==date
-
-                currentcont = schedule.running[1][currentdate]
-
-                wfile.write("\n\n")
-                wfile.write("DATES\n")
-                wfile.write(self.schedule_dates.format(date.strftime("%d %b %Y").upper()))
-                wfile.write("\n")
-                wfile.write("/\n\n")
-
-                if any(currentcont=="WELSPECS"):
-                    indices = numpy.logical_and(currentdate,welspec)
-                    wfile.write("WELSPECS\n")
-                    for detail in schedule.running[2][indices]:
-                        wfile.write(detail)
-                        wfile.write("\n")
-                    wfile.write("/\n\n")
-
-                if any(currentcont=="COMPDATMD"):
-                    indices = numpy.logical_and(currentdate,compdat)
-                    wfile.write("COMPDATMD\n")
-                    for detail in schedule.running[2][indices]:
-                        wfile.write(detail)
-                        wfile.write("\n")
-                    wfile.write("/\n\n")
-
-                if any(currentcont=="COMPORD"):
-                    indices = numpy.logical_and(currentdate,compord)
-                    wfile.write("COMPORD\n")
-                    for detail in schedule.running[2][indices]:
-                        wfile.write(detail)
-                        wfile.write("\n")
-                    wfile.write("/\n\n")
-
-                if any(currentcont=="WCONHIST"):
-                    indices = numpy.logical_and(currentdate,prodhst)
-                    wfile.write("WCONHIST\n")
-                    for detail in schedule.running[2][indices]:
-                        wfile.write(detail)
-                        wfile.write("\n")
-                    wfile.write("/\n\n")
-
-                if any(currentcont=="WCONINJH"):
-                    indices = numpy.logical_and(currentdate,injdhst)
-                    wfile.write("WCONINJH\n")
-                    for detail in schedule.running[2][indices]:
-                        wfile.write(detail)
-                        wfile.write("\n")
-                    wfile.write("/\n\n")
-
-                if any(currentcont=="WEFAC"):
-                    indices = numpy.logical_and(currentdate,wefffac)
-                    wfile.write("WEFAC\n")
-                    for detail in schedule.running[2][indices]:
-                        wfile.write(detail)
-                        wfile.write("\n")
-                    wfile.write("/\n\n")
-
-                if any(currentcont=="WELOPEN"):
-                    indices = numpy.logical_and(currentdate,welopen)
-                    wfile.write("WELOPEN\n")
-                    for detail in schedule.running[2][indices]:
-                        wfile.write(detail)
-                        wfile.write("\n")
-                    wfile.write("/\n\n")
-
-class VTKit(DataFrame):
-
-    def __init__(self):
-
-        pass
-
-    def read(self,):
-
-        pass
-
-    def _read(self):
-
-        pass
-
-    def write(self,):
-
-        pass
 
 if __name__ == "__main__":
 
