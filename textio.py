@@ -23,14 +23,6 @@ from core import key2column
 
 from cypy.vectorpy import pytype
 
-"""
-1. DataFrame reading, writing
-2. Finalize RegText reading, writing
-3. Finalize LogASCII reading, writing
-4. Finalize Excel writing
-5. loadtext should be working well
-"""
-
 # Main Data Frame
 
 class DataFrame():
@@ -40,17 +32,6 @@ class DataFrame():
 
     def __init__(self,*args,**kwargs):
         """Initializes DataFrame with headers & running and parent class DirBase."""
-
-        homedir = kwargs.get('homedir')
-        filedir = kwargs.get('filedir')
-
-        super().__init__(homedir=homedir,filedir=filedir)
-
-        if homedir is not None:
-            kwargs.pop('homedir')
-
-        if filedir is not None:
-            kwargs.pop('filedir')
 
         super().__setattr__("running",[])
 
@@ -461,7 +442,7 @@ class DataFrame():
 
 # Directory Management
 
-class directory():
+class dirmaster():
     """Base directory class to manage files in the input & output directories."""
 
     def __init__(self,homedir=None,filedir=None,filepath=None):
@@ -610,61 +591,93 @@ class directory():
 # A File Front Information
 
 class header():
-    """It is a table of fields, columns are fields, rows are data"""
+    """It is a table of parameters, columns are fields."""
 
-    def __init__(self,**kwargs):
+    def __init__(self,oneLineHeader=False,**kwargs):
+        """parameters should be predefined, all entries must be string."""
 
-        self.matter = []
+        if len(kwargs)==0:
+            raise ValueError("At least one field is required.")
 
-        class field: pass
+        super().__setattr__("parameters",[param for param in kwargs.keys()])
 
-        for name,data in kwargs.items():
-            self.matter.append(setattr(field,name,data))
+        if oneLineHeader:
+            fields = [str(field) for field in kwargs.values()]
 
-    def index(self,key):
+        else:
 
-        for field in matter:
-            if field.name==key:
-                return field
+            fields = []
 
-    def append(self,row):
+            for field in kwargs.values():
 
-        for field,value in zip(self.matter,row):
-            field.data.append(value)
+                if isinstance(field,list) or isinstance(field,tuple):
+                    field = [str(data) for data in field]
+                else:
+                    field = [str(field)]
 
-    def __getattr__(self,key):
+                fields.append(field)
 
-        return self.index(key).data
+            sizes = [len(field) for field in fields]
+
+            if len(set(sizes))!=1:
+                raise ValueError("The lengths of field are not equal!")
+
+        for parameter,field in zip(kwargs.keys(),fields):
+            super().__setattr__(parameter,field)
+
+    def extend(self,row):
+
+        if len(self.parameters)!=len(row):
+            raise ValueError("The lengths of 'fields' and 'row' are not equal!")
+
+        if isinstance(row,list) or isinstance(row,tuple):
+            toextend = header(**dict(zip(self.parameters,row)))
+        elif isinstance(row,dict):
+            toextend = header(**row)
+        elif isinstance(row,header):
+            toextend = row
+
+        for parameter,field in toextend.items():
+            getattr(self,parameter).extend(field)
+
+    def __setattr__(self,key,vals):
+
+        raise AttributeError(f"'Header' object has no attribute '{key}'.")
 
     def __getitem__(self,key):
 
-        if isinstance(key,str):
-            for row in self:
-                if row[0]==key:
-                    return row
-        else:
-            return [field.data[key] for field in self.matter]
+        if not isinstance(key,str):
+            raise TypeError("key must be string!")
+
+        for row in self:
+            if row[0].lower()==key:
+                break
+        
+        return header(oneLineHeader=True,**dict(zip(self.parameters,row)))
 
     def __repr__(self):
+
+        if len(self)==1:
+            return repr(tuple(self.fields))
 
         fstring = ""
         
         underline = []
 
-        for field in self.matter:
-            
-            column_ = field.data
-            column_.append(field.name)
-            
-            char_count = max([len(str(value)) for value in column_])
+        for parameter,field in zip(self.parameters,self.fields):
 
-            fstring += f"{{:<{char_count}}}   "
+            field_ = list(field)
+            field_.append(parameter)
+
+            count_ = max([len(value) for value in field_])
+
+            fstring += f"{{:<{count_}}}   "
             
-            underline.append("-"*char_count)
+            underline.append("-"*count_)
 
         fstring += "\n"
 
-        text = fstring.format(*[name.capitalize() for name in self.names])
+        text = fstring.format(*[parm.capitalize() for parm in self.parameters])
         
         text += fstring.format(*underline)
         
@@ -675,54 +688,36 @@ class header():
 
     def __iter__(self):
 
-        return iter([row for row in zip(*self.matter)])
+        return iter([row for row in zip(*self.fields)])
 
     def __len__(self):
 
-        if len(self.matter)==0:
-            return 0
+        if isinstance(self.fields[0],str):
+            return 1
         else:
-            return len(self.matter[0])
+            return len(self.fields[0])
+
+    def items(self):
+
+        return iter([(p,f) for p,f in zip(self.parameters,self.fields)])
 
     @property
-    def names(self):
-        return [field.name for field in self.matter]
+    def fields(self):
+
+        return [getattr(self,parm) for parm in self.parameters]
 
 # A File Input/Output Classes
 
-class iobinary(directory):
+class load(dirmaster):
 
-    def __init__(self):
+    def __init__(self,**kwargs):
 
-        pass
+        filepath = kwargs.get('filepath')
 
-class iotext(directory):
+        dirmaster().__init__(filepath=filepath)
 
-    def __init__(self,skiprows,types):
-
-        value_null = float(frame.well['NULL'].value)
-
-        floatFlag = all([pytype is float for pytype in types])
-
-        dtypes = [np.dtype(pytype) for pytype in types]
-
-        if floatFlag:
-            matrix = numpy.loadtxt(frame.filepath,comments="#",skiprows=skiprows,encoding="latin1")
-        else:
-            matrix = numpy.loadtxt(frame.filepath,comments="#",skiprows=skiprows,encoding="latin1",dtype='str')
-
-        for index,(vals,dtype) in enumerate(zip(matrix.transpose(),dtypes)):
-
-            if dtype.type is numpy.dtype('float').type:
-                vals[vals==value_null] = numpy.nan
-            
-            head = frame.curve.mnemonics[index]
-            unit = frame.curve.units[index]
-            info = frame.curve.info[index]
-
-            frame._setup(column(vals,head=head,unit=unit,info=info))
-
-        return frame
+        if filepath is not None:
+            kwargs.pop('filepath')
 
     def txt(self,delimiter="\t",comments="#",skiprows=None,nondigitflag=False):
 
@@ -761,95 +756,7 @@ class iotext(directory):
 
         return frame
 
-    def generic(self,skiprows=0,headerline=None,comment="--",endline="/",endfile="END"):
-
-        # While looping inside the file it does not read lines:
-        # - starting with comment phrase, e.g., comment = "--"
-        # - after the end of line phrase, e.g., endline = "/"
-        # - after the end of file keyword e.g., endfile = "END"
-
-        if headerline is None:
-            headerline = skiprows-1
-        elif headerline<skiprows:
-            headerline = headerline
-        else:
-            headerline = skiprows-1
-
-        _running = []
-
-        with open(self.filepath,"r") as text:
-
-            for line in text:
-
-                line = line.split('\n')[0].strip()
-
-                line = line.strip(endline)
-
-                line = line.strip()
-                line = line.strip("\t")
-                line = line.strip()
-
-                if line=="":
-                    continue
-
-                if comment is not None:
-                    if line[:len(comment)] == comment:
-                        continue
-
-                if endfile is not None:
-                    if line[:len(endfile)] == endfile:
-                        break
-
-                _running.append([line])
-
-        self.title = []
-
-        for _ in range(skiprows):
-            self.title.append(_running.pop(0))
-
-        num_cols = len(_running[0])
-
-        if skiprows==0:
-            self.set_headers(num_cols=num_cols,init=False)
-        elif skiprows!=0:
-            self.set_headers(headers=self.title[headerline],init=False)
-
-        nparray = numpy.array(_running).T
-
-    def subheaders(self,header_index=None,header=None,regex=None,regex_builtin="INC_HEADERS",title="SUB-HEADERS"):
-
-        nparray = numpy.array(self._running[header_index])
-
-        if regex is None and regex_builtin=="INC_HEADERS":
-            regex = r'^[A-Z]+$'                         #for strings with only capital letters no digits
-        elif regex is None and regex_builtin=="INC_DATES":
-            regex = r'^\d{1,2} [A-Za-z]{3} \d{2}\d{2}?$'   #for strings with [1 or 2 digits][space][3 capital letters][space][2 or 4 digits], e.g. DATES
-
-        vmatch = numpy.vectorize(lambda x: bool(re.compile(regex).match(x)))
-
-        match_index = vmatch(nparray)
-
-        firstocc = numpy.argmax(match_index)
-
-        lower = numpy.where(match_index)[0]
-        upper = numpy.append(lower[1:],nparray.size)
-
-        repeat_count = upper-lower-1
-
-        match_content = nparray[match_index]
-
-        nparray[firstocc:][~match_index[firstocc:]] = numpy.repeat(match_content,repeat_count)
-
-        self._headers.insert(header_index,title)
-        self._running.insert(header_index,numpy.asarray(nparray))
-
-        for index,column_ in enumerate(self._running):
-            self._running[index] = numpy.array(self._running[index][firstocc:][~match_index[firstocc:]])
-
-        self.headers = self._headers
-        self.running = [numpy.asarray(column_) for column_ in self._running]
-
-class iolas(directory):
+class las(dirmaster):
 
     def __init__(self,filepath,**kwargs):
 
@@ -988,7 +895,7 @@ class iolas(directory):
 
         return program
 
-    def _header(self,frame,lasfile,program):
+    def _headers(self,frame,lasfile,program):
 
         lasfile.seek(0)
 
@@ -1000,7 +907,7 @@ class iolas(directory):
                 break
             elif line.startswith("~"):
                 title = line[1:].split()[0].lower()
-                section = self._read_section(lasfile,program)
+                section = self._read_header(lasfile,program)
                 setattr(frame,title,section)
 
         skiprows = self._read_skiprows(lasfile)
@@ -1009,7 +916,7 @@ class iolas(directory):
 
         return frame,skiprows,types
 
-    def _section(self,lasfile,program):
+    def _header(self,lasfile,program):
 
         mnemonic,unit,value,description = [],[],[],[]
 
@@ -1079,9 +986,127 @@ class iolas(directory):
 
         return types
 
-class iotnavsched(directory):
+    def _columns(self):
 
-    def write_program(self)
+        value_null = float(frame.well['NULL'].value)
+
+        floatFlag = all([pytype is float for pytype in types])
+
+        dtypes = [np.dtype(pytype) for pytype in types]
+
+        if floatFlag:
+            matrix = numpy.loadtxt(frame.filepath,comments="#",skiprows=skiprows,encoding="latin1")
+        else:
+            matrix = numpy.loadtxt(frame.filepath,comments="#",skiprows=skiprows,encoding="latin1",dtype='str')
+
+        for index,(vals,dtype) in enumerate(zip(matrix.transpose(),dtypes)):
+
+            if dtype.type is numpy.dtype('float').type:
+                vals[vals==value_null] = numpy.nan
+            
+            head = frame.curve.mnemonics[index]
+            unit = frame.curve.units[index]
+            info = frame.curve.info[index]
+
+            frame._setup(column(vals,head=head,unit=unit,info=info))
+
+        return frame
+
+class wellsched(dirmaster):
+
+    def __init__(self,filepath):
+
+        pass
+
+    def read(self,skiprows=0,headerline=None,comment="--",endline="/",endfile="END"):
+
+        # While looping inside the file it does not read lines:
+        # - starting with comment phrase, e.g., comment = "--"
+        # - after the end of line phrase, e.g., endline = "/"
+        # - after the end of file keyword e.g., endfile = "END"
+
+        if headerline is None:
+            headerline = skiprows-1
+        elif headerline<skiprows:
+            headerline = headerline
+        else:
+            headerline = skiprows-1
+
+        _running = []
+
+        with open(self.filepath,"r") as text:
+
+            for line in text:
+
+                line = line.split('\n')[0].strip()
+
+                line = line.strip(endline)
+
+                line = line.strip()
+                line = line.strip("\t")
+                line = line.strip()
+
+                if line=="":
+                    continue
+
+                if comment is not None:
+                    if line[:len(comment)] == comment:
+                        continue
+
+                if endfile is not None:
+                    if line[:len(endfile)] == endfile:
+                        break
+
+                _running.append([line])
+
+        self.title = []
+
+        for _ in range(skiprows):
+            self.title.append(_running.pop(0))
+
+        num_cols = len(_running[0])
+
+        if skiprows==0:
+            self.set_headers(num_cols=num_cols,init=False)
+        elif skiprows!=0:
+            self.set_headers(headers=self.title[headerline],init=False)
+
+        nparray = numpy.array(_running).T
+
+    def catch(self,header_index=None,header=None,regex=None,regex_builtin="INC_HEADERS",title="SUB-HEADERS"):
+
+        nparray = numpy.array(self._running[header_index])
+
+        if regex is None and regex_builtin=="INC_HEADERS":
+            regex = r'^[A-Z]+$'                         #for strings with only capital letters no digits
+        elif regex is None and regex_builtin=="INC_DATES":
+            regex = r'^\d{1,2} [A-Za-z]{3} \d{2}\d{2}?$'   #for strings with [1 or 2 digits][space][3 capital letters][space][2 or 4 digits], e.g. DATES
+
+        vmatch = numpy.vectorize(lambda x: bool(re.compile(regex).match(x)))
+
+        match_index = vmatch(nparray)
+
+        firstocc = numpy.argmax(match_index)
+
+        lower = numpy.where(match_index)[0]
+        upper = numpy.append(lower[1:],nparray.size)
+
+        repeat_count = upper-lower-1
+
+        match_content = nparray[match_index]
+
+        nparray[firstocc:][~match_index[firstocc:]] = numpy.repeat(match_content,repeat_count)
+
+        self._headers.insert(header_index,title)
+        self._running.insert(header_index,numpy.asarray(nparray))
+
+        for index,column_ in enumerate(self._running):
+            self._running[index] = numpy.array(self._running[index][firstocc:][~match_index[firstocc:]])
+
+        self.headers = self._headers
+        self.running = [numpy.asarray(column_) for column_ in self._running]
+
+    def program(self):
 
         # KEYWORDS: DATES,COMPDATMD,COMPORD,WCONHIST,WCONINJH,WEFAC,WELOPEN 
 
@@ -1177,9 +1202,21 @@ class iotnavsched(directory):
                         wfile.write("\n")
                     wfile.write("/\n\n")
 
+class xlsheet(dirmaster):
+
+    def __init__(self):
+
+        pass
+
+class loadb(dirmaster):
+
+    def __init__(self):
+
+        pass
+
 # Collective Data Input/Output Classes
 
-class lasbatch(directory):
+class lasbatch(dirmaster):
 
     def __init__(self,filepaths=None,**kwargs):
 
@@ -1614,7 +1651,7 @@ class lasbatch(directory):
         with open(filepath, mode='w') as filePathToWrite:
             lasfile.write(filePathToWrite)
 
-class xlbatch(directory):
+class xlbatch(dirmaster):
 
     def __init__(self,filepaths=None,sheetnames=None,**kwargs):
 

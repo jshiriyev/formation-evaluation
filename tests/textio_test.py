@@ -14,56 +14,11 @@ import pint
 if __name__ == "__main__":
     import setup
 
-from textio import DirBase
 from textio import DataFrame
-from textio import FrontMatterTable
-from textio import RegText
-from textio import LogASCII
-from textio import Excel
-from textio import IrrText
-from textio import WSchedule
-from textio import VTKit
-
-from cypy.vectorpy import str2float
-
-class TestDirBase(unittest.TestCase):
-
-    def test_init(self):
-
-        db = DirBase()
-
-        db.homedir
-        db.filedir
-
-    def test_set_homedir(self):
-
-        db = DirBase()
-
-        db.set_homedir(__file__)
-
-        db.homedir
-
-    def test_set_filedir(self):
-
-        db = DirBase()
-
-        db.set_filedir(__file__)
-
-        db.filedir
-
-    def test_get_abspath(self):
-
-        DirBase().get_abspath(__file__)
-
-    def test_get_dirpath(self):
-
-        DirBase().get_dirpath(__file__)
-
-    def test_get_fnames(self):
-
-        db = DirBase()
-
-        db.get_fnames(__file__,returnAbsFlag=True)
+from textio import dirmaster
+from textio import header
+from textio import load
+from textio import las
 
 class TestDataFrame(unittest.TestCase):
 
@@ -73,7 +28,7 @@ class TestDataFrame(unittest.TestCase):
         self.assertEqual(len(df.heads),0,"Initialization of DataFrame Headers has failed!")
         self.assertEqual(len(df.running),0,"Initialization of DataFrame Headers has failed!")
 
-        df = DataFrame(col1=[],col2=[],filedir=__file__)
+        df = DataFrame(col1=[],col2=[])
         self.assertEqual(len(df.heads),2,"Initialization of DataFrame Headers has failed!")
         self.assertEqual(len(df.running),2,"Initialization of DataFrame Headers has failed!")
 
@@ -147,68 +102,14 @@ class TestDataFrame(unittest.TestCase):
 
         df = DataFrame(col0=[],col1=[])
 
-        df.name = "main_data"
+        with self.assertRaises(AttributeError):
+            df.name = "main_data"
 
-        with self.assertRaises(KeyError):
+        with self.assertRaises(AttributeError):
             df.name = "other_data"
             
-        # self.assertEqual(captured.records[0].getMessage(),
-        #     "object already has 'name' attribute.")
-
-        self.assertEqual(df.name,"main_data")
-
-    def test_setglossary(self):
-
-        df = DataFrame(A=[],B=[])
-
-        df.setglossary("child",first_name=str,last_name=str)
-
-        df.child.add_line(first_name="john",last_name="smith")
-
-        with self.assertRaises(KeyError):
-            df.setglossary("child","first_name")
-
-        self.assertEqual(df.child[0,"first_name"],"john")
-        self.assertEqual(df.child["john","first_name"],"john")
-        self.assertEqual(df.child["john","last_name"],"smith")
-
-        df.setglossary("glos",Mnemonic=str,Unit=str,Value=float,Description=str)
-
-        start = {
-            "unit" : "M",
-            "value" : 2576,
-            "description" : "it shows the depth logging started",
-            "mnemonic" : "START",
-            }
-        
-        stop = {
-            "mnemonic" : "STOP",
-            "unit" : "M",
-            "value" : 2896,
-            "description" : "it shows the depth logging stopped",
-            }
-        
-        null = {
-            "mnemonic" : "NULL",
-            "value" : -999.25,
-            "description" : "null values",
-            }
-
-        fld = {
-            "mnemonic" : "FLD",
-            "value" : "FIELD",
-            "description" : "GUNESLI",
-            }
-
-        df.glos.add_line(**start)
-        df.glos.add_line(**stop)
-        df.glos.add_line(**null)
-        df.glos.add_line(**fld)
-
-        df.glos
-
-        self.assertListEqual(df.glos[:,"value"],[2576.,2896.,-999.25,'FIELD'])
-        self.assertListEqual(df.glos[1:,"value"],[2896.,-999.25,'FIELD'])
+        with self.assertRaises(AttributeError):
+            print(df.name)
 
     def test_container_methods(self):
 
@@ -368,28 +269,116 @@ class TestDataFrame(unittest.TestCase):
 
         df = DataFrame(a=a,b=b)
 
-class TestFrontMatterTable(unittest.TestCase):
+class TestDirMaster(unittest.TestCase):
 
     def test_init(self):
 
-        gloss = FrontMatterTable(mnem=str,unit=str,value=float,descr=str)
+        db = dirmaster()
 
-        gloss.add_line()
+        db.homedir
+        db.filedir
 
-        print()
-        print(gloss)
+    def test_set_homedir(self):
 
-class TestLoadtxt(unittest.TestCase):
+        db = dirmaster()
+
+        db.set_homedir(__file__)
+
+        db.homedir
+
+    def test_set_filedir(self):
+
+        db = dirmaster()
+
+        db.set_filedir(__file__)
+
+        db.filedir
+
+    def test_get_abspath(self):
+
+        dirmaster().get_abspath(__file__)
+
+    def test_get_dirpath(self):
+
+        dirmaster().get_dirpath(__file__)
+
+    def test_get_fnames(self):
+
+        db = dirmaster()
+
+        db.get_fnames(__file__,returnAbsFlag=True)
+
+class TestHeader(unittest.TestCase):
 
     def test_init(self):
 
-        pass
+        names = header(first=['John','Jessica'],last=['Hass','Yummy'])
 
-class TestRegText(unittest.TestCase):
+        self.assertListEqual(names.parameters,['first','last'])
+        self.assertListEqual(names.first,['John','Jessica'])
+        self.assertListEqual(names.last,['Hass','Yummy'])
+
+        self.assertEqual(names['john'].first,'John')
+        self.assertEqual(names['john'].last,'Hass')
+
+        self.assertEqual(names['jessica'].first,'Jessica')
+        self.assertEqual(names['jessica'].last,'Yummy')
+
+    def test_all(self):
+
+        df = DataFrame(A=[],B=[])
+
+        front = header(first_name="john",last_name="smith")
+
+        df.child = front
+
+        self.assertEqual(df.child.first_name,["john"])
+        self.assertEqual(df.child["john"].first_name,"john")
+        self.assertEqual(df.child["john"].last_name,"smith")
+
+        df.gloss = header(mnemonic=[],unit=[],value=[],description=[])
+
+        start = {
+            "unit"          : "M",
+            "value"         : 2576.,
+            "description"   : "it shows the depth logging started",
+            "mnemonic"      : "START",
+            }
+        
+        stop = {
+            "mnemonic"      : "STOP",
+            "unit"          : "M",
+            "value"         : 2896.,
+            "description"   : "it shows the depth logging stopped",
+            }
+        
+        null = {
+            "mnemonic"      : "NULL",
+            "value"         : -999.25,
+            "description"   : "null values",
+            "unit"          : ""
+            }
+
+        fld = {
+            "mnemonic"      : "FLD",
+            "value"         : "FIELD",
+            "description"   : "GUNESLI",
+            "unit"          : ""
+            }
+
+        df.gloss.extend(start)
+        df.gloss.extend(stop)
+        df.gloss.extend(null)
+        df.gloss.extend(fld)
+
+        self.assertListEqual(df.gloss.value,["2576.0","2896.0","-999.25","FIELD"])
+        self.assertListEqual(df.gloss.value[1:],["2896.0","-999.25",'FIELD'])
+
+class TestLoad(unittest.TestCase):
 
     def test_init(self):
 
-        rt = RegText()
+        rt = DataFrame()
         
         well = np.array([
             "A01","A01","A01","A01","A01","A01","A01","A01",
@@ -407,52 +396,14 @@ class TestRegText(unittest.TestCase):
         rt["WATER"] = water
         rt["GAS"] = gas
 
-        rt.print_rlim = 30
-
         text = rt.__str__()
 
-class TestLogASCII(unittest.TestCase):
+class TestLas(unittest.TestCase):
 
     def test_init(self):
 
         pass
 
-class TestExcel(unittest.TestCase):
-
-    def test_init(self):
-
-        pass
-
-class TestIrrText(unittest.TestCase):
-
-    def test_init(self):
-
-        pass
-
-class TestWSchedule(unittest.TestCase):
-
-    def test_init(self):
-
-        pass
-
-class TestVTKit(unittest.TestCase):
-
-    def test_init(self):
-
-        pass
-
-class TestFunctions(unittest.TestCase):
-
-    def test_remove_thousand_separator(self):
-
-        a1 = str2float("10 000,00",sep_decimal=",",sep_thousand=" ")
-        a2 = str2float("10.000,00",sep_decimal=",",sep_thousand=".")
-        a3 = str2float("10,000.00")
-
-        self.assertEqual(a1,10000.,"could not remove thousand separator...")
-        self.assertEqual(a2,10000.,"could not remove thousand separator...")
-        self.assertEqual(a3,10000.,"could not remove thousand separator...")
-                       
 if __name__ == "__main__":
 
     logging.basicConfig(level=logging.DEBUG)
