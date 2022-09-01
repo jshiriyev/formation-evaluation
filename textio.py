@@ -21,7 +21,7 @@ from core import column
 from core import any2column
 from core import key2column
 
-from cypy.vectorpy import pytype
+from cypy.vectorpy import str0type
 
 # Main Data Frame
 
@@ -710,98 +710,155 @@ class header():
 
 class load(dirmaster):
 
-    def __init__(self,**kwargs):
+    def __init__(self,filepath,homedir=None,filedir=None,headline=None,comments="#",delimiter=None,skiprows=0):
 
-        filepath = kwargs.get('filepath')
+        self.headline   = headline
+        self.comments   = comments
+        self.delimiter  = delimiter
+        self.skiprows   = skiprows
 
-        dirmaster().__init__(filepath=filepath)
-
-        if filepath is not None:
-            kwargs.pop('filepath')
-
-    def txt(self,delimiter="\t",comments="#",skiprows=None,nondigitflag=False):
-
-        filepath = self.get_abspath(filepath)
-
-        frame = DataFrame(filedir=filepath)
-
-        frame.filepath = filepath
-
-        with open(filepath,mode="r",encoding="latin1") as text:
-
-            if skiprows is None:
-                skiprows = 0
-                line = next(text).split("\n")[0]
-                while not line.split(delimiter)[0].isdigit():
-                    skiprows += 1
-                    line = next(text).split("\n")[0]
-            else:
-                for _ in range(skiprows):
-                    line = next(text)
-
-            line = next(text).split("\n")[0]
-
-        if nondigitflag:
-            row = line.split(delimiter)
-            dtypes = [float if column_.isdigit() else str for column_ in row]
-            columns = []
-            for index,dtype in enumerate(dtypes):
-                column_ = numpy.loadtxt(filepath,dtype=dtype,delimiter=delimiter,skiprows=skiprows,usecols=[index],encoding="latin1")
-                columns.append(column_)
+        if hasattr(filepath,'read'):
+            super().__init__(homedir,filedir)
         else:
-            data = numpy.loadtxt(filepath,comments="#",delimiter=delimiter,skiprows=skiprows,encoding="latin1")
-            columns = [column_ for column_ in data.transpose()]
+            super().__init__(homedir,filedir,filepath=filepath)
+        
+        with load.textopen(filepath) as filemaster:
+            frame = self.text(filemaster)
 
-        frame.set_running(*columns,init=True)
+        self.frame = frame
 
-        return frame
+    def seekrow(self,filemaster,row):
+
+        filemaster.seek(0)
+
+        countrows = 0
+
+        while True:
+
+            if countrows >= row:
+                break
+
+            next(filemaster)
+
+            countrows += 1
+
+    def heads(self,filemaster):
+
+        if self.headline is None:
+            return key2column(size=self.numcols,dtype='str').vals
+
+        self.seekrow(filemaster,self.headline)
+
+        line = next(filemaster).strip()
+
+        if self.delimiter is None:
+            heads_ = re.sub(r"\s+"," ",line).split(" ")
+        else:
+            heads_ = line.split(self.delimiter)
+
+        return heads_
+
+    def types(self,filemaster):
+
+        self.seekrow(filemaster,self.skiprows)
+
+        while True:
+
+            line = next(filemaster).strip()
+
+            if len(line)<1:
+                pass
+            
+            if line.startswith(self.comments):
+                pass
+
+            break
+
+        if self.delimiter is None:
+            row = re.sub(r"\s+"," ",line).split(" ")
+        else:
+            row = line.split(self.delimiter)
+
+        types_ = [str0type(value) for value in row]
+
+        return types_
+
+    def text(self,filemaster):
+
+        types = self.types(filemaster)
+
+        if self.headline is None:
+            self.numcols = len(types)
+
+        dtypes = [numpy.dtype(type_) for type_ in types]
+
+        floatFlags = [True if type_ is float else False for type_ in types]
+
+        self.seekrow(filemaster,self.skiprows)
+
+        if all(floatFlags):
+            cols = numpy.loadtxt(filemaster,comments=self.comments,delimiter=self.delimiter,unpack=True)
+        else:
+            cols = numpy.loadtxt(filemaster,comments=self.comments,delimiter=self.delimiter,unpack=True,dtype=str)
+
+        heads = self.heads(filemaster)
+
+        running = [column(col,head=head,dtype=dtype) for col,head,dtype in zip(cols,heads,dtypes)]
+
+        return DataFrame(*running)
+
+    @contextlib.contextmanager
+    def textopen(filepath):
+
+        if hasattr(filepath,'read'):
+            yield filepath
+        else:
+            filemaster = open(self.filepath,"r")
+            try:
+                yield filemaster
+            finally:
+                filemaster.close()
 
 class las(dirmaster):
 
-    def __init__(self,filepath,**kwargs):
+    def __init__(self,filepath,homedir=None,filedir=None,**kwargs):
 
-        filepath = kwargs.get('filepath')
+        super().__init__(homedir,filedir,filepath=filepath)
 
-        DirBase().__init__(filepath=filepath)
+        with open(self.filepath,"r",encoding="latin1") as lasmaster:
+            frame = self.text(lasmaster)
 
-        if filepath is not None:
-            kwargs.pop('filepath')
+        self.frame = frame
 
-        frame = DataFrame(filepath=filepath)
+    def seeksection(self,lasmaster,section=None):
 
-        with open(frame.filepath,"r",encoding="latin1") as lasfile:
+        if section is None:
+            section = "~"
 
-            version = self._read_version(lasfile)
-            program = self._read_program(version)
-            
-            frame,skiprows,types = self._read_header(frame,lasfile,program)
+        while True:
 
-        frame = self._read_columns(frame,skiprows,types)
+            line = next(lasmaster).strip()
 
-        return frame
+            if line.startswith(section):
+                break
 
-    def _version(self,lasfile):
+    def version(self,lasmaster):
         """It returns the version of file."""
 
         pattern = r"\s*VERS\s*\.\s+([^:]*)\s*:"
 
         program = re.compile(pattern)
 
-        lasfile.seek(0)
+        lasmaster.seek(0)
 
-        while True:
+        self.seeksection(lasmaster,section="~V")
 
-            line = next(lasfile).strip()
-
-            if line.startswith("~V"):
-                break
-
-        line = next(lasfile).strip()
+        line = next(lasmaster).strip()
 
         version = program.match(line)
 
         while version is None:
-            line = next(lasfile).strip()
+            line = next(lasmaster).strip()
 
             if line.startswith("~"):
                 break
@@ -813,7 +870,7 @@ class las(dirmaster):
         else:
             return version.groups()[0].strip()
 
-    def _program(self,version="2.0"):
+    def program(self,version="2.0"):
         """It returns the program that compiles the regular expression to retrieve parameter data."""
 
         """
@@ -895,34 +952,37 @@ class las(dirmaster):
 
         return program
 
-    def _headers(self,frame,lasfile,program):
+    def headers(self,lasmaster,program):
 
-        lasfile.seek(0)
+        version = self.version(lasmaster)
+        program = self.program(version)
+
+        lasmaster.seek(0)
 
         while True:
 
-            line = next(lasfile).strip()
+            line = next(lasmaster).strip()
 
             if line.startswith("~A"):
                 break
             elif line.startswith("~"):
                 title = line[1:].split()[0].lower()
-                section = self._read_header(lasfile,program)
+                section = self._read_header(lasmaster,program)
                 setattr(frame,title,section)
 
-        skiprows = self._read_skiprows(lasfile)
+        skiprows = self._read_skiprows(lasmaster)
 
-        types = self._read_types(lasfile)
+        types = self._read_types(lasmaster)
 
         return frame,skiprows,types
 
-    def _header(self,lasfile,program):
+    def header(self,lasmaster,program):
 
         mnemonic,unit,value,description = [],[],[],[]
 
         while True:
 
-            line = next(lasfile).strip()
+            line = next(lasmaster).strip()
 
             if len(line)<1:
                 pass
@@ -949,28 +1009,11 @@ class las(dirmaster):
 
         return section
 
-    def _skiprows(self,lasfile):
-
-        lasfile.seek(0)
-
-        skiprows = 1
+    def types(self,lasmaster):
 
         while True:
 
-            line = next(lasfile).strip()
-
-            if line.startswith("~A"):
-                break
-
-            skiprows += 1
-
-        return skiprows
-
-    def _types(self,lasfile):
-
-        while True:
-
-            line = next(lasfile).strip()
+            line = next(lasmaster).strip()
 
             if len(line)<1:
                 pass
@@ -986,7 +1029,11 @@ class las(dirmaster):
 
         return types
 
-    def _columns(self):
+    def text(self,lasmaster):
+
+        self.headers(lasmaster,program)
+        
+        frame,skiprows,types = self._read_header(lasmaster,program)
 
         value_null = float(frame.well['NULL'].value)
 
@@ -1603,13 +1650,13 @@ class lasbatch(dirmaster):
 
         if idfile is not None:
 
-            lasfile = self.frames[idfile]
+            lasmaster = self.frames[idfile]
 
         else:
 
-            lasfile = lasio.LASFile()
+            lasmaster = lasio.LASFile()
 
-            lasfile.well.DATE = datetime.datetime.today().strftime('%Y-%m-%d %H:%M:%S')
+            lasmaster.well.DATE = datetime.datetime.today().strftime('%Y-%m-%d %H:%M:%S')
 
             depthExistFlag = False
 
@@ -1625,7 +1672,7 @@ class lasbatch(dirmaster):
                     value="",
                     descr="Depth index",
                     data=numpy.arange(data[0].size))
-                lasfile.append_curve_item(curve)            
+                lasmaster.append_curve_item(curve)            
 
         for index,(mnemonic,datum) in enumerate(zip(mnemonics,data)):
 
@@ -1646,10 +1693,10 @@ class lasbatch(dirmaster):
 
             curve = lasio.CurveItem(mnemonic=mnemonic,data=datum,unit=unit,descr=description,value=value)
 
-            lasfile.append_curve_item(curve)
+            lasmaster.append_curve_item(curve)
 
         with open(filepath, mode='w') as filePathToWrite:
-            lasfile.write(filePathToWrite)
+            lasmaster.write(filePathToWrite)
 
 class xlbatch(dirmaster):
 
@@ -1682,7 +1729,7 @@ class xlbatch(dirmaster):
 
             filepath = self.get_abspath(filepath)
 
-            with Excel.xlopen(filepath) as book:
+            with xlbatch.xlopen(filepath) as book:
 
                 for sheet in sheets:
 

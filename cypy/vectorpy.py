@@ -8,9 +8,9 @@ import re
 
 import numpy as np
 
-def pytype(string):
+def str0type(string:str):
 
-    for attempt in (float,dateutil.parser.parse):
+    for attempt in (float,parser.parse):
 
         try:
             attempt(string)
@@ -97,14 +97,6 @@ def starsplit(string_list,default=1.0):
             float_list.append(float(string_value))
 
     return float_list
-
-def isnumber(string_):
-    try:
-        float(string_)
-    except ValueError:
-        return False
-    else:
-        return True
 
 def str2str_(string:str,none_str:str="",regex:str=None,fstring:str=None) -> str:
 

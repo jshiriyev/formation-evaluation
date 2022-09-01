@@ -1,14 +1,10 @@
 import datetime
-
-from dateutil import relativedelta
-
+import io
 import logging
-
 import os
-
 import unittest
 
-import numpy as np
+import numpy
 import pint
 
 if __name__ == "__main__":
@@ -41,8 +37,8 @@ class TestDataFrame(unittest.TestCase):
         self.assertEqual(len(df.heads),3,"Initialization of DataFrame Headers has failed!")
         self.assertEqual(len(df.running),3,"Initialization of DataFrame Headers has failed!")
 
-        a = np.array([1,2,3.])
-        b = np.array([4,5,6.])
+        a = numpy.array([1,2,3.])
+        b = numpy.array([4,5,6.])
 
         df = DataFrame(col0=a,col1=b)
 
@@ -51,15 +47,15 @@ class TestDataFrame(unittest.TestCase):
         df["col0"] = b
         df["col1"] = a
 
-        np.testing.assert_array_equal(df["col0"],b)
-        np.testing.assert_array_equal(df["col1"],a)
+        numpy.testing.assert_array_equal(df["col0"],b)
+        numpy.testing.assert_array_equal(df["col1"],a)
 
     def test_col_astype(self):
 
-        a = np.array([1,2,3,4,5])
-        b = np.array([1.,3.4,np.nan,4.7,8])
-        c = np.array([datetime.datetime.today(),datetime.datetime(2022,2,2),datetime.datetime(2022,1,2),datetime.datetime(2021,12,2),None])
-        d = np.array(["1.","","5.7","6",""])
+        a = numpy.array([1,2,3,4,5])
+        b = numpy.array([1.,3.4,numpy.nan,4.7,8])
+        c = numpy.array([datetime.datetime.today(),datetime.datetime(2022,2,2),datetime.datetime(2022,1,2),datetime.datetime(2021,12,2),None])
+        d = numpy.array(["1.","","5.7","6",""])
         e = c.astype("datetime64")
 
         df = DataFrame(a=a,b=b,c=c,d=d,e=e)
@@ -68,14 +64,14 @@ class TestDataFrame(unittest.TestCase):
             df['a'] = df['a'].astype(dtype)
 
         bb = [
-            np.array([1,3,-99999,4,8]),
-            np.array(["1","3","","4","8"]),
-            np.array([1.,3.,np.nan,4.,8.]),
+            numpy.array([1,3,-99999,4,8]),
+            numpy.array(["1","3","","4","8"]),
+            numpy.array([1.,3.,numpy.nan,4.,8.]),
             ]
 
         for index,dtype in enumerate(("int","str","float")):
             df['b'] = df['b'].astype(dtype)
-            np.testing.assert_array_equal(df['b'].vals,bb[index])
+            numpy.testing.assert_array_equal(df['b'].vals,bb[index])
 
         for dtype in ("str","datetime64[D]"):
             df['c'] = df['c'].astype(dtype)
@@ -93,8 +89,8 @@ class TestDataFrame(unittest.TestCase):
 
     def test_representation_methods(self):
 
-        a = np.random.randint(0,100,20)
-        b = np.random.randint(0,100,20)
+        a = numpy.random.randint(0,100,20)
+        b = numpy.random.randint(0,100,20)
 
         df = DataFrame(a=a,b=b)
 
@@ -115,8 +111,8 @@ class TestDataFrame(unittest.TestCase):
 
         df = DataFrame()
 
-        a = np.random.randint(0,100,10)
-        b = np.random.randint(0,100,10)
+        a = numpy.random.randint(0,100,10)
+        b = numpy.random.randint(0,100,10)
 
         df['a'] = a
         df['b'] = b
@@ -125,7 +121,7 @@ class TestDataFrame(unittest.TestCase):
 
         head = "first name\tlast name"
 
-        full_names = np.array(["elthon\tsmith","bill\tgates\tjohn"])
+        full_names = numpy.array(["elthon\tsmith","bill\tgates\tjohn"])
 
         df = DataFrame(head=full_names)
         # print('\n')
@@ -135,78 +131,78 @@ class TestDataFrame(unittest.TestCase):
 
         self.assertEqual(df.heads,["head_0","head_1","head_2"],
             "Splitting headers while splitting col_ has failed!")
-        np.testing.assert_array_equal(df["head_0"],np.array(["elthon","bill"]))
-        np.testing.assert_array_equal(df["head_1"],np.array(["smith","gates"]))
-        np.testing.assert_array_equal(df["head_2"],np.array(["","john"]))
+        numpy.testing.assert_array_equal(df["head_0"],numpy.array(["elthon","bill"]))
+        numpy.testing.assert_array_equal(df["head_1"],numpy.array(["smith","gates"]))
+        numpy.testing.assert_array_equal(df["head_2"],numpy.array(["","john"]))
 
         # print(df)
 
     def test_col2str(self):
 
-        names = np.array(["elthon","john","tommy"])
-        nicks = np.array(["smith","verdin","brian"])
+        names = numpy.array(["elthon","john","tommy"])
+        nicks = numpy.array(["smith","verdin","brian"])
 
         df = DataFrame(names=names,nicks=nicks)
         
         col_ = df.col2str(["names","nicks"])
 
-        np.testing.assert_array_equal(col_.vals,
-            np.array(["elthon smith","john verdin","tommy brian"]))
+        numpy.testing.assert_array_equal(col_.vals,
+            numpy.array(["elthon smith","john verdin","tommy brian"]))
 
     def test_tostruct(self):
 
-        names = np.array(["elthon","john","tommy"])
-        lasts = np.array(["smith","verdin","brian"])
-        ages = np.array([23,45,38])
+        names = numpy.array(["elthon","john","tommy"])
+        lasts = numpy.array(["smith","verdin","brian"])
+        ages = numpy.array([23,45,38])
 
         df = DataFrame(names=names,lasts=lasts,ages=ages)
 
         arr_ = df.tostruct()
 
-        np.testing.assert_array_equal(arr_[0].tolist(),('elthon', 'smith', 23))
+        numpy.testing.assert_array_equal(arr_[0].tolist(),('elthon', 'smith', 23))
 
     def test_sort(self):
 
-        A = np.array([ 6 , 6 , 2 , 2 , 3 , 5 , 3 , 4 , 3 , 1 , 2 , 1 ])
-        B = np.array(["A","B","C","D","D","C","C","C","C","E","F","F"])
+        A = numpy.array([ 6 , 6 , 2 , 2 , 3 , 5 , 3 , 4 , 3 , 1 , 2 , 1 ])
+        B = numpy.array(["A","B","C","D","D","C","C","C","C","E","F","F"])
 
         df = DataFrame(A=A,B=B)
 
         df = df.sort(('A',))
 
-        np.testing.assert_array_equal(df["A"].vals,
-            np.array([1,1,2,2,2,3,3,3,4,5,6,6]))
+        numpy.testing.assert_array_equal(df["A"].vals,
+            numpy.array([1,1,2,2,2,3,3,3,4,5,6,6]))
 
-        np.testing.assert_array_equal(df["B"].vals,
-            np.array(["E","F","C","D","F","D","C","C","C","C","A","B"]))
+        numpy.testing.assert_array_equal(df["B"].vals,
+            numpy.array(["E","F","C","D","F","D","C","C","C","C","A","B"]))
 
         df = DataFrame(A=A,B=B)
 
         df = df.sort(('A','B'))
 
-        np.testing.assert_array_equal(df["A"].vals,
-            np.array([1,1,2,2,2,3,3,3,4,5,6,6]))
+        numpy.testing.assert_array_equal(df["A"].vals,
+            numpy.array([1,1,2,2,2,3,3,3,4,5,6,6]))
 
-        np.testing.assert_array_equal(df["B"].vals,
-            np.array(["E","F","C","D","F","C","C","D","C","C","A","B"]))
+        numpy.testing.assert_array_equal(df["B"].vals,
+            numpy.array(["E","F","C","D","F","C","C","D","C","C","A","B"]))
 
         df = DataFrame(A=A,B=B)
 
         df = df.sort(('A','B'),reverse=True)
 
-        np.testing.assert_array_equal(df["A"].vals,
-            np.array([6,6,5,4,3,3,3,2,2,2,1,1]))
+        numpy.testing.assert_array_equal(df["A"].vals,
+            numpy.array([6,6,5,4,3,3,3,2,2,2,1,1]))
 
-        np.testing.assert_array_equal(df["B"].vals,
-            np.array(["B","A","C","C","D","C","C","F","D","C","F","E"]))
+        numpy.testing.assert_array_equal(df["B"].vals,
+            numpy.array(["B","A","C","C","D","C","C","F","D","C","F","E"]))
 
     def test_filter(self):
 
         df = DataFrame()
 
-        A = np.array([1,1,1,2,2,3,3,3,4,5,6,6,6,6])
+        A = numpy.array([1,1,1,2,2,3,3,3,4,5,6,6,6,6])
 
-        B = np.array([
+        B = numpy.array([
             "A","12text5","text345","125text","C","C","C","C","C","D","E","F","F","F"])
 
         df["A"] = A
@@ -214,11 +210,11 @@ class TestDataFrame(unittest.TestCase):
 
         df = df.filter("B",["E","F"])
 
-        np.testing.assert_array_equal(df["A"].vals,
-            np.array([6,6,6,6]))
+        numpy.testing.assert_array_equal(df["A"].vals,
+            numpy.array([6,6,6,6]))
 
-        np.testing.assert_array_equal(df["B"].vals,
-            np.array(["E","F","F","F"]))
+        numpy.testing.assert_array_equal(df["B"].vals,
+            numpy.array(["E","F","F","F"]))
 
         df = DataFrame()
 
@@ -227,19 +223,19 @@ class TestDataFrame(unittest.TestCase):
 
         df = df.filter("B",regex=r".*\d")
 
-        np.testing.assert_array_equal(df["A"].vals,
-            np.array([1,1,2]))
+        numpy.testing.assert_array_equal(df["A"].vals,
+            numpy.array([1,1,2]))
 
-        np.testing.assert_array_equal(df["B"].vals,
-            np.array(["12text5","text345","125text"]))
+        numpy.testing.assert_array_equal(df["B"].vals,
+            numpy.array(["12text5","text345","125text"]))
 
     def test_unique(self):
 
         df = DataFrame()
 
-        A = np.array([1,1,1,2,2,3,3,3,4,5,6,6,6,6])
+        A = numpy.array([1,1,1,2,2,3,3,3,4,5,6,6,6,6])
 
-        B = np.array([
+        B = numpy.array([
             "A","A","B","B","C","C","C","C","C","D","E","F","F","F"])
 
         df["A"] = A
@@ -247,16 +243,16 @@ class TestDataFrame(unittest.TestCase):
 
         df = df.unique(("A","B"))
 
-        np.testing.assert_array_equal(df["A"].vals,
-            np.array([1,1,2,2,3,4,5,6,6]),err_msg="DataFrame.unique() has an issue!")
+        numpy.testing.assert_array_equal(df["A"].vals,
+            numpy.array([1,1,2,2,3,4,5,6,6]),err_msg="DataFrame.unique() has an issue!")
 
-        np.testing.assert_array_equal(df["B"].vals,
-            np.array(['A','B','B','C','C','C','D','E','F']),err_msg="DataFrame.unique() has an issue!")
+        numpy.testing.assert_array_equal(df["B"].vals,
+            numpy.array(['A','B','B','C','C','C','D','E','F']),err_msg="DataFrame.unique() has an issue!")
 
         df = df.unique(("A",))
 
-        np.testing.assert_array_equal(df["A"].vals,
-            np.array([1,2,3,4,5,6]),err_msg="DataFrame.unique() has an issue!")
+        numpy.testing.assert_array_equal(df["A"].vals,
+            numpy.array([1,2,3,4,5,6]),err_msg="DataFrame.unique() has an issue!")
 
     def test_write(self):
 
@@ -264,8 +260,8 @@ class TestDataFrame(unittest.TestCase):
 
     def test_writeb(self):
 
-        a = np.random.randint(0,100,20)
-        b = np.random.randint(0,100,20)
+        a = numpy.random.randint(0,100,20)
+        b = numpy.random.randint(0,100,20)
 
         df = DataFrame(a=a,b=b)
 
@@ -377,26 +373,40 @@ class TestHeader(unittest.TestCase):
 class TestLoad(unittest.TestCase):
 
     def test_init(self):
-
-        rt = DataFrame()
         
-        well = np.array([
-            "A01","A01","A01","A01","A01","A01","A01","A01",
-            "A01","A01","A01","A01","B02","B02","B02","B02",
-            "B02","B02","B02","B02","B02","B02","B02","B02"])
+        txt = "well date oil water gas\n" \
+              " A01    1  12    24  36\n" \
+              " A01    2  11    23  35\n" \
+              " A01    3  10    22  34\n" \
+              " A01    4   9    21  33\n" \
+              " A01    5   8    20  32\n" \
+              " A01    6   7    19  31\n" \
+              " A01    7   6    18  30\n" \
+              " A01    8   5    17  29\n" \
+              " A01    9   4    16  28\n" \
+              " A01   10   3    16  27\n" \
+              " A01   11   2    14  26\n" \
+              " A01   12   1    13  25\n" \
+              " B02    1   8    15  25\n" \
+              " B02    2   8    15  25\n" \
+              " B02    3   8    15  25\n" \
+              " B02    4   8    15  25\n" \
+              " B02    5   8    15  25\n" \
+              " B02    6   8    15  25\n" \
+              " B02    7   8    15  25\n" \
+              " B02    8   8    15  25\n" \
+              " B02    9   8    15  25\n" \
+              " B02   10   8    15  25\n" \
+              " B02   11   8    15  25\n" \
+              " B02   12   8    14  25\n" \
 
-        date    = np.array([1,2,3,4,5,6,7,8,9,10,11,12,1,2,3,4,5,6,7,8,9,10,11,12])
-        oil     = np.array([12,11,10,9,8,7,6,5,4,3,2,1,8,8,8,8,8,8,8,8,8,8,8,8])
-        water   = np.array([24,23,22,21,20,19,18,17,16,16,14,13,15,15,15,15,15,15,15,15,15,15,15,14])
-        gas     = np.array([36,35,34,33,32,31,30,29,28,27,26,25,25,25,25,25,25,25,25,25,25,25,25,25])
+        txtfile = io.StringIO(txt)
 
-        rt["WELL"] = well
-        rt["DATE"] = date
-        rt["OIL"] = oil
-        rt["WATER"] = water
-        rt["GAS"] = gas
+        prod = load(txtfile,skiprows=1,headline=0)
 
-        text = rt.__str__()
+        self.assertListEqual(prod.frame["date"].vals[:3].tolist(),[1,2,3.])
+        self.assertListEqual(prod.frame.heads,["well","date","oil","water","gas"])
+        self.assertListEqual(list(prod.frame.shape),[24,5])
 
 class TestLas(unittest.TestCase):
 
