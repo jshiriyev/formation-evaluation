@@ -650,7 +650,7 @@ class header():
             raise TypeError("key must be string!")
 
         for row in self:
-            if row[0].lower()==key:
+            if row[0].lower()==key.lower():
                 break
         
         return header(oneLineHeader=True,**dict(zip(self.parameters,row)))
@@ -717,10 +717,7 @@ class load(dirmaster):
         self.delimiter  = delimiter
         self.skiprows   = skiprows
 
-        if hasattr(filepath,'read'):
-            super().__init__(homedir,filedir)
-        else:
-            super().__init__(homedir,filedir,filepath=filepath)
+        super().__init__(homedir,filedir)
         
         with load.textopen(filepath) as filemaster:
             frame = self.text(filemaster)
@@ -767,10 +764,10 @@ class load(dirmaster):
             line = next(filemaster).strip()
 
             if len(line)<1:
-                pass
+                continue
             
             if line.startswith(self.comments):
-                pass
+                continue
 
             break
 
@@ -813,6 +810,7 @@ class load(dirmaster):
         if hasattr(filepath,'read'):
             yield filepath
         else:
+            self.set_filepath(filepath)
             filemaster = open(self.filepath,"r")
             try:
                 yield filemaster
@@ -824,6 +822,8 @@ class las(dirmaster):
     def __init__(self,filepath,homedir=None,filedir=None,**kwargs):
 
         super().__init__(homedir,filedir,filepath=filepath)
+
+        self.sections = []
 
         with open(self.filepath,"r",encoding="latin1") as lasmaster:
             frame = self.text(lasmaster)
@@ -853,22 +853,19 @@ class las(dirmaster):
 
         self.seeksection(lasmaster,section="~V")
 
-        line = next(lasmaster).strip()
+        while True:
 
-        version = program.match(line)
-
-        while version is None:
             line = next(lasmaster).strip()
 
             if line.startswith("~"):
                 break
-            else:
-                version = program.match(line)
+            
+            version = program.match(line)
 
-        if version is None:
-            return
-        else:
-            return version.groups()[0].strip()
+            if version is not None:
+                break
+
+        return version.groups()[0].strip()
 
     def program(self,version="2.0"):
         """It returns the program that compiles the regular expression to retrieve parameter data."""
@@ -886,10 +883,12 @@ class las(dirmaster):
         
         """
 
-        if version == "2.0":
-            mnemonic = r"[^:\s\.]+"
-        elif version == "3.0":
-            mnemonic = r"[^:\{\}\|\s\[\]\.]+"
+        if version in ["1.2","1.20"]:
+            mnemonic = r"[^:\.\s]+"
+        elif version in ["2.0","2.00"]:
+            mnemonic = r"[^:\.\s]+"
+        elif version in ["3.0","3.00"]:
+            mnemonic = r"[^:\.\s\{\}\|\[\]]+"
 
         """
         Unit:
@@ -906,10 +905,12 @@ class las(dirmaster):
         
         """
 
-        if version == "2.0":
+        if version in ["1.2","1.20"]:
             unit = r"[^:\s]*"
-        elif version == "3.0":
-            unit = r"[^:\{\}\|\s]*"
+        elif version in ["2.0","2.00"]:
+            unit = r"[^:\s]*"
+        elif version in ["3.0","3.00"]:
+            unit = r"[^:\s\{\}\|]*"
 
         """
         Value:
@@ -925,11 +926,13 @@ class las(dirmaster):
         
         """
 
-        if version == "2.0":
+        if version in ["1.2","1.20"]:
             value = r"[^:]*"
-        elif version == "3.0":
+        elif version in ["2.0","2.00"]:
+            value = r"[^:]*"
+        elif version in ["3.0","3.00"]:
             value = r"[^:\{\}\|]*"
-
+        
         """
         Description:
 
@@ -952,7 +955,7 @@ class las(dirmaster):
 
         return program
 
-    def headers(self,lasmaster,program):
+    def headers(self,lasmaster):
 
         version = self.version(lasmaster)
         program = self.program(version)
@@ -964,48 +967,65 @@ class las(dirmaster):
             line = next(lasmaster).strip()
 
             if line.startswith("~A"):
+                types = self.types(lasmaster)
                 break
-            elif line.startswith("~"):
-                title = line[1:].split()[0].lower()
-                section = self._read_header(lasmaster,program)
-                setattr(frame,title,section)
 
-        skiprows = self._read_skiprows(lasmaster)
+            if line.startswith("~"):
 
-        types = self._read_types(lasmaster)
+                sectioncode = line[:2]
+                sectionhead = line[1:].split()[0].lower()
+                sectionbody = self.header(lasmaster,program)
 
-        return frame,skiprows,types
+                self.sections.append(sectionhead)
+
+                setattr(self,sectionhead,sectionbody)
+
+                lasmaster.seek(0)
+
+                self.seeksection(lasmaster,section=sectioncode)
+
+        return types
 
     def header(self,lasmaster,program):
 
         mnemonic,unit,value,description = [],[],[],[]
+
+        mnemonic_parantheses_pattern = r'\([^)]*\)\s*\.'
 
         while True:
 
             line = next(lasmaster).strip()
 
             if len(line)<1:
-                pass
+                continue
             
             if line.startswith("#"):
-                pass
+                continue
 
             if line.startswith("~"):
                 break
 
             line = re.sub(r'[^\x00-\x7F]+','',line)
 
-            mnemonic,unit,value,description = program.match(line).groups()
+            mpp = re.search(mnemonic_parantheses_pattern,line)
 
-            mnemonics.append(mnemonic.strip())
+            if mpp is not None:
+                line = re.sub(mnemonic_parantheses_pattern,' .',line) # removing the content in between paranthesis for mnemonics
 
-            units.append(unit.strip())
+            mnemonic_,unit_,value_,description_ = program.match(line).groups()
 
-            values.append(value.strip())
+            if mpp is not None:
+                mnemonic_ = f"{mnemonic_} {mpp.group()[:-1]}"
 
-            descriptions.append(description.strip())
+            mnemonic.append(mnemonic_.strip())
 
-        section = header(mnemonic=mnemonics,unit=units,value=values,description=descriptions)
+            unit.append(unit_.strip())
+
+            value.append(value_.strip())
+
+            description.append(description_.strip())
+
+        section = header(mnemonic=mnemonic,unit=unit,value=value,description=description)
 
         return section
 
@@ -1016,48 +1036,251 @@ class las(dirmaster):
             line = next(lasmaster).strip()
 
             if len(line)<1:
-                pass
+                continue
             
             if line.startswith("#"):
-                pass
+                continue
 
             break
 
         row = re.sub(r"\s+"," ",line).split(" ")
 
-        types = [pytype(value) for value in row]
+        types = [str0type(value) for value in row]
 
         return types
 
     def text(self,lasmaster):
 
-        self.headers(lasmaster,program)
-        
-        frame,skiprows,types = self._read_header(lasmaster,program)
+        types = self.headers(lasmaster)
 
-        value_null = float(frame.well['NULL'].value)
+        value_null = float(self.well['NULL'].value)
 
-        floatFlag = all([pytype is float for pytype in types])
+        dtypes = [numpy.dtype(type_) for type_ in types]
 
-        dtypes = [np.dtype(pytype) for pytype in types]
+        floatFlags = [True if type_ is float else False for type_ in types]
 
-        if floatFlag:
-            matrix = numpy.loadtxt(frame.filepath,comments="#",skiprows=skiprows,encoding="latin1")
+        lasmaster.seek(0)
+
+        self.seeksection(lasmaster,section="~A")
+
+        if all(floatFlags):
+            cols = numpy.loadtxt(lasmaster,comments="#",unpack=True,encoding="latin1")
         else:
-            matrix = numpy.loadtxt(frame.filepath,comments="#",skiprows=skiprows,encoding="latin1",dtype='str')
+            cols = numpy.loadtxt(lasmaster,comments="#",unpack=True,encoding="latin1",dtype='str')
 
-        for index,(vals,dtype) in enumerate(zip(matrix.transpose(),dtypes)):
+        iterator = zip(cols,self.curve.mnemonic,self.curve.unit,self.curve.description,dtypes)
+
+        running = []
+
+        for vals,head,unit,info,dtype in iterator:
 
             if dtype.type is numpy.dtype('float').type:
                 vals[vals==value_null] = numpy.nan
+
+            col_ = column(vals,head=head,unit=unit,info=info,dtype=dtype)
+
+            running.append(col_)
+
+        return DataFrame(*running)
+
+    def nangraph(self):
+
+        self.fig_nan,self.axis_nan = plt.subplots()
+
+        las = self.frames[idframe]
+
+        yvals = []
+        zvals = []
+
+        depth = las.columns(0)
+
+        for index,column in enumerate(las.running):
+
+            isnan = np.isnan(column)
+
+            L_shift = np.ones(column.shape,dtype=bool)
+            R_shift = np.ones(column.shape,dtype=bool)
+
+            L_shift[:-1] = isnan[1:]
+            R_shift[1:] = isnan[:-1]
+
+            lower = np.where(np.logical_and(~isnan,R_shift))[0]
+            upper = np.where(np.logical_and(~isnan,L_shift))[0]
+
+            zval = np.concatenate((lower,upper),dtype=int).reshape((2,-1)).T.flatten()
+
+            yval = np.full(zval.size,index,dtype=float)
             
-            head = frame.curve.mnemonics[index]
-            unit = frame.curve.units[index]
-            info = frame.curve.info[index]
+            yval[::2] = np.nan
 
-            frame._setup(column(vals,head=head,unit=unit,info=info))
+            yvals.append(yval)
+            zvals.append(zval)
 
-        return frame
+        qvals = np.unique(np.concatenate(zvals))
+
+        for (yval,zval) in zip(yvals,zvals):
+            self.axis_nan.step(np.where(qvals==zval.reshape((-1,1)))[1],yval)
+
+        self.axis_nan.set_xlim((-1,qvals.size))
+        self.axis_nan.set_ylim((-1,len(las.running)))
+
+        self.axis_nan.set_xticks(np.arange(qvals.size))
+        self.axis_nan.set_xticklabels(depth[qvals],rotation=90)
+
+        self.axis_nan.set_yticks(np.arange(len(las.running)))
+        self.axis_nan.set_yticklabels(las.headers)
+
+        self.axis_nan.grid(True,which="both",axis='x')
+
+        self.fig_nan.tight_layout()
+
+    def histogram(self,idcol,logscale=False):
+
+        self.fig_hist,self.axis_hist = plt.subplots()
+
+        las = self.frames[idframe]
+
+        yaxis = las.running[idcol]
+
+        if logscale:
+            yaxis = np.log10(yaxis[np.nonzero(yaxis)[0]])
+
+        try:
+            unit = las.units[idcol]
+        except IndexError:
+            unit = "not-defined"
+
+        try:
+            descr = las.details[idcol]
+        except IndexError:
+            descr = las.headers[idcol]
+
+        if logscale:
+            xlabel = "log10(nonzero-{}) [{}]".format(descr,unit)
+        else:
+            xlabel = "{} [{}]".format(descr,unit)
+
+        self.axis_hist.hist(yaxis,density=True,bins=30)  # density=False would make counts
+        self.axis_hist.set_ylabel("Probability")
+        self.axis_hist.set_xlabel(xlabel)
+
+    def _resample(self,depthsR,depthsO,dataO):
+
+        lowerend = depthsR<depthsO.min()
+        upperend = depthsR>depthsO.max()
+
+        interior = numpy.logical_and(~lowerend,~upperend)
+
+        depths_interior = depthsR[interior]
+
+        indices_lower = numpy.empty(depths_interior.shape,dtype=int)
+        indices_upper = numpy.empty(depths_interior.shape,dtype=int)
+
+        for index,depth in enumerate(depths_interior):
+
+            diff = depthsO-depth
+
+            indices_lower[index] = numpy.where(diff<0,diff,-numpy.inf).argmax()
+            indices_upper[index] = numpy.where(diff>0,diff,numpy.inf).argmin()
+
+        grads = (depths_interior-depthsO[indices_lower])/(depthsO[indices_upper]-depthsO[indices_lower])
+
+        dataR = numpy.empty(depthsR.shape,dtype=float)
+
+        dataR[lowerend] = numpy.nan
+        dataR[interior] = dataO[indices_lower]+grads*(dataO[indices_upper]-dataO[indices_lower])
+        dataR[upperend] = numpy.nan
+
+        return dataR
+
+    def resample(self,depthsFID=None,depthsR=None,curveID=None):
+
+        """
+
+        depthsFID:  The index of file id from which to take new depthsR
+                    where new curve data will be calculated;
+
+        depthsR:    The numpy array of new depthsR
+                    where new curve data will be calculated;
+        
+        fileID:     The index of file to resample;
+                    If None, all files will be resampled;
+        
+        curveID:    The index of curve in the las file to resample;
+                    If None, all curves in the file will be resampled;
+                    Else if fileID is not None, resampled data will be returned;
+
+        """
+
+        if depthsFID is not None:
+            try:
+                depthsR = self.frames[depthsFID].columns("MD")
+            except ValueError:
+                depthsR = self.frames[depthsFID].columns("DEPT")
+
+        if fileID is None:
+            fileIDs = range(len(self.frames))
+        else:
+            fileIDs = range(fileID,fileID+1)
+
+        for indexI in fileIDs:
+
+            if depthsFID is not None:
+                if indexI==depthsFID:
+                    continue
+
+            las = self.frames[indexI]
+
+            try:
+                depthsO = las.columns("MD")
+            except ValueError:
+                depthsO = las.columns("DEPT")
+
+            lowerend = depthsR<depthsO.min()
+            upperend = depthsR>depthsO.max()
+
+            interior = numpy.logical_and(~lowerend,~upperend)
+
+            depths_interior = depthsR[interior]
+
+            diff = depthsO-depths_interior.reshape((-1,1))
+
+            indices_lower = numpy.where(diff<0,diff,-numpy.inf).argmax(axis=1)
+            indices_upper = numpy.where(diff>0,diff,numpy.inf).argmin(axis=1)
+
+            grads = (depths_interior-depthsO[indices_lower])/(depthsO[indices_upper]-depthsO[indices_lower])
+
+            if curveID is None:
+                running = [depthsR]
+                # self.frames[indexI].set_running(depthsR,cols=0,init=True)
+
+            if curveID is None:
+                curveIDs = range(1,len(las.running))
+            else:
+                curveIDs = range(curveID,curveID+1)
+
+            for indexJ in curveIDs:
+
+                curve = las.columns(indexJ)
+
+                dataR = numpy.empty(depthsR.shape,dtype=float)
+
+                dataR[lowerend] = numpy.nan
+                dataR[interior] = curve[indices_lower]+grads*(curve[indices_upper]-curve[indices_lower])
+                dataR[upperend] = numpy.nan
+
+                if curveID is None:
+                    running.append(dataR)
+
+            heads = self.frames[indexI].headers
+
+            if curveID is None:
+                curveIDs = list(curveIDs)
+                curveIDs.insert(0,0)
+                self.frames[indexI].set_running(*running,cols=curveIDs,init=True)
+                self.frames[indexI].set_headers(*heads,cols=curveIDs,init=False)
+            elif fileID is not None:
+                return dataR
 
 class wellsched(dirmaster):
 
@@ -1341,87 +1564,6 @@ class lasbatch(dirmaster):
                 #     curve.mnemonic,tab_spc,curve.unit,minXval,maxXval,curve.descr))
                 print("Curve: {}{}Units: {}\tMin: {}\tMax: {}\tDescription: {}".format(
                     header,tab_spc,unit,minXval,maxXval,detail))
-
-    def set_nangraph(self,idframe):
-
-        self.fig_nan,self.axis_nan = plt.subplots()
-
-        las = self.frames[idframe]
-
-        yvals = []
-        zvals = []
-
-        depth = las.columns(0)
-
-        for index,column in enumerate(las.running):
-
-            isnan = np.isnan(column)
-
-            L_shift = np.ones(column.shape,dtype=bool)
-            R_shift = np.ones(column.shape,dtype=bool)
-
-            L_shift[:-1] = isnan[1:]
-            R_shift[1:] = isnan[:-1]
-
-            lower = np.where(np.logical_and(~isnan,R_shift))[0]
-            upper = np.where(np.logical_and(~isnan,L_shift))[0]
-
-            zval = np.concatenate((lower,upper),dtype=int).reshape((2,-1)).T.flatten()
-
-            yval = np.full(zval.size,index,dtype=float)
-            
-            yval[::2] = np.nan
-
-            yvals.append(yval)
-            zvals.append(zval)
-
-        qvals = np.unique(np.concatenate(zvals))
-
-        for (yval,zval) in zip(yvals,zvals):
-            self.axis_nan.step(np.where(qvals==zval.reshape((-1,1)))[1],yval)
-
-        self.axis_nan.set_xlim((-1,qvals.size))
-        self.axis_nan.set_ylim((-1,len(las.running)))
-
-        self.axis_nan.set_xticks(np.arange(qvals.size))
-        self.axis_nan.set_xticklabels(depth[qvals],rotation=90)
-
-        self.axis_nan.set_yticks(np.arange(len(las.running)))
-        self.axis_nan.set_yticklabels(las.headers)
-
-        self.axis_nan.grid(True,which="both",axis='x')
-
-        self.fig_nan.tight_layout()
-
-    def set_histogram(self,idframe,idcol,logscale=False):
-
-        self.fig_hist,self.axis_hist = plt.subplots()
-
-        las = self.frames[idframe]
-
-        yaxis = las.running[idcol]
-
-        if logscale:
-            yaxis = np.log10(yaxis[np.nonzero(yaxis)[0]])
-
-        try:
-            unit = las.units[idcol]
-        except IndexError:
-            unit = "not-defined"
-
-        try:
-            descr = las.details[idcol]
-        except IndexError:
-            descr = las.headers[idcol]
-
-        if logscale:
-            xlabel = "log10(nonzero-{}) [{}]".format(descr,unit)
-        else:
-            xlabel = "{} [{}]".format(descr,unit)
-
-        self.axis_hist.hist(yaxis,density=True,bins=30)  # density=False would make counts
-        self.axis_hist.set_ylabel("Probability")
-        self.axis_hist.set_xlabel(xlabel)
             
     def set_interval(self,top,bottom,idframes=None,inplace=False):
 
@@ -1473,124 +1615,6 @@ class lasbatch(dirmaster):
                 returningList.append(las.columns(curveID)[depth_cond])
 
         return returningList
-
-    def get_resampled(self,depthsR,depthsO,dataO):
-
-        lowerend = depthsR<depthsO.min()
-        upperend = depthsR>depthsO.max()
-
-        interior = numpy.logical_and(~lowerend,~upperend)
-
-        depths_interior = depthsR[interior]
-
-        indices_lower = numpy.empty(depths_interior.shape,dtype=int)
-        indices_upper = numpy.empty(depths_interior.shape,dtype=int)
-
-        for index,depth in enumerate(depths_interior):
-
-            diff = depthsO-depth
-
-            indices_lower[index] = numpy.where(diff<0,diff,-numpy.inf).argmax()
-            indices_upper[index] = numpy.where(diff>0,diff,numpy.inf).argmin()
-
-        grads = (depths_interior-depthsO[indices_lower])/(depthsO[indices_upper]-depthsO[indices_lower])
-
-        dataR = numpy.empty(depthsR.shape,dtype=float)
-
-        dataR[lowerend] = numpy.nan
-        dataR[interior] = dataO[indices_lower]+grads*(dataO[indices_upper]-dataO[indices_lower])
-        dataR[upperend] = numpy.nan
-
-        return dataR
-
-    def resample(self,depthsFID=None,depthsR=None,fileID=None,curveID=None):
-
-        """
-
-        depthsFID:  The index of file id from which to take new depthsR
-                    where new curve data will be calculated;
-
-        depthsR:    The numpy array of new depthsR
-                    where new curve data will be calculated;
-        
-        fileID:     The index of file to resample;
-                    If None, all files will be resampled;
-        
-        curveID:    The index of curve in the las file to resample;
-                    If None, all curves in the file will be resampled;
-                    Else if fileID is not None, resampled data will be returned;
-
-        """
-
-        if depthsFID is not None:
-            try:
-                depthsR = self.frames[depthsFID].columns("MD")
-            except ValueError:
-                depthsR = self.frames[depthsFID].columns("DEPT")
-
-        if fileID is None:
-            fileIDs = range(len(self.frames))
-        else:
-            fileIDs = range(fileID,fileID+1)
-
-        for indexI in fileIDs:
-
-            if depthsFID is not None:
-                if indexI==depthsFID:
-                    continue
-
-            las = self.frames[indexI]
-
-            try:
-                depthsO = las.columns("MD")
-            except ValueError:
-                depthsO = las.columns("DEPT")
-
-            lowerend = depthsR<depthsO.min()
-            upperend = depthsR>depthsO.max()
-
-            interior = numpy.logical_and(~lowerend,~upperend)
-
-            depths_interior = depthsR[interior]
-
-            diff = depthsO-depths_interior.reshape((-1,1))
-
-            indices_lower = numpy.where(diff<0,diff,-numpy.inf).argmax(axis=1)
-            indices_upper = numpy.where(diff>0,diff,numpy.inf).argmin(axis=1)
-
-            grads = (depths_interior-depthsO[indices_lower])/(depthsO[indices_upper]-depthsO[indices_lower])
-
-            if curveID is None:
-                running = [depthsR]
-                # self.frames[indexI].set_running(depthsR,cols=0,init=True)
-
-            if curveID is None:
-                curveIDs = range(1,len(las.running))
-            else:
-                curveIDs = range(curveID,curveID+1)
-
-            for indexJ in curveIDs:
-
-                curve = las.columns(indexJ)
-
-                dataR = numpy.empty(depthsR.shape,dtype=float)
-
-                dataR[lowerend] = numpy.nan
-                dataR[interior] = curve[indices_lower]+grads*(curve[indices_upper]-curve[indices_lower])
-                dataR[upperend] = numpy.nan
-
-                if curveID is None:
-                    running.append(dataR)
-
-            heads = self.frames[indexI].headers
-
-            if curveID is None:
-                curveIDs = list(curveIDs)
-                curveIDs.insert(0,0)
-                self.frames[indexI].set_running(*running,cols=curveIDs,init=True)
-                self.frames[indexI].set_headers(*heads,cols=curveIDs,init=False)
-            elif fileID is not None:
-                return dataR
 
     def merge(self,fileIDs,curveNames):
 
