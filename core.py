@@ -897,6 +897,26 @@ class column():
         
         super().__setattr__("vals",arr_)
 
+    """PLOTTING"""
+
+    def histogram(self,axis,logscale=False):
+
+        yaxis = self.vals
+
+        if logscale:
+            yaxis = numpy.log10(yaxis[numpy.nonzero(yaxis)[0]])
+
+        if logscale:
+            xlabel = "log10(nonzero-{}) [{}]".format(self.info,self.unit)
+        else:
+            xlabel = "{} [{}]".format(self.info,self.unit)
+
+        axis.hist(yaxis,density=True,bins=30)  # density=False would make counts
+        axis.set_ylabel("Probability")
+        axis.set_xlabel(xlabel)
+
+        return axis
+
     """GENERAL PROPERTIES"""
 
     @property

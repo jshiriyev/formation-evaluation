@@ -169,7 +169,7 @@ class DataFrame():
         
         dataframe_ = copy.deepcopy(self)
         object.__setattr__(dataframe_,'running',
-            [np.delete(col_,key) for col_ in self.running])
+            [numpy.delete(col_,key) for col_ in self.running])
 
         return dataframe_
         
@@ -832,6 +832,12 @@ class las(dirmaster):
 
     def seeksection(self,lasmaster,section=None):
 
+        lasmaster.seek(0)
+
+        self._seeksection(lasmaster,section)
+
+    def _seeksection(self,lasmaster,section=None):
+
         if section is None:
             section = "~"
 
@@ -851,7 +857,7 @@ class las(dirmaster):
 
         lasmaster.seek(0)
 
-        self.seeksection(lasmaster,section="~V")
+        self._seeksection(lasmaster,section="~V")
 
         while True:
 
@@ -967,14 +973,14 @@ class las(dirmaster):
             line = next(lasmaster).strip()
 
             if line.startswith("~A"):
-                types = self.types(lasmaster)
+                types = self._types(lasmaster)
                 break
 
             if line.startswith("~"):
 
                 sectioncode = line[:2]
                 sectionhead = line[1:].split()[0].lower()
-                sectionbody = self.header(lasmaster,program)
+                sectionbody = self._header(lasmaster,program)
 
                 self.sections.append(sectionhead)
 
@@ -982,11 +988,11 @@ class las(dirmaster):
 
                 lasmaster.seek(0)
 
-                self.seeksection(lasmaster,section=sectioncode)
+                self._seeksection(lasmaster,section=sectioncode)
 
         return types
 
-    def header(self,lasmaster,program):
+    def _header(self,lasmaster,program):
 
         mnemonic,unit,value,description = [],[],[],[]
 
@@ -1031,6 +1037,12 @@ class las(dirmaster):
 
     def types(self,lasmaster):
 
+        lasmaster.seek(0)
+
+        return self._types(lasmaster)
+
+    def _types(self,lasmaster):
+
         while True:
 
             line = next(lasmaster).strip()
@@ -1061,7 +1073,7 @@ class las(dirmaster):
 
         lasmaster.seek(0)
 
-        self.seeksection(lasmaster,section="~A")
+        self._seeksection(lasmaster,section="~A")
 
         if all(floatFlags):
             cols = numpy.loadtxt(lasmaster,comments="#",unpack=True,encoding="latin1")
@@ -1083,88 +1095,68 @@ class las(dirmaster):
 
         return DataFrame(*running)
 
-    def nangraph(self):
-
-        self.fig_nan,self.axis_nan = plt.subplots()
-
-        las = self.frames[idframe]
+    def nanplot(self,axis):
 
         yvals = []
         zvals = []
 
-        depth = las.columns(0)
+        depth = self.frame.running[0].vals
 
-        for index,column in enumerate(las.running):
+        for index,column in enumerate(self.frame.running):
 
-            isnan = np.isnan(column)
+            isnan = numpy.isnan(column.vals)
 
-            L_shift = np.ones(column.shape,dtype=bool)
-            R_shift = np.ones(column.shape,dtype=bool)
+            L_shift = numpy.ones(column.size,dtype=bool)
+            R_shift = numpy.ones(column.size,dtype=bool)
 
             L_shift[:-1] = isnan[1:]
             R_shift[1:] = isnan[:-1]
 
-            lower = np.where(np.logical_and(~isnan,R_shift))[0]
-            upper = np.where(np.logical_and(~isnan,L_shift))[0]
+            lower = numpy.where(numpy.logical_and(~isnan,R_shift))[0]
+            upper = numpy.where(numpy.logical_and(~isnan,L_shift))[0]
 
-            zval = np.concatenate((lower,upper),dtype=int).reshape((2,-1)).T.flatten()
+            zval = numpy.concatenate((lower,upper),dtype=int).reshape((2,-1)).T.flatten()
 
-            yval = np.full(zval.size,index,dtype=float)
+            yval = numpy.full(zval.size,index,dtype=float)
             
-            yval[::2] = np.nan
+            yval[::2] = numpy.nan
 
             yvals.append(yval)
             zvals.append(zval)
 
-        qvals = np.unique(np.concatenate(zvals))
+        qvals = numpy.unique(numpy.concatenate(zvals))
 
         for (yval,zval) in zip(yvals,zvals):
-            self.axis_nan.step(np.where(qvals==zval.reshape((-1,1)))[1],yval)
+            axis.step(numpy.where(qvals==zval.reshape((-1,1)))[1],yval)
 
-        self.axis_nan.set_xlim((-1,qvals.size))
-        self.axis_nan.set_ylim((-1,len(las.running)))
+        axis.set_xlim((-1,qvals.size))
+        axis.set_ylim((-1,self.frame.shape[1]))
 
-        self.axis_nan.set_xticks(np.arange(qvals.size))
-        self.axis_nan.set_xticklabels(depth[qvals],rotation=90)
+        axis.set_xticks(numpy.arange(qvals.size))
+        axis.set_xticklabels(depth[qvals],rotation=90)
 
-        self.axis_nan.set_yticks(np.arange(len(las.running)))
-        self.axis_nan.set_yticklabels(las.headers)
+        axis.set_yticks(numpy.arange(self.frame.shape[1]))
+        axis.set_yticklabels(self.frame.heads)
 
-        self.axis_nan.grid(True,which="both",axis='x')
+        axis.grid(True,which="both",axis='x')
 
-        self.fig_nan.tight_layout()
+        return axis
 
-    def histogram(self,idcol,logscale=False):
+    def depths(self,top,bottom,curve=None):
 
-        self.fig_hist,self.axis_hist = plt.subplots()
+        depth = self.frame.running[0].vals
 
-        las = self.frames[idframe]
+        conds = numpy.logical_and(depth>=top,depth<=bottom)
 
-        yaxis = las.running[idcol]
+        if curve is None:
+            frame = copy.deepcopy(self.frame)
+            return frame[conds]
 
-        if logscale:
-            yaxis = np.log10(yaxis[np.nonzero(yaxis)[0]])
-
-        try:
-            unit = las.units[idcol]
-        except IndexError:
-            unit = "not-defined"
-
-        try:
-            descr = las.details[idcol]
-        except IndexError:
-            descr = las.headers[idcol]
-
-        if logscale:
-            xlabel = "log10(nonzero-{}) [{}]".format(descr,unit)
         else:
-            xlabel = "{} [{}]".format(descr,unit)
+            column_ = copy.deepcopy(self.frame[curve])
+            return column_[conds]
 
-        self.axis_hist.hist(yaxis,density=True,bins=30)  # density=False would make counts
-        self.axis_hist.set_ylabel("Probability")
-        self.axis_hist.set_xlabel(xlabel)
-
-    def _resample(self,depthsR,depthsO,dataO):
+    def _NR_resample(self,depthsR,depthsO,dataO):
 
         lowerend = depthsR<depthsO.min()
         upperend = depthsR>depthsO.max()
@@ -1193,7 +1185,7 @@ class las(dirmaster):
 
         return dataR
 
-    def resample(self,depthsFID=None,depthsR=None,curveID=None):
+    def NR_resample(self,depthsFID=None,depthsR=None,curveID=None):
 
         """
 
@@ -1272,7 +1264,7 @@ class las(dirmaster):
                 if curveID is None:
                     running.append(dataR)
 
-            heads = self.frames[indexI].headers
+            heads = self.frames[indexI].heads
 
             if curveID is None:
                 curveIDs = list(curveIDs)
@@ -1490,13 +1482,16 @@ class lasbatch(dirmaster):
 
     def __init__(self,filepaths=None,**kwargs):
 
-        super().__init__(**kwargs)
+        homedir = None if kwargs.get("homedir") is None else kwargs.pop("homedir")
+        filedir = None if kwargs.get("filedir") is None else kwargs.pop("filedir")
+
+        super().__init__(homedir=homedir,filedir=filedir)
 
         self.frames = []
 
-        self.read(filepaths,**kwargs)
+        self.load(filepaths,**kwargs)
 
-    def loadall(self,filepaths,**kwargs):
+    def load(self,filepaths,**kwargs):
 
         if filepaths is None:
             return
@@ -1506,13 +1501,13 @@ class lasbatch(dirmaster):
 
         for filepath in filepaths:
 
-            frame = self._read(filepath,**kwargs)
+            frame = las(filepath,**kwargs)
 
             self.frames.append(frame)
 
             logging.info(f"Loaded {filepath} as expected.")
 
-    def printwells(self,idframes=None):
+    def wells(self,idframes=None):
 
         if idframes is None:
             idframes = range(len(self.frames))
@@ -1532,7 +1527,7 @@ class lasbatch(dirmaster):
             for mnem,unit,value,descr in iterator:
                 print(f"{descr} ({mnem}):\t\t{value} [{unit}]")
 
-    def printcurves(self,idframes=None,mnemonic_space=33,tab_space=8):
+    def curves(self,idframes=None,mnemonic_space=33,tab_space=8):
 
         if idframes is None:
             idframes = range(len(self.frames))
@@ -1564,57 +1559,6 @@ class lasbatch(dirmaster):
                 #     curve.mnemonic,tab_spc,curve.unit,minXval,maxXval,curve.descr))
                 print("Curve: {}{}Units: {}\tMin: {}\tMax: {}\tDescription: {}".format(
                     header,tab_spc,unit,minXval,maxXval,detail))
-            
-    def set_interval(self,top,bottom,idframes=None,inplace=False):
-
-        if idframes is None:
-            idframes = range(len(self.frames))
-        elif isinstance(idframes,int):
-            idframes = (idframes,)
-
-        self.top = top
-        self.bottom = bottom
-
-        self.gross_thickness = self.bottom-self.top
-
-        for index in idframes:
-
-            depth = self.frames[index].columns(0)
-
-            depth_cond = numpy.logical_and(depth>self.top,depth<self.bottom)
-
-            if inplace:
-                self.frames[index]._running = [column_[depth_cond] for column_ in self.frames[index]._running]
-                self.frames[index].running = [numpy.asarray(column_) for column_ in self.frames[index]._running]
-            else:
-                self.frames[index].running = [numpy.asarray(column_[depth_cond]) for column_ in self.frames[index]._running]
-
-    def get_interval(self,top,bottom,idframes=None,curveID=None):
-
-        returningList = []
-
-        if idframes is None:
-            idframes = range(len(self.frames))
-        elif isinstance(idframes,int):
-            idframes = (idframes,)
-
-        for idfile in idframes:
-
-            las = self.frames[idfile]
-
-            try:
-                depth = las.columns("MD")
-            except ValueError:
-                depth = las.columns("DEPT")
-
-            depth_cond = numpy.logical_and(depth>top,depth<bottom)
-
-            if curveID is None:
-                returningList.append(depth_cond)
-            else:
-                returningList.append(las.columns(curveID)[depth_cond])
-
-        return returningList
 
     def merge(self,fileIDs,curveNames):
 
