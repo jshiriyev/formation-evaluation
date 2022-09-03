@@ -190,11 +190,11 @@ class DataFrame():
 
             if all([type(_key) is str for _key in key]):
 
-                cols_ = [self.running[i] for i in self._index(*key)]
+                running_ = [self.running[i] for i in self._index(*key)]
 
                 dataframe_ = copy.deepcopy(self)
 
-                object.__setattr__(dataframe_,'running',cols_)
+                object.__setattr__(dataframe_,'running',running_)
 
                 return dataframe_
 
@@ -202,11 +202,11 @@ class DataFrame():
                 
                 raise ValueError("Arguments can not contain non-string and string entries together.")
         
-        cols_ = [col_[key] for col_ in self.running]
+        running_ = [col_[key] for col_ in self.running]
 
         dataframe_ = copy.deepcopy(self)
 
-        object.__setattr__(dataframe_,'running',cols_)
+        object.__setattr__(dataframe_,'running',running_)
 
         return dataframe_
 
@@ -280,9 +280,9 @@ class DataFrame():
         if not (isinstance(heads,list) or isinstance(heads,tuple)):
             raise TypeError("heads must be list or tuple.")
 
-        cols_ = self[heads]
+        running_ = self[heads]
 
-        match = numpy.argsort(cols_.tostruct(),axis=0,order=heads)
+        match = numpy.argsort(running_.tostruct(),axis=0,order=heads)
 
         if reverse:
             match = numpy.flip(match)
@@ -1093,7 +1093,26 @@ class las(dirmaster):
 
             running.append(col_)
 
-        return DataFrame(*running)
+        frame = DataFrame(*running)
+
+        if not las._issorted(frame.running[0].vals):
+            frame = frame.sort((frame.running[0].head,))
+
+        return frame
+
+    def issorted(self):
+
+        depths_ = self.frame.running[0].vals
+
+        return las._issorted(depths_)
+
+    @staticmethod
+    def _issorted(depths):
+
+        if numpy.all(depths[:-1]<depths[1:]):
+            return True
+        else:
+            return False
 
     def nanplot(self,axis):
 
@@ -1156,123 +1175,118 @@ class las(dirmaster):
             column_ = copy.deepcopy(self.frame[curve])
             return column_[conds]
 
-    def _NR_resample(self,depthsR,depthsO,dataO):
+    def resample(self,depths,curve=None):
 
-        lowerend = depthsR<depthsO.min()
-        upperend = depthsR>depthsO.max()
+        """
+        depths  :   The depth values where new curve data will be calculated;
+        curve   :   The head of curve to resample; If None, all curves in the file will be resampled;
+
+        """
+
+        depths0 = self.frame.running[0].vals
+
+        if curve is not None:
+            values0 = self.frame[curve].vals
+
+            column_ = copy.deepcopy(self.frame[curve])
+            column_.vals = las._resample(depths,depths0,values0)
+            
+            return column_
+
+        if not las._issorted(depths):
+            raise ValueError("Input depths are not sorted.")
+
+        lowerend = depths<depths0.min()
+        upperend = depths>depths0.max()
 
         interior = numpy.logical_and(~lowerend,~upperend)
 
-        depths_interior = depthsR[interior]
+        inner = depths[interior]
 
-        indices_lower = numpy.empty(depths_interior.shape,dtype=int)
-        indices_upper = numpy.empty(depths_interior.shape,dtype=int)
+        lower = numpy.empty(inner.shape,dtype=int)
+        upper = numpy.empty(inner.shape,dtype=int)
 
-        for index,depth in enumerate(depths_interior):
+        for index,depth in enumerate(inner):
 
-            diff = depthsO-depth
+            diff = depths0-depth
 
-            indices_lower[index] = numpy.where(diff<0,diff,-numpy.inf).argmax()
-            indices_upper[index] = numpy.where(diff>0,diff,numpy.inf).argmin()
+            lower[index] = numpy.where(diff<0,diff,-numpy.inf).argmax()
+            upper[index] = numpy.where(diff>0,diff,+numpy.inf).argmin()
 
-        grads = (depths_interior-depthsO[indices_lower])/(depthsO[indices_upper]-depthsO[indices_lower])
+        delta_depths = inner-depths0[lower]
 
-        dataR = numpy.empty(depthsR.shape,dtype=float)
+        delta_depths0 = depths0[upper]-depths0[lower]
 
-        dataR[lowerend] = numpy.nan
-        dataR[interior] = dataO[indices_lower]+grads*(dataO[indices_upper]-dataO[indices_lower])
-        dataR[upperend] = numpy.nan
+        grads = delta_depths/delta_depths0
 
-        return dataR
+        frame = copy.deepcopy(self.frame)
 
-    def NR_resample(self,depthsFID=None,depthsR=None,curveID=None):
+        for index,column_ in enumerate(self.frame.running):
+
+            if index==0:
+                frame[column_.head].vals = depths
+                continue
+
+            delta_vals = column_.vals[upper]-column_.vals[lower]
+
+            frame[column_.head].vals = numpy.empty(depths.shape,dtype=float)
+
+            frame[column_.head].vals[lowerend] = numpy.nan
+            frame[column_.head].vals[interior] = column_.vals[lower]+grads*(delta_vals)
+            frame[column_.head].vals[upperend] = numpy.nan
+
+        return frame
+
+    @staticmethod
+    def _resample(depths,depths0,values0):
+
+        """
+        depths  :   The depths where new curve values will be calculated;
+        depths0 :   The depths where the values are available;
+        values0 :   The values to be resampled;
 
         """
 
-        depthsFID:  The index of file id from which to take new depthsR
-                    where new curve data will be calculated;
+        if not las._issorted(depths):
+            raise ValueError("Input depths are not sorted.")
 
-        depthsR:    The numpy array of new depthsR
-                    where new curve data will be calculated;
-        
-        fileID:     The index of file to resample;
-                    If None, all files will be resampled;
-        
-        curveID:    The index of curve in the las file to resample;
-                    If None, all curves in the file will be resampled;
-                    Else if fileID is not None, resampled data will be returned;
+        if not numpy.all(depths0[:-1]<depths0[1:]):
+            indices = numpy.argsort(depths0)
 
-        """
+            depths0 = depths0[indices]
+            values0 = values0[indices]
 
-        if depthsFID is not None:
-            try:
-                depthsR = self.frames[depthsFID].columns("MD")
-            except ValueError:
-                depthsR = self.frames[depthsFID].columns("DEPT")
+        lowerend = depths<depths0.min()
+        upperend = depths>depths0.max()
 
-        if fileID is None:
-            fileIDs = range(len(self.frames))
-        else:
-            fileIDs = range(fileID,fileID+1)
+        interior = numpy.logical_and(~lowerend,~upperend)
 
-        for indexI in fileIDs:
+        inner = depths[interior]
 
-            if depthsFID is not None:
-                if indexI==depthsFID:
-                    continue
+        lower = numpy.empty(inner.shape,dtype=int)
+        upper = numpy.empty(inner.shape,dtype=int)
 
-            las = self.frames[indexI]
+        for index,depth in enumerate(inner):
 
-            try:
-                depthsO = las.columns("MD")
-            except ValueError:
-                depthsO = las.columns("DEPT")
+            diff = depths0-depth
 
-            lowerend = depthsR<depthsO.min()
-            upperend = depthsR>depthsO.max()
+            lower[index] = numpy.where(diff<0,diff,-numpy.inf).argmax()
+            upper[index] = numpy.where(diff>0,diff,+numpy.inf).argmin()
 
-            interior = numpy.logical_and(~lowerend,~upperend)
+        delta_depths = inner-depths0[lower]
 
-            depths_interior = depthsR[interior]
+        delta_depths0 = depths0[upper]-depths0[lower]
+        delta_values0 = values0[upper]-values0[lower]
 
-            diff = depthsO-depths_interior.reshape((-1,1))
+        grads = delta_depths/delta_depths0
 
-            indices_lower = numpy.where(diff<0,diff,-numpy.inf).argmax(axis=1)
-            indices_upper = numpy.where(diff>0,diff,numpy.inf).argmin(axis=1)
+        values = numpy.empty(depths.shape,dtype=float)
 
-            grads = (depths_interior-depthsO[indices_lower])/(depthsO[indices_upper]-depthsO[indices_lower])
+        values[lowerend] = numpy.nan
+        values[interior] = values0[lower]+grads*(delta_values0)
+        values[upperend] = numpy.nan
 
-            if curveID is None:
-                running = [depthsR]
-                # self.frames[indexI].set_running(depthsR,cols=0,init=True)
-
-            if curveID is None:
-                curveIDs = range(1,len(las.running))
-            else:
-                curveIDs = range(curveID,curveID+1)
-
-            for indexJ in curveIDs:
-
-                curve = las.columns(indexJ)
-
-                dataR = numpy.empty(depthsR.shape,dtype=float)
-
-                dataR[lowerend] = numpy.nan
-                dataR[interior] = curve[indices_lower]+grads*(curve[indices_upper]-curve[indices_lower])
-                dataR[upperend] = numpy.nan
-
-                if curveID is None:
-                    running.append(dataR)
-
-            heads = self.frames[indexI].heads
-
-            if curveID is None:
-                curveIDs = list(curveIDs)
-                curveIDs.insert(0,0)
-                self.frames[indexI].set_running(*running,cols=curveIDs,init=True)
-                self.frames[indexI].set_headers(*heads,cols=curveIDs,init=False)
-            elif fileID is not None:
-                return dataR
+        return values
 
 class wellsched(dirmaster):
 

@@ -1388,16 +1388,18 @@ class DepthView():
 
         # axis.xaxis.get_majorticklines()[0].set_markersize(100)
 
-    def set_lines(self,idaxis,idline,xvals,yvals):
+    def set_lines(self,idaxis,idline,xcol,ycol):
 
         axis = self.axes[idaxis][idline+1]
 
-        axis.plot(xvals,yvals,color=self.colors[idline])
+        axis.plot(xcol.vals,ycol.vals,color=self.colors[idline])
 
         axis.LineExistFlag = True
 
-        yticks = self.get_yticks(yvals)
-        xticks = self.get_xticks(xvals)
+        yticks = self.get_yticks(ycol.vals)
+        xticks = self.get_xticks(xcol.vals)
+
+        axis.set_xlabel(xcol.head)
 
         # figheight_temp = (yticks.max()-yticks.min())/128
 
