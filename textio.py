@@ -1175,10 +1175,11 @@ class las(dirmaster):
             column_ = copy.deepcopy(self.frame[curve])
             return column_[conds]
 
-    def resample(self,depths,curve=None):
+    def resample(self,depths1,curve=None):
+        """Resamples the frame data based on given depths1."""
 
         """
-        depths  :   The depth values where new curve data will be calculated;
+        depths1 :   The depth values where new curve data will be calculated;
         curve   :   The head of curve to resample; If None, all curves in the file will be resampled;
 
         """
@@ -1189,102 +1190,111 @@ class las(dirmaster):
             values0 = self.frame[curve].vals
 
             column_ = copy.deepcopy(self.frame[curve])
-            column_.vals = las._resample(depths,depths0,values0)
+            column_.vals = las._resample(depths1,depths0,values0)
             
             return column_
 
-        if not las._issorted(depths):
+        if not las._issorted(depths1):
             raise ValueError("Input depths are not sorted.")
 
-        lowerend = depths<depths0.min()
-        upperend = depths>depths0.max()
+        outers_above = depths1<depths0.min()
+        outers_below = depths1>depths0.max()
 
-        interior = numpy.logical_and(~lowerend,~upperend)
+        inners = numpy.logical_and(~outers_above,~outers_below)
 
-        inner = depths[interior]
+        depths1_inners_ = depths1[inners]
 
-        lower = numpy.empty(inner.shape,dtype=int)
-        upper = numpy.empty(inner.shape,dtype=int)
+        lowers = numpy.empty(depths1_inners_.shape,dtype=int)
+        uppers = numpy.empty(depths1_inners_.shape,dtype=int)
 
-        for index,depth in enumerate(inner):
+        lower = 0
+        upper = 0
 
-            diff = depths0-depth
+        for index,depth in enumerate(depths1_inners_):
 
-            lower[index] = numpy.where(diff<0,diff,-numpy.inf).argmax()
-            upper[index] = numpy.where(diff>0,diff,+numpy.inf).argmin()
+            while depth>depths0[lower]:
+                lower += 1
 
-        delta_depths = inner-depths0[lower]
+            while depth>depths0[upper]:
+                upper += 1
 
-        delta_depths0 = depths0[upper]-depths0[lower]
+            lowers[index] = lower-1
+            uppers[index] = upper
 
-        grads = delta_depths/delta_depths0
+        delta_depths1 = depths1_inners_-depths0[lowers]
+        delta_depths0 = depths0[uppers]-depths0[lowers]
+
+        grads = delta_depths1/delta_depths0
 
         frame = copy.deepcopy(self.frame)
 
         for index,column_ in enumerate(self.frame.running):
 
             if index==0:
-                frame[column_.head].vals = depths
+                frame[column_.head].vals = depths1
                 continue
 
-            delta_vals = column_.vals[upper]-column_.vals[lower]
+            delta_values = column_.vals[uppers]-column_.vals[lowers]
 
-            frame[column_.head].vals = numpy.empty(depths.shape,dtype=float)
+            frame[column_.head].vals = numpy.empty(depths1.shape,dtype=float)
 
-            frame[column_.head].vals[lowerend] = numpy.nan
-            frame[column_.head].vals[interior] = column_.vals[lower]+grads*(delta_vals)
-            frame[column_.head].vals[upperend] = numpy.nan
+            frame[column_.head].vals[outers_above] = numpy.nan
+            frame[column_.head].vals[inners] = column_.vals[lowers]+grads*(delta_values)
+            frame[column_.head].vals[outers_below] = numpy.nan
 
         return frame
 
     @staticmethod
-    def _resample(depths,depths0,values0):
+    def _resample(depths1,depths0,values0):
 
         """
-        depths  :   The depths where new curve values will be calculated;
+        depths1 :   The depths where new curve values will be calculated;
         depths0 :   The depths where the values are available;
         values0 :   The values to be resampled;
 
         """
 
-        if not las._issorted(depths):
+        if not las._issorted(depths1):
             raise ValueError("Input depths are not sorted.")
 
-        if not numpy.all(depths0[:-1]<depths0[1:]):
-            indices = numpy.argsort(depths0)
+        outers_above = depths1<depths0.min()
+        outers_below = depths1>depths0.max()
 
-            depths0 = depths0[indices]
-            values0 = values0[indices]
+        inners = numpy.logical_and(~outers_above,~outers_below)
 
-        lowerend = depths<depths0.min()
-        upperend = depths>depths0.max()
+        depths1_inners_ = depths1[inners]
 
-        interior = numpy.logical_and(~lowerend,~upperend)
+        lowers = numpy.empty(depths1_inners_.shape,dtype=int)
+        uppers = numpy.empty(depths1_inners_.shape,dtype=int)
 
-        inner = depths[interior]
+        lower,upper = 0,0
 
-        lower = numpy.empty(inner.shape,dtype=int)
-        upper = numpy.empty(inner.shape,dtype=int)
+        for index,depth in enumerate(depths1_inners_):
 
-        for index,depth in enumerate(inner):
+            while depth>depths0[lower]:
+                lower += 1
 
-            diff = depths0-depth
+            while depth>depths0[upper]:
+                upper += 1
 
-            lower[index] = numpy.where(diff<0,diff,-numpy.inf).argmax()
-            upper[index] = numpy.where(diff>0,diff,+numpy.inf).argmin()
+            lowers[index] = lower-1
+            uppers[index] = upper
 
-        delta_depths = inner-depths0[lower]
+            # diff = depths0-depth
+            # lowers[index] = numpy.where(diff<0,diff,-numpy.inf).argmax()
+            # uppers[index] = numpy.where(diff>0,diff,+numpy.inf).argmin()
 
-        delta_depths0 = depths0[upper]-depths0[lower]
-        delta_values0 = values0[upper]-values0[lower]
+        delta_depths1 = depths1_inners_-depths0[lowers]
+        delta_depths0 = depths0[uppers]-depths0[lowers]
+        delta_values0 = values0[uppers]-values0[lowers]
 
-        grads = delta_depths/delta_depths0
+        grads = delta_depths1/delta_depths0
 
-        values = numpy.empty(depths.shape,dtype=float)
+        values = numpy.empty(depths1.shape,dtype=float)
 
-        values[lowerend] = numpy.nan
-        values[interior] = values0[lower]+grads*(delta_values0)
-        values[upperend] = numpy.nan
+        values[outers_above] = numpy.nan
+        values[inners] = values0[lowers]+grads*(delta_values0)
+        values[outers_below] = numpy.nan
 
         return values
 
