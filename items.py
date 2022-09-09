@@ -16,19 +16,15 @@ if __name__ == "__main__":
     import setup
 
 from textio import DataFrame
-from textio import RegText
-from textio import LogASCII
-from textio import Excel
-from textio import IrrText
-from textio import WSchedule
-from textio import VTKit
+from textio import lasbatch
+from textio import xlbatch
 
-from graphics import TimeView
-from graphics import LogView
-from graphics import PerfView
-from graphics import View3D
-from graphics import TableView
-from graphics import TreeView
+from dataview import TimeView
+from dataview import PetroView
+from dataview import DepthView
+from dataview import View3D
+from dataview import TableView
+from dataview import TreeView
 
 from geometries import Line 
 from geometries import Rectangle 
@@ -45,13 +41,11 @@ def getdata(data=None):
     elif data=="frame":
         dbase = DataFrame
     elif data=="excel":
-        dbase = Excel
-    elif data=="vtkit":
-        dbase = VTKit
+        dbase = xlbatch
     elif data=="history":
         dbase = History
     elif data=="logascii":
-        dbase = LogASCII
+        dbase = lasbatch
     elif data=="nptext":
         dbase = NpText
 

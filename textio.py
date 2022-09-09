@@ -1698,7 +1698,7 @@ class xlbatch(dirmaster):
 
         self.frames = []
 
-        self.read(filepaths,sheetnames,**kwargs)
+        self.loadall(filepaths,sheetnames,**kwargs)
 
     def loadall(self,filepaths,sheetnames=None,**kwargs):
         """It add frames from the excel worksheet provided with filepaths and sheetnames."""
@@ -1751,7 +1751,7 @@ class xlbatch(dirmaster):
         else:
             raise TypeError(f"Expected sheet is either none, int or str, but the input type is {type(sheet[1])}.")
 
-        frame.sheetname = sheetname
+        # frame.sheetname = sheetname
 
         rows = book[sheetname].iter_rows(
             min_row=min_row,max_row=max_row,
@@ -1779,6 +1779,8 @@ class xlbatch(dirmaster):
 
     def merge(self,cols=None,idframes=None,infosearch=False):
         """It merges all the frames as a single DataFrame under the Excel class."""
+
+        frame_merged = DataFrame()
 
         if cols is None:
             pass
@@ -1822,7 +1824,9 @@ class xlbatch(dirmaster):
                     else:
                         raise TypeError(f"cols type should be str, not {type(index)}")
 
-            self._append(*cols_)
+            frame_merged._append(*cols_)
+
+        return frame_merged
 
     def write(self,filepath,title):
 
