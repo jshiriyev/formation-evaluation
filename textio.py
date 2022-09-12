@@ -11,341 +11,142 @@ import re
 
 import numpy
 import openpyxl
-import pint
-import lasio
 
 if __name__ == "__main__":
     import setup
 
 from core import column
+from core import DataFrame
 from core import any2column
 from core import key2column
 
 from cypy.vectorpy import str0type
 
-# Main Data Frame
+# A File Front Information
 
-class DataFrame():
-    """It stores equal-size one-dimensional numpy arrays in a list."""
+class header():
+    """It is a table of parameters, columns are fields."""
 
-    """INITIALIZATION"""
+    def __init__(self,oneLineHeader=False,**kwargs):
+        """parameters should be predefined, all entries must be string."""
 
-    def __init__(self,*args,**kwargs):
-        """Initializes DataFrame with headers & running and parent class DirBase."""
+        if len(kwargs)==0:
+            raise ValueError("At least one field is required.")
 
-        super().__setattr__("running",[])
+        super().__setattr__("parameters",[param for param in kwargs.keys()])
 
-        self._setup(*args)
+        if oneLineHeader:
+            fields = [str(field) for field in kwargs.values()]
 
-        for key,vals in kwargs.items():
-            self.__setitem__(key,vals)
-
-    def _setup(self,*args):
-
-        for arg in args:
-
-            if type(arg) is not column:
-                raise TypeError(f"Argument/s need/s to be column type only!")
-
-            if self.shape[1]!=0 and self.shape[0]!=arg.size:
-                raise ValueError(f"Attached column size is not the same as of dataframe.")
-
-            if arg.head in self.heads:
-                self.running[self._index(arg.head)[0]] = arg
-            else:
-                self.running.append(arg)
-
-    def _append(self,*args):
-
-        if len(args)==0:
-            return
-        elif len(set([len(arg) for arg in args]))!=1:
-            raise ValueError("columns have variable lenghts.")
-
-        if self.shape[1]==0:
-            self._setup(*args)
-        elif self.shape[1]!=len(args):
-            raise ValueError("Number of columns does not match columns in dataframe.")
         else:
-            [col_.append(arg_) for col_,arg_ in zip(self.running,args)]
 
-    """REPRESENTATION"""
+            fields = []
 
-    def __str__(self):
-        """It prints to the console limited number of rows with headers."""
+            for field in kwargs.values():
 
-        print_limit = 20
+                if isinstance(field,list) or isinstance(field,tuple):
+                    field = [str(data) for data in field]
+                else:
+                    field = [str(field)]
 
-        print_limit = int(print_limit)
+                fields.append(field)
 
-        upper = int(numpy.ceil(print_limit/2))
-        lower = int(numpy.floor(print_limit/2))
+            sizes = [len(field) for field in fields]
 
-        if self.shape[0]>print_limit:
-            rows = list(range(upper))
-            rows.extend(list(range(-lower,0,1)))
-        else:
-            rows = list(range(self.shape[0]))
+            if len(set(sizes))!=1:
+                raise ValueError("The lengths of field are not equal!")
 
-        frame_ = self[rows]
+        for parameter,field in zip(kwargs.keys(),fields):
+            super().__setattr__(parameter,field)
 
-        headcount = [len(head) for head in frame_.heads]
-        bodycount = [col_.maxchar() for col_ in frame_.running]
-        charcount = [max(hc,bc) for (hc,bc) in zip(headcount,bodycount)]
+    def extend(self,row):
 
-        # print(headcount,bodycount,charcount)
+        if len(self.parameters)!=len(row):
+            raise ValueError("The lengths of 'fields' and 'row' are not equal!")
 
-        fstring = " ".join(["{{:>{}s}}".format(cc) for cc in charcount])
-        fstring = "{}\n".format(fstring)
+        if isinstance(row,list) or isinstance(row,tuple):
+            toextend = header(**dict(zip(self.parameters,row)))
+        elif isinstance(row,dict):
+            toextend = header(**row)
+        elif isinstance(row,header):
+            toextend = row
 
-        heads_str = fstring.format(*frame_.heads)
-        lines_str = fstring.format(*["-"*count for count in charcount])
-        large_str = fstring.format(*[".." for _ in charcount])
-
-        vprint = numpy.vectorize(lambda *args: fstring.format(*args))
-
-        bodycols = vprint(*[col_.tostring() for col_ in frame_.running]).tolist()
-
-        if self.shape[0]>print_limit:
-            [bodycols.insert(upper,large_str) for _ in range(3)]
-
-        string = ""
-        string += heads_str
-        string += lines_str
-        string += "".join(bodycols)
-
-        return string
-
-    """ATTRIBUTE ACCESS"""
+        for parameter,field in toextend.items():
+            getattr(self,parameter).extend(field)
 
     def __setattr__(self,key,vals):
 
-        if isinstance(vals,header):
-            super().__setattr__(key,vals)
-        else:
-            raise AttributeError(f"'DataFrame' object has no attribute '{key}'.")
-
-    """CONTAINER METHODS"""
-
-    def pop(self,key):
-
-        return self.running.pop(self._index(key)[0])
-
-    def _index(self,*args):
-
-        if len(args)==0:
-            raise TypeError(f"Index expected at least 1 argument, got 0")
-
-        if any([type(key) is not str for key in args]):
-            raise TypeError(f"argument/s must be string!")
-
-        if any([key not in self.heads for key in args]):
-            raise ValueError(f"The dataframe does not have key specified in {args}.")
-
-        return tuple([self.heads.index(key) for key in args])
-
-    def __setitem__(self,key,vals):
-
-        if not isinstance(key,str):
-            raise TypeError(f"The key can be str, not type={type(key)}.")
-
-        col_ = column(vals,head=key)
-
-        self._setup(col_)
-
-    def __delitem__(self,key):
-
-        if isinstance(key,str):
-            self.pop(key)
-            return
-
-        if isinstance(key,list) or isinstance(key,tuple):
-
-            if all([type(_key) is str for _key in key]):
-                [self.pop(_key) for _key in key]
-                return
-            elif any([type(_key) is str for _key in key]):
-                raise ValueError("Arguments can not contain non-string and string entries together.")
-        
-        dataframe_ = copy.deepcopy(self)
-        object.__setattr__(dataframe_,'running',
-            [numpy.delete(col_,key) for col_ in self.running])
-
-        return dataframe_
-        
-    def __iter__(self):
-
-        return iter([row for row in zip(*self.running)])
-
-    def __len__(self):
-
-        return self.shape[0]
+        raise AttributeError(f"'Header' object has no attribute '{key}'.")
 
     def __getitem__(self,key):
 
-        if isinstance(key,str):
-            return self.running[self._index(key)[0]]
+        if not isinstance(key,str):
+            raise TypeError("key must be string!")
 
-        if isinstance(key,list) or isinstance(key,tuple):
-
-            if all([type(_key) is str for _key in key]):
-
-                running_ = [self.running[i] for i in self._index(*key)]
-
-                dataframe_ = copy.deepcopy(self)
-
-                object.__setattr__(dataframe_,'running',running_)
-
-                return dataframe_
-
-            elif any([type(_key) is str for _key in key]):
-                
-                raise ValueError("Arguments can not contain non-string and string entries together.")
+        for row in self:
+            if row[0].lower()==key.lower():
+                break
         
-        running_ = [col_[key] for col_ in self.running]
+        return header(oneLineHeader=True,**dict(zip(self.parameters,row)))
 
-        dataframe_ = copy.deepcopy(self)
+    def __repr__(self):
 
-        object.__setattr__(dataframe_,'running',running_)
+        if len(self)==1:
+            return repr(tuple(self.fields))
 
-        return dataframe_
+        fstring = ""
+        
+        underline = []
 
-    """CONVERSION METHODS"""
+        for parameter,field in zip(self.parameters,self.fields):
 
-    def str2col(self,key=None,delimiter=None,maxsplit=None):
-        """Breaks the column into new columns by splitting based on delimiter and maxsplit."""
+            field_ = list(field)
+            field_.append(parameter)
 
-        idcol_ = self._index(key)[0]
+            count_ = max([len(value) for value in field_])
 
-        col_ = self.pop(key)
-
-        if maxsplit is None:
-            maxsplit = numpy.char.count(col_,delimiter).max()
-
-        heads = ["{}_{}".format(col_.head,index) for index in range(maxsplit+1)]
-
-        running = []
-
-        for index,string in enumerate(col_.vals):
-
-            row = string.split(delimiter,maxsplit=maxsplit)
-
-            if maxsplit+1>len(row):
-                [row.append(col_.nones.str) for _ in range(maxsplit+1-len(row))]
-
-            running.append(row)
-
-        running = numpy.array(running,dtype=str).T
-
-        for index,(vals,head) in enumerate(zip(running,heads),start=idcol_):
-            col_new = col_[:]
-            col_new.vals = vals
-            col_new.head = head
-            self.running.insert(index,col_new)
-
-    def col2str(self,heads=None,headnew=None,fstring=None):
-
-        if heads is None:
-            heads = self.heads
-
-        arr_ = [self[head].vals for head in heads]
-
-        if fstring is None:
-            fstring = ("{} "*len(arr_))[:-1]
-
-        vprint = numpy.vectorize(lambda *args: fstring.format(*args))
-
-        arrnew = vprint(*arr_)
-
-        if headnew is None:
-            fstring = ("{}_"*len(arr_))[:-1]
-            headnew = fstring.format(*heads)
-
-        return column(arrnew,head=headnew)
-
-    def tostruct(self):
-        """Returns numpy structure of dataframe."""
-
-        dtype_str_ = [col_.vals.dtype.str for col_ in self.running]
-
-        dtypes_ = [dtype_ for dtype_ in zip(self.heads,dtype_str_)]
-
-        return numpy.array([row for row in self],dtypes_)
-
-    """ADVANCED METHODS"""
+            fstring += f"{{:<{count_}}}   "
             
-    def sort(self,heads,reverse=False,return_indices=False):
-        """Returns sorted dataframe."""
+            underline.append("-"*count_)
 
-        if not (isinstance(heads,list) or isinstance(heads,tuple)):
-            raise TypeError("heads must be list or tuple.")
+        fstring += "\n"
 
-        running_ = self[heads]
+        text = fstring.format(*[parm.capitalize() for parm in self.parameters])
+        
+        text += fstring.format(*underline)
+        
+        for row in self:
+            text += fstring.format(*row)
 
-        match = numpy.argsort(running_.tostruct(),axis=0,order=heads)
+        return text
 
-        if reverse:
-            match = numpy.flip(match)
+    def __iter__(self):
 
-        if return_indices:
-            return match
+        return iter([row for row in zip(*self.fields)])
+
+    def __len__(self):
+
+        if isinstance(self.fields[0],str):
+            return 1
         else:
-            dataframe_ = copy.deepcopy(self)
-            running_ = [col_[match] for col_ in self.running]
-            object.__setattr__(dataframe_,'running',running_)
-            return dataframe_
+            return len(self.fields[0])
 
-    def flip(self):
+    def items(self):
 
-        dataframe_ = copy.deepcopy(self)
+        return iter([(p,f) for p,f in zip(self.parameters,self.fields)])
 
-        running_ = [col_.flip() for col_ in self.running]
+    @property
+    def fields(self):
 
-        object.__setattr__(dataframe_,'running',running_)
+        return [getattr(self,parm) for parm in self.parameters]
 
-    def filter(self,key,keywords=None,regex=None,return_indices=False):
-        """Returns filtered dataframe based on keywords or regex."""
+# A File Creating Classes
 
-        col_ = self[key]
+class regtxt():
 
-        match = col_.filter(keywords,regex,return_indices=True)
+    def __init__(self,frame):
 
-        if return_indices:
-            return match
-        else:
-            dataframe_ = copy.deepcopy(self)
-            object.__setattr__(dataframe_,'running',
-                [col_[match] for col_ in self.running])
-            return dataframe_
-
-    def unique(self,heads):
-        """Returns dataframe with unique entries of column/s.
-        The number of columns will be equal to the length of heads."""
-
-        if not (isinstance(heads,list) or isinstance(heads,tuple)):
-            raise TypeError("heads must be list or tuple.")
-
-        df = self[heads]
-
-        npstruct = df.tostruct()
-
-        npstruct = numpy.unique(npstruct,axis=0)
-
-        dataframe_ = copy.deepcopy(self)
-
-        object.__setattr__(dataframe_,'running',[])
-
-        for head in heads:
-
-            col_ = copy.deepcopy(self[head])
-
-            col_.vals = npstruct[head]
-
-            dataframe_.running.append(col_)
-
-        return dataframe_
-
-    """CONTEXT MANAGERS"""
+        self.frame = frame
 
     def write(self,filepath,fstring=None,**kwargs):
         """It writes text form of DataFrame."""
@@ -405,40 +206,189 @@ class DataFrame():
         for key in B.keys():
             print(key)
 
-    """PROPERTY METHODS"""
+class ulas():
 
-    @property
-    def shape(self):
+    def __init__(self,frame):
 
-        if len(self.running)>0:
-            return (max([len(col_) for col_ in self.running]),len(self.running))
-        else:
-            return (0,0)
+        self.frame = frame
 
-    @property
-    def dtypes(self):
+    def _version(self):
 
-        return [col_.vals.dtype for col_ in self.running]
+        pass
 
-    @property
-    def types(self):
+    def _well(self):
 
-        return [col_.vals.dtype.type for col_ in self.running]
+        pass
 
-    @property
-    def heads(self):
+    def _parameter(self):
 
-        return [col_.head for col_ in self.running]
+        pass
 
-    @property
-    def units(self):
+    def _data(self):
 
-        return [col_.unit for col_ in self.running]
+        pass
 
-    @property
-    def infos(self):
+    def write(self,filepath,mnemonics,data,units=None,descriptions=None,values=None):
 
-        return [col_.info for col_ in self.running]
+        import lasio
+
+        """
+        filepath:       It will write a lasio.LASFile to the given filepath
+
+        kwargs:         These are mnemonics, data, units, descriptions, values
+        """
+
+        lasmaster = lasio.LASFile()
+
+        lasmaster.well.DATE = datetime.datetime.today().strftime('%Y-%m-%d %H:%M:%S')
+
+        depthExistFlag = False
+
+        for mnemonic in mnemonics:
+            if mnemonic=="MD" or mnemonic=="DEPT" or mnemonic=="DEPTH":
+                depthExistFlag = True
+                break
+
+        if not depthExistFlag:
+            curve = lasio.CurveItem(
+                mnemonic="DEPT",
+                unit="",
+                value="",
+                descr="Depth index",
+                data=numpy.arange(data[0].size))
+            lasmaster.append_curve_item(curve)            
+
+        for index,(mnemonic,datum) in enumerate(zip(mnemonics,data)):
+
+            if units is not None:
+                unit = units[index]
+            else:
+                unit = ""
+
+            if descriptions is not None:
+                description = descriptions[index]
+            else:
+                description = ""
+
+            if values is not None:
+                value = values[index]
+            else:
+                value = ""
+
+            curve = lasio.CurveItem(mnemonic=mnemonic,data=datum,unit=unit,descr=description,value=value)
+
+            lasmaster.append_curve_item(curve)
+
+        with open(filepath, mode='w') as filePathToWrite:
+            lasmaster.write(filePathToWrite)
+
+class wellsched():
+
+    def __init__(self,frame):
+
+        self.frame = frame
+
+    def write(self):
+
+        path = os.path.join(self.workdir,self.schedule_filename)
+
+        with open(path,"w",encoding='utf-8') as wfile:
+
+            welspec = schedule.running[1]=="WELSPECS"
+            compdat = schedule.running[1]=="COMPDATMD"
+            compord = schedule.running[1]=="COMPORD"
+            prodhst = schedule.running[1]=="WCONHIST"
+            injdhst = schedule.running[1]=="WCONINJH"
+            wefffac = schedule.running[1]=="WEFAC"
+            welopen = schedule.running[1]=="WELOPEN"
+
+            for date in numpy.unique(schedule.running[0]):
+
+                currentdate = schedule.running[0]==date
+
+                currentcont = schedule.running[1][currentdate]
+
+                wfile.write("\n\n")
+                wfile.write("DATES\n")
+                wfile.write(self.schedule_dates.format(date.strftime("%d %b %Y").upper()))
+                wfile.write("\n")
+                wfile.write("/\n\n")
+
+                if any(currentcont=="WELSPECS"):
+                    indices = numpy.logical_and(currentdate,welspec)
+                    wfile.write("WELSPECS\n")
+                    for detail in schedule.running[2][indices]:
+                        wfile.write(detail)
+                        wfile.write("\n")
+                    wfile.write("/\n\n")
+
+                if any(currentcont=="COMPDATMD"):
+                    indices = numpy.logical_and(currentdate,compdat)
+                    wfile.write("COMPDATMD\n")
+                    for detail in schedule.running[2][indices]:
+                        wfile.write(detail)
+                        wfile.write("\n")
+                    wfile.write("/\n\n")
+
+                if any(currentcont=="COMPORD"):
+                    indices = numpy.logical_and(currentdate,compord)
+                    wfile.write("COMPORD\n")
+                    for detail in schedule.running[2][indices]:
+                        wfile.write(detail)
+                        wfile.write("\n")
+                    wfile.write("/\n\n")
+
+                if any(currentcont=="WCONHIST"):
+                    indices = numpy.logical_and(currentdate,prodhst)
+                    wfile.write("WCONHIST\n")
+                    for detail in schedule.running[2][indices]:
+                        wfile.write(detail)
+                        wfile.write("\n")
+                    wfile.write("/\n\n")
+
+                if any(currentcont=="WCONINJH"):
+                    indices = numpy.logical_and(currentdate,injdhst)
+                    wfile.write("WCONINJH\n")
+                    for detail in schedule.running[2][indices]:
+                        wfile.write(detail)
+                        wfile.write("\n")
+                    wfile.write("/\n\n")
+
+                if any(currentcont=="WEFAC"):
+                    indices = numpy.logical_and(currentdate,wefffac)
+                    wfile.write("WEFAC\n")
+                    for detail in schedule.running[2][indices]:
+                        wfile.write(detail)
+                        wfile.write("\n")
+                    wfile.write("/\n\n")
+
+                if any(currentcont=="WELOPEN"):
+                    indices = numpy.logical_and(currentdate,welopen)
+                    wfile.write("WELOPEN\n")
+                    for detail in schedule.running[2][indices]:
+                        wfile.write(detail)
+                        wfile.write("\n")
+                    wfile.write("/\n\n")
+
+class xlbook():
+
+    def __init__(self,frame):
+
+        self.frame = frame
+
+    def write(self,filepath,title):
+
+        wb = openpyxl.Workbook()
+
+        sheet = wb.active
+
+        if title is not None:
+            sheet.title = title
+
+        for line in running:
+            sheet.append(line)
+
+        wb.save(filepath)
 
 # Directory Management
 
@@ -588,127 +538,25 @@ class dirmaster():
     def extension(self):
         return os.path.splitext(self.filepath)[1]
 
-# A File Front Information
+# A File Input Function & Assistsing Classes
 
-class header():
-    """It is a table of parameters, columns are fields."""
+def loadtxt(filepath,**kwargs):
 
-    def __init__(self,oneLineHeader=False,**kwargs):
-        """parameters should be predefined, all entries must be string."""
+    return _loadtxt(filepath,**kwargs)
 
-        if len(kwargs)==0:
-            raise ValueError("At least one field is required.")
+def loadlas(filepath,**kwargs):
 
-        super().__setattr__("parameters",[param for param in kwargs.keys()])
+    return _loadlas(filepath,**kwargs)
 
-        if oneLineHeader:
-            fields = [str(field) for field in kwargs.values()]
+def loadsched(filepath,**kwargs):
 
-        else:
+    return _loadsched(filepath,**kwargs)
 
-            fields = []
+def loadxlbook(filepath,**kwargs):
 
-            for field in kwargs.values():
+    return _loadxlbook(filepath,**kwargs)
 
-                if isinstance(field,list) or isinstance(field,tuple):
-                    field = [str(data) for data in field]
-                else:
-                    field = [str(field)]
-
-                fields.append(field)
-
-            sizes = [len(field) for field in fields]
-
-            if len(set(sizes))!=1:
-                raise ValueError("The lengths of field are not equal!")
-
-        for parameter,field in zip(kwargs.keys(),fields):
-            super().__setattr__(parameter,field)
-
-    def extend(self,row):
-
-        if len(self.parameters)!=len(row):
-            raise ValueError("The lengths of 'fields' and 'row' are not equal!")
-
-        if isinstance(row,list) or isinstance(row,tuple):
-            toextend = header(**dict(zip(self.parameters,row)))
-        elif isinstance(row,dict):
-            toextend = header(**row)
-        elif isinstance(row,header):
-            toextend = row
-
-        for parameter,field in toextend.items():
-            getattr(self,parameter).extend(field)
-
-    def __setattr__(self,key,vals):
-
-        raise AttributeError(f"'Header' object has no attribute '{key}'.")
-
-    def __getitem__(self,key):
-
-        if not isinstance(key,str):
-            raise TypeError("key must be string!")
-
-        for row in self:
-            if row[0].lower()==key.lower():
-                break
-        
-        return header(oneLineHeader=True,**dict(zip(self.parameters,row)))
-
-    def __repr__(self):
-
-        if len(self)==1:
-            return repr(tuple(self.fields))
-
-        fstring = ""
-        
-        underline = []
-
-        for parameter,field in zip(self.parameters,self.fields):
-
-            field_ = list(field)
-            field_.append(parameter)
-
-            count_ = max([len(value) for value in field_])
-
-            fstring += f"{{:<{count_}}}   "
-            
-            underline.append("-"*count_)
-
-        fstring += "\n"
-
-        text = fstring.format(*[parm.capitalize() for parm in self.parameters])
-        
-        text += fstring.format(*underline)
-        
-        for row in self:
-            text += fstring.format(*row)
-
-        return text
-
-    def __iter__(self):
-
-        return iter([row for row in zip(*self.fields)])
-
-    def __len__(self):
-
-        if isinstance(self.fields[0],str):
-            return 1
-        else:
-            return len(self.fields[0])
-
-    def items(self):
-
-        return iter([(p,f) for p,f in zip(self.parameters,self.fields)])
-
-    @property
-    def fields(self):
-
-        return [getattr(self,parm) for parm in self.parameters]
-
-# A File Input/Output Classes
-
-class load(dirmaster):
+class _loadtxt(dirmaster):
 
     def __init__(self,filepath,homedir=None,filedir=None,headline=None,comments="#",delimiter=None,skiprows=0):
 
@@ -719,7 +567,7 @@ class load(dirmaster):
 
         super().__init__(homedir,filedir)
         
-        with load.textopen(filepath) as filemaster:
+        with loadtxt.textopen(filepath) as filemaster:
             frame = self.text(filemaster)
 
         self.frame = frame
@@ -817,7 +665,7 @@ class load(dirmaster):
             finally:
                 filemaster.close()
 
-class las(dirmaster):
+class _loadlas(dirmaster):
 
     def __init__(self,filepath,homedir=None,filedir=None,**kwargs):
 
@@ -1089,13 +937,13 @@ class las(dirmaster):
             if dtype.type is numpy.dtype('float').type:
                 vals[vals==value_null] = numpy.nan
 
-            col_ = column(vals,head=head,unit=unit,info=info,dtype=dtype)
+            column_ = column(vals,head=head,unit=unit,info=info,dtype=dtype)
 
-            running.append(col_)
+            running.append(column_)
 
         frame = DataFrame(*running)
 
-        if not las._issorted(frame.running[0].vals):
+        if not ulas._issorted(frame.running[0].vals):
             frame = frame.sort((frame.running[0].head,))
 
         return frame
@@ -1104,7 +952,7 @@ class las(dirmaster):
 
         depths_ = self.frame.running[0].vals
 
-        return las._issorted(depths_)
+        return ulas._issorted(depths_)
 
     @staticmethod
     def _issorted(depths):
@@ -1121,12 +969,12 @@ class las(dirmaster):
 
         depth = self.frame.running[0].vals
 
-        for index,column in enumerate(self.frame.running):
+        for index,column_ in enumerate(self.frame.running):
 
-            isnan = numpy.isnan(column.vals)
+            isnan = numpy.isnan(column_.vals)
 
-            L_shift = numpy.ones(column.size,dtype=bool)
-            R_shift = numpy.ones(column.size,dtype=bool)
+            L_shift = numpy.ones(column_.size,dtype=bool)
+            R_shift = numpy.ones(column_.size,dtype=bool)
 
             L_shift[:-1] = isnan[1:]
             R_shift[1:] = isnan[:-1]
@@ -1190,11 +1038,11 @@ class las(dirmaster):
             values0 = self.frame[curve].vals
 
             column_ = copy.deepcopy(self.frame[curve])
-            column_.vals = las._resample(depths1,depths0,values0)
+            column_.vals = ulas._resample(depths1,depths0,values0)
             
             return column_
 
-        if not las._issorted(depths1):
+        if not ulas._issorted(depths1):
             raise ValueError("Input depths are not sorted.")
 
         outers_above = depths1<depths0.min()
@@ -1254,7 +1102,7 @@ class las(dirmaster):
 
         """
 
-        if not las._issorted(depths1):
+        if not ulas._issorted(depths1):
             raise ValueError("Input depths are not sorted.")
 
         outers_above = depths1<depths0.min()
@@ -1298,7 +1146,7 @@ class las(dirmaster):
 
         return values
 
-class wellsched(dirmaster):
+class _loadsched(dirmaster):
 
     def __init__(self,filepath):
 
@@ -1406,99 +1254,73 @@ class wellsched(dirmaster):
         wefac      = " '{}'\t{} / "#.format(wellname,efficiency)
         welopen    = " '{}'\tSHUT\t3* / "#.format(wellname)
 
-    def write(self):
+class _loadxlbook(dirmaster):
 
-        path = os.path.join(self.workdir,self.schedule_filename)
+    def __init__(self,filepath,homedir=None,filedir=None,**kwargs):
 
-        with open(path,"w",encoding='utf-8') as wfile:
+        with xlbatch.xlopen(filepath) as book:
 
-            welspec = schedule.running[1]=="WELSPECS"
-            compdat = schedule.running[1]=="COMPDATMD"
-            compord = schedule.running[1]=="COMPORD"
-            prodhst = schedule.running[1]=="WCONHIST"
-            injdhst = schedule.running[1]=="WCONINJH"
-            wefffac = schedule.running[1]=="WEFAC"
-            welopen = schedule.running[1]=="WELOPEN"
+            for sheet in sheets:
 
-            for date in numpy.unique(schedule.running[0]):
+                print("Loading {} {}".format(filepath,sheet))
 
-                currentdate = schedule.running[0]==date
+                frame = self.load(book,sheet,**kwargs)
 
-                currentcont = schedule.running[1][currentdate]
+                self.frames.append(frame)
 
-                wfile.write("\n\n")
-                wfile.write("DATES\n")
-                wfile.write(self.schedule_dates.format(date.strftime("%d %b %Y").upper()))
-                wfile.write("\n")
-                wfile.write("/\n\n")
+    def load(self,book,sheet,sheetsearch=False,min_row=1,min_col=1,max_row=None,max_col=None,hrows=0):
+        """It reads provided excel worksheet and returns it as a DataFrame."""
 
-                if any(currentcont=="WELSPECS"):
-                    indices = numpy.logical_and(currentdate,welspec)
-                    wfile.write("WELSPECS\n")
-                    for detail in schedule.running[2][indices]:
-                        wfile.write(detail)
-                        wfile.write("\n")
-                    wfile.write("/\n\n")
+        frame = DataFrame()
 
-                if any(currentcont=="COMPDATMD"):
-                    indices = numpy.logical_and(currentdate,compdat)
-                    wfile.write("COMPDATMD\n")
-                    for detail in schedule.running[2][indices]:
-                        wfile.write(detail)
-                        wfile.write("\n")
-                    wfile.write("/\n\n")
+        if sheet is None:
+            sheetname = book.sheetnames[0]
+        elif isinstance(sheet,int):
+            sheetname = book.sheetnames[sheet]
+        elif isinstance(sheet,str) and sheetsearch:
+            srcscores = [SequenceMatcher(None,page,sheet).ratio() for page in book.sheetnames]
+            sheetname = book.sheetnames[srcscores.index(max(srcscores))]
+        elif isinstance(sheet,str):
+            if sheet in book.sheetnames:
+                sheetname = sheet
+            else:
+                raise ValueError(f"'{sheet}' could not be found in the xlbook, try sheetsearch=True.")
+        else:
+            raise TypeError(f"Expected sheet is either none, int or str, but the input type is {type(sheet[1])}.")
 
-                if any(currentcont=="COMPORD"):
-                    indices = numpy.logical_and(currentdate,compord)
-                    wfile.write("COMPORD\n")
-                    for detail in schedule.running[2][indices]:
-                        wfile.write(detail)
-                        wfile.write("\n")
-                    wfile.write("/\n\n")
+        # frame.sheetname = sheetname
 
-                if any(currentcont=="WCONHIST"):
-                    indices = numpy.logical_and(currentdate,prodhst)
-                    wfile.write("WCONHIST\n")
-                    for detail in schedule.running[2][indices]:
-                        wfile.write(detail)
-                        wfile.write("\n")
-                    wfile.write("/\n\n")
+        rows = book[sheetname].iter_rows(
+            min_row=min_row,max_row=max_row,
+            min_col=min_col,max_col=max_col,
+            values_only=True)
 
-                if any(currentcont=="WCONINJH"):
-                    indices = numpy.logical_and(currentdate,injdhst)
-                    wfile.write("WCONINJH\n")
-                    for detail in schedule.running[2][indices]:
-                        wfile.write(detail)
-                        wfile.write("\n")
-                    wfile.write("/\n\n")
+        cols = []
+    
+        for index,row in enumerate(rows):
+            if index==0:
+                [cols.append([]) for _ in row]
+            if any(row):
+                [col.append(cell) for cell,col in zip(row,cols)]
 
-                if any(currentcont=="WEFAC"):
-                    indices = numpy.logical_and(currentdate,wefffac)
-                    wfile.write("WEFAC\n")
-                    for detail in schedule.running[2][indices]:
-                        wfile.write(detail)
-                        wfile.write("\n")
-                    wfile.write("/\n\n")
+        heads_ = key2column(size=(len(cols)+min_col-1),dtype='str')
+        heads_ = heads_.vals[min_col-1:]
 
-                if any(currentcont=="WELOPEN"):
-                    indices = numpy.logical_and(currentdate,welopen)
-                    wfile.write("WELOPEN\n")
-                    for detail in schedule.running[2][indices]:
-                        wfile.write(detail)
-                        wfile.write("\n")
-                    wfile.write("/\n\n")
+        for index,col in enumerate(cols):
+            if any(col):
+                info = " ".join([str(cell) for cell in col[:hrows] if cell is not None])
+                column_ = column(col[hrows:],head=heads_[index],info=info)
+                frame._setup(column_)
 
-class xlsheet(dirmaster):
+        return frame
 
-    def __init__(self):
-
-        pass
-
-class loadb(dirmaster):
-
-    def __init__(self):
-
-        pass
+    @contextlib.contextmanager
+    def xlopen(filepath):
+        xlbook = openpyxl.load_workbook(filepath,read_only=True,data_only=True)
+        try:
+            yield xlbook
+        finally:
+            xlbook._archive.close()
 
 # Collective Data Input/Output Classes
 
@@ -1525,7 +1347,7 @@ class lasbatch(dirmaster):
 
         for filepath in filepaths:
 
-            frame = las(filepath,**kwargs)
+            frame = loadlas(filepath,**kwargs)
 
             self.frames.append(frame)
 
@@ -1630,66 +1452,6 @@ class lasbatch(dirmaster):
 
             return depth,xvals
 
-    def write(self,filepath,mnemonics,data,idfile=None,units=None,descriptions=None,values=None):
-
-        """
-        filepath:       It will write a lasio.LASFile to the given filepath
-        idfile:         The file index which to write to the given filepath
-                        If idfile is None, new lasio.LASFile will be created
-
-        kwargs:         These are mnemonics, data, units, descriptions, values
-        """
-
-        if idfile is not None:
-
-            lasmaster = self.frames[idfile]
-
-        else:
-
-            lasmaster = lasio.LASFile()
-
-            lasmaster.well.DATE = datetime.datetime.today().strftime('%Y-%m-%d %H:%M:%S')
-
-            depthExistFlag = False
-
-            for mnemonic in mnemonics:
-                if mnemonic=="MD" or mnemonic=="DEPT" or mnemonic=="DEPTH":
-                    depthExistFlag = True
-                    break
-
-            if not depthExistFlag:
-                curve = lasio.CurveItem(
-                    mnemonic="DEPT",
-                    unit="",
-                    value="",
-                    descr="Depth index",
-                    data=numpy.arange(data[0].size))
-                lasmaster.append_curve_item(curve)            
-
-        for index,(mnemonic,datum) in enumerate(zip(mnemonics,data)):
-
-            if units is not None:
-                unit = units[index]
-            else:
-                unit = ""
-
-            if descriptions is not None:
-                description = descriptions[index]
-            else:
-                description = ""
-
-            if values is not None:
-                value = values[index]
-            else:
-                value = ""
-
-            curve = lasio.CurveItem(mnemonic=mnemonic,data=datum,unit=unit,descr=description,value=value)
-
-            lasmaster.append_curve_item(curve)
-
-        with open(filepath, mode='w') as filePathToWrite:
-            lasmaster.write(filePathToWrite)
-
 class xlbatch(dirmaster):
 
     def __init__(self,filepaths=None,sheetnames=None,**kwargs):
@@ -1700,7 +1462,7 @@ class xlbatch(dirmaster):
 
         self.loadall(filepaths,sheetnames,**kwargs)
 
-    def loadall(self,filepaths,sheetnames=None,**kwargs):
+    def load(self,filepaths,sheetnames=None,**kwargs):
         """It add frames from the excel worksheet provided with filepaths and sheetnames."""
 
         if filepaths is None:
@@ -1721,61 +1483,11 @@ class xlbatch(dirmaster):
 
             filepath = self.get_abspath(filepath)
 
-            with xlbatch.xlopen(filepath) as book:
+            frame = loadxlbook(filepath,**kwargs)
 
-                for sheet in sheets:
+            self.frames.append(frame)
 
-                    print("Loading {} {}".format(filepath,sheet))
-
-                    frame = self.load(book,sheet,**kwargs)
-
-                    self.frames.append(frame)
-
-    def load(self,book,sheet,sheetsearch=False,min_row=1,min_col=1,max_row=None,max_col=None,hrows=0):
-        """It reads provided excel worksheet and returns it as a DataFrame."""
-
-        frame = DataFrame()
-
-        if sheet is None:
-            sheetname = book.sheetnames[0]
-        elif isinstance(sheet,int):
-            sheetname = book.sheetnames[sheet]
-        elif isinstance(sheet,str) and sheetsearch:
-            srcscores = [SequenceMatcher(None,page,sheet).ratio() for page in book.sheetnames]
-            sheetname = book.sheetnames[srcscores.index(max(srcscores))]
-        elif isinstance(sheet,str):
-            if sheet in book.sheetnames:
-                sheetname = sheet
-            else:
-                raise ValueError(f"'{sheet}' could not be found in the xlbook, try sheetsearch=True.")
-        else:
-            raise TypeError(f"Expected sheet is either none, int or str, but the input type is {type(sheet[1])}.")
-
-        # frame.sheetname = sheetname
-
-        rows = book[sheetname].iter_rows(
-            min_row=min_row,max_row=max_row,
-            min_col=min_col,max_col=max_col,
-            values_only=True)
-
-        cols = []
-    
-        for index,row in enumerate(rows):
-            if index==0:
-                [cols.append([]) for _ in row]
-            if any(row):
-                [col.append(cell) for cell,col in zip(row,cols)]
-
-        heads_ = key2column(size=(len(cols)+min_col-1),dtype='str')
-        heads_ = heads_.vals[min_col-1:]
-
-        for index,col in enumerate(cols):
-            if any(col):
-                info = " ".join([str(cell) for cell in col[:hrows] if cell is not None])
-                col_ = column(col[hrows:],head=heads_[index],info=info)
-                frame._setup(col_)
-
-        return frame
+            logging.info(f"Loaded {filepath} as expected.")
 
     def merge(self,cols=None,idframes=None,infosearch=False):
         """It merges all the frames as a single DataFrame under the Excel class."""
@@ -1827,28 +1539,6 @@ class xlbatch(dirmaster):
             frame_merged._append(*cols_)
 
         return frame_merged
-
-    def write(self,filepath,title):
-
-        wb = openpyxl.Workbook()
-
-        sheet = wb.active
-
-        if title is not None:
-            sheet.title = title
-
-        for line in running:
-            sheet.append(line)
-
-        wb.save(filepath)
-
-    @contextlib.contextmanager
-    def xlopen(filepath):
-        xlbook = openpyxl.load_workbook(filepath,read_only=True,data_only=True)
-        try:
-            yield xlbook
-        finally:
-            xlbook._archive.close()
 
 if __name__ == "__main__":
 
