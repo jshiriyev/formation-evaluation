@@ -1117,12 +1117,12 @@ class column():
 
         return day_arr
 
-class DataFrame():
+class frame():
     """It stores equal-size one-dimensional numpy arrays in a list."""
 
     """INITIALIZATION"""
     def __init__(self,*args,**kwargs):
-        """Initializes DataFrame with headers & running and parent class DirBase."""
+        """Initializes frame with headers & running and parent class DirBase."""
 
         super().__setattr__("running",[])
 
@@ -1209,7 +1209,7 @@ class DataFrame():
 
     def __setattr__(self,key,vals):
 
-        raise AttributeError(f"'DataFrame' object has no attribute '{key}'.")
+        raise AttributeError(f"'frame' object has no attribute '{key}'.")
 
     """CONTAINER METHODS"""
 

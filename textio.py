@@ -16,7 +16,8 @@ if __name__ == "__main__":
     import setup
 
 from core import column
-from core import DataFrame
+from core import frame
+
 from core import any2column
 from core import key2column
 
@@ -142,14 +143,14 @@ class header():
 
 # A File Creating Classes
 
-class regtxt():
+class dataso(frame):
 
-    def __init__(self,frame):
+    def __init__(self,*args,**kwargs):
 
-        self.frame = frame
+        super().__init__(*args,**kwargs)
 
     def write(self,filepath,fstring=None,**kwargs):
-        """It writes text form of DataFrame."""
+        """It writes text form of frame."""
 
         header_fstring = ("{}\t"*len(self._headers))[:-1]+"\n"
 
@@ -166,7 +167,7 @@ class regtxt():
                 wfile.write(line)
 
     def writeb(self,filename):
-        """It writes binary form of DataFrame."""
+        """It writes binary form of frame."""
 
         filepath = self.get_abspath(f"{filename}.npz",homeFlag=True)
 
@@ -206,11 +207,11 @@ class regtxt():
         for key in B.keys():
             print(key)
 
-class ulas():
+class ulas(frame):
 
-    def __init__(self,frame):
+    def __init__(self,*args,**kwargs):
 
-        self.frame = frame
+        super().__init__(*args,**kwargs)
 
     def _version(self):
 
@@ -282,11 +283,11 @@ class ulas():
         with open(filepath, mode='w') as filePathToWrite:
             lasmaster.write(filePathToWrite)
 
-class wellsched():
+class wellsched(frame):
 
-    def __init__(self,frame):
+    def __init__(self,*args,**kwargs):
 
-        self.frame = frame
+        super().__init__(*args,**kwargs)
 
     def write(self):
 
@@ -370,11 +371,11 @@ class wellsched():
                         wfile.write("\n")
                     wfile.write("/\n\n")
 
-class xlbook():
+class xlsheet(frame):
 
-    def __init__(self,frame):
+    def __init__(self,*args,**kwargs):
 
-        self.frame = frame
+        super().__init__(*args,**kwargs)
 
     def write(self,filepath,title):
 
@@ -540,23 +541,11 @@ class dirmaster():
 
 # A File Input Function & Assistsing Classes
 
-def loadtxt(filepath,**kwargs):
+def load(filepath,**kwargs):
 
-    return _loadtxt(filepath,**kwargs)
+    return function(filepath,**kwargs)
 
-def loadlas(filepath,**kwargs):
-
-    return _loadlas(filepath,**kwargs)
-
-def loadsched(filepath,**kwargs):
-
-    return _loadsched(filepath,**kwargs)
-
-def loadxlbook(filepath,**kwargs):
-
-    return _loadxlbook(filepath,**kwargs)
-
-class _loadtxt(dirmaster):
+class loadtxt(dirmaster):
 
     def __init__(self,filepath,homedir=None,filedir=None,headline=None,comments="#",delimiter=None,skiprows=0):
 
@@ -568,9 +557,9 @@ class _loadtxt(dirmaster):
         super().__init__(homedir,filedir)
         
         with loadtxt.textopen(filepath) as filemaster:
-            frame = self.text(filemaster)
+            frame_ = self.text(filemaster)
 
-        self.frame = frame
+        self.frame = frame_
 
     def seekrow(self,filemaster,row):
 
@@ -650,7 +639,7 @@ class _loadtxt(dirmaster):
 
         running = [column(col,head=head,dtype=dtype) for col,head,dtype in zip(cols,heads,dtypes)]
 
-        return DataFrame(*running)
+        return frame(*running)
 
     @contextlib.contextmanager
     def textopen(filepath):
@@ -665,7 +654,7 @@ class _loadtxt(dirmaster):
             finally:
                 filemaster.close()
 
-class _loadlas(dirmaster):
+class loadlas(dirmaster):
 
     def __init__(self,filepath,homedir=None,filedir=None,**kwargs):
 
@@ -674,9 +663,9 @@ class _loadlas(dirmaster):
         self.sections = []
 
         with open(self.filepath,"r",encoding="latin1") as lasmaster:
-            frame = self.text(lasmaster)
+            frame_ = self.text(lasmaster)
 
-        self.frame = frame
+        self.frame = frame_
 
     def seeksection(self,lasmaster,section=None):
 
@@ -941,12 +930,12 @@ class _loadlas(dirmaster):
 
             running.append(column_)
 
-        frame = DataFrame(*running)
+        frame_ = frame(*running)
 
-        if not ulas._issorted(frame.running[0].vals):
-            frame = frame.sort((frame.running[0].head,))
+        if not ulas._issorted(frame_.running[0].vals):
+            frame_ = frame_.sort((frame_.running[0].head,))
 
-        return frame
+        return frame_
 
     def issorted(self):
 
@@ -1016,8 +1005,8 @@ class _loadlas(dirmaster):
         conds = numpy.logical_and(depth>=top,depth<=bottom)
 
         if curve is None:
-            frame = copy.deepcopy(self.frame)
-            return frame[conds]
+            frame_ = copy.deepcopy(self.frame)
+            return frame_[conds]
 
         else:
             column_ = copy.deepcopy(self.frame[curve])
@@ -1074,23 +1063,23 @@ class _loadlas(dirmaster):
 
         grads = delta_depths1/delta_depths0
 
-        frame = copy.deepcopy(self.frame)
+        frame_ = copy.deepcopy(self.frame)
 
         for index,column_ in enumerate(self.frame.running):
 
             if index==0:
-                frame[column_.head].vals = depths1
+                frame_[column_.head].vals = depths1
                 continue
 
             delta_values = column_.vals[uppers]-column_.vals[lowers]
 
-            frame[column_.head].vals = numpy.empty(depths1.shape,dtype=float)
+            frame_[column_.head].vals = numpy.empty(depths1.shape,dtype=float)
 
-            frame[column_.head].vals[outers_above] = numpy.nan
-            frame[column_.head].vals[inners] = column_.vals[lowers]+grads*(delta_values)
-            frame[column_.head].vals[outers_below] = numpy.nan
+            frame_[column_.head].vals[outers_above] = numpy.nan
+            frame_[column_.head].vals[inners] = column_.vals[lowers]+grads*(delta_values)
+            frame_[column_.head].vals[outers_below] = numpy.nan
 
-        return frame
+        return frame_
 
     @staticmethod
     def _resample(depths1,depths0,values0):
@@ -1146,7 +1135,7 @@ class _loadlas(dirmaster):
 
         return values
 
-class _loadsched(dirmaster):
+class loadsched(dirmaster):
 
     def __init__(self,filepath):
 
@@ -1254,7 +1243,7 @@ class _loadsched(dirmaster):
         wefac      = " '{}'\t{} / "#.format(wellname,efficiency)
         welopen    = " '{}'\tSHUT\t3* / "#.format(wellname)
 
-class _loadxlbook(dirmaster):
+class loadxlbook(dirmaster):
 
     def __init__(self,filepath,homedir=None,filedir=None,**kwargs):
 
@@ -1264,14 +1253,14 @@ class _loadxlbook(dirmaster):
 
                 print("Loading {} {}".format(filepath,sheet))
 
-                frame = self.load(book,sheet,**kwargs)
+                frame_ = self.load(book,sheet,**kwargs)
 
-                self.frames.append(frame)
+                self.frames.append(frame_)
 
     def load(self,book,sheet,sheetsearch=False,min_row=1,min_col=1,max_row=None,max_col=None,hrows=0):
-        """It reads provided excel worksheet and returns it as a DataFrame."""
+        """It reads provided excel worksheet and returns it as a frame."""
 
-        frame = DataFrame()
+        frame_ = frame()
 
         if sheet is None:
             sheetname = book.sheetnames[0]
@@ -1310,9 +1299,9 @@ class _loadxlbook(dirmaster):
             if any(col):
                 info = " ".join([str(cell) for cell in col[:hrows] if cell is not None])
                 column_ = column(col[hrows:],head=heads_[index],info=info)
-                frame._setup(column_)
+                frame_._setup(column_)
 
-        return frame
+        return frame_
 
     @contextlib.contextmanager
     def xlopen(filepath):
@@ -1347,9 +1336,9 @@ class lasbatch(dirmaster):
 
         for filepath in filepaths:
 
-            frame = loadlas(filepath,**kwargs)
+            frame_ = loadlas(filepath,**kwargs)
 
-            self.frames.append(frame)
+            self.frames.append(frame_)
 
             logging.info(f"Loaded {filepath} as expected.")
 
@@ -1362,13 +1351,13 @@ class lasbatch(dirmaster):
 
         for index in idframes:
 
-            frame = self.frames[index]
+            frame_ = self.frames[index]
 
-            print("\n\tWELL #{}".format(frame.well.get_row(mnemonic="WELL")["value"]))
+            print("\n\tWELL #{}".format(frame_.well.get_row(mnemonic="WELL")["value"]))
 
-            # iterator = zip(frame.well["mnemonic"],frame.well["units"],frame.well["value"],frame.well.descriptions)
+            # iterator = zip(frame_.well["mnemonic"],frame_.well["units"],frame_.well["value"],frame_.well.descriptions)
 
-            iterator = zip(*frame.well.get_columns())
+            iterator = zip(*frame_.well.get_columns())
 
             for mnem,unit,value,descr in iterator:
                 print(f"{descr} ({mnem}):\t\t{value} [{unit}]")
@@ -1382,9 +1371,9 @@ class lasbatch(dirmaster):
 
         for index in idframes:
 
-            frame = self.frames[index]
+            frame_ = self.frames[index]
 
-            iterator = zip(frame.headers,frame.units,frame.details,frame.running)
+            iterator = zip(frame_.headers,frame_.units,frame_.details,frame_.running)
 
             # file.write("\n\tLOG NUMBER {}\n".format(idframes))
             print("\n\tLOG NUMBER {}".format(index))
@@ -1483,16 +1472,16 @@ class xlbatch(dirmaster):
 
             filepath = self.get_abspath(filepath)
 
-            frame = loadxlbook(filepath,**kwargs)
+            frame_ = loadxlbook(filepath,**kwargs)
 
-            self.frames.append(frame)
+            self.frames.append(frame_)
 
             logging.info(f"Loaded {filepath} as expected.")
 
     def merge(self,cols=None,idframes=None,infosearch=False):
-        """It merges all the frames as a single DataFrame under the Excel class."""
+        """It merges all the frames as a single frame under the Excel class."""
 
-        frame_merged = DataFrame()
+        frame_merged = frame()
 
         if cols is None:
             pass
@@ -1517,14 +1506,14 @@ class xlbatch(dirmaster):
             frame = self.frames[idframe]
 
             if cols is None:
-                cols_ = [col_ for col_ in frame.running]
+                cols_ = [col_ for col_ in frame_.running]
             elif not infosearch:
                 cols_ = []
                 for index in tuple(cols):
                     if type(index) is int:
-                        cols_.append(frame.running[index])
+                        cols_.append(frame_.running[index])
                     elif type(index) is str:
-                        cols_.append(frame[index])
+                        cols_.append(frame_[index])
                     else:
                         raise TypeError(f"cols type should be either int or str, not {type(index)}")
             else:
@@ -1532,7 +1521,7 @@ class xlbatch(dirmaster):
                 for index in tuple(cols):
                     if type(index) is str:
                         scores = [SequenceMatcher(None,info,index).ratio() for info in frame.infos]
-                        cols_.append(frame.running[scores.index(max(scores))])
+                        cols_.append(frame_.running[scores.index(max(scores))])
                     else:
                         raise TypeError(f"cols type should be str, not {type(index)}")
 

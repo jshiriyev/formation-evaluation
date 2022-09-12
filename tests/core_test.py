@@ -12,7 +12,7 @@ if __name__ == "__main__":
 
 from core import nones
 from core import column
-from core import DataFrame
+from core import frame
 
 from core import any2column
 from core import key2column
@@ -558,33 +558,33 @@ class TestColumn(unittest.TestCase):
 
         # self.assertEqual(col_.year,None)
 
-class TestDataFrame(unittest.TestCase):
+class Testframe(unittest.TestCase):
 
     def test_init(self):
 
-        df = DataFrame()
-        self.assertEqual(len(df.heads),0,"Initialization of DataFrame Headers has failed!")
-        self.assertEqual(len(df.running),0,"Initialization of DataFrame Headers has failed!")
+        df = frame()
+        self.assertEqual(len(df.heads),0,"Initialization of frame Headers has failed!")
+        self.assertEqual(len(df.running),0,"Initialization of frame Headers has failed!")
 
-        df = DataFrame(col1=[],col2=[])
-        self.assertEqual(len(df.heads),2,"Initialization of DataFrame Headers has failed!")
-        self.assertEqual(len(df.running),2,"Initialization of DataFrame Headers has failed!")
+        df = frame(col1=[],col2=[])
+        self.assertEqual(len(df.heads),2,"Initialization of frame Headers has failed!")
+        self.assertEqual(len(df.running),2,"Initialization of frame Headers has failed!")
 
-        df = DataFrame()
+        df = frame()
 
         df["col1"] = []
         df["col2"] = []
         df["col3"] = []
 
-        self.assertEqual(len(df.heads),3,"Initialization of DataFrame Headers has failed!")
-        self.assertEqual(len(df.running),3,"Initialization of DataFrame Headers has failed!")
+        self.assertEqual(len(df.heads),3,"Initialization of frame Headers has failed!")
+        self.assertEqual(len(df.running),3,"Initialization of frame Headers has failed!")
 
         a = numpy.array([1,2,3.])
         b = numpy.array([4,5,6.])
 
-        df = DataFrame(col0=a,col1=b)
+        df = frame(col0=a,col1=b)
 
-        self.assertCountEqual(df.heads,["col0","col1"],"Initialization of DataFrame Running has failed!")
+        self.assertCountEqual(df.heads,["col0","col1"],"Initialization of frame Running has failed!")
 
         df["col0"] = b
         df["col1"] = a
@@ -600,7 +600,7 @@ class TestDataFrame(unittest.TestCase):
         d = numpy.array(["1.","","5.7","6",""])
         e = c.astype("datetime64")
 
-        df = DataFrame(a=a,b=b,c=c,d=d,e=e)
+        df = frame(a=a,b=b,c=c,d=d,e=e)
 
         for dtype in ("int","str","float"):
             df['a'] = df['a'].astype(dtype)
@@ -634,11 +634,11 @@ class TestDataFrame(unittest.TestCase):
         a = numpy.random.randint(0,100,20)
         b = numpy.random.randint(0,100,20)
 
-        df = DataFrame(a=a,b=b)
+        df = frame(a=a,b=b)
 
     def test_add_attrs(self):
 
-        df = DataFrame(col0=[],col1=[])
+        df = frame(col0=[],col1=[])
 
         with self.assertRaises(AttributeError):
             df.name = "main_data"
@@ -651,7 +651,7 @@ class TestDataFrame(unittest.TestCase):
 
     def test_container_methods(self):
 
-        df = DataFrame()
+        df = frame()
 
         a = numpy.random.randint(0,100,10)
         b = numpy.random.randint(0,100,10)
@@ -665,7 +665,7 @@ class TestDataFrame(unittest.TestCase):
 
         full_names = numpy.array(["elthon\tsmith","bill\tgates\tjohn"])
 
-        df = DataFrame(head=full_names)
+        df = frame(head=full_names)
         # print('\n')
         # print(df)
 
@@ -684,7 +684,7 @@ class TestDataFrame(unittest.TestCase):
         names = numpy.array(["elthon","john","tommy"])
         nicks = numpy.array(["smith","verdin","brian"])
 
-        df = DataFrame(names=names,nicks=nicks)
+        df = frame(names=names,nicks=nicks)
         
         col_ = df.col2str(["names","nicks"])
 
@@ -697,7 +697,7 @@ class TestDataFrame(unittest.TestCase):
         lasts = numpy.array(["smith","verdin","brian"])
         ages = numpy.array([23,45,38])
 
-        df = DataFrame(names=names,lasts=lasts,ages=ages)
+        df = frame(names=names,lasts=lasts,ages=ages)
 
         arr_ = df.tostruct()
 
@@ -708,7 +708,7 @@ class TestDataFrame(unittest.TestCase):
         A = numpy.array([ 6 , 6 , 2 , 2 , 3 , 5 , 3 , 4 , 3 , 1 , 2 , 1 ])
         B = numpy.array(["A","B","C","D","D","C","C","C","C","E","F","F"])
 
-        df = DataFrame(A=A,B=B)
+        df = frame(A=A,B=B)
 
         df = df.sort(('A',))
 
@@ -718,7 +718,7 @@ class TestDataFrame(unittest.TestCase):
         numpy.testing.assert_array_equal(df["B"].vals,
             numpy.array(["E","F","C","D","F","D","C","C","C","C","A","B"]))
 
-        df = DataFrame(A=A,B=B)
+        df = frame(A=A,B=B)
 
         df = df.sort(('A','B'))
 
@@ -728,7 +728,7 @@ class TestDataFrame(unittest.TestCase):
         numpy.testing.assert_array_equal(df["B"].vals,
             numpy.array(["E","F","C","D","F","C","C","D","C","C","A","B"]))
 
-        df = DataFrame(A=A,B=B)
+        df = frame(A=A,B=B)
 
         df = df.sort(('A','B'),reverse=True)
 
@@ -740,7 +740,7 @@ class TestDataFrame(unittest.TestCase):
 
     def test_filter(self):
 
-        df = DataFrame()
+        df = frame()
 
         A = numpy.array([1,1,1,2,2,3,3,3,4,5,6,6,6,6])
 
@@ -758,7 +758,7 @@ class TestDataFrame(unittest.TestCase):
         numpy.testing.assert_array_equal(df["B"].vals,
             numpy.array(["E","F","F","F"]))
 
-        df = DataFrame()
+        df = frame()
 
         df["A"] = A
         df["B"] = B
@@ -773,7 +773,7 @@ class TestDataFrame(unittest.TestCase):
 
     def test_unique(self):
 
-        df = DataFrame()
+        df = frame()
 
         A = numpy.array([1,1,1,2,2,3,3,3,4,5,6,6,6,6])
 
@@ -786,15 +786,15 @@ class TestDataFrame(unittest.TestCase):
         df = df.unique(("A","B"))
 
         numpy.testing.assert_array_equal(df["A"].vals,
-            numpy.array([1,1,2,2,3,4,5,6,6]),err_msg="DataFrame.unique() has an issue!")
+            numpy.array([1,1,2,2,3,4,5,6,6]),err_msg="frame.unique() has an issue!")
 
         numpy.testing.assert_array_equal(df["B"].vals,
-            numpy.array(['A','B','B','C','C','C','D','E','F']),err_msg="DataFrame.unique() has an issue!")
+            numpy.array(['A','B','B','C','C','C','D','E','F']),err_msg="frame.unique() has an issue!")
 
         df = df.unique(("A",))
 
         numpy.testing.assert_array_equal(df["A"].vals,
-            numpy.array([1,2,3,4,5,6]),err_msg="DataFrame.unique() has an issue!")
+            numpy.array([1,2,3,4,5,6]),err_msg="frame.unique() has an issue!")
 
     def test_write(self):
 
@@ -805,7 +805,7 @@ class TestDataFrame(unittest.TestCase):
         a = numpy.random.randint(0,100,20)
         b = numpy.random.randint(0,100,20)
 
-        df = DataFrame(a=a,b=b)
+        df = frame(a=a,b=b)
 
 class TestArray(unittest.TestCase):
 
