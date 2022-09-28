@@ -1167,6 +1167,11 @@ class frame():
             [datacolumn.append(arg) for datacolumn,arg in zip(self.running,args)]
 
     """REPRESENTATION"""
+
+    def __repr__(self):
+
+        return self.__str__(limit=10,comment="")
+
     def __str__(self,limit:int=20,comment=None,**kwargs):
         """It prints to the console limited number of rows with headers."""
 
