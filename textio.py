@@ -145,67 +145,44 @@ class header():
 
 class utxt():
 
-    def __init__(self,*args,**kwargs):
+    def __init__(self,dataframe):
 
-        super().__init__(*args,**kwargs)
+        self.frame = dataframe
 
-    def write(self,filepath,fstring=None,**kwargs):
+    def setheader(self,header):
+
+        self.header = header(
+            heads=self.frame.heads,
+            units=self.frame.units,
+            infos=self.frame.infos,
+            )
+
+    def write(self,filepath,fstring=None,comment=None):
         """It writes text form of frame."""
 
-        header_fstring = ("{}\t"*len(self._headers))[:-1]+"\n"
+        fstring = ("{}\t"*self.frame.shape[1])[:-1]+"\n" if fstring is None else fstring
 
-        if fstring is None:
-            running_fstring = ("{}\t"*len(self._headers))[:-1]+"\n"
-        else:
-            running_fstring = fstring
+        comment = "" if comment is None else comment
 
-        vprint = numpy.vectorize(lambda *args: running_fstring.format(*args))
+        with open(filepath,"w",encoding='utf-8') as txtmaster:
 
-        with open(filepath,"w",encoding='utf-8') as wfile:
-            wfile.write(header_fstring.format(*self._headers))
-            for line in vprint(*self._running):
-                wfile.write(line)
+            [txtmaster.write(fstring.format(*row)) for row in self.header]
 
-    def writeb(self,filename):
+            txtmaster.write(fstring.format(*self.frame.heads))
+
+            [txtmaster.write(fstring.format(*row)) for row in self.frame]
+
+        # numpy.savetxt("data.txt",Z,fmt="%s",header="a b c\naunit buit cunit",footer="fdsjgfhd",comments="")
+
+    def writeb(self,filepath):
         """It writes binary form of frame."""
-
-        filepath = self.get_abspath(f"{filename}.npz",homeFlag=True)
 
         for header,datacolumn in zip(self._headers,self._running):
             kwargs[header] = datacolumn
 
         numpy.savez_compressed(filepath,**kwargs)
 
-    def _not_merged_to_datafram_yet_read_writeb(self):
-
-        A = numpy.random.randint(0,1000,1_000_000)
-        B = numpy.random.randint(0,1000,1_000_000)
-        C = numpy.random.randint(0,1000,1_000_000)
-
-        ##A = numpy.random.rand(1_000_000)
-        ##B = numpy.random.rand(1_000_000)
-        ##C = numpy.random.rand(1_000_000)
-
-        ## WRITING TEXT FILE
-
-        Z = numpy.empty((A.size,3))
-        Z[:,0] = A
-        Z[:,1] = B
-        Z[:,2] = C
-        numpy.savetxt("data.txt",Z.astype(int),fmt="%i",header="a b c")
-
-        ## WRITING BINARY NPZ FILE
-        numpy.savez_compressed('data.npz', a=A, b=B, c=C)
-
-
-        ## READING TEXT FILE
-        T = numpy.loadtxt("data.txt",dtype=int)
-
-        ## READING BINARY NPZ FILE
-        B = numpy.load('data.npz')
-
-        for key in B.keys():
-            print(key)
+        # numpy.savez_compressed('data.npz', a=A, b=B, c=C)
 
 class ulas():
 
@@ -542,6 +519,9 @@ class dirmaster():
 # A File Input Function
 
 def load(filepath,**kwargs):
+
+    ## READING BINARY NPZ FILE
+    # B = numpy.load('data.npz')
 
     return function(filepath,**kwargs)
 
