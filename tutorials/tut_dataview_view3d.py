@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 
-import setup
+import dirsetup
 
 from stream.items import get_PorRock
 from stream.items import get_Wells

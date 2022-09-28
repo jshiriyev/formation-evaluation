@@ -8,51 +8,12 @@ import numpy
 import pint
 
 if __name__ == "__main__":
-    import setup
+    import dirsetup
 
 from textio import dirmaster
 from textio import header
 from textio import loadtxt
 from textio import loadlas
-
-class TestDirMaster(unittest.TestCase):
-
-    def test_init(self):
-
-        db = dirmaster()
-
-        db.homedir
-        db.filedir
-
-    def test_set_homedir(self):
-
-        db = dirmaster()
-
-        db.set_homedir(__file__)
-
-        db.homedir
-
-    def test_set_filedir(self):
-
-        db = dirmaster()
-
-        db.set_filedir(__file__)
-
-        db.filedir
-
-    def test_get_abspath(self):
-
-        dirmaster().get_abspath(__file__)
-
-    def test_get_dirpath(self):
-
-        dirmaster().get_dirpath(__file__)
-
-    def test_get_fnames(self):
-
-        db = dirmaster()
-
-        db.get_fnames(__file__,returnAbsFlag=True)
 
 class TestHeader(unittest.TestCase):
 
@@ -116,6 +77,69 @@ class TestHeader(unittest.TestCase):
         self.assertListEqual(gloss.value,["2576.0","2896.0","-999.25","FIELD"])
         self.assertListEqual(gloss.value[1:],["2896.0","-999.25",'FIELD'])
 
+class TestTxt(unittest.TestCase):
+
+    def test_init(self):
+
+        pass
+
+class TestLas(unittest.TestCase):
+
+    def test_init(self):
+
+        pass
+
+class TestSched(unittest.TestCase):
+
+    def test_init(self):
+
+        pass
+
+class TestSheet(unittest.TestCase):
+
+    def test_init(self):
+
+        pass
+
+class TestDirMaster(unittest.TestCase):
+
+    def test_init(self):
+
+        db = dirmaster()
+
+        db.homedir
+        db.filedir
+
+    def test_set_homedir(self):
+
+        db = dirmaster()
+
+        db.set_homedir(__file__)
+
+        db.homedir
+
+    def test_set_filedir(self):
+
+        db = dirmaster()
+
+        db.set_filedir(__file__)
+
+        db.filedir
+
+    def test_get_abspath(self):
+
+        dirmaster().get_abspath(__file__)
+
+    def test_get_dirpath(self):
+
+        dirmaster().get_dirpath(__file__)
+
+    def test_get_fnames(self):
+
+        db = dirmaster()
+
+        db.get_fnames(__file__,returnAbsFlag=True)
+
 class TestLoad(unittest.TestCase):
 
     def test_init(self):
@@ -153,12 +177,6 @@ class TestLoad(unittest.TestCase):
         self.assertListEqual(prod.frame["date"].vals[:3].tolist(),[1,2,3.])
         self.assertListEqual(prod.frame.heads,["well","date","oil","water","gas"])
         self.assertListEqual(list(prod.frame.shape),[24,5])
-
-class TestULas(unittest.TestCase):
-
-    def test_init(self):
-
-        pass
 
 if __name__ == "__main__":
 

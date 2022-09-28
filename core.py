@@ -14,7 +14,9 @@ import numpy
 import pint
 
 if __name__ == "__main__":
-    import setup
+    import dirsetup
+
+from cypy.vectorpy import strtype
 
 from cypy.vectorpy import str2int
 from cypy.vectorpy import str2float
@@ -446,21 +448,21 @@ class column():
 
     def __getitem__(self,key):
 
-        column_ = copy.deepcopy(self)
+        datacolumn = copy.deepcopy(self)
 
-        column_.vals = self.vals[key]
+        datacolumn.vals = self.vals[key]
 
-        return column_
+        return datacolumn
 
     """CONVERSION METHODS"""
 
     def astype(self,dtype=None):
 
-        col_ = copy.deepcopy(self)
+        datacolumn = copy.deepcopy(self)
 
-        col_._astype(dtype)
+        datacolumn._astype(dtype)
 
-        return col_
+        return datacolumn
 
     def replace(self,new=None,old=None,method="upper"):
         """It replaces old with new. If old is not defined, it replaces nones.
@@ -490,21 +492,21 @@ class column():
         if self.unit==unit:
             return self
 
-        column_ = copy.deepcopy(self)
+        datacolumn = copy.deepcopy(self)
 
         if self.dtype.type is not numpy.dtype('float').type:
-            column_ = column_.astype('float')
+            datacolumn = datacolumn.astype('float')
         else:
             unrg = pint.UnitRegistry()
-            unrg.Quantity(column_.vals,column_.unit).ito(unit)
+            unrg.Quantity(datacolumn.vals,datacolumn.unit).ito(unit)
 
-        column_.unit = unit
+        datacolumn.unit = unit
 
-        return column_
+        return datacolumn
 
     def fromstring(self,dtype,regex=None):
 
-        col_ = copy.deepcopy(self)
+        datacolumn = copy.deepcopy(self)
 
         # line = re.sub(r"[^\w]","",line) # cleans non-alphanumerics, keeps 0-9, A-Z, a-z, or underscore.
 
@@ -514,22 +516,22 @@ class column():
         if dtype.type is numpy.dtype('int').type:
             dnone = self.nones.todict("str","int")
             regex = r"[-+]?\d+\b" if regex is None else regex
-            col_.vals = str2int(col_.vals,regex=regex,**dnone)
+            datacolumn.vals = str2int(datacolumn.vals,regex=regex,**dnone)
         elif dtype.type is numpy.dtype('float').type:
             dnone = self.nones.todict("str","float")
             regex = r"[-+]?[0-9]*\.?[0-9]+" if regex is None else regex
-            col_.vals = str2float(col_.vals,regex=regex,**dnone)
-            col_._valsunit()
+            datacolumn.vals = str2float(datacolumn.vals,regex=regex,**dnone)
+            datacolumn._valsunit()
         elif dtype.type is numpy.dtype('str').type:
             dnone = self.nones.todict("str")
-            col_.vals = str2str(col_.vals,regex=regex,**dnone)
+            datacolumn.vals = str2str(datacolumn.vals,regex=regex,**dnone)
         elif dtype.type is numpy.dtype('datetime64').type:
             dnone = self.nones.todict("str","datetime64")
-            col_.vals = str2datetime64(col_.vals,regex=regex,**dnone)
+            datacolumn.vals = str2datetime64(datacolumn.vals,regex=regex,**dnone)
         else:
             raise TypeError("dtype can be either int, float, str or datetime64")
 
-        return col_
+        return datacolumn
 
     def tostring(self,fstring=None,upper=False,lower=False,zfill=None):
         """It has more capabilities than str2str on the outputting part."""
@@ -581,69 +583,73 @@ class column():
 
         vals_str = numpy.array(vals_str,dtype="str")
 
-        column_ = copy.deepcopy(self)
+        datacolumn = copy.deepcopy(self)
 
-        column_ = column_.astype("str")
+        datacolumn = datacolumn.astype("str")
 
-        column_.vals = vals_str
+        datacolumn.vals = vals_str
 
-        return column_
+        return datacolumn
 
     """SHIFTING"""
     
     def shift(self,delta,deltaunit=None):
         """Shifting the entries depending on its dtype."""
 
-        column_ = copy.deepcopy(self)
+        datacolumn = copy.deepcopy(self)
 
-        if column_.dtype.type is numpy.dtype('int').type:
-            delta_ = column(delta,dtype='int')
-            vals_shifted = column_.vals+delta_.vals
-        elif column_.dtype.type is numpy.dtype('float').type:
-            delta_ = column(delta,dtype='float',unit=deltaunit)
-            delta_ = delta_.convert(column_.unit)
-            vals_shifted = column_.vals+delta_.vals
-        elif column_.dtype.type is numpy.dtype('str').type:
-            delta_ = any2column(phrases=' ',repeats=delta,dtype='str')
-            vals_shifted = numpy.char.add(delta_.vals,column_)
-        elif column_.dtype.type is numpy.dtype('datetime64').type:
+        if datacolumn.dtype.type is numpy.dtype('int').type:
+            delta_column = column(delta,dtype='int')
+            vals_shifted = datacolumn.vals+delta_column.vals
+        elif datacolumn.dtype.type is numpy.dtype('float').type:
+            delta_column = column(delta,dtype='float',unit=deltaunit)
+            delta_column = delta_column.convert(datacolumn.unit)
+            vals_shifted = datacolumn.vals+delta_column.vals
+        elif datacolumn.dtype.type is numpy.dtype('str').type:
+            delta_column = any2column(phrases=' ',repeats=delta,dtype='str')
+            vals_shifted = numpy.char.add(delta_column.vals,datacolumn)
+        elif datacolumn.dtype.type is numpy.dtype('datetime64').type:
             vals_shifted = self._add_deltatime(delta,deltaunit)
 
-        column_.vals = vals_shifted
+        datacolumn.vals = vals_shifted
 
-        return column_
+        return datacolumn
 
     def toeom(self):
 
         if self.vals.dtype.type is not numpy.datetime64:
             return
 
-        dt = copy.deepcopy(self)
+        datacolumn = copy.deepcopy(self)
 
-        dt_ = dt[~dt.isnone]
+        not_none = ~datacolumn.isnone
 
-        arr_ = _any2column.arrdatetime64(
-            year=dt_.year,month=dt_.month,day=0,dtype=dt.dtype)
+        datacolumnsub = datacolumn[not_none]
 
-        dt[~dt.isnone] = arr_
+        dataarray = _any2column.arrdatetime64(
+            year=datacolumnsub.year,month=datacolumnsub.month,day=0,dtype=datacolumnsub.dtype)
 
-        return dt
+        datacolumn[not_none] = dataarray
+
+        return datacolumn
 
     def tobom(self):
 
         if self.vals.dtype.type is not numpy.datetime64:
             return
 
-        dt = copy.deepcopy(self)
+        datacolumn = copy.deepcopy(self)
 
-        dt_ = dt[~dt.isnone]
+        not_none = ~datacolumn.isnone
 
-        arr_ = _any2column.arrdatetime64(
-            year=dt_.year,month=dt_.month,day=1,dtype=dt.dtype)
+        datacolumnsub = datacolumn[not_none]
 
-        dt[~dt.isnone] = arr_
+        dataarray = _any2column.arrdatetime64(
+            year=datacolumnsub.year,month=datacolumnsub.month,day=1,dtype=datacolumnsub.dtype)
 
-        return dt
+        datacolumn[not_none] = dataarray
+
+        return datacolumn
 
     """MATHEMATICAL OPERATIONS"""
 
@@ -705,7 +711,7 @@ class column():
     def __floordiv__(self,other):
         """Implementing '//' operator."""
 
-        column_ = copy.deepcopy(self)
+        datacolumn = copy.deepcopy(self)
 
         if isinstance(other,column):
             # ureg = pint.UnitRegistry()
@@ -720,36 +726,36 @@ class column():
             else:
                 unit = f"{self.unit}/({other.unit})"
 
-            column_.vals = self.vals//other.vals
-            column_._valsunit(unit)
+            datacolumn.vals = self.vals//other.vals
+            datacolumn._valsunit(unit)
 
         else:
-            column_.vals = self.vals//other
+            datacolumn.vals = self.vals//other
             
-        return column_
+        return datacolumn
 
     def __mod__(self,other):
         """Implementing '%' operator."""
 
-        column_ = copy.deepcopy(self)
+        datacolumn = copy.deepcopy(self)
 
         if isinstance(other,column):
         #     ureg = pint.UnitRegistry()
         #     unit = ureg.Unit(f"{self.unit}/({other.unit})").__str__()
         #     return column(self.vals%other.vals,unit=unit)
             if other.nondim:
-                column_.vals = self.vals%other.vals
+                datacolumn.vals = self.vals%other.vals
             else:
                 raise TypeError(f"unsupported operand type for dimensional column arrays.")
         else:
-            column_.vals = self.vals%other
+            datacolumn.vals = self.vals%other
             
-        return column_
+        return datacolumn
 
     def __mul__(self,other):
         """Implementing '*' operator."""
 
-        column_ = copy.deepcopy(self)
+        datacolumn = copy.deepcopy(self)
 
         if isinstance(other,column):
             # ur = pint.UnitRegistry()
@@ -762,46 +768,46 @@ class column():
             else:
                 unit = f"{self.unit}*{other.unit}"
 
-            column_.vals = self.vals*other.vals
-            column_._valsunit(unit)
+            datacolumn.vals = self.vals*other.vals
+            datacolumn._valsunit(unit)
         else:
-            column_.vals = self.vals*other
+            datacolumn.vals = self.vals*other
 
-        return column_
+        return datacolumn
 
     def __pow__(self,other):
         """Implementing '**' operator."""
 
-        column_ = copy.deepcopy(self)
+        datacolumn = copy.deepcopy(self)
 
         if isinstance(other,int) or isinstance(other,float):
             # ureg = pint.UnitRegistry()
             # unit = ureg.Unit(f"{self.unit}^{other}").__str__()
-            column_.vals = self.vals**other
-            column_._valsunit(f"({self.unit})**{other}")
+            datacolumn.vals = self.vals**other
+            datacolumn._valsunit(f"({self.unit})**{other}")
         else:
             raise TypeError(f"unsupported operand type for non-int or non-float entries.")
 
-        return column_
+        return datacolumn
 
     def __sub__(self,other):
         """Implementing '-' operator."""
 
-        column_ = copy.deepcopy(self)
+        datacolumn = copy.deepcopy(self)
 
         if isinstance(other,column):
             if self.unit!=other.unit:
                 other = other.convert(self.unit)
-            column_.vals = self.vals-other.vals
+            datacolumn.vals = self.vals-other.vals
         else:
-            column_.vals = self.vals-other
+            datacolumn.vals = self.vals-other
         
-        return column_
+        return datacolumn
 
     def __truediv__(self,other):
         """Implementing '/' operator."""
 
-        column_ = copy.deepcopy(self)
+        datacolumn = copy.deepcopy(self)
 
         if isinstance(other,column):
             # ur = pint.UnitRegistry()
@@ -816,12 +822,12 @@ class column():
             else:
                 unit = f"{self.unit}/({other.unit})"
 
-            column_.vals = self.vals/other.vals
-            column_._valsunit(unit)
+            datacolumn.vals = self.vals/other.vals
+            datacolumn._valsunit(unit)
         else:
-            column_.vals = self.vals/other
+            datacolumn.vals = self.vals/other
         
-        return column_
+        return datacolumn
 
     """ADVANCED METHODS"""
 
@@ -843,13 +849,13 @@ class column():
             match = [index for index,val in enumerate(self.vals) if val in keywords]
             # numpy way of doing the same thing:
             # kywrd = numpy.array(keywords).reshape((-1,1))
-            # match = numpy.any(col_.vals==kywrd,axis=0)
+            # match = numpy.any(datacolumn.vals==kywrd,axis=0)
         elif regex is not None:
             pttrn = re.compile(regex)
             match = [index for index,val in enumerate(self.vals) if pttrn.match(val)]
             # numpy way of doing the same thing:
             # vectr = numpy.vectorize(lambda x: bool(re.compile(regex).match(x)))
-            # match = vectr(col_.vals)
+            # match = vectr(datacolumn.vals)
 
         if return_indices:
             return match
@@ -858,19 +864,19 @@ class column():
 
     def flip(self):
 
-        col_ = copy.deepcopy(self)
+        datacolumn = copy.deepcopy(self)
 
-        col_.vals = numpy.flip(self.vals)
+        datacolumn.vals = numpy.flip(self.vals)
 
-        return col_
+        return datacolumn
             
     def unique(self):
 
-        col_ = copy.deepcopy(self)
+        datacolumn = copy.deepcopy(self)
 
-        col_.vals = numpy.unique(self.vals)
+        datacolumn.vals = numpy.unique(self.vals)
 
-        return col_
+        return datacolumn
 
     """APPENDING"""
 
@@ -893,9 +899,9 @@ class column():
             if not other.dtype.type is numpy.dtype('datetime64').type:
                 other = other.astype('datetime64')
                 
-        arr_ = numpy.append(self.vals,other.vals)
+        dataarray = numpy.append(self.vals,other.vals)
         
-        super().__setattr__("vals",arr_)
+        super().__setattr__("vals",dataarray)
 
     """PLOTTING"""
 
@@ -924,25 +930,25 @@ class column():
         """Return dtype of column.vals."""
 
         if self.vals.dtype.type is numpy.object_:
-            array_ = self.vals[~self.isnone]
+            dataarray = self.vals[~self.isnone]
 
-            if array_.size==0:
-                dtype_ = numpy.dtype('float64')
-            elif isinstance(array_[0],int):
-                dtype_ = numpy.dtype('float64')
-            elif isinstance(array_[0],str):
-                dtype_ = numpy.dtype('str_')
-            elif isinstance(array_[0],datetime.datetime):
-                dtype_ = numpy.dtype('datetime64[s]')
-            elif isinstance(array_[0],datetime.date):
-                dtype_ = numpy.dtype('datetime64[D]')
+            if dataarray.size==0:
+                datatype = numpy.dtype('float64')
+            elif isinstance(dataarray[0],int):
+                datatype = numpy.dtype('float64')
+            elif isinstance(dataarray[0],str):
+                datatype = numpy.dtype('str_')
+            elif isinstance(dataarray[0],datetime.datetime):
+                datatype = numpy.dtype('datetime64[s]')
+            elif isinstance(dataarray[0],datetime.date):
+                datatype = numpy.dtype('datetime64[D]')
             else:
-                dtype_ = numpy.array([array_[0]]).dtype
+                datatype = numpy.array([dataarray[0]]).dtype
 
         else:
-            dtype_ = self.vals.dtype
+            datatype = self.vals.dtype
 
-        return dtype_
+        return datatype
 
     @property
     def size(self):
@@ -1148,7 +1154,8 @@ class frame():
 
     def _append(self,*args):
 
-        if len(args)==0: return
+        if len(args)==0:
+            return
         elif len(set([len(arg) for arg in args]))!=1:
             raise ValueError("columns have variable lenghts.")
 
@@ -1157,7 +1164,7 @@ class frame():
         elif self.shape[1]!=len(args):
             raise ValueError("Number of columns does not match columns in dataframe.")
         else:
-            [col_.append(arg_) for col_,arg_ in zip(self.running,args)]
+            [datacolumn.append(arg) for datacolumn,arg in zip(self.running,args)]
 
     """REPRESENTATION"""
     def __str__(self):
@@ -1176,10 +1183,10 @@ class frame():
         else:
             rows = list(range(self.shape[0]))
 
-        frame_ = self[rows]
+        dataframe = self[rows]
 
-        headcount = [len(head) for head in frame_.heads]
-        bodycount = [col_.maxchar() for col_ in frame_.running]
+        headcount = [len(head) for head in dataframe.heads]
+        bodycount = [datacolumn.maxchar() for datacolumn in dataframe.running]
         charcount = [max(hc,bc) for (hc,bc) in zip(headcount,bodycount)]
 
         # print(headcount,bodycount,charcount)
@@ -1187,13 +1194,13 @@ class frame():
         fstring = " ".join(["{{:>{}s}}".format(cc) for cc in charcount])
         fstring = "{}\n".format(fstring)
 
-        heads_str = fstring.format(*frame_.heads)
+        heads_str = fstring.format(*dataframe.heads)
         lines_str = fstring.format(*["-"*count for count in charcount])
         large_str = fstring.format(*[".." for _ in charcount])
 
         vprint = numpy.vectorize(lambda *args: fstring.format(*args))
 
-        bodycols = vprint(*[col_.tostring() for col_ in frame_.running]).tolist()
+        bodycols = vprint(*[datacolumn.tostring() for datacolumn in dataframe.running]).tolist()
 
         if self.shape[0]>print_limit:
             [bodycols.insert(upper,large_str) for _ in range(3)]
@@ -1235,9 +1242,9 @@ class frame():
         if not isinstance(key,str):
             raise TypeError(f"The key can be str, not type={type(key)}.")
 
-        column_ = column(vals,head=key)
+        datacolumn = column(vals,head=key)
 
-        self._setup(column_)
+        self._setup(datacolumn)
 
     def __delitem__(self,key):
 
@@ -1253,11 +1260,11 @@ class frame():
             elif any([type(_key) is str for _key in key]):
                 raise ValueError("Arguments can not contain non-string and string entries together.")
         
-        dataframe_ = copy.deepcopy(self)
-        object.__setattr__(dataframe_,'running',
-            [numpy.delete(col_,key) for col_ in self.running])
+        dataframe = copy.deepcopy(self)
+        object.__setattr__(dataframe,'running',
+            [numpy.delete(datacolumn,key) for datacolumn in self.running])
 
-        return dataframe_
+        return dataframe
         
     def __iter__(self):
 
@@ -1276,75 +1283,75 @@ class frame():
 
             if all([type(_key) is str for _key in key]):
 
-                running_ = [self.running[i] for i in self._index(*key)]
+                running = [self.running[i] for i in self._index(*key)]
 
-                dataframe_ = copy.deepcopy(self)
+                dataframe = copy.deepcopy(self)
 
-                object.__setattr__(dataframe_,'running',running_)
+                object.__setattr__(dataframe,'running',running)
 
-                return dataframe_
+                return dataframe
 
             elif any([type(_key) is str for _key in key]):
                 
                 raise ValueError("Arguments can not contain non-string and string entries together.")
         
-        running_ = [col_[key] for col_ in self.running]
+        running = [datacolumn[key] for datacolumn in self.running]
 
-        dataframe_ = copy.deepcopy(self)
+        dataframe = copy.deepcopy(self)
 
-        object.__setattr__(dataframe_,'running',running_)
+        object.__setattr__(dataframe,'running',running)
 
-        return dataframe_
+        return dataframe
 
     """CONVERSION METHODS"""
 
     def str2col(self,key=None,delimiter=None,maxsplit=None):
         """Breaks the column into new columns by splitting based on delimiter and maxsplit."""
 
-        idcol_ = self._index(key)[0]
+        idcolumn = self._index(key)[0]
 
-        col_ = self.pop(key)
+        datacolumn = self.pop(key)
 
         if maxsplit is None:
-            maxsplit = numpy.char.count(col_,delimiter).max()
+            maxsplit = numpy.char.count(datacolumn,delimiter).max()
 
-        heads = ["{}_{}".format(col_.head,index) for index in range(maxsplit+1)]
+        heads = ["{}_{}".format(datacolumn.head,index) for index in range(maxsplit+1)]
 
         running = []
 
-        for index,string in enumerate(col_.vals):
+        for index,string in enumerate(datacolumn.vals):
 
             row = string.split(delimiter,maxsplit=maxsplit)
 
             if maxsplit+1>len(row):
-                [row.append(col_.nones.str) for _ in range(maxsplit+1-len(row))]
+                [row.append(datacolumn.nones.str) for _ in range(maxsplit+1-len(row))]
 
             running.append(row)
 
         running = numpy.array(running,dtype=str).T
 
-        for index,(vals,head) in enumerate(zip(running,heads),start=idcol_):
-            col_new = col_[:]
-            col_new.vals = vals
-            col_new.head = head
-            self.running.insert(index,col_new)
+        for index,(vals,head) in enumerate(zip(running,heads),start=idcolumn):
+            datacolumn_new = datacolumn[:]
+            datacolumn_new.vals = vals
+            datacolumn_new.head = head
+            self.running.insert(index,datacolumn_new)
 
     def col2str(self,heads=None,headnew=None,fstring=None):
 
         if heads is None:
             heads = self.heads
 
-        arr_ = [self[head].vals for head in heads]
+        dataarray = [self[head].vals for head in heads]
 
         if fstring is None:
-            fstring = ("{} "*len(arr_))[:-1]
+            fstring = ("{} "*len(dataarray))[:-1]
 
         vprint = numpy.vectorize(lambda *args: fstring.format(*args))
 
-        arrnew = vprint(*arr_)
+        arrnew = vprint(*dataarray)
 
         if headnew is None:
-            fstring = ("{}_"*len(arr_))[:-1]
+            fstring = ("{}_"*len(dataarray))[:-1]
             headnew = fstring.format(*heads)
 
         return column(arrnew,head=headnew)
@@ -1352,11 +1359,11 @@ class frame():
     def tostruct(self):
         """Returns numpy structure of dataframe."""
 
-        dtype_str_ = [col_.vals.dtype.str for col_ in self.running]
+        datatype_string = [datacolumn.vals.dtype.str for datacolumn in self.running]
 
-        dtypes_ = [dtype_ for dtype_ in zip(self.heads,dtype_str_)]
+        datatypes = [datatype for datatype in zip(self.heads,datatype_string)]
 
-        return numpy.array([row for row in self],dtypes_)
+        return numpy.array([row for row in self],datatypes)
 
     """ADVANCED METHODS"""
             
@@ -1366,43 +1373,44 @@ class frame():
         if not (isinstance(heads,list) or isinstance(heads,tuple)):
             raise TypeError("heads must be list or tuple.")
 
-        running_ = self[heads]
-
-        match = numpy.argsort(running_.tostruct(),axis=0,order=heads)
+        match = numpy.argsort(self[heads].tostruct(),axis=0,order=heads)
 
         if reverse:
             match = numpy.flip(match)
 
         if return_indices:
             return match
-        else:
-            dataframe_ = copy.deepcopy(self)
-            running_ = [col_[match] for col_ in self.running]
-            object.__setattr__(dataframe_,'running',running_)
-            return dataframe_
+
+        dataframe = copy.deepcopy(self)
+
+        running = [datacolumn[match] for datacolumn in self.running]
+
+        object.__setattr__(dataframe,'running',running)
+
+        return dataframe
 
     def flip(self):
 
-        dataframe_ = copy.deepcopy(self)
+        dataframe = copy.deepcopy(self)
 
-        running_ = [col_.flip() for col_ in self.running]
+        running = [datacolumn.flip() for datacolumn in self.running]
 
-        object.__setattr__(dataframe_,'running',running_)
+        object.__setattr__(dataframe,'running',running)
 
     def filter(self,key,keywords=None,regex=None,return_indices=False):
         """Returns filtered dataframe based on keywords or regex."""
 
-        col_ = self[key]
+        datacolumn = self[key]
 
-        match = col_.filter(keywords,regex,return_indices=True)
+        match = datacolumn.filter(keywords,regex,return_indices=True)
 
         if return_indices:
             return match
         else:
-            dataframe_ = copy.deepcopy(self)
-            object.__setattr__(dataframe_,'running',
-                [col_[match] for col_ in self.running])
-            return dataframe_
+            dataframe = copy.deepcopy(self)
+            object.__setattr__(dataframe,'running',
+                [datacolumn[match] for datacolumn in self.running])
+            return dataframe
 
     def unique(self,heads):
         """Returns dataframe with unique entries of column/s.
@@ -1417,19 +1425,19 @@ class frame():
 
         npstruct = numpy.unique(npstruct,axis=0)
 
-        dataframe_ = copy.deepcopy(self)
+        dataframe = copy.deepcopy(self)
 
-        object.__setattr__(dataframe_,'running',[])
+        object.__setattr__(dataframe,'running',[])
 
         for head in heads:
 
-            col_ = copy.deepcopy(self[head])
+            datacolumn = copy.deepcopy(self[head])
 
-            col_.vals = npstruct[head]
+            datacolumn.vals = npstruct[head]
 
-            dataframe_.running.append(col_)
+            dataframe.running.append(datacolumn)
 
-        return dataframe_
+        return dataframe
 
     """PROPERTY METHODS"""
 
@@ -1437,75 +1445,75 @@ class frame():
     def shape(self):
 
         if len(self.running)>0:
-            return (max([len(col_) for col_ in self.running]),len(self.running))
+            return (max([len(datacolumn) for datacolumn in self.running]),len(self.running))
         else:
             return (0,0)
 
     @property
     def dtypes(self):
 
-        return [col_.vals.dtype for col_ in self.running]
+        return [datacolumn.vals.dtype for datacolumn in self.running]
 
     @property
     def types(self):
 
-        return [col_.vals.dtype.type for col_ in self.running]
+        return [datacolumn.vals.dtype.type for datacolumn in self.running]
 
     @property
     def heads(self):
 
-        return [col_.head for col_ in self.running]
+        return [datacolumn.head for datacolumn in self.running]
 
     @property
     def units(self):
 
-        return [col_.unit for col_ in self.running]
+        return [datacolumn.unit for datacolumn in self.running]
 
     @property
     def infos(self):
 
-        return [col_.info for col_ in self.running]
+        return [datacolumn.info for datacolumn in self.running]
 
 def array1d(arg,size=None):
 
     if type(arg).__module__=="numpy":
-        arr_ = arg.flatten()
+        dataarray = arg.flatten()
     elif type(arg) is str:
-        arr_ = numpy.array([arg])
+        dataarray = numpy.array([arg])
     elif hasattr(arg,"__iter__"):
-        arr_ = numpy.array(list(arg))
+        dataarray = numpy.array(list(arg))
     else:
-        arr_ = numpy.array([arg])
+        dataarray = numpy.array([arg])
 
-    if arr_.dtype.type is numpy.object_:
-        arr_temp = arr_[arr_!=None]
+    if dataarray.dtype.type is numpy.object_:
+        array_temp = dataarray[dataarray!=None]
 
-        if arr_temp.size==0:
-            dtype_ = numpy.dtype('float64')
-        elif isinstance(arr_temp[0],int):
-            dtype_ = numpy.dtype('float64')
-        elif isinstance(arr_temp[0],str):
-            dtype_ = numpy.dtype('str_')
-        elif isinstance(arr_temp[0],datetime.datetime):
-            dtype_ = numpy.dtype('datetime64[s]')
-        elif isinstance(arr_temp[0],datetime.date):
-            dtype_ = numpy.dtype('datetime64[D]')
+        if array_temp.size==0:
+            datatype = numpy.dtype('float64')
+        elif isinstance(array_temp[0],int):
+            datatype = numpy.dtype('float64')
+        elif isinstance(array_temp[0],str):
+            datatype = numpy.dtype('str_')
+        elif isinstance(array_temp[0],datetime.datetime):
+            datatype = numpy.dtype('datetime64[s]')
+        elif isinstance(array_temp[0],datetime.date):
+            datatype = numpy.dtype('datetime64[D]')
         else:
-            dtype_ = numpy.array([arr_temp[0]]).dtype
+            datatype = numpy.array([array_temp[0]]).dtype
 
         try:
-            arr_ = arr_.astype(dtype_)
+            dataarray = dataarray.astype(datatype)
         except ValueError:
-            arr_ = arr_.astype('str_')
+            dataarray = dataarray.astype('str_')
 
-    if size is None or arr_.size==0:
-        return arr_
+    if size is None or dataarray.size==0:
+        return dataarray
 
-    rep_ = int(numpy.ceil(size/arr_.size))
+    repeat_count = int(numpy.ceil(size/dataarray.size))
 
-    arr_ = numpy.tile(arr_,rep_)[:size]
+    dataarray = numpy.tile(dataarray,repeat_count)[:size]
 
-    return arr_
+    return dataarray
 
 def any2column(*args,**kwargs):
     """Sets the vals of column."""
@@ -1535,17 +1543,17 @@ def any2column(*args,**kwargs):
     if dtype.type is numpy.object_:
         pass
     elif dtype.type is numpy.dtype('int').type:    
-        arr_ = _any2column.arrint(*args,**kwargs)
+        dataarray = _any2column.arrint(*args,**kwargs)
     elif dtype.type is numpy.dtype('float').type:
-        arr_ = _any2column.arrfloat(*args,**kwargs)
+        dataarray = _any2column.arrfloat(*args,**kwargs)
     elif dtype.type is numpy.dtype('str').type:
-        arr_ = _any2column.arrstr(*args,**kwargs)
+        dataarray = _any2column.arrstr(*args,**kwargs)
     elif dtype.type is numpy.dtype('datetime64').type:
-        arr_ = _any2column.arrdatetime64(*args,**kwargs)
+        dataarray = _any2column.arrdatetime64(*args,**kwargs)
     else:
         raise ValueError(f"dtype.type is not int, float, str or datetime64, given {dtype.type=}")
 
-    return column(arr_,head=head,unit=unit,info=info,dtype=dtype)
+    return column(dataarray,head=head,unit=unit,info=info,dtype=dtype)
 
 def key2column(*args,**kwargs):
     "Generating column by defining dtype and sending the keywords for array creating methods."
@@ -1564,19 +1572,19 @@ def key2column(*args,**kwargs):
         dtype = numpy.dtype(dtype)
 
     if dtype.type is numpy.dtype('int').type:    
-        arr_ = _key2column.arrint(*args,**kwargs)
+        dataarray = _key2column.arrint(*args,**kwargs)
     elif dtype.type is numpy.dtype('float').type:
-        arr_ = _key2column.arrfloat(*args,**kwargs)
+        dataarray = _key2column.arrfloat(*args,**kwargs)
     elif dtype.type is numpy.dtype('str').type:
-        arr_ = _key2column.arrstr(*args,**kwargs)
+        dataarray = _key2column.arrstr(*args,**kwargs)
     elif dtype.type is numpy.dtype('datetime64').type:
-        arr_ = _key2column.arrdatetime64(*args,**kwargs)
+        dataarray = _key2column.arrdatetime64(*args,**kwargs)
     else:
         raise ValueError(f"dtype.type is not int, float, str or datetime64, given {dtype.type=}")
 
-    return column(arr_,head=head,unit=unit,info=info,dtype=dtype)
+    return column(dataarray,head=head,unit=unit,info=info,dtype=dtype)
 
-class _any2column:
+class _any2column():
 
     def get_dtype(args):
 
@@ -1596,9 +1604,9 @@ class _any2column:
         if size is None:
             size = len(max(arrs,key=len))
 
-        for index,arr_ in enumerate(arrs):
-            rep_ = int(numpy.ceil(size/arr_.size))
-            arrs[index] = numpy.tile(arr_,rep_)[:size]
+        for index,dataarray in enumerate(arrs):
+            repeat_count = int(numpy.ceil(size/dataarray.size))
+            arrs[index] = numpy.tile(dataarray,repeat_count)[:size]
 
         return zip(*arrs)
 
@@ -1607,24 +1615,24 @@ class _any2column:
         if len(args)==0:
             return
         elif len(args)==1:
-            arr_ = array1d(args[0],size)
+            dataarray = array1d(args[0],size)
 
         if dtype is None:
-            return arr_
+            return dataarray
         else:
-            return arr_.astype(dtype)
+            return dataarray.astype(dtype)
 
     def arrfloat(*args,size=None,dtype=None):
 
         if len(args)==0:
             return
         elif len(args)==1:
-            arr_ = array1d(args[0],size)
+            dataarray = array1d(args[0],size)
 
         if dtype is None:
-            return arr_
+            return dataarray
         else:
-            return arr_.astype(dtype)
+            return dataarray.astype(dtype)
 
     def arrstr(*args,phrases=None,repeats=None,size=None,dtype=None):
 
@@ -1637,19 +1645,19 @@ class _any2column:
             if repeats is None:
                 repeats = 1
 
-            iter_ = _any2column.toiterator(phrases,repeats,size=size)
+            iterator = _any2column.toiterator(phrases,repeats,size=size)
 
-            arr_ = numpy.array(["".join([name]*num) for name,num in iter_])
+            dataarray = numpy.array(["".join([name]*num) for name,num in iterator])
 
         elif len(args)==1:
-            arr_ = array1d(args[0],size)
+            dataarray = array1d(args[0],size)
         else:
             raise TypeError("Number of arguments can not be larger than 1!")
 
         if dtype is None:
-            return arr_
+            return dataarray
         else:
-            return arr_.astype(dtype)
+            return dataarray.astype(dtype)
 
     def arrdatetime64(*args,year=2000,month=1,day=-1,hour=0,minute=0,second=0,size=None,dtype=None):
 
@@ -1660,37 +1668,37 @@ class _any2column:
 
             items = [year,month,day,hour,minute,second]
 
-            iter_ = _any2column.toiterator(*items,size=size)
+            iterator = _any2column.toiterator(*items,size=size)
 
             if dtype is None:
                 dtype = numpy.dtype(f"datetime64[s]")
 
-            arr_date = []
+            array_date = []
 
-            for row in iter_:
+            for row in iterator:
                 arguments = list(row)
                 if arguments[2]<=0:
                     arguments[2] += calendar.monthrange(*arguments[:2])[1]
                 if arguments[2]<=0:
                     arguments[2] = 1
-                arr_date.append(datetime.datetime(*arguments))
+                array_date.append(datetime.datetime(*arguments))
 
-            return numpy.array(arr_date,dtype=dtype)
+            return numpy.array(array_date,dtype=dtype)
 
         elif len(args)==1:
 
-            arr_ = array1d(args[0],size)
+            dataarray = array1d(args[0],size)
 
             if dtype is None:
-                return arr_
+                return dataarray
             
             try:
-                return arr_.astype(dtype)
+                return dataarray.astype(dtype)
             except ValueError:
-                arr_date = [parser.parse(dt) for dt in arr_]
-                return numpy.array(arr_date,dtype=dtype)
+                array_date = [parser.parse(dt) for dt in dataarray]
+                return numpy.array(array_date,dtype=dtype)
 
-class _key2column:
+class _key2column():
 
     def get_dtype(args):
 
@@ -1720,35 +1728,23 @@ class _key2column:
         else:
             return
 
-    def todatetime(var_):
+    def todatetime(variable):
 
-        if var_ is None:
+        if variable is None:
             return
-        elif isinstance(var_,str):
-            if var_=="now":
-                datetime_ = datetime.datetime.today()
-            elif var_=="today":
-                datetime_ = datetime.date.today()
-            elif var_=="yesterday":
-                datetime_ = datetime.date.today()+relativedelta.relativedelta(days=-1)
-            elif var_=="tomorrow":
-                datetime_ = datetime.date.today()+relativedelta.relativedelta(days=+1)
-            else:
-                try:
-                    datetime_ = parser.parse(var_)
-                except parser.ParserError:
-                    datetime_ = None
-        elif isinstance(var_,numpy.datetime64):
-            datetime_ = var_.tolist()
-        elif type(var_).__module__=="datetime":
-            datetime_ = var_
+        elif isinstance(variable,str):
+            datetime_variable = str2datetime64(variable,unit_code='s').tolist()
+        elif isinstance(variable,numpy.datetime64):
+            datetime_variable = variable.tolist()
+        elif type(variable).__module__=="datetime":
+            datetime_variable = variable
         else:
             return
 
-        if isinstance(datetime_,datetime.datetime):
-            return datetime_
-        elif isinstance(datetime_,datetime.date):
-            return datetime.datetime.combine(datetime_,datetime.datetime.min.time())
+        if isinstance(datetime_variable,datetime.datetime):
+            return datetime_variable
+        elif isinstance(datetime_variable,datetime.date):
+            return datetime.datetime.combine(datetime_variable,datetime.datetime.min.time())
 
     def arrint(*args,start=0,stop=None,step=1,size=None,dtype=None):
 
@@ -1868,16 +1864,16 @@ class _key2column:
             for stop_index,combo in enumerate(excel_column_headers(),start=1):
                 if stop==combo:
                     break
-            arr_ = numpy.array(list(itertools.islice(excel_column_headers(),stop_index)))[start_index:stop_index]
-            arr_ = arr_[::step]
+            dataarray = numpy.array(list(itertools.islice(excel_column_headers(),stop_index)))[start_index:stop_index]
+            dataarray = dataarray[::step]
         else:
-            arr_ = numpy.array(list(itertools.islice(excel_column_headers(),start_index+size*step)))[start_index:]
-            arr_ = arr_[::step]
+            dataarray = numpy.array(list(itertools.islice(excel_column_headers(),start_index+size*step)))[start_index:]
+            dataarray = dataarray[::step]
 
         if dtype is not None:
-            return arr_.astype(dtype)
+            return dataarray.astype(dtype)
         else:
-            return arr_
+            return dataarray
 
     def arrdatetime64(*args,start=None,stop="today",step=1,size=None,dtype=None,step_unit='M'):
 
@@ -1933,28 +1929,31 @@ class _key2column:
             if start is None:
                 raise ValueError("start value must be provided!")
             date = copy.deepcopy(start)
-            arr_date = []
+            array_date = []
             while date<stop:
-                arr_date.append(date)
+                array_date.append(date)
                 date = func(date,step)
-            return numpy.array(arr_date,dtype=dtype)
+            return numpy.array(array_date,dtype=dtype)
         elif start is None:
             date = copy.deepcopy(stop)
-            arr_date = []
+            array_date = []
             for index in range(size):
                 date = func(date,-index*step)
-                arr_date.append(date)
-            return numpy.flip(numpy.array(arr_date,dtype=dtype))
+                array_date.append(date)
+            return numpy.flip(numpy.array(array_date,dtype=dtype))
         else:
-            delta_ = stop-start
-            delta_us = (delta_.days*86_400+delta_.seconds)*1000_000+delta_.microseconds
+            delta_na = stop-start
+            delta_us = (delta_na.days*86_400+delta_na.seconds)*1000_000+delta_na.microseconds
+
             deltas = numpy.linspace(0,delta_us,size)
+
             date = copy.deepcopy(start)
-            arr_date = []
+            
+            array_date = []
             for delta_us in deltas:
                 date += relativedelta.relativedelta(microseconds=delta_us)
-                arr_date.append(date)
-            return numpy.array(arr_date,dtype=dtype)
+                array_date.append(date)
+            return numpy.array(array_date,dtype=dtype)
 
 class _alphabet():
 

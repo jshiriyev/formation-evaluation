@@ -8,7 +8,7 @@ import numpy
 import pint
 
 if __name__ == "__main__":
-    import setup
+    import dirsetup
 
 from core import nones
 from core import column

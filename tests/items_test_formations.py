@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 
 if __name__ == "__main__":
-    import setup
+    import dirsetup
 
 from stream.items import get_PorRock
 

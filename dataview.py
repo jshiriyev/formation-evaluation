@@ -27,7 +27,7 @@ import numpy
 from PIL import ImageTk, Image
 
 if __name__ == "__main__":
-    import setup
+    import dirsetup
 
 # Main Visualizers
 

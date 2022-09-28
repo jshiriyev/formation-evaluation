@@ -6,22 +6,27 @@ from dateutil import relativedelta
 
 import re
 
-import numpy as np
+import numpy
 
-def str0type(string:str):
+if __name__ == "__main__":
+    import dirsetup
+
+def _strtype(string:str):
 
     for attempt in (float,parser.parse):
 
         try:
-            attempt(string)
-        except ValueError:
+            typedstring = attempt(string)
+        except:
             continue
 
-        return attempt
+        return type(typedstring)
 
     return str
 
-def str2int_(string:str,none_str:str="",none_int:int=-99_999,regex:str=None) -> int:
+strtype = lambda array: [_strtype(value) for value in array]
+
+def _str2int(string:str,none_str:str="",none_int:int=-99_999,regex:str=None) -> int:
     """It returns integer converted from string."""
 
     # common expression for int type is r"[-+]?\d+\b"
@@ -41,9 +46,9 @@ def str2int_(string:str,none_str:str="",none_int:int=-99_999,regex:str=None) -> 
             
     return int(string)
         
-str2int = np.vectorize(str2int_,otypes=[int],excluded=["none_str","none_int","regex"])
+str2int = numpy.vectorize(_str2int,otypes=[int],excluded=["none_str","none_int","regex"])
 
-def str2float_(string:str,none_str:str="",none_float:float=np.nan,sep_decimal:str=".",sep_thousand:str=",",regex:str=None) -> float:
+def _str2float(string:str,none_str:str="",none_float:float=numpy.nan,sep_decimal:str=".",sep_thousand:str=",",regex:str=None) -> float:
     """It returns float after removing thousand separator and setting decimal separator as full stop."""
 
     # common regular expression for float type is f"[-+]?(?:\\d*\\{sep_thousand}*\\d*\\{sep_decimal}\\d+|\\d+)"
@@ -72,7 +77,7 @@ def str2float_(string:str,none_str:str="",none_float:float=np.nan,sep_decimal:st
     
     return float(string)
 
-str2float = np.vectorize(str2float_,otypes=[float],excluded=["none_str","none_float","sep_decimal","sep_thousand","regex"])
+str2float = numpy.vectorize(_str2float,otypes=[float],excluded=["none_str","none_float","sep_decimal","sep_thousand","regex"])
 
 def starsplit(string_list,default=1.0):
     """It returns star splitted list repeating post-star pre-star times."""
@@ -98,7 +103,7 @@ def starsplit(string_list,default=1.0):
 
     return float_list
 
-def str2str_(string:str,none_str:str="",regex:str=None,fstring:str=None) -> str:
+def _str2str(string:str,none_str:str="",regex:str=None,fstring:str=None) -> str:
 
     fstring = "{:s}" if fstring is None else fstring
 
@@ -116,26 +121,46 @@ def str2str_(string:str,none_str:str="",regex:str=None,fstring:str=None) -> str:
         else:
             return fstring.format(match.group())
 
-str2str = np.vectorize(str2str_,otypes=[str],excluded=["none_str","regex","fstring"])
+str2str = numpy.vectorize(_str2str,otypes=[str],excluded=["none_str","regex","fstring"])
 
-def str2datetime64_(string:str,none_str:str="",none_datetime64:np.datetime64=np.datetime64('NaT'),regex:str=None) -> np.datetime64:
+def _str2datetime64(string:str,none_str:str="",none_datetime64:numpy.datetime64=numpy.datetime64('NaT'),unit_code:str="D",regex:str=None) -> numpy.datetime64:
 
-    if regex is None:
-        if string==none_str:
-            return none_datetime64
-        else:
-            return np.datetime64(parser.parse(string))
-    else:
+    if regex is not None:
         match = re.search(regex,string)
 
         if match is None:
             return none_datetime64
-        else:
-            return np.datetime64(match.group())
 
-str2datetime64 = np.vectorize(str2datetime64_,otypes=[np.datetime64],excluded=["none_str","none_datetime64","regex"])
+        string = match.group()
 
-def datetime_adddelta_(dtcurr:datetime.datetime,days:float=0.,hours:float=0.,minutes:float=0.,seconds:float=0.) -> datetime.datetime:
+    if string==none_str:
+        return none_datetime64
+
+    elif string=="now":
+        now = numpy.datetime64(datetime.datetime.now(),unit_code)
+        return now
+
+    elif string=="today":
+        today = numpy.datetime64(datetime.datetime.today(),unit_code)
+        return today
+
+    elif string=="yesterday":
+        today = numpy.datetime64(datetime.datetime.today(),unit_code)
+        return today-numpy.timedelta64(1,'D')
+
+    elif string=="tomorrow":
+        today = numpy.datetime64(datetime.datetime.today(),unit_code)
+        return today+numpy.timedelta64(1,'D')
+
+    try:
+        return numpy.datetime64(parser.parse(string),unit_code)
+
+    except parser.ParserError:
+        return none_datetime64
+
+str2datetime64 = numpy.vectorize(_str2datetime64,otypes=[numpy.datetime64],excluded=["none_str","none_datetime64","unit_code","regex"])
+
+def _datetime_adddelta(dtcurr:datetime.datetime,days:float=0.,hours:float=0.,minutes:float=0.,seconds:float=0.) -> datetime.datetime:
 
     if dtcurr is None:
         return
@@ -144,9 +169,9 @@ def datetime_adddelta_(dtcurr:datetime.datetime,days:float=0.,hours:float=0.,min
 
     return dtcurr
 
-datetime_adddelta = np.vectorize(datetime_adddelta_,otypes=['datetime64[s]'])
+datetime_adddelta = numpy.vectorize(_datetime_adddelta,otypes=['datetime64[s]'])
 
-def datetime_addmonths_(dtcurr:datetime.datetime,delta:float) -> datetime.datetime:
+def _datetime_addmonths(dtcurr:datetime.datetime,delta:float) -> datetime.datetime:
 
     if dtcurr is None:
         return
@@ -175,9 +200,9 @@ def datetime_addmonths_(dtcurr:datetime.datetime,delta:float) -> datetime.dateti
     
     return datetime.datetime(dtcurr.year,dtcurr.month,dtcurr.day,23,59,59) #,999999
 
-datetime_addmonths = np.vectorize(datetime_addmonths_,otypes=['datetime64[s]'])
+datetime_addmonths = numpy.vectorize(_datetime_addmonths,otypes=['datetime64[s]'])
 
-def datetime_addyears_(dtcurr:datetime.datetime,delta:float) -> datetime.datetime:
+def _datetime_addyears(dtcurr:datetime.datetime,delta:float) -> datetime.datetime:
 
     if dtcurr is None:
         return
@@ -191,6 +216,14 @@ def datetime_addyears_(dtcurr:datetime.datetime,delta:float) -> datetime.datetim
     if delta_year_fraction==0:
         return dtcurr
     else:
-        return datetime_addmonths_(dtcurr,delta_year_fraction*12)
+        return _datetime_addmonths(dtcurr,delta_year_fraction*12)
 
-datetime_addyears = np.vectorize(datetime_addyears_,otypes=['datetime64[s]'])
+datetime_addyears = numpy.vectorize(_datetime_addyears,otypes=['datetime64[s]'])
+
+if __name__ == "__main__":
+
+    import unittest
+
+    from tests import vectorpy_test
+
+    unittest.main(vectorpy_test)

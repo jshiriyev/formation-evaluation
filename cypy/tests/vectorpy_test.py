@@ -1,5 +1,8 @@
 import unittest
 
+if __name__ == "__main__":
+    import dirsetup
+
 from cypy.vectorpy import str2float
 
 class TestFunctions(unittest.TestCase):
@@ -13,3 +16,7 @@ class TestFunctions(unittest.TestCase):
         self.assertEqual(a1,10000.,"could not remove thousand separator...")
         self.assertEqual(a2,10000.,"could not remove thousand separator...")
         self.assertEqual(a3,10000.,"could not remove thousand separator...")
+
+if __name__ == "__main__":
+
+    unittest.main()

@@ -2,7 +2,7 @@ import time
 
 import tkinter as tk
 
-import setup
+import dirsetup
 
 from stream.graphics import tree
 

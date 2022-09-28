@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 
 import tkinter
 
-import setup
+import dirsetup
 
 from textio import las
 
