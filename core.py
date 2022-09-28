@@ -413,16 +413,16 @@ class column():
         elif self.vals.dtype.type is numpy.datetime64:
             return numpy.nanmax(self.vals)
 
-    def maxchar(self,return_value=False):
+    def maxchar(self,fstring=None,return_value=False):
         """It returns the maximum character count in stringified column."""
 
         if return_value:
-            return max(self.vals.astype('str_'),key=len)
+            return max(self.tostring(fstring),key=len) #self.vals.astype('str_')
 
         if self.vals.dtype.type is numpy.str_:
             vals = numpy.array(self.vals.tolist())
         else:
-            vals = self.tostring().vals
+            vals = self.tostring(fstring).vals
 
         charsize = numpy.dtype(f"{vals.dtype.char}1").itemsize
         
@@ -1167,23 +1167,28 @@ class frame():
             [datacolumn.append(arg) for datacolumn,arg in zip(self.running,args)]
 
     """REPRESENTATION"""
-    def __str__(self):
+    def __str__(self,limit:int=20,comment=None,**kwargs):
         """It prints to the console limited number of rows with headers."""
 
-        print_limit = 20
+        upper = int(numpy.ceil(limit/2))
+        lower = int(numpy.floor(limit/2))
 
-        print_limit = int(print_limit)
-
-        upper = int(numpy.ceil(print_limit/2))
-        lower = int(numpy.floor(print_limit/2))
-
-        if self.shape[0]>print_limit:
+        if self.shape[0]>limit:
             rows = list(range(upper))
             rows.extend(list(range(-lower,0,1)))
         else:
             rows = list(range(self.shape[0]))
 
-        dataframe = self[rows]
+        if comment is None:
+            comment = ""
+
+        dataframe = copy.deepcopy(self)
+
+        running = [datacolumn.tostring(**kwargs) for datacolumn in dataframe.running]
+
+        object.__setattr__(dataframe,'running',running)
+
+        dataframe = dataframe[rows]
 
         headcount = [len(head) for head in dataframe.heads]
         bodycount = [datacolumn.maxchar() for datacolumn in dataframe.running]
@@ -1191,18 +1196,22 @@ class frame():
 
         # print(headcount,bodycount,charcount)
 
+        bspaces = " "*len(comment)
+
         fstring = " ".join(["{{:>{}s}}".format(cc) for cc in charcount])
-        fstring = "{}\n".format(fstring)
 
-        heads_str = fstring.format(*dataframe.heads)
-        lines_str = fstring.format(*["-"*count for count in charcount])
-        large_str = fstring.format(*[".." for _ in charcount])
+        fstringH = "{}{}\n".format(comment,fstring)
+        fstringB = "{}{}\n".format(bspaces,fstring)
 
-        vprint = numpy.vectorize(lambda *args: fstring.format(*args))
+        heads_str = fstringH.format(*dataframe.heads)
+        lines_str = fstringH.format(*["-"*count for count in charcount])
+        large_str = fstringH.format(*[".." for _ in charcount])
 
-        bodycols = vprint(*[datacolumn.tostring() for datacolumn in dataframe.running]).tolist()
+        vprint = numpy.vectorize(lambda *args: fstringB.format(*args))
 
-        if self.shape[0]>print_limit:
+        bodycols = vprint(*dataframe.running).tolist()
+
+        if self.shape[0]>limit:
             [bodycols.insert(upper,large_str) for _ in range(3)]
 
         string = ""

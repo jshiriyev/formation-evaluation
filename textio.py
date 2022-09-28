@@ -90,12 +90,19 @@ class header():
         
         return header(oneLineHeader=True,**dict(zip(self.parameters,row)))
 
-    def __repr__(self):
+    def __repr__(self,comment=None):
+
+        return self.__str__(comment)
+
+    def __str__(self,comment=None):
 
         if len(self)==1:
             return repr(tuple(self.fields))
 
-        fstring = ""
+        if comment is None:
+            comment = ""
+
+        fstring = comment
         
         underline = []
 
@@ -149,30 +156,25 @@ class utxt():
 
         self.frame = dataframe
 
-    def setheader(self,header):
-
         self.header = header(
             heads=self.frame.heads,
             units=self.frame.units,
             infos=self.frame.infos,
             )
 
-    def write(self,filepath,fstring=None,comment=None):
+    def write(self,filepath,comment=None,**kwargs):
         """It writes text form of frame."""
 
-        fstring = ("{}\t"*self.frame.shape[1])[:-1]+"\n" if fstring is None else fstring
-
-        comment = "" if comment is None else comment
+        if comment is None:
+            comment = "# "
 
         with open(filepath,"w",encoding='utf-8') as txtmaster:
 
-            [txtmaster.write(fstring.format(*row)) for row in self.header]
+            txtmaster.write(self.header.__str__(comment=comment))
+            txtmaster.write(f"{comment}\n")
+            txtmaster.write(self.frame.__str__(limit=self.frame.shape[0],comment=comment,**kwargs))
 
-            txtmaster.write(fstring.format(*self.frame.heads))
-
-            [txtmaster.write(fstring.format(*row)) for row in self.frame]
-
-        # numpy.savetxt("data.txt",Z,fmt="%s",header="a b c\naunit buit cunit",footer="fdsjgfhd",comments="")
+        # numpy.savetxt("data.txt",Z,fmt="%s",header=header,footer=footer,comments="")
 
     def writeb(self,filepath):
         """It writes binary form of frame."""
