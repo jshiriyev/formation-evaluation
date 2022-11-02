@@ -3,6 +3,8 @@ import matplotlib.colors as mcolors
 
 from matplotlib.patches import Rectangle
 
+import numpy
+
 class colors():
 
     def __init__(self,**kwargs):
@@ -93,6 +95,8 @@ class colors():
 
         axis.set_axis_off()
 
+        return axis
+
     @property
     def items(self):
         return list(self.__dict__.keys())
@@ -109,7 +113,7 @@ class colors():
     def hatches(self):
         return [value[2] for key,value in self.__dict__.items()]
 
-def get_GRcut(self,GRline,depth=("None",None,None),perc_cut=40):
+def GRcut(self,GRline,depth=("None",None,None),perc_cut=40):
 
     xvals = self.get_interval(*depth[1:],idframes=GRline[0],curveID=GRline[1])[0]
 
@@ -120,7 +124,7 @@ def get_GRcut(self,GRline,depth=("None",None,None),perc_cut=40):
 
     return GRcut
 
-def get_ShaleVolumeGR(self,GRline,GRmin=None,GRmax=None,model=None):
+def ShaleVolumeGR(self,GRline,GRmin=None,GRmax=None,model=None):
 
     xvals = self.frames[GRline[0]][GRline[1]]
 
@@ -137,7 +141,7 @@ def get_ShaleVolumeGR(self,GRline,GRmin=None,GRmax=None,model=None):
 
     return Vsh
 
-def get_ShaleVolumeSP(self,SPline,SPsand,SPshale):
+def ShaleVolumeSP(self,SPline,SPsand,SPshale):
 
     xvals = self.frames[SPline[0]][SPline[1]]
 
@@ -145,19 +149,19 @@ def get_ShaleVolumeSP(self,SPline,SPsand,SPshale):
 
     return Vsh
 
-def set_GammaSpectralCP(self):
+def GammaSpecCrossPlot(self):
 
     self.fig_gscp,self.axis_gscp = pyplot.subplots()
 
-def set_DenNeuCP(self):
+def DenNeuCrossPlot(self):
 
     self.fig_dncp,self.axis_dncp = pyplot.subplots()
 
-def set_SonDenCP(self):
+def SonDenCrossPlot(self):
 
     self.fig_sdcp,self.axis_sdcp = pyplot.subplots()
 
-def set_SonNeuCP(self,
+def SonNeuCrossPlot(self,
     porLine,
     sonLine,
     a_SND=+0.00,
@@ -250,25 +254,83 @@ def set_SonNeuCP(self,
 
     self.fig_sncp.tight_layout()
 
-def set_DenPheCP(self):
+def DenPheCrossPlot(self):
 
     # density photoelectric cross section cross plot
 
     self.fig_dpcp,self.axis_dpcp = pyplot.subplots()
 
-def set_MNplot(self):
+class MNplot():
 
-    self.fig_mncp,self.axis_mncp = pyplot.subplots()
+    def __init__(self):
 
-def set_MIDplot(self):
+        self.SS1    = {"name": "Sandstone, Porosity>10%",
+            "DTma": 55.5,"rhoma": 2.65,"phima_SNP": -0.035,"phima_CLN": -0.05}
+        self.SS2    = {"name": "Sandstone, Porosity<10%",
+            "DTma": 51.2,"rhoma": 2.65,"phima_SNP": -0.035,"phima_CLN": -0.005}
+        self.LS     = {"name": "Limestone",
+            "DTma": 47.5,"rhoma": 2.71,"phima_SNP": 0,"phima_CLN": 0}
+        self.DOL1   = {"name": "Dolomite, 5.5%<Porosity<30%",
+            "DTma": 43.5,"rhoma": 2.87,"phima_SNP": 0.035,"phima_CLN": 0.085}
+        self.DOL2   = {"name": "Dolomite, 1.5%<Porosity<5.5% and Porosity>30%",
+            "DTma": 43.5,"rhoma": 2.87,"phima_SNP": 0.02,"phima_CLN": 0.065}
+        self.DOL3   = {"name": "Dolomite, 5.5%<Porosity<30%",
+            "DTma": 43.5,"rhoma": 2.87,"phima_SNP": 0.005,"phima_CLN": 0.04}
+        self.ANHY   = {"name": "Anhydrite",
+            "DTma": 50.0,"rhoma": 2.98,"phima_SNP": -0.005,"phima_CLN": -0.002}
+        self.SALT   = {"name": "Salt",
+            "DTma": 67.0,"rhoma": 2.03,"phima_SNP": 0.04,"phima_CLN": -0.01}
+
+    def Mvalue(self,DT,rho_b,DT_f=189,rho_f=1.0):
+        return (DT_f-DT)/(rho_b-rho_f)*0.01
+
+    def Nvalue(self,Phi_N,rho_b,Phi_Nf=1.0,rho_f=1.0):
+        return (Phi_Nf-Phi_N)/(rho_b-rho_f)
+
+    def ternary(self,axis,number=10):
+
+        M1 = self.Mvalue(self.SS1["DTma"],self.SS1["rhoma"])
+        M2 = self.Mvalue(self.LS["DTma"],self.LS["rhoma"])
+        M3 = self.Mvalue(self.DOL1["DTma"],self.DOL1["rhoma"])
+
+        N1 = self.Nvalue(self.SS1["phima_SNP"],self.SS1["rhoma"])
+        N2 = self.Nvalue(self.LS["phima_SNP"],self.LS["rhoma"])
+        N3 = self.Nvalue(self.DOL1["phima_SNP"],self.DOL1["rhoma"])
+
+        p1 = (M1,N1)
+        p2 = (M2,N2)
+        p3 = (M3,N3)
+
+        index = numpy.arange(1,number)
+
+        xs1 = p1[0]+index*(p2[0]-p1[0])/number
+        xs2 = p2[0]+index*(p3[0]-p2[0])/number
+        xs3 = p3[0]+index*(p1[0]-p3[0])/number
+
+        ys1 = p1[1]+index*(p2[1]-p1[1])/number
+        ys2 = p2[1]+index*(p3[1]-p2[1])/number
+        ys3 = p3[1]+index*(p1[1]-p3[1])/number
+
+        axis.plot([p1[0],p2[0]],[p1[1],p2[1]],'k',linewidth=0.5)
+        axis.plot([p2[0],p3[0]],[p2[1],p3[1]],'k',linewidth=0.5)
+        axis.plot([p3[0],p1[0]],[p3[1],p1[1]],'k',linewidth=0.5)
+
+        for i in index:
+            axis.plot([xs1[i-1],xs2[number-1-i]],[ys1[i-1],ys2[number-1-i]],'k',linewidth=0.5)
+            axis.plot([xs2[i-1],xs3[number-1-i]],[ys2[i-1],ys3[number-1-i]],'k',linewidth=0.5)
+            axis.plot([xs3[i-1],xs1[number-1-i]],[ys3[i-1],ys1[number-1-i]],'k',linewidth=0.5)
+
+        return axis
+
+def MIDplot(self):
 
     self.fig_midp,self.axis_midp = pyplot.subplots()
 
-def set_rhomaaUmaa(self):
+def RhomaaUmaaPlot(self):
 
     self.fig_rhoU,self.axis_rhoU = pyplot.subplots()
 
-def set_PickettCP(
+def PickettCrossPlot(
     self,
     resLine,
     phiLine,
@@ -391,6 +453,6 @@ def set_PickettCP(
 
         self.axis_pcp.grid(True,which="both",axis='both')
 
-def set_HingleCP(self):
+def HingleCrossPlot(self):
 
     self.fig_hcp,self.axis_hcp = pyplot.subplots()
