@@ -1,17 +1,113 @@
-color_sandstone = "gold"
-color_limestone = "navajowhite"
-color_dolomite  = "darkkhaki"
-color_clean     = "tan"
-color_shale     = "gray"
-color_waterclay = "lightskyblue"
-color_watercapi = "lightsteelblue"
-color_waterirre = "lightblue"
-color_watermove = "steelblue"
-color_water     = "aqua"
-color_HC        = "green"
-color_oil       = "limegreen"
-color_gas       = "lightgreen"
-color_fluidmove = "seagreen"
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+
+from matplotlib.patches import Rectangle
+
+class colors():
+
+    def __init__(self,**kwargs):
+
+        self.SH         = ("Shale","gray",None)
+        self.clean      = ("Clean Formation","tan",None)
+        self.SS         = ("Sandstone","gold","..")
+        self.LS         = ("Limestone","navajowhite","-")
+        self.DOL        = ("Dolomite","darkkhaki","/")
+        self.fluid      = ("Pore Volume","white","o")
+
+        self.liquid     = ("Liquid","blue","O")
+        self.water      = ("Water","aqua","OO")
+        self.waterCLAY  = ("Water Clay Bound","lightskyblue","X")
+        self.waterCAP   = ("Water Capillary Bound","lightsteelblue","X")
+        self.waterIRRE  = ("Water Irreducible","lightblue","X")
+        self.waterM     = ("Water Movable","steelblue",None)
+        self.fluidM     = ("Fluid Movable","seagreen",None)
+
+        self.HC         = ("Hydrocarbon","green",None)
+        self.gas        = ("Gas","red","oo")
+        self.gasR       = ("Gas Residual","red",None)
+        self.gasM       = ("Gas Movable","red",None)
+        self.oil        = ("Oil","limegreen",None)
+        self.oilR       = ("Oil Residual","limegreen",None)
+        self.oilM       = ("Oil Movable","limegreen",None)
+        
+        self.set_colors(**kwargs)
+
+    def set_colors(self,**kwargs):
+
+        for key,value in kwargs.items():
+
+            try:
+                mcolors.to_rgba(value)
+            except ValueError:
+                raise ValueError(f"Invalid RGBA argument: '{value}'")
+
+            getattr(self,key)[1] = value
+
+    def set_hatches(self,**kwargs):
+
+        for key,value in kwargs.items():
+
+            getattr(self,key)[2] = value
+
+    def view(self,axis,nrows=(6,7,7),ncols=3,fontsize=10,sizes=(8,5),dpi=100):
+
+        X,Y = [dpi*size for size in sizes]
+
+        w = X/ncols
+        h = Y/(max(nrows)+1)
+
+        names = self.names
+
+        colors = self.colors
+
+        hatches = self.hatches
+
+        k = 0
+            
+        for idcol in range(ncols):
+
+            for idrow in range(nrows[idcol]):
+
+                y = Y-(idrow*h)-h
+
+                xmin = w*(idcol+0.05)
+                xmax = w*(idcol+0.25)
+
+                ymin = y-h*0.3
+                ymax = y+h*0.3
+
+                xtext = w*(idcol+0.3)
+
+                axis.text(xtext,y,names[k],fontsize=(fontsize),
+                        horizontalalignment='left',
+                        verticalalignment='center')
+
+                axis.add_patch(
+                    Rectangle((xmin,ymin),xmax-xmin,ymax-ymin,
+                    fill=True,hatch=hatches[k],facecolor=colors[k]))
+
+                k += 1
+
+        axis.set_xlim(0,X)
+        axis.set_ylim(0,Y)
+
+        axis.set_axis_off()
+
+    @property
+    def items(self):
+        return list(self.__dict__.keys())
+    
+    @property
+    def names(self):
+        return [value[0] for key,value in self.__dict__.items()]
+
+    @property
+    def colors(self):
+        return [value[1] for key,value in self.__dict__.items()]
+
+    @property
+    def hatches(self):
+        return [value[2] for key,value in self.__dict__.items()]
 
 def get_GRcut(self,GRline,depth=("None",None,None),perc_cut=40):
 
