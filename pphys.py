@@ -5,6 +5,698 @@ from matplotlib.patches import Rectangle
 
 import numpy
 
+if __name__ == "__main__":
+    import dirsetup
+
+from core import frame
+from core import column
+
+from textio import header
+from textio import dirmaster
+
+class ulas():
+
+    def __init__(self,*args,**kwargs):
+
+        super().__init__(*args,**kwargs)
+
+    def _version(self):
+
+        pass
+
+    def _well(self):
+
+        pass
+
+    def _parameter(self):
+
+        pass
+
+    def _data(self):
+
+        pass
+
+    def write(self,filepath,mnemonics,data,units=None,descriptions=None,values=None):
+
+        import lasio
+
+        """
+        filepath:       It will write a lasio.LASFile to the given filepath
+
+        kwargs:         These are mnemonics, data, units, descriptions, values
+        """
+
+        lasmaster = lasio.LASFile()
+
+        lasmaster.well.DATE = datetime.datetime.today().strftime('%Y-%m-%d %H:%M:%S')
+
+        depthExistFlag = False
+
+        for mnemonic in mnemonics:
+            if mnemonic=="MD" or mnemonic=="DEPT" or mnemonic=="DEPTH":
+                depthExistFlag = True
+                break
+
+        if not depthExistFlag:
+            curve = lasio.CurveItem(
+                mnemonic="DEPT",
+                unit="",
+                value="",
+                descr="Depth index",
+                data=numpy.arange(data[0].size))
+            lasmaster.append_curve_item(curve)            
+
+        for index,(mnemonic,datum) in enumerate(zip(mnemonics,data)):
+
+            if units is not None:
+                unit = units[index]
+            else:
+                unit = ""
+
+            if descriptions is not None:
+                description = descriptions[index]
+            else:
+                description = ""
+
+            if values is not None:
+                value = values[index]
+            else:
+                value = ""
+
+            curve = lasio.CurveItem(mnemonic=mnemonic,data=datum,unit=unit,descr=description,value=value)
+
+            lasmaster.append_curve_item(curve)
+
+        with open(filepath, mode='w') as filePathToWrite:
+            lasmaster.write(filePathToWrite)
+
+class loadlas(dirmaster):
+
+    def __init__(self,filepath,homedir=None,filedir=None,**kwargs):
+
+        super().__init__(homedir,filedir,filepath=filepath)
+
+        self.sections = []
+
+        with open(self.filepath,"r",encoding="latin1") as lasmaster:
+            dataframe = self.text(lasmaster)
+
+        self.frame = dataframe
+
+    def seeksection(self,lasmaster,section=None):
+
+        lasmaster.seek(0)
+
+        self._seeksection(lasmaster,section)
+
+    def _seeksection(self,lasmaster,section=None):
+
+        if section is None:
+            section = "~"
+
+        while True:
+
+            line = next(lasmaster).strip()
+
+            if line.startswith(section):
+                break
+
+    def version(self,lasmaster):
+        """It returns the version of file."""
+
+        pattern = r"\s*VERS\s*\.\s+([^:]*)\s*:"
+
+        program = re.compile(pattern)
+
+        lasmaster.seek(0)
+
+        self._seeksection(lasmaster,section="~V")
+
+        while True:
+
+            line = next(lasmaster).strip()
+
+            if line.startswith("~"):
+                break
+            
+            version = program.match(line)
+
+            if version is not None:
+                break
+
+        return version.groups()[0].strip()
+
+    def program(self,version="2.0"):
+        """It returns the program that compiles the regular expression to retrieve parameter data."""
+
+        """
+        Mnemonic:
+
+        LAS Version 2.0
+        This mnemonic can be of any length but must not contain any internal spaces, dots, or colons.
+
+        LAS Version 3.0
+        Any length >0, but must not contain periods, colons, embedded spaces, tabs, {}, [], |
+        (bar) characters, leading or trailing spaces are ignored. It ends at (but does not include)
+        the first period encountered on the line.
+        
+        """
+
+        if version in ["1.2","1.20"]:
+            mnemonic = r"[^:\.\s]+"
+        elif version in ["2.0","2.00"]:
+            mnemonic = r"[^:\.\s]+"
+        elif version in ["3.0","3.00"]:
+            mnemonic = r"[^:\.\s\{\}\|\[\]]+"
+
+        """
+        Unit:
+        
+        LAS Version 2.0
+        The units if used, must be located directly after the dot. There must be not spaces
+        between the units and the dot. The units can be of any length but must not contain any
+        colons or internal spaces.
+
+        LAS Version 3.0
+        Any length, but must not contain colons, embedded spaces, tabs, {} or | characters. If present,
+        it must begin at the next character after the first period on the line. The Unitends at
+        (but does not include) the first space or first colon after the first period on the line.
+        
+        """
+
+        if version in ["1.2","1.20"]:
+            unit = r"[^:\s]*"
+        elif version in ["2.0","2.00"]:
+            unit = r"[^:\s]*"
+        elif version in ["3.0","3.00"]:
+            unit = r"[^:\s\{\}\|]*"
+
+        """
+        Value:
+        
+        LAS Version 2.0
+        This value can be of any length and can contain spaces or dots as appropriate, but must not contain any colons.
+        It must be preceded by at least one space to demarcate it from the units and must be to the left of the colon.
+
+        LAS Version 3.0
+        Any length, but must not contain colons, {} or | characters. If the Unit field is present,
+        at least one space must exist between the unit and the first character of the Value field.
+        The Value field ends at (but does not include) the last colon on the line.
+        
+        """
+
+        if version in ["1.2","1.20"]:
+            value = r"[^:]*"
+        elif version in ["2.0","2.00"]:
+            value = r"[^:]*"
+        elif version in ["3.0","3.00"]:
+            value = r"[^:\{\}\|]*"
+        
+        """
+        Description:
+
+        LAS Version 2.0
+        It is always located to the right of the colon. Its length is limited by the total
+        line length limit of 256 characters which includes a carriage return and a line feed.
+        
+        LAS Version 3.0
+        Any length, Begins as the first character after the last colon on the line, and ends at the
+        last { (left brace), or the last | (bar), or the end of the line, whichever is encountered
+        first.
+
+        """
+
+        description = r".*"
+
+        pattern = f"\\s*({mnemonic})\\s*\\.({unit})\\s+({value})\\s*:\\s*({description})"
+
+        program = re.compile(pattern)
+
+        return program
+
+    def headers(self,lasmaster):
+
+        version = self.version(lasmaster)
+        program = self.program(version)
+
+        lasmaster.seek(0)
+
+        while True:
+
+            line = next(lasmaster).strip()
+
+            if line.startswith("~A"):
+                types = self._types(lasmaster)
+                break
+
+            if line.startswith("~"):
+
+                sectioncode = line[:2]
+                sectionhead = line[1:].split()[0].lower()
+                sectionbody = self._header(lasmaster,program)
+
+                self.sections.append(sectionhead)
+
+                setattr(self,sectionhead,sectionbody)
+
+                lasmaster.seek(0)
+
+                self._seeksection(lasmaster,section=sectioncode)
+
+        return types
+
+    def _header(self,lasmaster,program):
+
+        mnemonic,unit,value,description = [],[],[],[]
+
+        mnemonic_parantheses_pattern = r'\([^)]*\)\s*\.'
+
+        while True:
+
+            line = next(lasmaster).strip()
+
+            if len(line)<1:
+                continue
+            
+            if line.startswith("#"):
+                continue
+
+            if line.startswith("~"):
+                break
+
+            line = re.sub(r'[^\x00-\x7F]+','',line)
+
+            mpp = re.search(mnemonic_parantheses_pattern,line)
+
+            if mpp is not None:
+                line = re.sub(mnemonic_parantheses_pattern,' .',line) # removing the content in between paranthesis for mnemonics
+
+            mnemonic_,unit_,value_,description_ = program.match(line).groups()
+
+            if mpp is not None:
+                mnemonic_ = f"{mnemonic_} {mpp.group()[:-1]}"
+
+            mnemonic.append(mnemonic_.strip())
+
+            unit.append(unit_.strip())
+
+            value.append(value_.strip())
+
+            description.append(description_.strip())
+
+        section = header(mnemonic=mnemonic,unit=unit,value=value,description=description)
+
+        return section
+
+    def types(self,lasmaster):
+
+        lasmaster.seek(0)
+
+        return self._types(lasmaster)
+
+    def _types(self,lasmaster):
+
+        while True:
+
+            line = next(lasmaster).strip()
+
+            if len(line)<1:
+                continue
+            
+            if line.startswith("#"):
+                continue
+
+            break
+
+        row = re.sub(r"\s+"," ",line).split(" ")
+
+        return strtype(row)
+
+    def text(self,lasmaster):
+
+        types = self.headers(lasmaster)
+
+        value_null = float(self.well['NULL'].value)
+
+        dtypes = [numpy.dtype(type_) for type_ in types]
+
+        floatFlags = [True if type_ is float else False for type_ in types]
+
+        lasmaster.seek(0)
+
+        self._seeksection(lasmaster,section="~A")
+
+        if all(floatFlags):
+            cols = numpy.loadtxt(lasmaster,comments="#",unpack=True,encoding="latin1")
+        else:
+            cols = numpy.loadtxt(lasmaster,comments="#",unpack=True,encoding="latin1",dtype='str')
+
+        iterator = zip(cols,self.curve.mnemonic,self.curve.unit,self.curve.description,dtypes)
+
+        running = []
+
+        for vals,head,unit,info,dtype in iterator:
+
+            if dtype.type is numpy.dtype('float').type:
+                vals[vals==value_null] = numpy.nan
+
+            datacolumn = column(vals,head=head,unit=unit,info=info,dtype=dtype)
+
+            running.append(datacolumn)
+
+        dataframe = frame(*running)
+
+        if not ulas._issorted(dataframe.running[0].vals):
+            dataframe = dataframe.sort((dataframe.running[0].head,))
+
+        return dataframe
+
+    def issorted(self):
+
+        depths_ = self.frame.running[0].vals
+
+        return ulas._issorted(depths_)
+
+    @staticmethod
+    def _issorted(depths):
+
+        if numpy.all(depths[:-1]<depths[1:]):
+            return True
+        else:
+            return False
+
+    def nanplot(self,axis):
+
+        yvals = []
+        zvals = []
+
+        depth = self.frame.running[0].vals
+
+        for index,datacolumn in enumerate(self.frame.running):
+
+            isnan = numpy.isnan(datacolumn.vals)
+
+            L_shift = numpy.ones(datacolumn.size,dtype=bool)
+            R_shift = numpy.ones(datacolumn.size,dtype=bool)
+
+            L_shift[:-1] = isnan[1:]
+            R_shift[1:] = isnan[:-1]
+
+            lower = numpy.where(numpy.logical_and(~isnan,R_shift))[0]
+            upper = numpy.where(numpy.logical_and(~isnan,L_shift))[0]
+
+            zval = numpy.concatenate((lower,upper),dtype=int).reshape((2,-1)).T.flatten()
+
+            yval = numpy.full(zval.size,index,dtype=float)
+            
+            yval[::2] = numpy.nan
+
+            yvals.append(yval)
+            zvals.append(zval)
+
+        qvals = numpy.unique(numpy.concatenate(zvals))
+
+        for (yval,zval) in zip(yvals,zvals):
+            axis.step(numpy.where(qvals==zval.reshape((-1,1)))[1],yval)
+
+        axis.set_xlim((-1,qvals.size))
+        axis.set_ylim((-1,self.frame.shape[1]))
+
+        axis.set_xticks(numpy.arange(qvals.size))
+        axis.set_xticklabels(depth[qvals],rotation=90)
+
+        axis.set_yticks(numpy.arange(self.frame.shape[1]))
+        axis.set_yticklabels(self.frame.heads)
+
+        axis.grid(True,which="both",axis='x')
+
+        return axis
+
+    def depths(self,top,bottom,curve=None):
+
+        depth = self.frame.running[0].vals
+
+        conds = numpy.logical_and(depth>=top,depth<=bottom)
+
+        if curve is None:
+            dataframe = copy.deepcopy(self.frame)
+            return dataframe[conds]
+
+        else:
+            datacolumn = copy.deepcopy(self.frame[curve])
+            return datacolumn[conds]
+
+    def resample(self,depths1,curve=None):
+        """Resamples the frame data based on given depths1."""
+
+        """
+        depths1 :   The depth values where new curve data will be calculated;
+        curve   :   The head of curve to resample; If None, all curves in the file will be resampled;
+
+        """
+
+        depths0 = self.frame.running[0].vals
+
+        if curve is not None:
+            values0 = self.frame[curve].vals
+
+            datacolumn = copy.deepcopy(self.frame[curve])
+            datacolumn.vals = ulas._resample(depths1,depths0,values0)
+            
+            return datacolumn
+
+        if not ulas._issorted(depths1):
+            raise ValueError("Input depths are not sorted.")
+
+        outers_above = depths1<depths0.min()
+        outers_below = depths1>depths0.max()
+
+        inners = numpy.logical_and(~outers_above,~outers_below)
+
+        depths1_inners_ = depths1[inners]
+
+        lowers = numpy.empty(depths1_inners_.shape,dtype=int)
+        uppers = numpy.empty(depths1_inners_.shape,dtype=int)
+
+        lower = 0
+        upper = 0
+
+        for index,depth in enumerate(depths1_inners_):
+
+            while depth>depths0[lower]:
+                lower += 1
+
+            while depth>depths0[upper]:
+                upper += 1
+
+            lowers[index] = lower-1
+            uppers[index] = upper
+
+        delta_depths1 = depths1_inners_-depths0[lowers]
+        delta_depths0 = depths0[uppers]-depths0[lowers]
+
+        grads = delta_depths1/delta_depths0
+
+        dataframe = copy.deepcopy(self.frame)
+
+        for index,datacolumn in enumerate(self.frame.running):
+
+            if index==0:
+                dataframe[datacolumn.head].vals = depths1
+                continue
+
+            delta_values = datacolumn.vals[uppers]-datacolumn.vals[lowers]
+
+            dataframe[datacolumn.head].vals = numpy.empty(depths1.shape,dtype=float)
+
+            dataframe[datacolumn.head].vals[outers_above] = numpy.nan
+            dataframe[datacolumn.head].vals[inners] = datacolumn.vals[lowers]+grads*(delta_values)
+            dataframe[datacolumn.head].vals[outers_below] = numpy.nan
+
+        return dataframe
+
+    @staticmethod
+    def _resample(depths1,depths0,values0):
+
+        """
+        depths1 :   The depths where new curve values will be calculated;
+        depths0 :   The depths where the values are available;
+        values0 :   The values to be resampled;
+
+        """
+
+        if not ulas._issorted(depths1):
+            raise ValueError("Input depths are not sorted.")
+
+        outers_above = depths1<depths0.min()
+        outers_below = depths1>depths0.max()
+
+        inners = numpy.logical_and(~outers_above,~outers_below)
+
+        depths1_inners_ = depths1[inners]
+
+        lowers = numpy.empty(depths1_inners_.shape,dtype=int)
+        uppers = numpy.empty(depths1_inners_.shape,dtype=int)
+
+        lower,upper = 0,0
+
+        for index,depth in enumerate(depths1_inners_):
+
+            while depth>depths0[lower]:
+                lower += 1
+
+            while depth>depths0[upper]:
+                upper += 1
+
+            lowers[index] = lower-1
+            uppers[index] = upper
+
+            # diff = depths0-depth
+            # lowers[index] = numpy.where(diff<0,diff,-numpy.inf).argmax()
+            # uppers[index] = numpy.where(diff>0,diff,+numpy.inf).argmin()
+
+        delta_depths1 = depths1_inners_-depths0[lowers]
+        delta_depths0 = depths0[uppers]-depths0[lowers]
+        delta_values0 = values0[uppers]-values0[lowers]
+
+        grads = delta_depths1/delta_depths0
+
+        values = numpy.empty(depths1.shape,dtype=float)
+
+        values[outers_above] = numpy.nan
+        values[inners] = values0[lowers]+grads*(delta_values0)
+        values[outers_below] = numpy.nan
+
+        return values
+
+class lasbatch(dirmaster):
+
+    def __init__(self,filepaths=None,**kwargs):
+
+        homedir = None if kwargs.get("homedir") is None else kwargs.pop("homedir")
+        filedir = None if kwargs.get("filedir") is None else kwargs.pop("filedir")
+
+        super().__init__(homedir=homedir,filedir=filedir)
+
+        self.frames = []
+
+        self.load(filepaths,**kwargs)
+
+    def load(self,filepaths,**kwargs):
+
+        if filepaths is None:
+            return
+
+        if not isinstance(filepaths,list) and not isinstance(filepaths,tuple):
+            filepaths = (filepaths,)
+
+        for filepath in filepaths:
+
+            dataframe = loadlas(filepath,**kwargs)
+
+            self.frames.append(dataframe)
+
+            logging.info(f"Loaded {filepath} as expected.")
+
+    def wells(self,idframes=None):
+
+        if idframes is None:
+            idframes = range(len(self.frames))
+        elif isinstance(idframes,int):
+            idframes = (idframes,)
+
+        for index in idframes:
+
+            dataframe = self.frames[index]
+
+            print("\n\tWELL #{}".format(dataframe.well.get_row(mnemonic="WELL")["value"]))
+
+            # iterator = zip(dataframe.well["mnemonic"],dataframe.well["units"],dataframe.well["value"],dataframe.well.descriptions)
+
+            iterator = zip(*dataframe.well.get_columns())
+
+            for mnem,unit,value,descr in iterator:
+                print(f"{descr} ({mnem}):\t\t{value} [{unit}]")
+
+    def curves(self,idframes=None,mnemonic_space=33,tab_space=8):
+
+        if idframes is None:
+            idframes = range(len(self.frames))
+        elif isinstance(idframes,int):
+            idframes = (idframes,)
+
+        for index in idframes:
+
+            dataframe = self.frames[index]
+
+            iterator = zip(dataframe.headers,dataframe.units,dataframe.details,dataframe.running)
+
+            # file.write("\n\tLOG NUMBER {}\n".format(idframes))
+            print("\n\tLOG NUMBER {}".format(index))
+
+            for header,unit,detail,datacolumn in iterator:
+
+                if numpy.all(numpy.isnan(datacolumn)):
+                    minXval = numpy.nan
+                    maxXval = numpy.nan
+                else:
+                    minXval = numpy.nanmin(datacolumn)
+                    maxXval = numpy.nanmax(datacolumn)
+
+                tab_num = int(numpy.ceil((mnemonic_space-len(header))/tab_space))
+                tab_spc = "\t"*tab_num if tab_num>0 else "\t"
+
+                # file.write("Curve: {}{}Units: {}\tMin: {}\tMax: {}\tDescription: {}\n".format(
+                #     curve.mnemonic,tab_spc,curve.unit,minXval,maxXval,curve.descr))
+                print("Curve: {}{}Units: {}\tMin: {}\tMax: {}\tDescription: {}".format(
+                    header,tab_spc,unit,minXval,maxXval,detail))
+
+    def merge(self,fileIDs,curveNames):
+
+        if isinstance(fileIDs,int):
+
+            try:
+                depth = self.frames[fileIDs]["MD"]
+            except KeyError:
+                depth = self.frames[fileIDs]["DEPT"]
+
+            xvals1 = self.frames[fileIDs][curveNames[0]]
+
+            for curveName in curveNames[1:]:
+
+                xvals2 = self.frames[fileIDs][curveName]
+
+                xvals1[numpy.isnan(xvals1)] = xvals2[numpy.isnan(xvals1)]
+
+            return depth,xvals1
+
+        elif numpy.unique(numpy.array(fileIDs)).size==len(fileIDs):
+
+            if isinstance(curveNames,str):
+                curveNames = (curveNames,)*len(fileIDs)
+
+            depth = numpy.array([])
+            xvals = numpy.array([])
+
+            for (fileID,curveName) in zip(fileIDs,curveNames):
+
+                try:
+                    depth_loc = self.frames[fileID]["MD"]
+                except KeyError:
+                    depth_loc = self.frames[fileID]["DEPT"]
+
+                xvals_loc = self.frames[fileID][curveName]
+
+                depth_loc = depth_loc[~numpy.isnan(xvals_loc)]
+                xvals_loc = xvals_loc[~numpy.isnan(xvals_loc)]
+
+                depth_max = 0 if depth.size==0 else depth.max()
+
+                depth = numpy.append(depth,depth_loc[depth_loc>depth_max])
+                xvals = numpy.append(xvals,xvals_loc[depth_loc>depth_max])
+
+            return depth,xvals
+
 class colors():
 
     def __init__(self,**kwargs):
@@ -113,45 +805,57 @@ class colors():
     def hatches(self):
         return [value[2] for key,value in self.__dict__.items()]
 
-def GRcut(self,GRline,depth=("None",None,None),perc_cut=40):
+class gammaray():
 
-    xvals = self.get_interval(*depth[1:],idframes=GRline[0],curveID=GRline[1])[0]
+    def __init__(self):
 
-    GRmin = numpy.nanmin(xvals)
-    GRmax = numpy.nanmax(xvals)
+        pass
 
-    GRcut = (GRmin+(GRmax-GRmin)*perc_cut/100)
+    def cut(self,GRline,depth=("None",None,None),perc_cut=40):
 
-    return GRcut
+        xvals = self.get_interval(*depth[1:],idframes=GRline[0],curveID=GRline[1])[0]
 
-def ShaleVolumeGR(self,GRline,GRmin=None,GRmax=None,model=None):
-
-    xvals = self.frames[GRline[0]][GRline[1]]
-
-    if GRmin is None:
         GRmin = numpy.nanmin(xvals)
-
-    if GRmax is None:
         GRmax = numpy.nanmax(xvals)
 
-    Ish = (xvals-GRmin)/(GRmax-GRmin)
+        GRcut = (GRmin+(GRmax-GRmin)*perc_cut/100)
 
-    if model is None or model=="linear":
-        Vsh = Ish
+        return GRcut
 
-    return Vsh
+    def shalevolume(self,GRline,GRmin=None,GRmax=None,model=None):
 
-def ShaleVolumeSP(self,SPline,SPsand,SPshale):
+        xvals = self.frames[GRline[0]][GRline[1]]
 
-    xvals = self.frames[SPline[0]][SPline[1]]
+        if GRmin is None:
+            GRmin = numpy.nanmin(xvals)
 
-    Vsh = (xvals-SPsand)/(SPshale-SPsand)
+        if GRmax is None:
+            GRmax = numpy.nanmax(xvals)
 
-    return Vsh
+        Ish = (xvals-GRmin)/(GRmax-GRmin)
 
-def GammaSpecCrossPlot(self):
+        if model is None or model=="linear":
+            Vsh = Ish
 
-    self.fig_gscp,self.axis_gscp = pyplot.subplots()
+        return Vsh
+
+    def spectral(self):
+
+        self.fig_gscp,self.axis_gscp = pyplot.subplots()
+
+class spotential():
+
+    def __init__(self):
+
+        pass
+
+    def spotential(self,SPline,SPsand,SPshale):
+
+        xvals = self.frames[SPline[0]][SPline[1]]
+
+        Vsh = (xvals-SPsand)/(SPshale-SPsand)
+
+        return Vsh
 
 def DenNeuCrossPlot(self):
 
@@ -539,9 +1243,11 @@ class MNplot():
         
         pass
 
-def MIDplot(self):
+class MIDplot():
 
-    self.fig_midp,self.axis_midp = pyplot.subplots()
+    def __init__(self):
+
+        self.fig_midp,self.axis_midp = pyplot.subplots()
 
 def RhomaaUmaaPlot(self):
 
@@ -673,3 +1379,565 @@ def PickettCrossPlot(
 def HingleCrossPlot(self):
 
     self.fig_hcp,self.axis_hcp = pyplot.subplots()
+
+""" DEPTVIEW RELATED EDITS
+ 1. DepthView should be a frame that can be added to any parent frame.
+ 2. Axis and line numbers should not be predefined.
+ 3. Adding axis should not affect previous axes.
+ 4. Adding line should not affect previous lines.
+ 5. DepthView should be added to dataview and get dataframe as an input
+ 6. Depth axis must be unique!
+ 7. x-axis grids must be the same for the axis on top of each other.
+ 8. get_xticks() should be working perfectly for both normal and logarithmic scale
+ 9. set_lines() should be working smoothly
+10. set_listbox() should be adding {idfile: mnemonic} to the listbox
+"""
+
+class DepthView():
+
+    def __init__(self,root):
+        """It initializes the DepthView with listbox and figure canvas."""
+
+        self.root = root
+
+        self.root.title("datum - depth view")
+
+        # The main frame for the listbox
+
+        self.framelist = tkinter.Frame(root,width=31*8)
+        self.framelist.pack(side=tkinter.LEFT,fill=tkinter.Y,expand=0)
+
+        self.listbox = tkinter.Listbox(self.framelist,width=31)
+        self.listbox.pack(side=tkinter.LEFT,fill=tkinter.BOTH,expand=1)
+
+        # The main frame for the plot canvas
+
+        self.framefigs = tkinter.Frame(root)
+        self.framefigs.pack(side=tkinter.LEFT,fill=tkinter.BOTH,expand=1)
+
+        self.canvas = tkinter.Canvas(self.framefigs)
+
+        self.canvas.grid(row=0,column=0,sticky=tkinter.NSEW)
+
+        self.hscroll = tkinter.Scrollbar(self.framefigs,orient=tkinter.HORIZONTAL)
+        self.vscroll = tkinter.Scrollbar(self.framefigs,orient=tkinter.VERTICAL)
+
+        self.hscroll.grid(row=1,column=0,sticky=tkinter.EW)
+        self.vscroll.grid(row=0,column=1,sticky=tkinter.NS)
+
+        self.framefigs.rowconfigure(0,weight=1)
+        self.framefigs.columnconfigure(0,weight=1)
+
+        self.canvas.config(xscrollcommand=self.hscroll.set)
+        self.canvas.config(yscrollcommand=self.vscroll.set)
+
+        self.hscroll.config(command=self.canvas.xview)
+        self.vscroll.config(command=self.canvas.yview)
+
+        self.canvas.bind_all("<MouseWheel>",self._on_mousewheel)
+
+        # The colors to be used for lines
+
+        # self.colors = ("black","crimson","blue","sienna")
+        self.colors = pyplot.rcParams['axes.prop_cycle'].by_key()['color']
+        # self.colors.insert(0,"#000000")
+
+    def set_listbox(self):
+
+        pass
+
+    def set_axes(self,numaxes=1,subaxes=None,depth=None,inchdepth=15.,width=3.,height=128.,dpi=100.):
+        """Creates the figure and axes and their sub-axes and stores them in the self.axes."""
+
+        # numaxes   : integer
+        #            Number of axes in the figure
+
+        # subaxes   : list or tuple of integers
+        #            Number of subaxes in each axis
+
+        # depth     : float
+        #            Depth of log in meters; every inch will represent inchdepth meter of formation
+        #            Default value for inchdepth is 15 meters.
+
+        # inchdepth : float
+        #            The depth (meters) to be shown in every inch of the figure
+
+        # width     : float
+        #            Width of each axis in inches
+
+        # height    : float
+        #            Height of figure in inches
+
+        # dpi       : integer
+        #            Resolution of the figure, dots per inches
+
+        self.figure = pyplot.figure(dpi=dpi)
+
+        self.figure.set_figwidth(width*numaxes)
+
+        if depth is None:
+            self.figure.set_figheight(height)
+        else:
+            self.figure.set_figheight(depth/inchdepth)
+
+        self.fgspec = gridspec.GridSpec(1,numaxes)
+
+        self.axes = []
+
+        if subaxes is None:
+            subaxes = (1,)*numaxes
+        elif not hasattr(subaxes,"__len__"):
+            logging.warning(f"Expected subaxes is a list or tuple with the length equal to numaxes; input is {type(subaxes)}")
+        elif len(subaxes)!=numaxes:
+            logging.warning(f"The length of subaxes should be equal to numaxes; {len(subaxes)} not equal to {numaxes=}")
+
+        for idaxis in range(numaxes):
+            self.add_axis(idaxis,subaxes[idaxis])
+
+    def add_axis(self,idaxis,numsubaxes=1):
+        """Adds main-axis and its subaxes to the list of self.axes."""
+
+        subaxes = []
+
+        subaxis_main = pyplot.subplot(self.fgspec[idaxis])
+
+        xlims = (0,1)
+
+        ylims = (0,1)
+
+        subaxis_main.set_xticks(numpy.linspace(*xlims,11))
+        subaxis_main.set_yticks(ylims)
+
+        subaxis_main.set_ylim(ylims[::-1])
+
+        subaxis_main.yaxis.set_minor_locator(AutoMinorLocator(25))
+
+        subaxis_main.grid(True,which="both",axis='y')
+
+        subaxis_main.grid(True,which="major",axis='x')
+
+        pyplot.setp(subaxis_main.get_xticklabels(),visible=False)
+        pyplot.setp(subaxis_main.get_xticklines(),visible=False)
+
+        # pyplot.setp(subaxis_main.xaxis.get_minorticklabels(),visible=False)
+        # pyplot.setp(subaxis_main.xaxis.get_minorticklines(),visible=False)
+
+        pyplot.setp(subaxis_main.yaxis.get_minorticklines(),visible=False)
+        # subaxis_main.tick_params(axis='y',which='major',length=0)
+
+        if idaxis>0:
+            pyplot.setp(subaxis_main.get_yticklabels(),visible=False)
+
+        subaxes.append(subaxis_main)
+
+        self.axes.append(subaxes)
+
+        self.set_subaxes(idaxis,numsubaxes)
+
+    def set_subaxes(self,idaxis,numsubaxes):
+        """Creates subaxes and stores them in self.axes."""
+
+        numsubaxes_current = len(self.axes[idaxis])-1
+
+        if numsubaxes_current>=numsubaxes:
+            return
+
+        roofpos = 1+0.4*numsubaxes/self.figure.get_figheight()
+
+        self.axes[idaxis][0].spines["top"].set_position(("axes",roofpos))
+
+        for idline in range(numsubaxes_current,numsubaxes):
+            self.add_subaxis(idaxis,idline)
+
+    def add_subaxis(self,idaxis,idline):
+        """Adds subaxis to the self.axes."""
+
+        axsub = self.axes[idaxis][0].twiny()
+
+        axsub.set_xticks((0.,1.))
+        axsub.set_ylim(self.axes[0][0].get_ylim())
+
+        spinepos = 1+0.4*idline/self.figure.get_figheight()
+
+        axsub.spines["top"].set_position(("axes",spinepos))
+        axsub.spines["top"].set_color(self.colors[idline])
+
+        axsub.spines["left"].set_visible(False)
+        axsub.spines["right"].set_visible(False)
+        axsub.spines["bottom"].set_visible(False)
+
+        axsub.tick_params(axis='x',labelcolor=self.colors[idline])
+
+        # self.axes[idaxis][0].yaxis.set_minor_locator(AutoMinorLocator(25))
+
+        # self.axes[idaxis][0].grid(True,which="both",axis='y')
+
+        pyplot.setp(self.axes[idaxis][0].get_xticklabels(),visible=False)
+        pyplot.setp(self.axes[idaxis][0].get_xticklines(),visible=False)
+
+        axsub.LineExistFlag = False
+
+        self.set_xaxis(axsub)
+
+        self.axes[idaxis].append(axsub)
+
+    def set_depth(self,depth=None):
+        """It will check the depths of axis and set depth which include all depths."""
+
+        for axis in self.axes:
+            for axsub in axis:
+                axsub.set_ylim(self.axes[0][0].get_ylim())
+
+            # axis[0].yaxis.set_minor_locator(AutoMinorLocator(25))
+            # axis[0].grid(True,which="both",axis='y')
+
+    def set_xaxis(self,axis):
+
+        pyplot.setp(axis.xaxis.get_majorticklabels()[1:-1],visible=False)
+
+        pyplot.setp(axis.xaxis.get_majorticklabels()[0],ha="left")
+        pyplot.setp(axis.xaxis.get_majorticklabels()[-1],ha="right")
+
+        if not axis.LineExistFlag:
+
+            loffset = transforms.ScaledTranslation(5/72,-5/72,self.figure.dpi_scale_trans)
+            
+            ltrans = axis.xaxis.get_majorticklabels()[0].get_transform()
+
+            axis.xaxis.get_majorticklabels()[0].set_transform(ltrans+loffset)
+
+            roffset = transforms.ScaledTranslation(-5/72,-5/72,self.figure.dpi_scale_trans)
+
+            rtrans = axis.xaxis.get_majorticklabels()[-1].get_transform()
+
+            axis.xaxis.get_majorticklabels()[-1].set_transform(rtrans+roffset)
+
+        else:
+
+            roffset = transforms.ScaledTranslation(-10/72,0,self.figure.dpi_scale_trans)
+
+            rtrans = axis.xaxis.get_majorticklabels()[-1].get_transform()
+
+            axis.xaxis.get_majorticklabels()[-1].set_transform(rtrans+roffset)
+
+        pyplot.setp(axis.xaxis.get_majorticklines()[2:-1],visible=False)
+
+        pyplot.setp(axis.xaxis.get_majorticklines()[1],markersize=25)
+        pyplot.setp(axis.xaxis.get_majorticklines()[-1],markersize=25)
+
+        # axis.xaxis.get_majorticklines()[0].set_markersize(100)
+
+    def set_lines(self,idaxis,idline,xcol,ycol):
+
+        axis = self.axes[idaxis][idline+1]
+
+        axis.plot(xcol.vals,ycol.vals,color=self.colors[idline])
+
+        axis.LineExistFlag = True
+
+        yticks = self.get_yticks(ycol.vals)
+        xticks = self.get_xticks(xcol.vals)
+
+        axis.set_xlabel(xcol.head)
+
+        # figheight_temp = (yticks.max()-yticks.min())/128
+
+        # if figheight_temp>self.figure.get_figheight():
+        #   self.figure.set_figheight(figheight_temp)
+
+        # figheight = max(self.figure.get_figheight(),figheight_temp)
+
+        axis.set_ylim((yticks.max(),yticks.min()))
+        axis.set_yticks(yticks)
+
+        axis.set_xlim((xticks.min(),xticks.max()))
+        axis.set_xticks(xticks)
+
+        self.set_xaxis(axis)
+
+        # axis.grid(True,which="both",axis='y')
+
+        # axis.yaxis.set_minor_locator(AutoMinorLocator(10))
+
+        # if idline==0:
+            # axis.grid(True,which="major",axis='x')
+
+        # axis.xaxis.set_major_formatter(ScalarFormatter())
+        # # axis.xaxis.set_major_formatter(LogFormatter())
+
+    def set_image(self):
+        """Creates the image of figure in memory and displays it on canvas."""
+
+        self.fgspec.tight_layout(self.figure,rect=[0,0,1.0,0.995])
+        self.fgspec.update(wspace=0)
+
+        buff = io.BytesIO()
+
+        self.figure.savefig(buff,format='png')
+
+        buff.seek(0)
+
+        self.image = ImageTk.PhotoImage(Image.open(buff))
+
+        self.canvas.create_image(0,0,anchor=tkinter.NW,image=self.image)
+
+        self.canvas.config(scrollregion=self.canvas.bbox('all'))
+
+    def get_xticks(self,xvals,xmin=None,xmax=None,xscale="normal",xdelta=None,xdelta_count=11):
+
+        xvals_min = numpy.nanmin(xvals)
+
+        if xvals_min is numpy.nan:
+            xvals_min = 0.
+
+        xvals_max = numpy.nanmax(xvals)
+
+        if xvals_max is numpy.nan:
+            xvals_max= 1.
+
+        xrange_given = xvals_max-xvals_min
+
+        if xdelta is None:
+            xdelta = xrange_given/(xdelta_count-1)
+
+        beforeDot,afterDot = format(xdelta,'f').split('.')
+
+        nondim_xunit_sizes = numpy.array([1,2,4,5,10])
+
+        if xdelta>1:
+
+            xdelta_temp = xdelta/10**(len(beforeDot)-1)
+            xdelta_temp = nondim_xunit_sizes[(numpy.abs(nondim_xunit_sizes-xdelta_temp)).argmin()]
+
+            xdelta = xdelta_temp*10**(len(beforeDot)-1)
+
+        else:
+
+            zeroCountAfterDot = len(afterDot)-len(afterDot.lstrip('0'))
+
+            xdelta_temp = xdelta*10**(zeroCountAfterDot+1)
+            xdelta_temp = nondim_xunit_sizes[(numpy.abs(nondim_xunit_sizes-xdelta_temp)).argmin()]
+
+            xdelta = xdelta_temp/10**(zeroCountAfterDot+1)
+
+        if xscale=="normal":
+
+            if xmin is None:
+                xmin = (numpy.floor(xvals_min/xdelta)-1).astype(float)*xdelta
+
+            if xmax is None:
+                xmax = (numpy.ceil(xvals_max/xdelta)+1).astype(float)*xdelta
+
+            xticks = numpy.arange(xmin,xmax+xdelta/2,xdelta)
+
+        elif xscale=="log":
+
+            if xmin is None:
+                xmin = xvals_min if xvals_min>0 else 0.001
+
+            if xmax is None:
+                xmax = xvals_max if xvals_max>0 else 0.1
+
+            xmin_power = numpy.floor(numpy.log10(xmin))
+            xmax_power = numpy.ceil(numpy.log10(xmax))
+
+            xticks = 10**numpy.arange(xmin_power,xmax_power+1/2)
+
+        return xticks
+
+    def get_yticks(self,yvals=None,top=None,bottom=None,endmultiple=5.,ydelta=25.):
+
+        if yvals is None:
+            yvals = numpy.array([0,1])
+
+        if top is None:
+            top = numpy.nanmin(yvals)
+
+        if bottom is None:
+            bottom = numpy.nanmax(yvals)
+
+        if top>bottom:
+            top,bottom = bottom,top
+
+        ymin = numpy.floor(top/endmultiple)*endmultiple
+
+        ymax = numpy.ceil(bottom/endmultiple)*endmultiple
+
+        yticks = numpy.arange(ymin,ymax+ydelta/2,ydelta)
+
+        return yticks
+
+    def set_DepthViewGRcut(self,GRline,indexI,indexJ,perc_cut=40):
+
+        # indexI index of GR containing axis in the plot
+        # indexJ index of GR containing line in the axis
+
+        try:
+            depth = self.frames[GRline[0]].columns("MD")
+        except ValueError:
+            depth = self.frames[GRline[0]].columns("DEPT")
+
+        xvals = self.frames[GRline[0]].columns(GRline[1])
+
+        GRmin = numpy.nanmin(xvals)
+        GRmax = numpy.nanmax(xvals)
+
+        GRcut = (GRmin+(GRmax-GRmin)*perc_cut/100)
+
+        cut_line = GRcut*numpy.ones(depth.shape)
+
+        cond_clean = cut_line>=xvals
+
+        indexTop = []
+        indexBtm = []
+
+        for i,cond in enumerate(cond_clean):
+            
+            if i>0:
+                old_cond = cond_clean[i-1]
+            else:
+                old_cond = False
+                
+            try:
+                new_cond = cond_clean[i+1]
+            except IndexError:
+                new_cond = False
+                
+            if cond and not old_cond:
+                indexTop.append(i)
+
+            if cond and not new_cond:
+                indexBtm.append(i)
+
+        net_pay = 0
+
+        for i,j in zip(indexTop,indexBtm):
+
+            net_pay += depth[j]-depth[i]
+
+        self.axes[indexI].subax[indexJ].fill_betweenx(
+            depth,xvals,x2=cut_line,where=cond_clean,color=self.color_clean)
+
+        self.netPayThickness = net_pay
+        self.netToGrossRatio = net_pay/self.gross_thickness*100
+
+        return GRcut
+
+    def set_DepthViewNeuPorCorr(self,NeuPorLine,indexI,indexJ,Vsh,NeuPorShale):
+
+        # indexI index of Neutron Porosity containing axis in the plot
+        # indexJ index of Neutron Porosity containing line in the axis
+
+        try:
+            depth = self.frames[NeuPorLine[0]]["MD"]
+        except KeyError:
+            depth = self.frames[NeuPorLine[0]]["DEPT"]
+
+        xvals = self.frames[NeuPorLine[0]][NeuPorLine[1]]
+
+        NeuPorCorr = xvals-Vsh*NeuPorShale
+
+        self.axes[indexI].subax[indexJ].plot(NeuPorCorr,depth,
+            color=self.lineColors[indexJ],linestyle="--")
+
+    def set_DepthViewResistivityCut(self,ResLine,indexI,indexJ,ohmm_cut=10):
+
+        # indexI index of Resistivity containing axis in the plot
+        # indexJ index of Resistivity containing line in the axis
+
+        depth = self.frames[ResLine[0]].columns(0)
+
+        xvals = self.frames[ResLine[0]].columns(ResLine[1])
+
+        cut_line = ohmm_cut*numpy.ones(depth.shape)
+
+        self.axes[indexI].subax[indexJ].fill_betweenx(
+            depth,xvals,x2=cut_line,where=ohmm_cut<=xvals,color=self.color_HC)
+
+    def set_DepthViewSaturationCut(self,SwLine,indexI,indexJ,Sw_cut=0.5):
+
+        # indexI index of Resistivity containing axis in the plot
+        # indexJ index of Resistivity containing line in the axis
+
+        depth = self.frames[SwLine[0]].columns(0)
+
+        xvals = self.frames[SwLine[0]].columns(SwLine[1])
+
+        cut_line = Sw_cut*numpy.ones(depth.shape)
+
+        self.axes[indexI].subax[indexJ].fill_betweenx(
+            depth,xvals,x2=cut_line,where=Sw_cut>=xvals,color=self.color_HC)
+
+    def set_DepthViewNMRfluid(self,NMRline,indexI,water_clay,water_capi,water_move,HC):
+
+        # indexL index of NMR containing lasio in the pack
+        # indexI index of NMR containing axis in the plot
+
+        try:
+            depth = self.frames[NMRline]["MD"]
+        except KeyError:
+            depth = self.frames[NMRline]["DEPT"]
+
+        xvals0 = numpy.zeros(water_clay.shape)
+        xvals1 = water_clay
+        xvals2 = water_clay+water_capi
+        xvals3 = water_clay+water_capi+water_move
+        xvals4 = water_clay+water_capi+water_move+HC
+
+        self.axes[indexI].subax[0].fill_betweenx(
+            depth,xvals1,x2=xvals0,where=xvals0<=xvals1,color=self.color_waterclay)
+
+        self.axes[indexI].subax[0].fill_betweenx(
+            depth,xvals2,x2=xvals1,where=xvals1<=xvals2,color=self.color_watercapi)
+
+        self.axes[indexI].subax[0].fill_betweenx(
+            depth,xvals3,x2=xvals2,where=xvals2<=xvals3,color=self.color_watermove)
+
+        self.axes[indexI].subax[0].fill_betweenx(
+            depth,xvals4,x2=xvals3,where=xvals3<=xvals4,color=self.color_HC)
+
+    def set_DepthViewPerfs(self,indexI,indexJ,depths,perfs):
+
+        xtick = self.axes[indexI].subax[indexJ].get_xticks()
+
+        ytick = self.axes[indexI].subax[indexJ].get_yticks()
+
+        perfs = numpy.array(perfs)
+
+        perfs_just = perfs[perfs>0]
+
+        perfs_just[::10] -= perfs_just[::10]*0.5
+
+        perfs[perfs>0] = perfs_just
+
+        perfs_scaled = xtick.min()+(xtick.max()-xtick.min())/10/(perfs.max()-perfs.min())*perfs
+
+        # pfgun_point = xtick.min()
+
+        # for arg in args:
+
+        #     depths = numpy.arange(arg[0],arg[1]+1/2,1.)
+
+        #     for index,depth in enumerate(depths):
+
+        #         if index==0:
+        #             marker,size = 11,10
+        #         elif index==len(depths)-1:
+        #             marker,size = 10,10
+        #         else:
+        #             marker,size = 9,10
+
+        #         self.axes[indexI].subax[indexJ].plot(pfgun_point,depth,
+        #             marker=marker,color='orange',markersize=size,markerfacecolor='black')
+
+        self.axes[indexI].subax[indexJ].plot(perfs_scaled,depths)
+
+    def set_DepthViewCasing(self):
+        """It creates an axis to include casing set depths"""
+
+        pass
+
+    def _on_mousewheel(self,event):
+        """Lets the scroll work everywhere on the window."""
+
+        self.canvas.yview_scroll(int(-1*(event.delta/120)),"units")
