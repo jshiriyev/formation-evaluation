@@ -1,9 +1,26 @@
-import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
+import io
+
+import re
+
+import tkinter
+
+from matplotlib import colors as mcolors
+from matplotlib import gridspec
+from matplotlib import pyplot
+from matplotlib import transforms
 
 from matplotlib.patches import Rectangle
 
+from matplotlib.ticker import AutoMinorLocator
+from matplotlib.ticker import LogFormatter
+from matplotlib.ticker import LogFormatterExponent
+from matplotlib.ticker import LogFormatterMathtext
+from matplotlib.ticker import NullLocator
+from matplotlib.ticker import ScalarFormatter
+
 import numpy
+
+from PIL import ImageTk, Image
 
 if __name__ == "__main__":
     import dirsetup
@@ -13,6 +30,8 @@ from core import column
 
 from textio import header
 from textio import dirmaster
+
+from cypy.vectorpy import strtype
 
 class ulas():
 
@@ -89,6 +108,204 @@ class ulas():
 
         with open(filepath, mode='w') as filePathToWrite:
             lasmaster.write(filePathToWrite)
+
+    def issorted(self):
+
+        depths_ = self.frame.running[0].vals
+
+        return ulas._issorted(depths_)
+
+    @staticmethod
+    def _issorted(depths):
+
+        if numpy.all(depths[:-1]<depths[1:]):
+            return True
+        else:
+            return False
+
+    def nanplot(self,axis):
+
+        yvals = []
+        zvals = []
+
+        depth = self.frame.running[0].vals
+
+        for index,datacolumn in enumerate(self.frame.running):
+
+            isnan = numpy.isnan(datacolumn.vals)
+
+            L_shift = numpy.ones(datacolumn.size,dtype=bool)
+            R_shift = numpy.ones(datacolumn.size,dtype=bool)
+
+            L_shift[:-1] = isnan[1:]
+            R_shift[1:] = isnan[:-1]
+
+            lower = numpy.where(numpy.logical_and(~isnan,R_shift))[0]
+            upper = numpy.where(numpy.logical_and(~isnan,L_shift))[0]
+
+            zval = numpy.concatenate((lower,upper),dtype=int).reshape((2,-1)).T.flatten()
+
+            yval = numpy.full(zval.size,index,dtype=float)
+            
+            yval[::2] = numpy.nan
+
+            yvals.append(yval)
+            zvals.append(zval)
+
+        qvals = numpy.unique(numpy.concatenate(zvals))
+
+        for (yval,zval) in zip(yvals,zvals):
+            axis.step(numpy.where(qvals==zval.reshape((-1,1)))[1],yval)
+
+        axis.set_xlim((-1,qvals.size))
+        axis.set_ylim((-1,self.frame.shape[1]))
+
+        axis.set_xticks(numpy.arange(qvals.size))
+        axis.set_xticklabels(depth[qvals],rotation=90)
+
+        axis.set_yticks(numpy.arange(self.frame.shape[1]))
+        axis.set_yticklabels(self.frame.heads)
+
+        axis.grid(True,which="both",axis='x')
+
+        return axis
+
+    def depths(self,top,bottom,curve=None):
+
+        depth = self.frame.running[0].vals
+
+        conds = numpy.logical_and(depth>=top,depth<=bottom)
+
+        if curve is None:
+            dataframe = copy.deepcopy(self.frame)
+            return dataframe[conds]
+
+        else:
+            datacolumn = copy.deepcopy(self.frame[curve])
+            return datacolumn[conds]
+
+    def resample(self,depths1,curve=None):
+        """Resamples the frame data based on given depths1."""
+
+        """
+        depths1 :   The depth values where new curve data will be calculated;
+        curve   :   The head of curve to resample; If None, all curves in the file will be resampled;
+
+        """
+
+        depths0 = self.frame.running[0].vals
+
+        if curve is not None:
+            values0 = self.frame[curve].vals
+
+            datacolumn = copy.deepcopy(self.frame[curve])
+            datacolumn.vals = ulas._resample(depths1,depths0,values0)
+            
+            return datacolumn
+
+        if not ulas._issorted(depths1):
+            raise ValueError("Input depths are not sorted.")
+
+        outers_above = depths1<depths0.min()
+        outers_below = depths1>depths0.max()
+
+        inners = numpy.logical_and(~outers_above,~outers_below)
+
+        depths1_inners_ = depths1[inners]
+
+        lowers = numpy.empty(depths1_inners_.shape,dtype=int)
+        uppers = numpy.empty(depths1_inners_.shape,dtype=int)
+
+        lower = 0
+        upper = 0
+
+        for index,depth in enumerate(depths1_inners_):
+
+            while depth>depths0[lower]:
+                lower += 1
+
+            while depth>depths0[upper]:
+                upper += 1
+
+            lowers[index] = lower-1
+            uppers[index] = upper
+
+        delta_depths1 = depths1_inners_-depths0[lowers]
+        delta_depths0 = depths0[uppers]-depths0[lowers]
+
+        grads = delta_depths1/delta_depths0
+
+        dataframe = copy.deepcopy(self.frame)
+
+        for index,datacolumn in enumerate(self.frame.running):
+
+            if index==0:
+                dataframe[datacolumn.head].vals = depths1
+                continue
+
+            delta_values = datacolumn.vals[uppers]-datacolumn.vals[lowers]
+
+            dataframe[datacolumn.head].vals = numpy.empty(depths1.shape,dtype=float)
+
+            dataframe[datacolumn.head].vals[outers_above] = numpy.nan
+            dataframe[datacolumn.head].vals[inners] = datacolumn.vals[lowers]+grads*(delta_values)
+            dataframe[datacolumn.head].vals[outers_below] = numpy.nan
+
+        return dataframe
+
+    @staticmethod
+    def _resample(depths1,depths0,values0):
+
+        """
+        depths1 :   The depths where new curve values will be calculated;
+        depths0 :   The depths where the values are available;
+        values0 :   The values to be resampled;
+
+        """
+
+        if not ulas._issorted(depths1):
+            raise ValueError("Input depths are not sorted.")
+
+        outers_above = depths1<depths0.min()
+        outers_below = depths1>depths0.max()
+
+        inners = numpy.logical_and(~outers_above,~outers_below)
+
+        depths1_inners_ = depths1[inners]
+
+        lowers = numpy.empty(depths1_inners_.shape,dtype=int)
+        uppers = numpy.empty(depths1_inners_.shape,dtype=int)
+
+        lower,upper = 0,0
+
+        for index,depth in enumerate(depths1_inners_):
+
+            while depth>depths0[lower]:
+                lower += 1
+
+            while depth>depths0[upper]:
+                upper += 1
+
+            lowers[index] = lower-1
+            uppers[index] = upper
+
+            # diff = depths0-depth
+            # lowers[index] = numpy.where(diff<0,diff,-numpy.inf).argmax()
+            # uppers[index] = numpy.where(diff>0,diff,+numpy.inf).argmin()
+
+        delta_depths1 = depths1_inners_-depths0[lowers]
+        delta_depths0 = depths0[uppers]-depths0[lowers]
+        delta_values0 = values0[uppers]-values0[lowers]
+
+        grads = delta_depths1/delta_depths0
+
+        values = numpy.empty(depths1.shape,dtype=float)
+
+        values[outers_above] = numpy.nan
+        values[inners] = values0[lowers]+grads*(delta_values0)
+        values[outers_below] = numpy.nan
+
+        return values
 
 class loadlas(dirmaster):
 
@@ -370,204 +587,6 @@ class loadlas(dirmaster):
             dataframe = dataframe.sort((dataframe.running[0].head,))
 
         return dataframe
-
-    def issorted(self):
-
-        depths_ = self.frame.running[0].vals
-
-        return ulas._issorted(depths_)
-
-    @staticmethod
-    def _issorted(depths):
-
-        if numpy.all(depths[:-1]<depths[1:]):
-            return True
-        else:
-            return False
-
-    def nanplot(self,axis):
-
-        yvals = []
-        zvals = []
-
-        depth = self.frame.running[0].vals
-
-        for index,datacolumn in enumerate(self.frame.running):
-
-            isnan = numpy.isnan(datacolumn.vals)
-
-            L_shift = numpy.ones(datacolumn.size,dtype=bool)
-            R_shift = numpy.ones(datacolumn.size,dtype=bool)
-
-            L_shift[:-1] = isnan[1:]
-            R_shift[1:] = isnan[:-1]
-
-            lower = numpy.where(numpy.logical_and(~isnan,R_shift))[0]
-            upper = numpy.where(numpy.logical_and(~isnan,L_shift))[0]
-
-            zval = numpy.concatenate((lower,upper),dtype=int).reshape((2,-1)).T.flatten()
-
-            yval = numpy.full(zval.size,index,dtype=float)
-            
-            yval[::2] = numpy.nan
-
-            yvals.append(yval)
-            zvals.append(zval)
-
-        qvals = numpy.unique(numpy.concatenate(zvals))
-
-        for (yval,zval) in zip(yvals,zvals):
-            axis.step(numpy.where(qvals==zval.reshape((-1,1)))[1],yval)
-
-        axis.set_xlim((-1,qvals.size))
-        axis.set_ylim((-1,self.frame.shape[1]))
-
-        axis.set_xticks(numpy.arange(qvals.size))
-        axis.set_xticklabels(depth[qvals],rotation=90)
-
-        axis.set_yticks(numpy.arange(self.frame.shape[1]))
-        axis.set_yticklabels(self.frame.heads)
-
-        axis.grid(True,which="both",axis='x')
-
-        return axis
-
-    def depths(self,top,bottom,curve=None):
-
-        depth = self.frame.running[0].vals
-
-        conds = numpy.logical_and(depth>=top,depth<=bottom)
-
-        if curve is None:
-            dataframe = copy.deepcopy(self.frame)
-            return dataframe[conds]
-
-        else:
-            datacolumn = copy.deepcopy(self.frame[curve])
-            return datacolumn[conds]
-
-    def resample(self,depths1,curve=None):
-        """Resamples the frame data based on given depths1."""
-
-        """
-        depths1 :   The depth values where new curve data will be calculated;
-        curve   :   The head of curve to resample; If None, all curves in the file will be resampled;
-
-        """
-
-        depths0 = self.frame.running[0].vals
-
-        if curve is not None:
-            values0 = self.frame[curve].vals
-
-            datacolumn = copy.deepcopy(self.frame[curve])
-            datacolumn.vals = ulas._resample(depths1,depths0,values0)
-            
-            return datacolumn
-
-        if not ulas._issorted(depths1):
-            raise ValueError("Input depths are not sorted.")
-
-        outers_above = depths1<depths0.min()
-        outers_below = depths1>depths0.max()
-
-        inners = numpy.logical_and(~outers_above,~outers_below)
-
-        depths1_inners_ = depths1[inners]
-
-        lowers = numpy.empty(depths1_inners_.shape,dtype=int)
-        uppers = numpy.empty(depths1_inners_.shape,dtype=int)
-
-        lower = 0
-        upper = 0
-
-        for index,depth in enumerate(depths1_inners_):
-
-            while depth>depths0[lower]:
-                lower += 1
-
-            while depth>depths0[upper]:
-                upper += 1
-
-            lowers[index] = lower-1
-            uppers[index] = upper
-
-        delta_depths1 = depths1_inners_-depths0[lowers]
-        delta_depths0 = depths0[uppers]-depths0[lowers]
-
-        grads = delta_depths1/delta_depths0
-
-        dataframe = copy.deepcopy(self.frame)
-
-        for index,datacolumn in enumerate(self.frame.running):
-
-            if index==0:
-                dataframe[datacolumn.head].vals = depths1
-                continue
-
-            delta_values = datacolumn.vals[uppers]-datacolumn.vals[lowers]
-
-            dataframe[datacolumn.head].vals = numpy.empty(depths1.shape,dtype=float)
-
-            dataframe[datacolumn.head].vals[outers_above] = numpy.nan
-            dataframe[datacolumn.head].vals[inners] = datacolumn.vals[lowers]+grads*(delta_values)
-            dataframe[datacolumn.head].vals[outers_below] = numpy.nan
-
-        return dataframe
-
-    @staticmethod
-    def _resample(depths1,depths0,values0):
-
-        """
-        depths1 :   The depths where new curve values will be calculated;
-        depths0 :   The depths where the values are available;
-        values0 :   The values to be resampled;
-
-        """
-
-        if not ulas._issorted(depths1):
-            raise ValueError("Input depths are not sorted.")
-
-        outers_above = depths1<depths0.min()
-        outers_below = depths1>depths0.max()
-
-        inners = numpy.logical_and(~outers_above,~outers_below)
-
-        depths1_inners_ = depths1[inners]
-
-        lowers = numpy.empty(depths1_inners_.shape,dtype=int)
-        uppers = numpy.empty(depths1_inners_.shape,dtype=int)
-
-        lower,upper = 0,0
-
-        for index,depth in enumerate(depths1_inners_):
-
-            while depth>depths0[lower]:
-                lower += 1
-
-            while depth>depths0[upper]:
-                upper += 1
-
-            lowers[index] = lower-1
-            uppers[index] = upper
-
-            # diff = depths0-depth
-            # lowers[index] = numpy.where(diff<0,diff,-numpy.inf).argmax()
-            # uppers[index] = numpy.where(diff>0,diff,+numpy.inf).argmin()
-
-        delta_depths1 = depths1_inners_-depths0[lowers]
-        delta_depths0 = depths0[uppers]-depths0[lowers]
-        delta_values0 = values0[uppers]-values0[lowers]
-
-        grads = delta_depths1/delta_depths0
-
-        values = numpy.empty(depths1.shape,dtype=float)
-
-        values[outers_above] = numpy.nan
-        values[inners] = values0[lowers]+grads*(delta_values0)
-        values[outers_below] = numpy.nan
-
-        return values
 
 class lasbatch(dirmaster):
 
@@ -857,114 +876,7 @@ class spotential():
 
         return Vsh
 
-def DenNeuCrossPlot(self):
-
-    self.fig_dncp,self.axis_dncp = pyplot.subplots()
-
-def SonDenCrossPlot(self):
-
-    self.fig_sdcp,self.axis_sdcp = pyplot.subplots()
-
-def SonNeuCrossPlot(self,
-    porLine,
-    sonLine,
-    a_SND=+0.00,
-    a_LMS=+0.00,
-    a_DOL=-0.06,
-    b_SND=+0.90,
-    b_LMS=+0.80,
-    b_DOL=+0.84,
-    p_SND=+0.02,
-    p_LMS=+0.00,
-    p_DOL=-0.01,
-    DT_FLUID=189,
-    DT_SND=55.6,
-    DT_LMS=47.5,
-    DT_DOL=43.5,
-    xmin=None,
-    ymin=None,
-    xmax=None,
-    ymax=None,
-    rotate=0):
-
-    self.fig_sncp,self.axis_sncp = pyplot.subplots()
-
-    self.fig_sncp.set_figwidth(5)
-    self.fig_sncp.set_figheight(6)
-
-    c1_SND = 10**((a_LMS-a_SND)/b_LMS)
-    c1_LMS = 10**((a_LMS-a_LMS)/b_LMS)
-    c1_DOL = 10**((a_LMS-a_DOL)/b_LMS)
-
-    c2_SND = b_SND/b_LMS
-    c2_LMS = b_LMS/b_LMS
-    c2_DOL = b_DOL/b_LMS
-
-    porSND = numpy.linspace(0,0.45,46)
-    porLMS = numpy.linspace(0,0.45,46)
-    porDOL = numpy.linspace(0,0.45,46)
-
-    sonicSND = porSND*(DT_FLUID-DT_SND)+DT_SND
-    sonicLMS = porLMS*(DT_FLUID-DT_LMS)+DT_LMS
-    sonicDOL = porDOL*(DT_FLUID-DT_DOL)+DT_DOL
-
-    porLMS_SND = c1_SND*(porSND)**c2_SND-p_SND
-    porLMS_LMS = c1_LMS*(porLMS)**c2_LMS-p_LMS
-    porLMS_DOL = c1_DOL*(porDOL)**c2_DOL-p_DOL
-
-    xaxis_max = 0.5
-    yaxis_max = 110
-
-    for depth in self.depths:
-
-        xaxis = self.get_interval(*depth[1:],idframe=porLine[0],curveID=porLine[1])
-        yaxis = self.get_interval(*depth[1:],idframe=sonLine[0],curveID=sonLine[1])
-
-        xaxis_max = max((xaxis_max,xaxis[0].max()))
-        yaxis_max = max((yaxis_max,yaxis[0].max()))
-
-        self.axis_sncp.scatter(xaxis,yaxis,s=1,label=depth[0])
-
-    self.axis_sncp.legend(scatterpoints=10)
-
-    self.axis_sncp.plot(porLMS_SND,sonicSND,color='blue',linewidth=0.3)
-    self.axis_sncp.plot(porLMS_LMS,sonicLMS,color='blue',linewidth=0.3)
-    self.axis_sncp.plot(porLMS_DOL,sonicDOL,color='blue',linewidth=0.3)
-
-    self.axis_sncp.scatter(porLMS_SND[::5],sonicSND[::5],marker=(2,0,45),color="blue")
-    self.axis_sncp.scatter(porLMS_LMS[::5],sonicLMS[::5],marker=(2,0,45),color="blue")
-    self.axis_sncp.scatter(porLMS_DOL[::5],sonicDOL[::5],marker=(2,0,45),color="blue")
-
-    self.axis_sncp.text(porLMS_SND[27],sonicSND[26],'Sandstone',rotation=rotate)
-    self.axis_sncp.text(porLMS_LMS[18],sonicLMS[17],'Calcite (limestone)',rotation=rotate)
-    self.axis_sncp.text(porLMS_DOL[19],sonicDOL[18],'Dolomite',rotation=rotate)
-
-    self.axis_sncp.set_xlabel("Apparent Limestone Neutron Porosity")
-    self.axis_sncp.set_ylabel("Sonic Transit Time $\\Delta$t [$\\mu$s/ft]")
-
-    xaxis_min = -0.05 if xmin is None else xmin
-    yaxis_min = +40.0 if ymin is None else ymin
-
-    xaxis_max = xaxis_max if xmax is None else xmax
-    yaxis_max = yaxis_max if ymax is None else ymax
-
-    self.axis_sncp.set_xlim([xaxis_min,xaxis_max])
-    self.axis_sncp.set_ylim([yaxis_min,yaxis_max])
-
-    self.axis_sncp.xaxis.set_minor_locator(AutoMinorLocator(10))
-    self.axis_sncp.yaxis.set_minor_locator(AutoMinorLocator(10))
-
-    self.axis_sncp.grid(True,which="both",axis='both')
-
-    self.fig_sncp.tight_layout()
-
-def DenPheCrossPlot(self):
-
-    # density photoelectric cross section cross plot
-
-    self.fig_dpcp,self.axis_dpcp = pyplot.subplots()
-
-class MNplot():
+class crossplots():
 
     SS = {
         "lithology": "Sandstone",
@@ -977,7 +889,7 @@ class MNplot():
         "DTma": 55.5,
         "rhoma": 2.65,
         "phima_SNP": -0.035,
-        "phima_CLN": -0.05,
+        "phima_CNL": -0.05,
         }
 
     SS["type2"] = {
@@ -985,7 +897,7 @@ class MNplot():
         "DTma": 51.2,
         "rhoma": 2.65,
         "phima_SNP": -0.035,
-        "phima_CLN": -0.005,
+        "phima_CNL": -0.005,
         }
 
     LS = {
@@ -999,7 +911,7 @@ class MNplot():
         "DTma": 47.5,
         "rhoma": 2.71,
         "phima_SNP": 0,
-        "phima_CLN": 0,
+        "phima_CNL": 0,
         }
 
     DOL = {
@@ -1013,7 +925,7 @@ class MNplot():
         "DTma": 43.5,
         "rhoma": 2.87,
         "phima_SNP": 0.035,
-        "phima_CLN": 0.085,
+        "phima_CNL": 0.085,
         }
 
     DOL["type2"] = {
@@ -1021,7 +933,7 @@ class MNplot():
         "DTma": 43.5,
         "rhoma": 2.87,
         "phima_SNP": 0.02,
-        "phima_CLN": 0.065,
+        "phima_CNL": 0.065,
         }
 
     DOL["type3"] = {
@@ -1029,7 +941,7 @@ class MNplot():
         "DTma": 43.5,
         "rhoma": 2.87,
         "phima_SNP": 0.005,
-        "phima_CLN": 0.04,
+        "phima_CNL": 0.04,
         }
 
     ANH = {
@@ -1043,7 +955,7 @@ class MNplot():
         "DTma": 50.0,
         "rhoma": 2.98,
         "phima_SNP": -0.005,
-        "phima_CLN": -0.002,
+        "phima_CNL": -0.002,
         }
 
     SLT = {
@@ -1057,8 +969,293 @@ class MNplot():
         "DTma": 67.0,
         "rhoma": 2.03,
         "phima_SNP": 0.04,
-        "phima_CLN": -0.01,
+        "phima_CNL": -0.01,
         }
+
+    def __init__(self):
+
+        pass
+
+class denneu(crossplots):
+
+    def __init__(self,rhof=1.0,phiNf=1.0,NTool="CNL"):
+
+        self.rhof = rhof
+        self.phiNf = phiNf
+
+        self.NTool = NTool
+
+        self.Dens = {}
+        self.Neus = {}
+
+        self.lithos()
+
+    def lithos(self):
+
+        phima = f"phima_{self.NTool}"
+
+        self.Dens["SS1"] = self.SS["type1"]["rhoma"]
+        self.Neus["SS1"] = self.SS["type1"][phima]
+
+        self.Dens["SS2"] = self.SS["type2"]["rhoma"]
+        self.Neus["SS2"] = self.SS["type2"][phima]
+
+        self.Dens["LS1"] = self.LS["type1"]["rhoma"]
+        self.Neus["LS1"] = self.LS["type1"][phima]
+
+        self.Dens["DOL1"] = self.DOL["type1"]["rhoma"]
+        self.Neus["DOL1"] = self.DOL["type1"][phima]
+
+        self.Dens["DOL2"] = self.DOL["type2"]["rhoma"]
+        self.Neus["DOL2"] = self.DOL["type2"][phima]
+
+        self.Dens["DOL3"] = self.DOL["type3"]["rhoma"]
+        self.Neus["DOL3"] = self.DOL["type3"][phima]
+
+        self.Dens["ANH1"] = self.ANH["type1"]["rhoma"]
+        self.Neus["ANH1"] = self.ANH["type1"][phima]
+
+        self.Dens["SLT1"] = self.SLT["type1"]["rhoma"]
+        self.Neus["SLT1"] = self.SLT["type1"][phima]
+
+    def lithonodes(self,axis):
+
+        DENSS  = [self.Dens["SS2"]] #self.Dens["SS1"],
+        NEUSS  = [self.Neus["SS2"]] #self.Neus["SS1"],
+
+        DENLS  = [self.Dens["LS1"]]
+        NEULS  = [self.Neus["LS1"]]
+
+        DENDOL = [self.Dens["DOL3"]] #self.Dens["DOL1"],self.Dens["DOL2"],
+        NEUDOL = [self.Neus["DOL3"]] #self.Neus["DOL1"],self.Neus["DOL2"],
+
+        DENANH = [self.Dens["ANH1"]]
+        NEUANH = [self.Neus["ANH1"]]
+
+        DENSLT = [self.Dens["SLT1"]]
+        NEUSLT = [self.Neus["SLT1"]]
+
+        axis.plot(NEUSS,DENSS,label=self.SS["lithology"],
+            linestyle="None",
+            marker=self.SS["marker"],
+            markerfacecolor=self.SS["markercolor"],
+            markeredgecolor=self.SS["markercolor"])
+
+        axis.plot(NEULS,DENLS,label=self.LS["lithology"],
+            linestyle="None",
+            marker=self.LS["marker"],
+            markerfacecolor=self.LS["markercolor"],
+            markeredgecolor=self.LS["markercolor"])
+
+        axis.plot(NEUDOL,DENDOL,label=self.DOL["lithology"],
+            linestyle="None",
+            marker=self.DOL["marker"],
+            markerfacecolor=self.DOL["markercolor"],
+            markeredgecolor=self.DOL["markercolor"])
+
+        axis.plot(NEUANH,DENANH,label=self.ANH["lithology"],
+            linestyle="None",
+            marker=self.ANH["marker"],
+            markerfacecolor=self.ANH["markercolor"],
+            markeredgecolor=self.ANH["markercolor"])
+
+        axis.plot(NEUSLT,DENSLT,label=self.SLT["lithology"],
+            linestyle="None",
+            marker=self.SLT["marker"],
+            markerfacecolor=self.SLT["markercolor"],
+            markeredgecolor=self.SLT["markercolor"])
+
+        axis.set_xlabel(f"PHI-{self.NTool}, Apparent Limestone Porosity")
+        axis.set_ylabel("RHOB Bulk Density, g/cm3")
+
+        axis.legend(loc="upper center",ncol=3,bbox_to_anchor=(0.5,1.15))
+
+        axis.set_xlim((-0.05,0.45))
+        axis.set_ylim((3.0,1.9))
+
+        xmajor_ticks = numpy.arange(-0.00,0.45,0.05)
+        xminor_ticks = numpy.arange(-0.05,0.45,0.01)
+
+        ymajor_ticks = numpy.arange(1.9,3.01,0.1)
+        yminor_ticks = numpy.arange(1.9,3.01,0.02)
+
+        axis.set_xticks(xmajor_ticks,minor=False)
+        axis.set_xticks(xminor_ticks,minor=True)
+
+        axis.set_yticks(ymajor_ticks,minor=False)
+        axis.set_yticks(yminor_ticks,minor=True)
+
+        axis.grid(which='both')
+
+        axis.grid(which='minor',alpha=0.2)
+        axis.grid(which='major',alpha=0.5)
+
+        return axis
+
+    def litholines(self,axis):
+
+        a_SS = +0.00
+        a_LS = +0.00
+        a_DOL = 0.10
+
+        b_SS = +0.90
+        b_LS = +0.80
+        b_DOL = +0.57
+
+        c1_SS = 10**((a_LS-a_SS)/b_LS)
+        c1_LS = 10**((a_LS-a_LS)/b_LS)
+        c1_DOL = 10**((a_LS-a_DOL)/b_LS)
+
+        c2_SS = b_SS/b_LS
+        c2_LS = b_LS/b_LS
+        c2_DOL = b_DOL/b_LS
+
+        porosity = numpy.linspace(0,0.45,100)
+
+        DENSS = self.Dens["SS2"]-porosity*(self.Dens["SS2"]-self.rhof)
+        NEUSS = c1_SS*(porosity)**c2_SS+self.Neus["SS2"]
+
+        DENLS = self.Dens["LS1"]-porosity*(self.Dens["LS1"]-self.rhof)
+        NEULS = c1_LS*(porosity)**c2_LS+self.Neus["LS1"]
+
+        DENDOL = self.Dens["DOL3"]-porosity*(self.Dens["DOL3"]-self.rhof)
+        NEUDOL = c1_DOL*(porosity)**c2_DOL+self.Neus["DOL3"]
+
+        axis.plot(NEUSS,DENSS,color='black',linewidth=0.3)
+        axis.plot(NEULS,DENLS,color='black',linewidth=0.3)
+        axis.plot(NEUDOL,DENDOL,color='black',linewidth=0.3)
+
+    def terniary(self):
+
+        pass
+
+    def lithoratio(self):
+
+        pass
+
+class sonden(crossplots):
+
+    def __init__(self):
+
+        pass
+
+class sonneu(crossplots):
+
+    def __init__(self,DT_FLUID=189,PHI_NF=1):
+
+        self.DT_FLUID = DT_FLUID
+        self.PHI_NF = PHI_NF
+
+    def lithos(self):
+
+        # porLine,
+        # sonLine,
+        # a_SND=+0.00,
+        # a_LMS=+0.00,
+        # a_DOL=-0.06,
+        # b_SND=+0.90,
+        # b_LMS=+0.80,
+        # b_DOL=+0.84,
+        # p_SND=+0.02,
+        # p_LMS=+0.00,
+        # p_DOL=-0.01,
+        # DT_SND=55.6,
+        # DT_LMS=47.5,
+        # DT_DOL=43.5,
+        # xmin=None,
+        # ymin=None,
+        # xmax=None,
+        # ymax=None,
+        # rotate=0
+
+        self.fig_sncp.set_figwidth(5)
+        self.fig_sncp.set_figheight(6)
+
+        c1_SND = 10**((a_LMS-a_SND)/b_LMS)
+        c1_LMS = 10**((a_LMS-a_LMS)/b_LMS)
+        c1_DOL = 10**((a_LMS-a_DOL)/b_LMS)
+
+        c2_SND = b_SND/b_LMS
+        c2_LMS = b_LMS/b_LMS
+        c2_DOL = b_DOL/b_LMS
+
+        porSND = numpy.linspace(0,0.45,46)
+        porLMS = numpy.linspace(0,0.45,46)
+        porDOL = numpy.linspace(0,0.45,46)
+
+        sonicSND = porSND*(DT_FLUID-DT_SND)+DT_SND
+        sonicLMS = porLMS*(DT_FLUID-DT_LMS)+DT_LMS
+        sonicDOL = porDOL*(DT_FLUID-DT_DOL)+DT_DOL
+
+        porLMS_SND = c1_SND*(porSND)**c2_SND-p_SND
+        porLMS_LMS = c1_LMS*(porLMS)**c2_LMS-p_LMS
+        porLMS_DOL = c1_DOL*(porDOL)**c2_DOL-p_DOL
+
+        xaxis_max = 0.5
+        yaxis_max = 110
+
+        for depth in self.depths:
+
+            xaxis = self.get_interval(*depth[1:],idframe=porLine[0],curveID=porLine[1])
+            yaxis = self.get_interval(*depth[1:],idframe=sonLine[0],curveID=sonLine[1])
+
+            xaxis_max = max((xaxis_max,xaxis[0].max()))
+            yaxis_max = max((yaxis_max,yaxis[0].max()))
+
+            self.axis_sncp.scatter(xaxis,yaxis,s=1,label=depth[0])
+
+        self.axis_sncp.legend(scatterpoints=10)
+
+        self.axis_sncp.plot(porLMS_SND,sonicSND,color='blue',linewidth=0.3)
+        self.axis_sncp.plot(porLMS_LMS,sonicLMS,color='blue',linewidth=0.3)
+        self.axis_sncp.plot(porLMS_DOL,sonicDOL,color='blue',linewidth=0.3)
+
+        self.axis_sncp.scatter(porLMS_SND[::5],sonicSND[::5],marker=(2,0,45),color="blue")
+        self.axis_sncp.scatter(porLMS_LMS[::5],sonicLMS[::5],marker=(2,0,45),color="blue")
+        self.axis_sncp.scatter(porLMS_DOL[::5],sonicDOL[::5],marker=(2,0,45),color="blue")
+
+        self.axis_sncp.text(porLMS_SND[27],sonicSND[26],'Sandstone',rotation=rotate)
+        self.axis_sncp.text(porLMS_LMS[18],sonicLMS[17],'Calcite (limestone)',rotation=rotate)
+        self.axis_sncp.text(porLMS_DOL[19],sonicDOL[18],'Dolomite',rotation=rotate)
+
+        self.axis_sncp.set_xlabel("Apparent Limestone Neutron Porosity")
+        self.axis_sncp.set_ylabel("Sonic Transit Time $\\Delta$t [$\\mu$s/ft]")
+
+        xaxis_min = -0.05 if xmin is None else xmin
+        yaxis_min = +40.0 if ymin is None else ymin
+
+        xaxis_max = xaxis_max if xmax is None else xmax
+        yaxis_max = yaxis_max if ymax is None else ymax
+
+        self.axis_sncp.set_xlim([xaxis_min,xaxis_max])
+        self.axis_sncp.set_ylim([yaxis_min,yaxis_max])
+
+        self.axis_sncp.xaxis.set_minor_locator(AutoMinorLocator(10))
+        self.axis_sncp.yaxis.set_minor_locator(AutoMinorLocator(10))
+
+        self.axis_sncp.grid(True,which="both",axis='both')
+
+        self.fig_sncp.tight_layout()
+
+    def litholines(self,axis):
+
+        pass
+
+    def ternary(self,axis):
+
+        pass
+
+    def lithoratio(self):
+
+        pass
+
+class denphe(crossplots):
+
+    def __init__(self):
+        """density photoelectric cross section cross plot"""
+        pass
+
+class mnplot(crossplots):
 
     def __init__(self,DTf=189,rhof=1.0,phiNf=1.0,NTool="SNP"):
 
@@ -1071,7 +1268,7 @@ class MNplot():
         self.Ms = {}
         self.Ns = {}
 
-        self.lithMN()
+        self.lithos()
 
     def MValue(self,DT,rhob):
 
@@ -1081,7 +1278,7 @@ class MNplot():
 
         return (self.phiNf-PhiN)/(rhob-self.rhof)
 
-    def lithMN(self):
+    def lithos(self):
 
         phima = f"phima_{self.NTool}"
 
@@ -1109,7 +1306,7 @@ class MNplot():
         self.Ms["SLT1"] = self.MValue(self.SLT["type1"]["DTma"],self.SLT["type1"]["rhoma"])
         self.Ns["SLT1"] = self.NValue(self.SLT["type1"][phima],self.SLT["type1"]["rhoma"])
 
-    def lithNodes(self,axis):
+    def lithonodes(self,axis):
 
         NSS  = [self.Ns["SS1"],self.Ns["SS2"]]
         MSS  = [self.Ms["SS1"],self.Ms["SS2"]]
@@ -1239,146 +1436,160 @@ class MNplot():
 
         return axis,nodes
 
-    def lithRatio(self,nodes):
+    def lithoratio(self,nodes):
         
         pass
 
-class MIDplot():
+class midplot(crossplots):
 
     def __init__(self):
 
         self.fig_midp,self.axis_midp = pyplot.subplots()
 
-def RhomaaUmaaPlot(self):
+class rhoumaa(crossplots):
 
-    self.fig_rhoU,self.axis_rhoU = pyplot.subplots()
+    def __init__(self):
 
-def PickettCrossPlot(
-    self,
-    resLine,
-    phiLine,
-    returnSwFlag=False,
-    showDiffSwFlag=True,
-    m=2,
-    n=2,
-    a=0.62,
-    Rw=0.1,
-    xmin=None,
-    xmax=None,
-    ymin=None,
-    ymax=None,
-    GRconds=None,
-    ):
+        pass
 
-    if returnSwFlag:
+class pickett():
 
-        xvalsR = self.frames[resLine[0]].columns(resLine[1])
-        xvalsP = self.frames[phiLine[0]].columns(phiLine[1])
+    def __init__(self):
 
-        Sw_calculated = ((a*Rw)/(xvalsR*xvalsP**m))**(1/n)
+        pass
 
-        Sw_calculated[Sw_calculated>1] = 1
+    def PickettCrossPlot(
+        self,
+        resLine,
+        phiLine,
+        returnSwFlag=False,
+        showDiffSwFlag=True,
+        m=2,
+        n=2,
+        a=0.62,
+        Rw=0.1,
+        xmin=None,
+        xmax=None,
+        ymin=None,
+        ymax=None,
+        GRconds=None,
+        ):
 
-        return Sw_calculated
+        if returnSwFlag:
 
-    else:
+            xvalsR = self.frames[resLine[0]].columns(resLine[1])
+            xvalsP = self.frames[phiLine[0]].columns(phiLine[1])
 
-        self.fig_pcp,self.axis_pcp = pyplot.subplots()
+            Sw_calculated = ((a*Rw)/(xvalsR*xvalsP**m))**(1/n)
 
-        xaxis_min = 1
-        xaxis_max = 100
+            Sw_calculated[Sw_calculated>1] = 1
 
-        yaxis_min = 0.1
-        yaxis_max = 1
+            return Sw_calculated
 
-        for depth in self.depths:
+        else:
 
-            xaxis = self.get_interval(*depth[1:],idframes=resLine[0],curveID=resLine[1])[0]
-            yaxis = self.get_interval(*depth[1:],idframes=phiLine[0],curveID=phiLine[1])[0]
+            self.fig_pcp,self.axis_pcp = pyplot.subplots()
 
-            xaxis_min = min((xaxis_min,xaxis.min()))
-            xaxis_max = max((xaxis_max,xaxis.max()))
+            xaxis_min = 1
+            xaxis_max = 100
 
-            yaxis_min = min((yaxis_min,yaxis.min()))
-            yaxis_max = max((yaxis_max,yaxis.max()))
+            yaxis_min = 0.1
+            yaxis_max = 1
 
-            if GRconds is not None:
-                self.axis_pcp.scatter(xaxis[GRconds],yaxis[GRconds],s=1,label="{} clean".format(depth[0]))
-                self.axis_pcp.scatter(xaxis[~GRconds],yaxis[~GRconds],s=1,label="{} shaly".format(depth[0]))
-            else:
-                self.axis_pcp.scatter(xaxis,yaxis,s=1,label=depth[0])
+            for depth in self.depths:
 
-        self.axis_pcp.legend(scatterpoints=10)
+                xaxis = self.get_interval(*depth[1:],idframes=resLine[0],curveID=resLine[1])[0]
+                yaxis = self.get_interval(*depth[1:],idframes=phiLine[0],curveID=phiLine[1])[0]
 
-        indexR = self.frames[resLine[0]].headers.index(resLine[1])
-        indexP = self.frames[phiLine[0]].headers.index(phiLine[1])
+                xaxis_min = min((xaxis_min,xaxis.min()))
+                xaxis_max = max((xaxis_max,xaxis.max()))
 
-        mnemR = self.frames[resLine[0]].headers[indexR]
-        unitR = self.frames[resLine[0]].units[indexR]
+                yaxis_min = min((yaxis_min,yaxis.min()))
+                yaxis_max = max((yaxis_max,yaxis.max()))
 
-        mnemP = self.frames[phiLine[0]].headers[indexP]
-        unitP = self.frames[phiLine[0]].units[indexP]
+                if GRconds is not None:
+                    self.axis_pcp.scatter(xaxis[GRconds],yaxis[GRconds],s=1,label="{} clean".format(depth[0]))
+                    self.axis_pcp.scatter(xaxis[~GRconds],yaxis[~GRconds],s=1,label="{} shaly".format(depth[0]))
+                else:
+                    self.axis_pcp.scatter(xaxis,yaxis,s=1,label=depth[0])
 
-        xaxis_min = xmin if xmin is not None else xaxis_min
-        xaxis_max = xmax if xmax is not None else xaxis_max
+            self.axis_pcp.legend(scatterpoints=10)
 
-        yaxis_min = ymin if ymin is not None else yaxis_min
-        yaxis_max = ymax if ymax is not None else yaxis_max
+            indexR = self.frames[resLine[0]].headers.index(resLine[1])
+            indexP = self.frames[phiLine[0]].headers.index(phiLine[1])
 
-        resexpmin = numpy.floor(numpy.log10(xaxis_min))
-        resexpmax = numpy.ceil(numpy.log10(xaxis_max))
+            mnemR = self.frames[resLine[0]].headers[indexR]
+            unitR = self.frames[resLine[0]].units[indexR]
 
-        if showDiffSwFlag:
+            mnemP = self.frames[phiLine[0]].headers[indexP]
+            unitP = self.frames[phiLine[0]].units[indexP]
 
-            resSw = numpy.logspace(resexpmin,resexpmax,100)
+            xaxis_min = xmin if xmin is not None else xaxis_min
+            xaxis_max = xmax if xmax is not None else xaxis_max
 
-            Sw75,Sw50,Sw25 = 0.75,0.50,0.25
+            yaxis_min = ymin if ymin is not None else yaxis_min
+            yaxis_max = ymax if ymax is not None else yaxis_max
 
-            philine_atSw100 = (a*Rw/resSw)**(1/m)
+            resexpmin = numpy.floor(numpy.log10(xaxis_min))
+            resexpmax = numpy.ceil(numpy.log10(xaxis_max))
 
-            philine_atSw075 = philine_atSw100*Sw75**(-n/m)
-            philine_atSw050 = philine_atSw100*Sw50**(-n/m)
-            philine_atSw025 = philine_atSw100*Sw25**(-n/m)
+            if showDiffSwFlag:
 
-            self.axis_pcp.plot(resSw,philine_atSw100,c="black",linewidth=1)#,label="100% Sw")
-            self.axis_pcp.plot(resSw,philine_atSw075,c="blue",linewidth=1)#,label="75% Sw")
-            self.axis_pcp.plot(resSw,philine_atSw050,c="blue",linewidth=1)#,label="50% Sw")
-            self.axis_pcp.plot(resSw,philine_atSw025,c="blue",linewidth=1)#,label="25% Sw")
+                resSw = numpy.logspace(resexpmin,resexpmax,100)
 
-        phiexpmin = numpy.floor(numpy.log10(yaxis_min))
-        phiexpmax = numpy.ceil(numpy.log10(yaxis_max))
+                Sw75,Sw50,Sw25 = 0.75,0.50,0.25
 
-        xticks = 10**numpy.arange(resexpmin,resexpmax+1/2)
-        yticks = 10**numpy.arange(phiexpmin,phiexpmax+1/2)
+                philine_atSw100 = (a*Rw/resSw)**(1/m)
 
-        self.axis_pcp.set_xscale('log')
-        self.axis_pcp.set_yscale('log')
+                philine_atSw075 = philine_atSw100*Sw75**(-n/m)
+                philine_atSw050 = philine_atSw100*Sw50**(-n/m)
+                philine_atSw025 = philine_atSw100*Sw25**(-n/m)
 
-        self.axis_pcp.set_xlim([xticks.min(),xticks.max()])
-        self.axis_pcp.set_xticks(xticks)
+                self.axis_pcp.plot(resSw,philine_atSw100,c="black",linewidth=1)#,label="100% Sw")
+                self.axis_pcp.plot(resSw,philine_atSw075,c="blue",linewidth=1)#,label="75% Sw")
+                self.axis_pcp.plot(resSw,philine_atSw050,c="blue",linewidth=1)#,label="50% Sw")
+                self.axis_pcp.plot(resSw,philine_atSw025,c="blue",linewidth=1)#,label="25% Sw")
 
-        self.axis_pcp.set_ylim([yticks.min(),yticks.max()])
-        self.axis_pcp.set_yticks(yticks)
+            phiexpmin = numpy.floor(numpy.log10(yaxis_min))
+            phiexpmax = numpy.ceil(numpy.log10(yaxis_max))
 
-        self.axis_pcp.xaxis.set_major_formatter(LogFormatter())
-        self.axis_pcp.yaxis.set_major_formatter(LogFormatter())
+            xticks = 10**numpy.arange(resexpmin,resexpmax+1/2)
+            yticks = 10**numpy.arange(phiexpmin,phiexpmax+1/2)
 
-        for tic in self.axis_pcp.xaxis.get_minor_ticks():
-            tic.label1.set_visible(False)
-            tic.tick1line.set_visible(False)
+            self.axis_pcp.set_xscale('log')
+            self.axis_pcp.set_yscale('log')
 
-        for tic in self.axis_pcp.yaxis.get_minor_ticks():
-            tic.label1.set_visible(False)
-            tic.tick1line.set_visible(False)
+            self.axis_pcp.set_xlim([xticks.min(),xticks.max()])
+            self.axis_pcp.set_xticks(xticks)
 
-        self.axis_pcp.set_xlabel("{} {}".format(mnemR,unitR))
-        self.axis_pcp.set_ylabel("{} {}".format(mnemP,unitP))
+            self.axis_pcp.set_ylim([yticks.min(),yticks.max()])
+            self.axis_pcp.set_yticks(yticks)
 
-        self.axis_pcp.grid(True,which="both",axis='both')
+            self.axis_pcp.xaxis.set_major_formatter(LogFormatter())
+            self.axis_pcp.yaxis.set_major_formatter(LogFormatter())
 
-def HingleCrossPlot(self):
+            for tic in self.axis_pcp.xaxis.get_minor_ticks():
+                tic.label1.set_visible(False)
+                tic.tick1line.set_visible(False)
 
-    self.fig_hcp,self.axis_hcp = pyplot.subplots()
+            for tic in self.axis_pcp.yaxis.get_minor_ticks():
+                tic.label1.set_visible(False)
+                tic.tick1line.set_visible(False)
+
+            self.axis_pcp.set_xlabel("{} {}".format(mnemR,unitR))
+            self.axis_pcp.set_ylabel("{} {}".format(mnemP,unitP))
+
+            self.axis_pcp.grid(True,which="both",axis='both')
+
+class hingle():
+
+    def __init__(self):
+
+        pass
+
+    def HingleCrossPlot(self):
+
+        self.fig_hcp,self.axis_hcp = pyplot.subplots()
 
 """ DEPTVIEW RELATED EDITS
  1. DepthView should be a frame that can be added to any parent frame.

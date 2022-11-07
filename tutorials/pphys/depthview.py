@@ -4,13 +4,13 @@ import tkinter
 
 import dirsetup
 
-from textio import las
+from pphys import loadlas
 
-from dataview import DepthView
+from pphys import DepthView
 
-filename = "tut_dataview_lasfile.las"
+filename = "lasfile.las"
 
-ls = las(filename)
+ls = loadlas(filename)
 
 print(ls.well)
 print(ls.curve)

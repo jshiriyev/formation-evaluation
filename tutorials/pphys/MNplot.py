@@ -4,15 +4,15 @@ import numpy
 
 import dirsetup
 
-from pphys import MNplot
+from pphys import mnplot
 
-plot = MNplot()
+plot = mnplot()
 
 fig = plt.figure()
 
 ax = fig.add_subplot(111)
 
-ax = plot.lithNodes(ax)
+ax = plot.lithonodes(ax)
 
 ax,nodes = plot.ternary(ax,lith1="SS1",lith2="LS1",lith3="DOL2",num=5)
 
