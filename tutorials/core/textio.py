@@ -16,4 +16,4 @@ header = textio.header(
 
 file = textio.utxt(frame)
 
-file.write("sample.txt",comment="")
+# file.write("sample.txt",comment="")

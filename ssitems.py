@@ -20,7 +20,7 @@ from geometries import Ellipse
 from geometries import Cuboid 
 from geometries import Cylinder
 
-class PorRock():
+class PoreRock():
 
     def __init__(self,*args,workdir=None,**kwargs):
 
@@ -409,6 +409,59 @@ class Fluids():
 
         for arg in args:
             self.fvf.append(arg)
+
+class View3D():
+
+    def __init__(self,window,**kwargs):
+
+        super().__init__(**kwargs)
+
+        self.dirname = os.path.dirname(__file__)
+
+        self.root = window
+
+    def set_plot(self):
+
+        self.pane_EW = tkinter.ttk.PanedWindow(self.root,orient=tkinter.HORIZONTAL)
+
+        self.frame_side = tkinter.ttk.Frame(self.root)
+
+        self.pane_EW.add(self.frame_side,weight=1)
+
+        self.frame_plot = tkinter.ttk.Frame(self.root)
+
+        self.pane_EW.add(self.frame_plot,weight=1)
+
+        self.pane_EW.pack(side=tkinter.LEFT,expand=1,fill=tkinter.BOTH)
+
+        self.frame_plot.columnconfigure(0,weight=1)
+        self.frame_plot.columnconfigure(1,weight=0)
+
+        self.frame_plot.rowconfigure(0,weight=1)
+        self.frame_plot.rowconfigure(1,weight=0)
+
+        self.figure = pyplot.Figure()
+        self.canvas = FigureCanvasTkAgg(self.figure,self.frame_plot)
+
+        self.plotbox = self.canvas.get_tk_widget()
+        self.plotbox.grid(row=0,column=0,sticky=tkinter.NSEW)        
+
+        self.plotbar = VerticalNavigationToolbar2Tk(self.canvas,self.frame_plot)
+        self.plotbar.update()
+        self.plotbar.grid(row=0,column=1,sticky=tkinter.N)
+
+        self.itembox = AutocompleteEntryListbox(self.frame_side,height=250,padding=0)
+
+        self.itembox.content = self.itemnames.tolist()
+        self.itembox.config(completevalues=self.itembox.content,allow_other_values=True)
+
+        self.itembox.listbox.bind('<<ListboxSelect>>',lambda event: self.set_object(event))
+
+        self.itembox.pack(expand=1,fill=tkinter.BOTH)
+
+    def set_object(self,event):
+
+        pass
 
 if __name__ == "__main__":
 
