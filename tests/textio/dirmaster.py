@@ -13,7 +13,6 @@ if __name__ == "__main__":
 from textio import dirmaster
 from textio import header
 from textio import loadtxt
-from textio import loadlas
 
 class TestHeader(unittest.TestCase):
 
@@ -78,12 +77,6 @@ class TestHeader(unittest.TestCase):
         self.assertListEqual(gloss.value[1:],["2896.0","-999.25",'FIELD'])
 
 class TestTxt(unittest.TestCase):
-
-    def test_init(self):
-
-        pass
-
-class TestLas(unittest.TestCase):
 
     def test_init(self):
 

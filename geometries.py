@@ -7,339 +7,325 @@ from dataview import View3D
 
 ## BASIC GEOMETRIES
 
-def Line(data=None):
+class Line():
 
-    class LineClass(View3D(data)):
+    def __init__(self,**kwargs):
 
-        def __init__(self,**kwargs):
+        super().__init__(**kwargs)
 
-            super().__init__(**kwargs)
+    def set_tracks(self,tracks):
+        
+        self.tracks = np.array(tracks)
 
-        def set_tracks(self,tracks):
-            
-            self.tracks = np.array(tracks)
+    def set2Dview(self,axis,view='zy'):
 
-        def set2Dview(self,axis,view='zy'):
-
-            if view == 'yx':
-                axis.plot(self.tracks[:,0],self.tracks[:,1])
-                axis.set_xlabel("x-axis")
-                axis.set_ylabel("y-axis")
-
-            elif view == 'zy':
-                axis.plot(self.tracks[:,1],self.tracks[:,2])
-                axis.set_xlabel("y-axis")
-                axis.set_ylabel("z-axis")
-                axis.invert_yaxis()
-
-            elif view == 'xz':
-                axis.plot(self.tracks[:,2],self.tracks[:,0])
-                axis.set_xlabel("z-axis")
-                axis.set_ylabel("x-axis")
-
-            elif view == 'xy':
-                axis.plot(self.tracks[:,1],self.tracks[:,0])
-                axis.set_xlabel("y-axis")
-                axis.set_ylabel("x-axis")
-
-            elif view == 'yz':
-                axis.plot(self.tracks[:,2],self.tracks[:,1])
-                axis.set_xlabel("z-axis")
-                axis.set_ylabel("y-axis")
-
-            elif view == 'zx':
-                axis.plot(self.tracks[:,0],self.tracks[:,2])
-                axis.set_xlabel("x-axis")
-                axis.set_ylabel("z-axis")
-                axis.invert_yaxis()
-
-        def set3Dview(self,axis):
-
-            axis.plot3D(*self.tracks.T)
+        if view == 'yx':
+            axis.plot(self.tracks[:,0],self.tracks[:,1])
             axis.set_xlabel("x-axis")
             axis.set_ylabel("y-axis")
-            axis.set_zlabel("z-axis")
-            axis.invert_zaxis()
 
-    return LineClass
+        elif view == 'zy':
+            axis.plot(self.tracks[:,1],self.tracks[:,2])
+            axis.set_xlabel("y-axis")
+            axis.set_ylabel("z-axis")
+            axis.invert_yaxis()
 
-def Rectangle(data=None):
+        elif view == 'xz':
+            axis.plot(self.tracks[:,2],self.tracks[:,0])
+            axis.set_xlabel("z-axis")
+            axis.set_ylabel("x-axis")
 
-    class RectangleClass(View3D(data)):
+        elif view == 'xy':
+            axis.plot(self.tracks[:,1],self.tracks[:,0])
+            axis.set_xlabel("y-axis")
+            axis.set_ylabel("x-axis")
 
-        # it is a 2D object in 3D space
+        elif view == 'yz':
+            axis.plot(self.tracks[:,2],self.tracks[:,1])
+            axis.set_xlabel("z-axis")
+            axis.set_ylabel("y-axis")
 
-        def __init__(self,lengths=None,thickness=1,**kwargs):
+        elif view == 'zx':
+            axis.plot(self.tracks[:,0],self.tracks[:,2])
+            axis.set_xlabel("x-axis")
+            axis.set_ylabel("z-axis")
+            axis.invert_yaxis()
 
-            super().__init__(**kwargs)
+    def set3Dview(self,axis):
 
-            if lengths is not None:
-                self.set_lengths(lengths)
+        axis.plot3D(*self.tracks.T)
+        axis.set_xlabel("x-axis")
+        axis.set_ylabel("y-axis")
+        axis.set_zlabel("z-axis")
+        axis.invert_zaxis()
 
-            self.set_thickness(thickness)
+class Rectangle():
 
-            self.gridFlag = False
+    # it is a 2D object in 3D space
 
-        def set_lengths(self,lengths):
+    def __init__(self,lengths=None,thickness=1,**kwargs):
 
-            self.lengths = lengths
-            self.aspect = lengths[0]/lengths[1]
+        super().__init__(**kwargs)
 
+        if lengths is not None:
+            self.set_lengths(lengths)
+
+        self.set_thickness(thickness)
+
+        self.gridFlag = False
+
+    def set_lengths(self,lengths):
+
+        self.lengths = lengths
+        self.aspect = lengths[0]/lengths[1]
+
+        self.set_rectangle()
+
+    def set_area(self,area,aspect=1):
+        
+        self.area = area
+
+        length1 = np.sqrt(self.area*aspect)
+        length2 = length1/aspect
+
+        self.set_lengths(lengths=(length1,length2))
+
+    def set_thickness(self,thickness):
+
+        self.thickness = thickness
+
+        if hasattr(self,"lengths"):
             self.set_rectangle()
 
-        def set_area(self,area,aspect=1):
-            
-            self.area = area
+    def set_rectangle(self):
 
-            length1 = np.sqrt(self.area*aspect)
-            length2 = length1/aspect
+        self.edge_vertices = np.zeros((4,2))
 
-            self.set_lengths(lengths=(length1,length2))
+        self.edge_vertices[0,:] = (0,0)
+        self.edge_vertices[1,:] = (self.lengths[0],0)
+        self.edge_vertices[2,:] = (self.lengths[0],self.lengths[1])
+        self.edge_vertices[3,:] = (0,self.lengths[1])
 
-        def set_thickness(self,thickness):
+        indices = np.empty((4,2),dtype=int)
 
-            self.thickness = thickness
+        indices[:,0] = (0,1,2,3)
+        indices[:,1] = (1,2,3,0)
+        
+        x_aspects = self.edge_vertices[:,0][indices]
+        y_aspects = self.edge_vertices[:,1][indices]
 
-            if hasattr(self,"lengths"):
-                self.set_rectangle()
+        self.boundaries = []
 
-        def set_rectangle(self):
+        for x_aspect,y_aspect in zip(x_aspects,y_aspects):
+            self.boundaries.append(np.array([x_aspect,y_aspect]))
 
-            self.edge_vertices = np.zeros((4,2))
+    def set_grids(self,grid_num):
 
-            self.edge_vertices[0,:] = (0,0)
-            self.edge_vertices[1,:] = (self.lengths[0],0)
-            self.edge_vertices[2,:] = (self.lengths[0],self.lengths[1])
-            self.edge_vertices[3,:] = (0,self.lengths[1])
+        # grid_num must be a tuple or list with length equal to 2
+        
+        self.grid_num = grid_num
 
-            indices = np.empty((4,2),dtype=int)
+        self.grid_numtot = np.prod(self.grid_num)
 
-            indices[:,0] = (0,1,2,3)
-            indices[:,1] = (1,2,3,0)
-            
-            x_aspects = self.edge_vertices[:,0][indices]
-            y_aspects = self.edge_vertices[:,1][indices]
+        idx = np.arange(self.grid_numtot)
+        
+        self.grid_indices = np.tile(idx,(7,1)).T
 
-            self.boundaries = []
+        self.grid_indices[idx.reshape(-1,self.grid_num[0])[:,1:].ravel(),1] -= 1
+        self.grid_indices[idx.reshape(-1,self.grid_num[0])[:,:-1].ravel(),2] += 1
+        self.grid_indices[idx.reshape(1,-1)[:,self.grid_num[0]:],3] -= self.grid_num[0]
+        self.grid_indices[idx.reshape(1,-1)[:,:-self.grid_num[0]],4] += self.grid_num[0]
+        self.grid_indices[idx.reshape(1,-1)[1:,:],5] -= self.grid_num[0]*self.grid_num[1]
+        self.grid_indices[idx.reshape(1,-1)[:-1,:],6] += self.grid_num[0]*self.grid_num[1]
 
-            for x_aspect,y_aspect in zip(x_aspects,y_aspects):
-                self.boundaries.append(np.array([x_aspect,y_aspect]))
+        self.grid_hasxmin = ~(self.grid_indices[:,0]==self.grid_indices[:,1])
+        self.grid_hasxmax = ~(self.grid_indices[:,0]==self.grid_indices[:,2])
+        self.grid_hasymin = ~(self.grid_indices[:,0]==self.grid_indices[:,3])
+        self.grid_hasymax = ~(self.grid_indices[:,0]==self.grid_indices[:,4])
+        self.grid_haszmin = ~(self.grid_indices[:,0]==self.grid_indices[:,5])
+        self.grid_haszmax = ~(self.grid_indices[:,0]==self.grid_indices[:,6])
 
-        def set_grids(self,grid_num):
+        self.grid_xnodes = np.linspace(0,self.lengths[0],self.grid_num[0]+1)
+        self.grid_ynodes = np.linspace(0,self.lengths[1],self.grid_num[1]+1)
+        self.grid_znodes = np.linspace(-self.thickness/2,self.thickness/2,2)
+        
+        xsize = self.grid_xnodes[1:]-self.grid_xnodes[:-1]
+        ysize = self.grid_ynodes[1:]-self.grid_ynodes[:-1]
+        zsize = self.grid_znodes[1:]-self.grid_znodes[:-1]
+        
+        self.grid_sizes = np.zeros((self.grid_numtot,3))
+        self.grid_sizes[:,0] = np.tile(xsize,self.grid_num[1])
+        self.grid_sizes[:,1] = ysize.repeat(self.grid_num[0])
+        self.grid_sizes[:,2] = zsize.repeat(self.grid_num[0]*self.grid_num[1])
 
-            # grid_num must be a tuple or list with length equal to 2
-            
-            self.grid_num = grid_num
+        self.grid_areas = np.zeros((self.grid_numtot,3))
+        self.grid_areas[:,0] = self.grid_sizes[:,1]*self.thickness
+        self.grid_areas[:,1] = self.grid_sizes[:,0]*self.thickness
+        self.grid_areas[:,2] = self.grid_sizes[:,0]*self.grid_sizes[:,1]
 
-            self.grid_numtot = np.prod(self.grid_num)
+        self.grid_volumes = np.prod(self.grid_sizes,axis=1)
 
-            idx = np.arange(self.grid_numtot)
-            
-            self.grid_indices = np.tile(idx,(7,1)).T
+        xcenter = self.grid_xnodes[:-1]+xsize/2
+        ycenter = self.grid_ynodes[:-1]+ysize/2
+        zcenter = self.grid_znodes[:-1]+zsize/2
+        
+        self.grid_centers = np.zeros((self.grid_numtot,3))
+        self.grid_centers[:,0] = np.tile(xcenter,self.grid_num[1])
+        self.grid_centers[:,1] = ycenter.repeat(self.grid_num[0])
+        self.grid_centers[:,2] = zcenter.repeat(self.grid_num[0]*self.grid_num[1])
 
-            self.grid_indices[idx.reshape(-1,self.grid_num[0])[:,1:].ravel(),1] -= 1
-            self.grid_indices[idx.reshape(-1,self.grid_num[0])[:,:-1].ravel(),2] += 1
-            self.grid_indices[idx.reshape(1,-1)[:,self.grid_num[0]:],3] -= self.grid_num[0]
-            self.grid_indices[idx.reshape(1,-1)[:,:-self.grid_num[0]],4] += self.grid_num[0]
-            self.grid_indices[idx.reshape(1,-1)[1:,:],5] -= self.grid_num[0]*self.grid_num[1]
-            self.grid_indices[idx.reshape(1,-1)[:-1,:],6] += self.grid_num[0]*self.grid_num[1]
+        self.gridFlag = True     # it is a crucial property to know whether the geometry is gridded or not
 
-            self.grid_hasxmin = ~(self.grid_indices[:,0]==self.grid_indices[:,1])
-            self.grid_hasxmax = ~(self.grid_indices[:,0]==self.grid_indices[:,2])
-            self.grid_hasymin = ~(self.grid_indices[:,0]==self.grid_indices[:,3])
-            self.grid_hasymax = ~(self.grid_indices[:,0]==self.grid_indices[:,4])
-            self.grid_haszmin = ~(self.grid_indices[:,0]==self.grid_indices[:,5])
-            self.grid_haszmax = ~(self.grid_indices[:,0]==self.grid_indices[:,6])
+    def plot(self,axis,showVertices=True,showBounds=True,showGridEdges=True,showGridCenters=True):
 
-            self.grid_xnodes = np.linspace(0,self.lengths[0],self.grid_num[0]+1)
-            self.grid_ynodes = np.linspace(0,self.lengths[1],self.grid_num[1]+1)
-            self.grid_znodes = np.linspace(-self.thickness/2,self.thickness/2,2)
-            
-            xsize = self.grid_xnodes[1:]-self.grid_xnodes[:-1]
-            ysize = self.grid_ynodes[1:]-self.grid_ynodes[:-1]
-            zsize = self.grid_znodes[1:]-self.grid_znodes[:-1]
-            
-            self.grid_sizes = np.zeros((self.grid_numtot,3))
-            self.grid_sizes[:,0] = np.tile(xsize,self.grid_num[1])
-            self.grid_sizes[:,1] = ysize.repeat(self.grid_num[0])
-            self.grid_sizes[:,2] = zsize.repeat(self.grid_num[0]*self.grid_num[1])
+        if showVertices:
+            axis.scatter(*self.edge_vertices.T)
 
-            self.grid_areas = np.zeros((self.grid_numtot,3))
-            self.grid_areas[:,0] = self.grid_sizes[:,1]*self.thickness
-            self.grid_areas[:,1] = self.grid_sizes[:,0]*self.thickness
-            self.grid_areas[:,2] = self.grid_sizes[:,0]*self.grid_sizes[:,1]
+        if showBounds:
+            for line in self.boundaries:
+                axis.plot(*line,color='grey')
 
-            self.grid_volumes = np.prod(self.grid_sizes,axis=1)
+        if showGridEdges:
+            for node in self.grid_xnodes[1:-1]:
+                axis.vlines(x=node,ymin=0,ymax=self.lengths[1],linestyle="--")
+            for node in self.grid_ynodes[1:-1]:
+                axis.hlines(y=node,xmin=0,xmax=self.lengths[0],linestyle="--")
 
-            xcenter = self.grid_xnodes[:-1]+xsize/2
-            ycenter = self.grid_ynodes[:-1]+ysize/2
-            zcenter = self.grid_znodes[:-1]+zsize/2
-            
-            self.grid_centers = np.zeros((self.grid_numtot,3))
-            self.grid_centers[:,0] = np.tile(xcenter,self.grid_num[1])
-            self.grid_centers[:,1] = ycenter.repeat(self.grid_num[0])
-            self.grid_centers[:,2] = zcenter.repeat(self.grid_num[0]*self.grid_num[1])
+        if showGridCenters:
+            axis.scatter(*self.grid_centers.T[:2,:])
 
-            self.gridFlag = True     # it is a crucial property to know whether the geometry is gridded or not
+        axis.set_box_aspect(self.lengths[1]/self.lengths[0])
 
-        def plot(self,axis,showVertices=True,showBounds=True,showGridEdges=True,showGridCenters=True):
+class Ellipse():
 
-            if showVertices:
-                axis.scatter(*self.edge_vertices.T)
+    # This class is supposed to create 2-D surface in 3-D domain
+    # thickness: thickness of the ellipse
+    # rinner: inner radius
+    # dip_angle: 
 
-            if showBounds:
-                for line in self.boundaries:
-                    axis.plot(*line,color='grey')
+    # lamda: node spacing, radius ratio
 
-            if showGridEdges:
-                for node in self.grid_xnodes[1:-1]:
-                    axis.vlines(x=node,ymin=0,ymax=self.lengths[1],linestyle="--")
-                for node in self.grid_ynodes[1:-1]:
-                    axis.hlines(y=node,xmin=0,xmax=self.lengths[0],linestyle="--")
+    def __init__(self,radii=None,inner_radii=(0,0),thickness=1,**kwargs):
 
-            if showGridCenters:
-                axis.scatter(*self.grid_centers.T[:2,:])
+        super().__init__(**kwargs)
 
-            axis.set_box_aspect(self.lengths[1]/self.lengths[0])
+        if radii is not None:
+            self.set_radii(radii)
 
-    return RectangleClass
+        self.set_thickness(thickness)
 
-def Ellipse(data=None):
+        self.gridFlag = False
 
-    class EllipseClass(View3D(data)):
+    def set_origin(self,origin=(0,0,0)):
 
-        # This class is supposed to create 2-D surface in 3-D domain
-        # thickness: thickness of the ellipse
-        # rinner: inner radius
-        # dip_angle: 
+        # origin: location of the center of ellipse
 
-        # lamda: node spacing, radius ratio
+        self.origin = origin # origing has not been implemented yet
 
-        def __init__(self,radii=None,inner_radii=(0,0),thickness=1,**kwargs):
+    def set_radii(self,radii=(1,1)):
 
-            super().__init__(**kwargs)
+        # lengths: (major_radius,minor_radius)
 
-            if radii is not None:
-                self.set_radii(radii)
+        if type(radii) == int:
+            self.radii = (float(radii),float(radii))
+        elif type(radii) == float:
+            self.radii = (radii,radii)
+        elif type(radii) == str:
+            raise ValueError('Radii must be defined as a number or tuple.')
+        elif len(radii) == 2:
+            self.radii = radii
 
-            self.set_thickness(thickness)
+        self.radiusMajor = max(self.radii)
+        self.radiusMinor = min(self.radii)
 
-            self.gridFlag = False
+        self.set_ellipse()
 
-        def set_origin(self,origin=(0,0,0)):
+    def set_inradii(self,inradii=(0,0)):
 
-            # origin: location of the center of ellipse
+        if type(inradii) == int:
+            self.inradii = (float(inradii),float(inradii))
+        elif type(inradii) == float:
+            self.inradii = (inradii,inradii)
+        elif type(inradii) == str:
+            raise ValueError('Inner radii must be defined as a number or tuple.')
+        elif len(inradii) == 2:
+            self.inradii = inradii
 
-            self.origin = origin # origing has not been implemented yet
+        self.inradiusMajor = max(inradii)
+        self.inradiusMinor = min(inradii)
 
-        def set_radii(self,radii=(1,1)):
+    def set_area(self,area,aspect=1):
+        
+        self.area = area
 
-            # lengths: (major_radius,minor_radius)
+        radius1 = np.sqrt(area*aspect/np.pi)
+        radius2 = radius1/aspect
 
-            if type(radii) == int:
-                self.radii = (float(radii),float(radii))
-            elif type(radii) == float:
-                self.radii = (radii,radii)
-            elif type(radii) == str:
-                raise ValueError('Radii must be defined as a number or tuple.')
-            elif len(radii) == 2:
-                self.radii = radii
+        self.set_radii(radii=(radius1,radius2))
 
-            self.radiusMajor = max(self.radii)
-            self.radiusMinor = min(self.radii)
+    def set_thickness(self,thickness):
 
+        self.thickness = thickness
+
+        if hasattr(self,"radii"):
             self.set_ellipse()
 
-        def set_inradii(self,inradii=(0,0)):
+    def set_ellipse(self):
 
-            if type(inradii) == int:
-                self.inradii = (float(inradii),float(inradii))
-            elif type(inradii) == float:
-                self.inradii = (inradii,inradii)
-            elif type(inradii) == str:
-                raise ValueError('Inner radii must be defined as a number or tuple.')
-            elif len(inradii) == 2:
-                self.inradii = inradii
+        numverts = 50
 
-            self.inradiusMajor = max(inradii)
-            self.inradiusMinor = min(inradii)
+        thetas = np.linspace(0,2*np.pi,numverts+1)[:-1]
 
-        def set_area(self,area,aspect=1):
-            
-            self.area = area
+        self.edge_vertices = np.zeros((2*numverts,3))
 
-            radius1 = np.sqrt(area*aspect/np.pi)
-            radius2 = radius1/aspect
+        self.edge_vertices[:,0] = np.tile(self.radii[0]/2*np.cos(thetas),2)+self.radii[0]/2
+        self.edge_vertices[:,1] = np.tile(self.radii[1]/2*np.sin(thetas),2)+self.radii[1]/2
+        self.edge_vertices[:,2] = np.append(np.zeros(numverts),self.thickness*np.ones(numverts))
 
-            self.set_radii(radii=(radius1,radius2))
+        indices = np.empty((2*numverts,2),dtype=int)
 
-        def set_thickness(self,thickness):
+        vertices_0 = np.arange(numverts)
+        vertices_1 = np.append(np.arange(numverts)[1:],0)
 
-            self.thickness = thickness
+        indices[:,0] = np.append(vertices_0,vertices_0+numverts)
+        indices[:,1] = np.append(vertices_1,vertices_1+numverts)
 
-            if hasattr(self,"radii"):
-                self.set_ellipse()
+        x_aspects = self.edge_vertices[:,0][indices]
+        y_aspects = self.edge_vertices[:,1][indices]
+        z_aspects = self.edge_vertices[:,2][indices]
 
-        def set_ellipse(self):
+        self.boundaries = []
 
-            numverts = 50
+        for x_aspect,y_aspect,z_aspect in zip(x_aspects,y_aspects,z_aspects):
+            self.boundaries.append(np.array([x_aspect,y_aspect,z_aspect]))
 
-            thetas = np.linspace(0,2*np.pi,numverts+1)[:-1]
+        self.gridFlag = False
 
-            self.edge_vertices = np.zeros((2*numverts,3))
+    def grid(self,lamda):
 
-            self.edge_vertices[:,0] = np.tile(self.radii[0]/2*np.cos(thetas),2)+self.radii[0]/2
-            self.edge_vertices[:,1] = np.tile(self.radii[1]/2*np.sin(thetas),2)+self.radii[1]/2
-            self.edge_vertices[:,2] = np.append(np.zeros(numverts),self.thickness*np.ones(numverts))
+        self.lamda = lamda
 
-            indices = np.empty((2*numverts,2),dtype=int)
+    def plot(self,axis,showVertices=False,showBounds=True,showGridEdges=False,showGridCenters=False):
 
-            vertices_0 = np.arange(numverts)
-            vertices_1 = np.append(np.arange(numverts)[1:],0)
+        if showVertices:
+            axis.scatter(*self.edge_vertices.T)
 
-            indices[:,0] = np.append(vertices_0,vertices_0+numverts)
-            indices[:,1] = np.append(vertices_1,vertices_1+numverts)
+        if showBounds:
+            for line in self.boundaries:
+                axis.plot(*line,color='grey')
 
-            x_aspects = self.edge_vertices[:,0][indices]
-            y_aspects = self.edge_vertices[:,1][indices]
-            z_aspects = self.edge_vertices[:,2][indices]
+        if showGridEdges:
+            for node in self.grid_xnodes[1:-1]:
+                axis.vlines(x=node,ymin=0,ymax=self.lengths[1],linestyle="--")
+            for node in self.grid_ynodes[1:-1]:
+                axis.hlines(y=node,xmin=0,xmax=self.lengths[0],linestyle="--")
 
-            self.boundaries = []
+        # axis.set_box_aspect(self.radii[1]/self.radii[0])
 
-            for x_aspect,y_aspect,z_aspect in zip(x_aspects,y_aspects,z_aspects):
-                self.boundaries.append(np.array([x_aspect,y_aspect,z_aspect]))
+        if showGridCenters:
+            axis.scatter(*self.grid_centers.T)
 
-            self.gridFlag = False
-
-        def grid(self,lamda):
-
-            self.lamda = lamda
-
-        def plot(self,axis,showVertices=False,showBounds=True,showGridEdges=False,showGridCenters=False):
-
-            if showVertices:
-                axis.scatter(*self.edge_vertices.T)
-
-            if showBounds:
-                for line in self.boundaries:
-                    axis.plot(*line,color='grey')
-
-            if showGridEdges:
-                for node in self.grid_xnodes[1:-1]:
-                    axis.vlines(x=node,ymin=0,ymax=self.lengths[1],linestyle="--")
-                for node in self.grid_ynodes[1:-1]:
-                    axis.hlines(y=node,xmin=0,xmax=self.lengths[0],linestyle="--")
-
-            # axis.set_box_aspect(self.radii[1]/self.radii[0])
-
-            if showGridCenters:
-                axis.scatter(*self.grid_centers.T)
-
-    return EllipseClass
-
-def Cuboid(data=None):
-
-    class CuboidClass(View3D(data)):
+class Cuboid():
 
         """
         For rectangular parallelepiped, dimensions is a tuple
@@ -449,56 +435,50 @@ def Cuboid(data=None):
 
             pass
 
-    return CuboidClass
+class Cylinder():
 
-def Cylinder(data=None):
+    """
+    For cylindrical disk, dimensions is a tuple with two entries for sizes in r,z direction
+    """
+    
+    def __init__(self,lengths,**kwargs):
 
-    class CylinderClass(View3D(data)):
+        super().__init__(**kwargs)
 
-        """
-        For cylindrical disk, dimensions is a tuple with two entries for sizes in r,z direction
-        """
-        
-        def __init__(self,lengths,**kwargs):
+        self.lengths = lengths
 
-            super().__init__(**kwargs)
+        numverts = 50
 
-            self.lengths = lengths
+        thetas = np.linspace(0,2*np.pi,numverts+1)[:-1]
 
-            numverts = 50
+        self.edge_vertices = np.zeros((2*numverts,3))
 
-            thetas = np.linspace(0,2*np.pi,numverts+1)[:-1]
+        self.edge_vertices[:,0] = np.tile(self.lengths[0]/2*np.cos(thetas),2)+self.lengths[0]/2
+        self.edge_vertices[:,1] = np.tile(self.lengths[1]/2*np.sin(thetas),2)+self.lengths[1]/2
+        self.edge_vertices[:,2] = np.append(np.zeros(numverts),self.lengths[2]*np.ones(numverts))
 
-            self.edge_vertices = np.zeros((2*numverts,3))
+        indices = np.empty((2*numverts,2),dtype=int)
 
-            self.edge_vertices[:,0] = np.tile(self.lengths[0]/2*np.cos(thetas),2)+self.lengths[0]/2
-            self.edge_vertices[:,1] = np.tile(self.lengths[1]/2*np.sin(thetas),2)+self.lengths[1]/2
-            self.edge_vertices[:,2] = np.append(np.zeros(numverts),self.lengths[2]*np.ones(numverts))
+        vertices_0 = np.arange(numverts)
+        vertices_1 = np.append(np.arange(numverts)[1:],0)
 
-            indices = np.empty((2*numverts,2),dtype=int)
+        indices[:,0] = np.append(vertices_0,vertices_0+numverts)
+        indices[:,1] = np.append(vertices_1,vertices_1+numverts)
 
-            vertices_0 = np.arange(numverts)
-            vertices_1 = np.append(np.arange(numverts)[1:],0)
+        x_aspects = self.edge_vertices[:,0][indices]
+        y_aspects = self.edge_vertices[:,1][indices]
+        z_aspects = self.edge_vertices[:,2][indices]
 
-            indices[:,0] = np.append(vertices_0,vertices_0+numverts)
-            indices[:,1] = np.append(vertices_1,vertices_1+numverts)
+        self.boundaries = []
 
-            x_aspects = self.edge_vertices[:,0][indices]
-            y_aspects = self.edge_vertices[:,1][indices]
-            z_aspects = self.edge_vertices[:,2][indices]
+        for x_aspect,y_aspect,z_aspect in zip(x_aspects,y_aspects,z_aspects):
+            self.boundaries.append(np.array([x_aspect,y_aspect,z_aspect]))
 
-            self.boundaries = []
+    def grid(self):
+        pass
 
-            for x_aspect,y_aspect,z_aspect in zip(x_aspects,y_aspects,z_aspects):
-                self.boundaries.append(np.array([x_aspect,y_aspect,z_aspect]))
-
-        def grid(self):
-            pass
-
-        def plot(self):
-            pass
-
-    return CylinderClass
+    def plot(self):
+        pass
 
 if __name__ == "__main__":
 
