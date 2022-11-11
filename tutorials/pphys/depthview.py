@@ -51,10 +51,13 @@ dv.set_lines(2,1,xcol=ls.frame["CBW"],ycol=ls.frame.running[0])
 dv.set_lines(3,0,xcol=ls.frame["RL4"],ycol=ls.frame.running[0])
 dv.set_lines(3,1,xcol=ls.frame["RL8"],ycol=ls.frame.running[0])
 
+dv.set_header()
 dv.set_image()
 
 # root.geometry("750x270")
 
 # dv.figure.savefig("filename.png")
+
+# plt.show()
 
 tkinter.mainloop()

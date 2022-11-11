@@ -1611,39 +1611,34 @@ class DepthView():
 
         self.root = root
 
-        self.root.title("datum - depth view")
+        self.root.title("Well Logs - Depth View")
 
-        # The main frame for the listbox
+        self.header = tkinter.Canvas(self.root,height=200)
+        self.header.grid(row=0,column=0,sticky=tkinter.EW)
 
-        self.framelist = tkinter.Frame(root,width=31*8)
-        self.framelist.pack(side=tkinter.LEFT,fill=tkinter.Y,expand=0)
+        self.canvas = tkinter.Canvas(self.root)
+        self.canvas.grid(row=1,column=0,sticky=tkinter.NSEW)
 
-        self.listbox = tkinter.Listbox(self.framelist,width=31)
-        self.listbox.pack(side=tkinter.LEFT,fill=tkinter.BOTH,expand=1)
+        # self.hscroll = tkinter.Scrollbar(self.root,orient=tkinter.HORIZONTAL)
+        # self.hscroll.grid(row=2,column=0,sticky=tkinter.EW)
 
-        # The main frame for the plot canvas
+        self.vscroll = tkinter.Scrollbar(self.root,orient=tkinter.VERTICAL)
+        self.vscroll.grid(row=0,column=1,rowspan=2,sticky=tkinter.NS)
 
-        self.framefigs = tkinter.Frame(root)
-        self.framefigs.pack(side=tkinter.LEFT,fill=tkinter.BOTH,expand=1)
+        self.root.rowconfigure(0,weight=0)
+        self.root.rowconfigure(1,weight=1)
+        # self.root.rowconfigure(2,weight=0)
 
-        self.canvas = tkinter.Canvas(self.framefigs)
+        self.root.columnconfigure(0,weight=1)
+        self.root.columnconfigure(1,weight=0)
 
-        self.canvas.grid(row=0,column=0,sticky=tkinter.NSEW)
-
-        self.hscroll = tkinter.Scrollbar(self.framefigs,orient=tkinter.HORIZONTAL)
-        self.vscroll = tkinter.Scrollbar(self.framefigs,orient=tkinter.VERTICAL)
-
-        self.hscroll.grid(row=1,column=0,sticky=tkinter.EW)
-        self.vscroll.grid(row=0,column=1,sticky=tkinter.NS)
-
-        self.framefigs.rowconfigure(0,weight=1)
-        self.framefigs.columnconfigure(0,weight=1)
-
-        self.canvas.config(xscrollcommand=self.hscroll.set)
+        # self.canvas.config(xscrollcommand=self.hscroll.set)
         self.canvas.config(yscrollcommand=self.vscroll.set)
 
-        self.hscroll.config(command=self.canvas.xview)
+        # self.hscroll.config(command=self.canvas.xview)
         self.vscroll.config(command=self.canvas.yview)
+
+        self.canvas.configure(bg='blue')
 
         self.canvas.bind_all("<MouseWheel>",self._on_mousewheel)
 
@@ -1653,9 +1648,64 @@ class DepthView():
         self.colors = pyplot.rcParams['axes.prop_cycle'].by_key()['color']
         # self.colors.insert(0,"#000000")
 
-    def set_listbox(self):
+    def set_header(self,nrows=(1,3,2,2),ncols=4,fontsize=10,width=3.,height=2.,dpi=100.):
 
-        pass
+        fig = pyplot.figure(dpi=dpi)
+
+        fig.set_figwidth(width*4)
+        fig.set_figheight(height)
+
+        axis = fig.add_subplot(111)
+
+        X,Y = [dpi*size for size in (width*ncols,height)]
+
+        w = X/ncols
+        h = Y/(max(nrows)+1)
+
+        names = ["Vsh","NGL","PHIT","PHIE","CBW","BVW","RL8","RL4"]
+
+        # colors = self.colors
+        # hatches = self.hatches
+
+        k = 0
+            
+        for idcol in range(ncols):
+
+            for idrow in range(nrows[idcol]):
+
+                y = Y-(idrow*h)-h
+
+                xmin = w*(idcol+0.05)
+                xmax = w*(idcol+0.25)
+
+                ymin = y-h*0.3
+                ymax = y+h*0.3
+
+                xtext = w*(idcol+0.3)
+
+                axis.text(xtext,y,names[k],fontsize=(fontsize),
+                        horizontalalignment='left',
+                        verticalalignment='center')
+
+                axis.add_patch(Rectangle((xmin,ymin),0.8*w,0.7*h,fill=True)
+                    ) #fill=True,hatch=hatches[k],facecolor=colors[k]
+
+                k += 1
+
+        axis.set_xlim(0,X)
+        axis.set_ylim(0,Y)
+
+        axis.set_axis_off()
+
+        buff = io.BytesIO()
+
+        fig.savefig(buff,format='png')
+
+        buff.seek(0)
+
+        image = ImageTk.PhotoImage(Image.open(buff))
+
+        self.header.create_image(0,0,anchor=tkinter.N,image=image)
 
     def set_axes(self,numaxes=1,subaxes=None,depth=None,inchdepth=15.,width=3.,height=128.,dpi=100.):
         """Creates the figure and axes and their sub-axes and stores them in the self.axes."""
@@ -1890,7 +1940,7 @@ class DepthView():
 
         self.image = ImageTk.PhotoImage(Image.open(buff))
 
-        self.canvas.create_image(0,0,anchor=tkinter.NW,image=self.image)
+        self.canvas.create_image(0,0,anchor=tkinter.N,image=self.image)
 
         self.canvas.config(scrollregion=self.canvas.bbox('all'))
 
