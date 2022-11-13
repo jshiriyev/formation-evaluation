@@ -3,13 +3,16 @@ from matplotlib import pyplot
 
 from matplotlib.patches import Rectangle
 
+from matplotlib.ticker import MultipleLocator
+from matplotlib.ticker import LogLocator
+
 import numpy
 
 class depthview():
 
-    def __init__(self,file,page_format="Letter"):
+    def __init__(self,page_format="Letter"):
 
-        self.file = file
+        # self.file = file
 
         if page_format == "A4":
             figsize = (8.3,11.7)
@@ -17,6 +20,8 @@ class depthview():
             figsize = (8.5,11.0)
 
         self.figure = pyplot.figure(figsize=figsize,dpi=100)
+
+        self.ylim = (70,0)
         
     def set_axes(self,naxes,ncurves_max=3,label_loc=None):
 
@@ -66,50 +71,79 @@ class depthview():
             width_ratios=width_ratios,
             height_ratios=height_ratios)
 
-        self.axes_label = []
         self.axes_curve = []
+        self.axes_label = []
 
         for i in range(numcols):
 
-            label = self.figure.add_subplot(self.gspecs[0,i])
-            curve = self.figure.add_subplot(self.gspecs[1,i])
+            curve_axis = self.figure.add_subplot(self.gspecs[1,i])
+            label_axis = self.figure.add_subplot(self.gspecs[0,i])
 
             if i != depth_column:
-                label = self._set_labelaxis(label)
-                curve = self._set_curveaxis(curve)
+                curve_axis = self._set_curveaxis(curve_axis)  
             else:
-                label = self._set_depth_labelaxis(label)
-                curve = self._set_depth_curveaxis(curve)
+                curve_axis = self._set_depthaxis(curve_axis)
 
-            self.axes_label.append(label)
-            self.axes_curve.append(curve)
+            label_axis = self._set_labelaxis(label_axis,ncurves_max)
 
-    def set_curveaxis(self,index,**kwargs):
+            self.axes_curve.append(curve_axis)
+            self.axes_label.append(label_axis)
+
+    def set_xcycles(self,index,xcycles=2,xcycleskip=0,xscale='linear'):
 
         axis = self.axes_curve[index]
 
-        self._set_curveaxis(axis,**kwargs)
-
-    def _set_curveaxis(self,axis,logscale=False,xcycles=2,xcycleskip=0):
-
-        if logscale:
+        if xscale=="linear":
+            xlim = (0+xcycleskip,10*xcycles+xcycleskip)
+        elif xscale=="log":
             xlim = (1*(xcycleskip+1),(xcycleskip+1)*10**xcycles)
         else:
-            xlim = (0+xcycleskip,10*xcycles+xcycleskip)
+            raise ValueError(f"{xscale} has not been defined! options: {{linear,log}}")
 
-        ylim = (0,70)
+        axis.set_xlim(xlim)
+
+        axis.set_xscale(xscale)
+
+        if xscale=="linear":
+            axis.xaxis.set_minor_locator(MultipleLocator(1))
+            axis.xaxis.set_major_locator(MultipleLocator(10))
+        elif xscale=="log":
+            axis.xaxis.set_minor_locator(LogLocator(10,subs=range(1,10)))
+            axis.xaxis.set_major_locator(LogLocator(10))
+        else:
+            raise ValueError(f"{xscale} has not been defined! options: {{linear,log}}")
+
+    def set_ycycles(self,ycycles,ycycleskip=0):
+
+        ylim = (10*ycycles+ycycleskip,0+ycycleskip)
+
+        for axis in self.axes_curve:
+            axis.set_ylim(ylim)
+
+    def _set_curveaxis(self,axis,xscale='linear',xcycles=2,xcycleskip=0,ycycles=7,ycycleskip=0):
+
+        if xscale=="linear":
+            xlim = (0+xcycleskip,10*xcycles+xcycleskip)
+        elif xscale=="log":
+            xlim = (1*(xcycleskip+1),(xcycleskip+1)*10**xcycles)
+        else:
+            raise ValueError(f"{xscale} has not been defined! options: {{linear,log}}")
+
+        ylim = (10*ycycles+ycycleskip,0+ycycleskip)
 
         axis.set_xlim(xlim)
         axis.set_ylim(ylim)
 
-        if logscale:
-            axis.set_xscale("log")
-        else:
-            xminors = self.get_yticks(xlim,delta=1.)
-            xmajors = self.get_yticks(xlim,delta=10.)
+        axis.set_xscale(xscale)
 
-            axis.set_xticks(xminors,minor=True)
-            axis.set_xticks(xmajors,minor=False)
+        if xscale=="linear":
+            axis.xaxis.set_minor_locator(MultipleLocator(1))
+            axis.xaxis.set_major_locator(MultipleLocator(10))
+        elif xscale=="log":
+            axis.xaxis.set_minor_locator(LogLocator(10,subs=range(1,10)))
+            axis.xaxis.set_major_locator(LogLocator(10))
+        else:
+            raise ValueError(f"{xscale} has not been defined! options: {{linear,log}}")
 
         pyplot.setp(axis.get_xticklabels(),visible=False)
         pyplot.setp(axis.get_xticklines(),visible=False)
@@ -119,11 +153,8 @@ class depthview():
         axis.grid(axis="x",which='minor',alpha=0.5)
         axis.grid(axis="x",which='major',alpha=1)
 
-        yminors = self.get_yticks(ylim,delta=1.)
-        ymajors = self.get_yticks(ylim,delta=10.)
-
-        axis.set_yticks(yminors,minor=True)
-        axis.set_yticks(ymajors,minor=False)
+        axis.yaxis.set_minor_locator(MultipleLocator(1))
+        axis.yaxis.set_major_locator(MultipleLocator(10))
 
         pyplot.setp(axis.get_yticklabels(),visible=False)
         pyplot.setp(axis.get_yticklines(),visible=False)
@@ -135,43 +166,19 @@ class depthview():
 
         return axis
 
-    def _set_labelaxis(self,axis):
-
-        axis.set_xlim((0,1))
-        axis.set_ylim((0,4))
-
-        pyplot.setp(axis.get_xticklabels(),visible=False)
-        pyplot.setp(axis.get_xticklines(),visible=False)
-        pyplot.setp(axis.get_yticklabels(),visible=False)
-        pyplot.setp(axis.get_yticklines(),visible=False)
-
-        return axis
-
-    def _set_depth_labelaxis(self,axis):
-
-        pyplot.setp(axis.get_xticklabels(),visible=False)
-        pyplot.setp(axis.get_xticklines(),visible=False)
-        pyplot.setp(axis.get_yticklabels(),visible=False)
-        pyplot.setp(axis.get_yticklines(),visible=False)
-
-        return axis
-
-    def _set_depth_curveaxis(self,axis):
+    def _set_depthaxis(self,axis,ycycles=7,ycycleskip=0):
 
         xlim = (0,1)
-        ylim = (0,70)
-
+        ylim = (10*ycycles+ycycleskip,0+ycycleskip)
+        
         axis.set_xlim(xlim)
         axis.set_ylim(ylim)
 
         pyplot.setp(axis.get_xticklabels(),visible=False)
         pyplot.setp(axis.get_xticklines(),visible=False)
 
-        yminors = self.get_yticks(ylim,delta=1.)
-        ymajors = self.get_yticks(ylim,delta=10.)
-
-        axis.set_yticks(yminors,minor=True)
-        axis.set_yticks(ymajors,minor=False)
+        axis.yaxis.set_minor_locator(MultipleLocator(1))
+        axis.yaxis.set_major_locator(MultipleLocator(10))
         
         axis.tick_params(
             axis="y",which="both",direction="in",right=True,pad=-40)
@@ -180,83 +187,55 @@ class depthview():
 
         return axis
 
-    def set_depth_curveaxis_(self,axis):
-
-        self.yminors = self.get_yticks(self.file['depth'],delta=1.)
-        self.ymajors = self.get_yticks(self.file['depth'],delta=10.)
-
-        self.ylim = (max(self.yminors),min(self.yminors))
-
-        axis.vlines(10,min(self.ymajors),max(self.ymajors))
-
-        axis.set_ylim(self.ylim)
-
-        axis.set_yticks(self.yminors,minor=True)
-        axis.set_yticks(self.ymajors,minor=False)
+    def _set_labelaxis(self,axis,ncurves_max):
 
         axis.set_xlim((0,1))
-        
+        axis.set_ylim((0,ncurves_max+1))
+
         pyplot.setp(axis.get_xticklabels(),visible=False)
         pyplot.setp(axis.get_xticklines(),visible=False)
-        
-        axis.tick_params(
-            axis="y",which="both",direction="in",right=True,pad=-40)
+        pyplot.setp(axis.get_yticklabels(),visible=False)
+        pyplot.setp(axis.get_yticklines(),visible=False)
 
         return axis
 
     def add_curve(self,index,curve):
 
-        axis = self.axes_curve[index]
+        curve_axis = self.axes_curve[index]
+        label_axis = self.axes_label[index]
 
-        axis.plot(self.file[curve.head],self.file['depth'],
+        curve_axis.plot(self.file[curve.head],self.file['depth'],
             color=curve.linecolor,linestyle=curve.linestyle,linewidth=curve.linewidth)
 
-        axis.set_ylim(self.ylim)
-
-        axis.set_yticks(self.yminors,minor=True)
-        axis.set_yticks(self.ymajors,minor=False)
-
-        axis.tick_params(axis="y",which="minor",left=False)
-
-        axis.grid(axis="y",which='minor',alpha=0.2)
-        axis.grid(axis="y",which='major',alpha=1)
-
-        numlines = len(axis.lines)
+        numlines = len(curve_axis.lines)
 
         if curve.fill:
-
-            rect = Rectangle((0,numlines-1),1,1,
-                fill=True,hatch=curve.fillhatch,facecolor=curve.fillfacecolor)
-
-            self.axes_label[index].add_patch(rect)
-
-            self.axes_label[index].text(0.5,numlines-0.5,curve.head,
-                horizontalalignment='center',
-                verticalalignment='center',
-                backgroundcolor='white',
-                fontsize='small',)
-
+            self._add_label_fill(label_axis,curve,numlines)
         else:
+            self._add_label_line(label_axis,curve,numlines)
 
-            self.axes_label[index].plot((0,1),(numlines-0.7,numlines-0.7),
-                color=curve.linecolor,linestyle=curve.linestyle,linewidth=curve.linewidth)
+    def _add_label_line(self,label_axis,curve,numlines=0):
 
-            self.axes_label[index].text(0.5,numlines-0.5,curve.head,
-                horizontalalignment='center',
-                verticalalignment='center',
-                fontsize='small',)
+        label_axis.plot((0,1),(numlines-0.7,numlines-0.7),
+            color=curve.linecolor,linestyle=curve.linestyle,linewidth=curve.linewidth)
 
-    def get_yticks(self,vals,delta=10.):
+        label_axis.text(0.5,numlines-0.5,curve.head,
+            horizontalalignment='center',
+            verticalalignment='center',
+            fontsize='small',)
 
-        tmin = numpy.floor(numpy.min(vals))
-        tmax = numpy.ceil(numpy.max(vals))
+    def _add_label_fill(self,label_axis,curve,numlines=0):
 
-        Tmin = numpy.ceil(tmin/delta)*delta
-        Tmax = numpy.floor(tmax/delta)*delta
+        rect = Rectangle((0,numlines-1),1,1,
+            fill=True,hatch=curve.fillhatch,facecolor=curve.fillfacecolor)
 
-        ticks = numpy.arange(Tmin,Tmax+delta/2,delta)
+        label.add_patch(rect)
 
-        return ticks
+        label.text(0.5,numlines-0.5,curve.head,
+            horizontalalignment='center',
+            verticalalignment='center',
+            backgroundcolor='white',
+            fontsize='small',)
 
     def show(self,filename=None,wspace=0.0,hspace=0.0):
 
@@ -267,24 +246,29 @@ class depthview():
         if filename is not None:
             self.figure.savefig(filename,format='pdf')
 
+        pyplot.show()
+
 if __name__ == "__main__":
 
-    ulas = {}
-
-    ulas['depth'] = numpy.linspace(1033,1083,num=50)
-
-    ulas['GR'] = numpy.random.rand(50)*10**numpy.random.randint(0,1,50)
-    ulas['CALI'] = numpy.random.rand(50)*10**numpy.random.randint(0,1,50)
-    ulas['NPHI'] = numpy.random.rand(50)*10**numpy.random.randint(0,1,50)
-    ulas['RHOB'] = numpy.random.rand(50)*10**numpy.random.randint(0,1,50)
-    ulas['R001'] = numpy.random.rand(50)*10**numpy.random.randint(0,4,50)
-    ulas['R002'] = numpy.random.rand(50)*10**numpy.random.randint(0,5,50)
-
-    dv = depthview(ulas)
+    dv = depthview()
 
     dv.set_axes(naxes=3,ncurves_max=3,label_loc="top")
 
-    dv.set_curveaxis(3,logscale=True,xcycles=2,xcycleskip=0)
+    # dv.set_xcycles(0,xcycles=3,xcycleskip=0,xscale='linear')
+    # dv.set_xcycles(2,xcycles=3,xcycleskip=0,xscale='linear')
+    dv.set_xcycles(3,xcycles=3,xcycleskip=2,xscale='log')
+    dv.set_ycycles(7,3)
+
+    # ulas = {}
+
+    # ulas['depth'] = numpy.linspace(1033,1083,num=50)
+
+    # ulas['GR'] = numpy.random.rand(50)*10**numpy.random.randint(0,1,50)
+    # ulas['CALI'] = numpy.random.rand(50)*10**numpy.random.randint(0,1,50)
+    # ulas['NPHI'] = numpy.random.rand(50)*10**numpy.random.randint(0,1,50)
+    # ulas['RHOB'] = numpy.random.rand(50)*10**numpy.random.randint(0,1,50)
+    # ulas['R001'] = numpy.random.rand(50)*10**numpy.random.randint(0,4,50)
+    # ulas['R002'] = numpy.random.rand(50)*10**numpy.random.randint(0,5,50)
 
     # class curve():
 
@@ -310,5 +294,3 @@ if __name__ == "__main__":
     # dv.add_curve(3,curve("R002",linestyle='--'))
 
     dv.show() #"sample.pdf"
-
-    pyplot.show()
