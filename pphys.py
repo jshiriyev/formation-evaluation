@@ -1591,17 +1591,13 @@ class hingle():
 
         self.fig_hcp,self.axis_hcp = pyplot.subplots()
 
-""" DEPTVIEW RELATED EDITS
- 1. DepthView should be a frame that can be added to any parent frame.
- 2. Axis and line numbers should not be predefined.
- 3. Adding axis should not affect previous axes.
- 4. Adding line should not affect previous lines.
- 5. DepthView should be added to dataview and get dataframe as an input
- 6. Depth axis must be unique!
- 7. x-axis grids must be the same for the axis on top of each other.
- 8. get_xticks() should be working perfectly for both normal and logarithmic scale
- 9. set_lines() should be working smoothly
-10. set_listbox() should be adding {idfile: mnemonic} to the listbox
+""" DEPTVIEW RELATED EDITS (MOST OF THEM ARE SET)
+ 1. Line numbers should not be predefined.
+ 2. Adding line should not affect previous lines.
+ 3. DepthView should be added to dataview and get dataframe as an input
+ 4. Depth axis must be unique!
+ 5. x-axis grids must be the same for the axis on top of each other.
+ 6. add_cvurve() should be working smoothly
 """
 
 class DepthView():

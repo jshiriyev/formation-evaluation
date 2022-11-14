@@ -12,16 +12,12 @@ class depthview():
 
     def __init__(self,page_format="Letter"):
 
-        # self.file = file
-
         if page_format == "A4":
             figsize = (8.3,11.7)
         elif page_format == "Letter":
             figsize = (8.5,11.0)
 
         self.figure = pyplot.figure(figsize=figsize,dpi=100)
-
-        self.ylim = (70,0)
         
     def set_axes(self,naxes,ncurves_max=3,label_loc=None):
 
@@ -150,8 +146,8 @@ class depthview():
 
         axis.tick_params(axis="x",which="minor",bottom=False)
 
-        axis.grid(axis="x",which='minor',alpha=0.5)
-        axis.grid(axis="x",which='major',alpha=1)
+        axis.grid(axis="x",which='minor',color='k',alpha=0.4)
+        axis.grid(axis="x",which='major',color='k',alpha=0.9)
 
         axis.yaxis.set_minor_locator(MultipleLocator(1))
         axis.yaxis.set_major_locator(MultipleLocator(10))
@@ -161,8 +157,8 @@ class depthview():
 
         axis.tick_params(axis="y",which="minor",left=False)
 
-        axis.grid(axis="y",which='minor',alpha=0.5)
-        axis.grid(axis="y",which='major',alpha=1)
+        axis.grid(axis="y",which='minor',color='k',alpha=0.4)
+        axis.grid(axis="y",which='major',color='k',alpha=0.9)
 
         return axis
 
@@ -204,34 +200,107 @@ class depthview():
         curve_axis = self.axes_curve[index]
         label_axis = self.axes_label[index]
 
-        curve_axis.plot(self.file[curve.head],self.file['depth'],
+        xlim = curve_axis.get_xlim()
+        ylim = curve_axis.get_ylim()
+
+        xscale = curve_axis.get_xscale()
+
+        if xscale == "linear":
+            xvals,xlim = self._get_linear_normalized(curve.vals,xlim)
+        elif xscale == "log":
+            xvals,xlim = self._get_log_normalized(curve.vals,xlim)
+        else:
+            raise ValueError(f"{xscale} has not been defined! options: {{linear,log}}")
+
+        yvals,ylim = self._get_linear_normalized(curve.depths,ylim,multp=1)
+
+        curve_axis.plot(xvals,yvals,
             color=curve.linecolor,linestyle=curve.linestyle,linewidth=curve.linewidth)
+
+        if curve.fill:
+            curve_axis.fill_betweenx(yvals,xvals,x2=0,facecolor=curve.fillfacecolor,hatch=curve.fillhatch)
 
         numlines = len(curve_axis.lines)
 
         if curve.fill:
-            self._add_label_fill(label_axis,curve,numlines)
+            self._add_label_fill(label_axis,curve,xlim,numlines)
         else:
-            self._add_label_line(label_axis,curve,numlines)
+            self._add_label_line(label_axis,curve,xlim,numlines)
 
-    def _add_label_line(self,label_axis,curve,numlines=0):
+    @staticmethod
+    def _get_rounded(xmin,xmax):
+
+        xdelta = numpy.abs(xmax-xmin)
+
+        power = -numpy.floor(numpy.log10(xdelta))
+
+        xmin = numpy.floor(xmin*10**power)/10**power
+        xmax = numpy.ceil(xmax*10**power)/10**power
+
+        return xmin,xmax
+
+    @staticmethod
+    def _get_linear_normalized(values,axis_limits,shift=None,multp=None):
+
+        axis_min,axis_max = min(axis_limits),max(axis_limits)
+        vals_min,vals_max = values.min(),values.max()
+
+        # print(f"{axis_min=},",f"{axis_max=}")
+        # print(f"given_{vals_min=},",f"given_{vals_max=}")
+
+        vals_min_temp,vals_max_temp = depthview._get_rounded(vals_min,vals_max)
+
+        # print(f"{vals_min_temp=},",f"{vals_max_temp=}")
+            
+        if multp is None:
+            multp = numpy.floor((axis_max-axis_min)/(vals_max_temp-vals_min_temp))
+
+        if shift is None:
+            shift = -numpy.floor((vals_min_temp*multp-axis_min)/10)*10
+
+        # print(f"{multp=},",f"{shift=}")
+        
+        vals = shift+values*multp
+
+        vals_min = (axis_min-shift)/multp
+        vals_max = (axis_max-shift)/multp
+        
+        # print(f"normalized_{vals_min=},",f"normalized_{vals_max=}")
+
+        return vals,(vals_min,vals_max)
+
+    @staticmethod
+    def _get_log_normalized(values,axis_limits,shift=None,multp=None):
+
+        if multp is None:
+
+            pass
+
+        if shift is None:
+
+            pass
+
+    def _add_label_line(self,label_axis,curve,xlim,numlines=0):
 
         label_axis.plot((0,1),(numlines-0.7,numlines-0.7),
             color=curve.linecolor,linestyle=curve.linestyle,linewidth=curve.linewidth)
 
-        label_axis.text(0.5,numlines-0.5,curve.head,
+        label_axis.text(0.5,numlines-0.5,f"{curve.head} [{curve.unit}]",
             horizontalalignment='center',
-            verticalalignment='center',
+            # verticalalignment='bottom',
             fontsize='small',)
 
-    def _add_label_fill(self,label_axis,curve,numlines=0):
+        label_axis.text(0.02,numlines-0.5,f'{xlim[0]}',horizontalalignment='left')
+        label_axis.text(0.98,numlines-0.5,f'{xlim[1]}',horizontalalignment='right')
+
+    def _add_label_fill(self,label_axis,curve,xlim,numlines=0):
 
         rect = Rectangle((0,numlines-1),1,1,
-            fill=True,hatch=curve.fillhatch,facecolor=curve.fillfacecolor)
+            fill=True,facecolor=curve.fillfacecolor,hatch=curve.fillhatch)
 
-        label.add_patch(rect)
+        label_axis.add_patch(rect)
 
-        label.text(0.5,numlines-0.5,curve.head,
+        label_axis.text(0.5,numlines-0.5,curve.head,
             horizontalalignment='center',
             verticalalignment='center',
             backgroundcolor='white',
@@ -254,43 +323,46 @@ if __name__ == "__main__":
 
     dv.set_axes(naxes=3,ncurves_max=3,label_loc="top")
 
-    # dv.set_xcycles(0,xcycles=3,xcycleskip=0,xscale='linear')
-    # dv.set_xcycles(2,xcycles=3,xcycleskip=0,xscale='linear')
-    dv.set_xcycles(3,xcycles=3,xcycleskip=2,xscale='log')
-    dv.set_ycycles(7,3)
+    dv.set_xcycles(0,xcycles=2,xcycleskip=0,xscale='linear')
+    dv.set_xcycles(3,xcycles=3,xcycleskip=0,xscale='log')
+    dv.set_ycycles(7,4)
 
-    # ulas = {}
+    ulas = {}
 
-    # ulas['depth'] = numpy.linspace(1033,1083,num=50)
+    ulas['depths'] = numpy.linspace(1033,1083,num=50)
 
-    # ulas['GR'] = numpy.random.rand(50)*10**numpy.random.randint(0,1,50)
-    # ulas['CALI'] = numpy.random.rand(50)*10**numpy.random.randint(0,1,50)
-    # ulas['NPHI'] = numpy.random.rand(50)*10**numpy.random.randint(0,1,50)
-    # ulas['RHOB'] = numpy.random.rand(50)*10**numpy.random.randint(0,1,50)
-    # ulas['R001'] = numpy.random.rand(50)*10**numpy.random.randint(0,4,50)
-    # ulas['R002'] = numpy.random.rand(50)*10**numpy.random.randint(0,5,50)
+    ulas['GR'] = numpy.random.rand(50)*10**numpy.random.randint(0,1,50)
+    ulas['CALI'] = numpy.random.rand(50)*10**numpy.random.randint(0,1,50)/50
+    ulas['NPHI'] = numpy.random.rand(50)*10**numpy.random.randint(0,1,50)
+    ulas['RHOB'] = numpy.random.rand(50)*10**numpy.random.randint(0,1,50)
+    ulas['R001'] = numpy.random.rand(50)*10**numpy.random.randint(0,4,50)
+    ulas['R002'] = numpy.random.rand(50)*10**numpy.random.randint(0,5,50)
 
-    # class curve():
+    class curve():
 
-    #     def __init__(self,head,
-    #         linecolor="k",linestyle="-",linewidth=0.75,
-    #         fill=False,fillhatch='..',fillfacecolor='gold'):
+        def __init__(self,ulas,head,unit,info,
+            linecolor="k",linestyle="-",linewidth=0.75,
+            fill=False,fillhatch='..',fillfacecolor='gold'):
 
-    #         self.head = head
+            self.depths = ulas['depths']
+            self.vals = ulas[head]
+            self.head = head
+            self.unit = unit
+            self.info = info
             
-    #         self.linecolor = linecolor
-    #         self.linestyle = linestyle
-    #         self.linewidth = linewidth
+            self.linecolor = linecolor
+            self.linestyle = linestyle
+            self.linewidth = linewidth
 
-    #         self.fill = fill
-    #         self.fillhatch = fillhatch
-    #         self.fillfacecolor = fillfacecolor
+            self.fill = fill
+            self.fillhatch = fillhatch
+            self.fillfacecolor = fillfacecolor
 
-    # dv.add_curve(0,curve("GR",linestyle='-'))
-    # dv.add_curve(0,curve("CALI",linestyle='--'))
-    # dv.add_curve(2,curve("NPHI",linestyle='-'))
-    # dv.add_curve(2,curve("RHOB",linestyle='--'))
-    # dv.add_curve(3,curve("R001",linestyle='-'))
-    # dv.add_curve(3,curve("R002",linestyle='--'))
+    dv.add_curve(0,curve(ulas,"GR","API","",linestyle='-'))
+    dv.add_curve(0,curve(ulas,"CALI",'in','',linestyle='--'))
+    dv.add_curve(2,curve(ulas,"NPHI",'p.u.','',linestyle='-'))
+    dv.add_curve(2,curve(ulas,"RHOB",'g/cm3','',linestyle='--'))
+    # dv.add_curve(3,curve(ulas,"R001",'ohm.m','',linestyle='-'))
+    # dv.add_curve(3,curve(ulas,"R002",'ohm.m','',linestyle='--'))
 
     dv.show() #"sample.pdf"
