@@ -1,3 +1,5 @@
+import copy
+
 import io
 
 import re
@@ -15,6 +17,8 @@ from matplotlib.ticker import AutoMinorLocator
 from matplotlib.ticker import LogFormatter
 from matplotlib.ticker import LogFormatterExponent
 from matplotlib.ticker import LogFormatterMathtext
+from matplotlib.ticker import LogLocator
+from matplotlib.ticker import MultipleLocator
 from matplotlib.ticker import NullLocator
 from matplotlib.ticker import ScalarFormatter
 
@@ -33,27 +37,57 @@ from textio import dirmaster
 
 from cypy.vectorpy import strtype
 
-class ulas():
+class lasfile(dirmaster):
 
-    def __init__(self,*args,**kwargs):
+    def __init__(self,**kwargs):
 
-        super().__init__(*args,**kwargs)
+        homedir = kwargs.get("homedir")
+        filedir = kwargs.get("filedir")
 
-    def _version(self):
+        filepath = kwargs.get("filepath")
 
-        pass
+        if homedir is not None:
+            kwargs.pop("homedir")
 
-    def _well(self):
+        if filedir is not None:
+            kwargs.pop("filedir")
 
-        pass
+        if filepath is not None:
+            kwargs.pop("filepath")
 
-    def _parameter(self):
+        super().__init__(homedir=homedir,filedir=filedir,filepath=filepath)
 
-        pass
+        self.sections = []
 
-    def _data(self):
+    def _version(self,mnemonic,unit,value,description):
 
-        pass
+        self.sections.append("version")
+
+        self.version = header(mnemonic=mnemonic,unit=unit,value=value,description=description)
+
+    def _well(self,mnemonic,unit,value,description):
+
+        self.sections.append("well")
+
+        self.well = header(mnemonic=mnemonic,unit=unit,value=value,description=description)
+
+    def _parameter(self,mnemonic,unit,value,description):
+
+        self.sections.append("parameter")
+
+        self.parameter = header(mnemonic=mnemonic,unit=unit,value=value,description=description)
+
+    def _curve(self,mnemonic,unit,value,description):
+
+        self.sections.append("curve")
+
+        self.curve = header(mnemonic=mnemonic,unit=unit,value=value,description=description)
+
+    def _ascii(self,*args,**kwargs):
+
+        self.sections.append("ascii")
+
+        self.ascii = frame(*args,**kwargs)
 
     def write(self,filepath,mnemonics,data,units=None,descriptions=None,values=None):
 
@@ -111,9 +145,9 @@ class ulas():
 
     def issorted(self):
 
-        depths_ = self.frame.running[0].vals
+        depths_ = self.ascii.running[0].vals
 
-        return ulas._issorted(depths_)
+        return lasfile._issorted(depths_)
 
     @staticmethod
     def _issorted(depths):
@@ -128,9 +162,9 @@ class ulas():
         yvals = []
         zvals = []
 
-        depth = self.frame.running[0].vals
+        depth = self.ascii.running[0].vals
 
-        for index,datacolumn in enumerate(self.frame.running):
+        for index,datacolumn in enumerate(self.ascii.running):
 
             isnan = numpy.isnan(datacolumn.vals)
 
@@ -158,13 +192,13 @@ class ulas():
             axis.step(numpy.where(qvals==zval.reshape((-1,1)))[1],yval)
 
         axis.set_xlim((-1,qvals.size))
-        axis.set_ylim((-1,self.frame.shape[1]))
+        axis.set_ylim((-1,self.ascii.shape[1]))
 
         axis.set_xticks(numpy.arange(qvals.size))
         axis.set_xticklabels(depth[qvals],rotation=90)
 
-        axis.set_yticks(numpy.arange(self.frame.shape[1]))
-        axis.set_yticklabels(self.frame.heads)
+        axis.set_yticks(numpy.arange(self.ascii.shape[1]))
+        axis.set_yticklabels(self.ascii.heads)
 
         axis.grid(True,which="both",axis='x')
 
@@ -172,16 +206,16 @@ class ulas():
 
     def depths(self,top,bottom,curve=None):
 
-        depth = self.frame.running[0].vals
+        depth = self.ascii.running[0].vals
 
         conds = numpy.logical_and(depth>=top,depth<=bottom)
 
         if curve is None:
-            dataframe = copy.deepcopy(self.frame)
+            dataframe = copy.deepcopy(self.ascii)
             return dataframe[conds]
 
         else:
-            datacolumn = copy.deepcopy(self.frame[curve])
+            datacolumn = copy.deepcopy(self.ascii[curve])
             return datacolumn[conds]
 
     def resample(self,depths1,curve=None):
@@ -193,17 +227,17 @@ class ulas():
 
         """
 
-        depths0 = self.frame.running[0].vals
+        depths0 = self.ascii.running[0].vals
 
         if curve is not None:
-            values0 = self.frame[curve].vals
+            values0 = self.ascii[curve].vals
 
-            datacolumn = copy.deepcopy(self.frame[curve])
-            datacolumn.vals = ulas._resample(depths1,depths0,values0)
+            datacolumn = copy.deepcopy(self.ascii[curve])
+            datacolumn.vals = lasfile._resample(depths1,depths0,values0)
             
             return datacolumn
 
-        if not ulas._issorted(depths1):
+        if not lasfile._issorted(depths1):
             raise ValueError("Input depths are not sorted.")
 
         outers_above = depths1<depths0.min()
@@ -235,9 +269,9 @@ class ulas():
 
         grads = delta_depths1/delta_depths0
 
-        dataframe = copy.deepcopy(self.frame)
+        dataframe = copy.deepcopy(self.ascii)
 
-        for index,datacolumn in enumerate(self.frame.running):
+        for index,datacolumn in enumerate(self.ascii.running):
 
             if index==0:
                 dataframe[datacolumn.head].vals = depths1
@@ -263,7 +297,7 @@ class ulas():
 
         """
 
-        if not ulas._issorted(depths1):
+        if not lasfile._issorted(depths1):
             raise ValueError("Input depths are not sorted.")
 
         outers_above = depths1<depths0.min()
@@ -307,18 +341,16 @@ class ulas():
 
         return values
 
-class loadlas(dirmaster):
+class loadlas(lasfile):
 
-    def __init__(self,filepath,homedir=None,filedir=None,**kwargs):
+    def __init__(self,filepath,homedir=None,filedir=None):
 
-        super().__init__(homedir,filedir,filepath=filepath)
-
-        self.sections = []
+        super().__init__(homedir=homedir,filedir=filedir,filepath=filepath)
 
         with open(self.filepath,"r",encoding="latin1") as lasmaster:
             dataframe = self.text(lasmaster)
 
-        self.frame = dataframe
+        self.ascii = dataframe
 
     def seeksection(self,lasmaster,section=None):
 
@@ -583,138 +615,10 @@ class loadlas(dirmaster):
 
         dataframe = frame(*running)
 
-        if not ulas._issorted(dataframe.running[0].vals):
+        if not lasfile._issorted(dataframe.running[0].vals):
             dataframe = dataframe.sort((dataframe.running[0].head,))
 
         return dataframe
-
-class lasbatch(dirmaster):
-
-    def __init__(self,filepaths=None,**kwargs):
-
-        homedir = None if kwargs.get("homedir") is None else kwargs.pop("homedir")
-        filedir = None if kwargs.get("filedir") is None else kwargs.pop("filedir")
-
-        super().__init__(homedir=homedir,filedir=filedir)
-
-        self.frames = []
-
-        self.load(filepaths,**kwargs)
-
-    def load(self,filepaths,**kwargs):
-
-        if filepaths is None:
-            return
-
-        if not isinstance(filepaths,list) and not isinstance(filepaths,tuple):
-            filepaths = (filepaths,)
-
-        for filepath in filepaths:
-
-            dataframe = loadlas(filepath,**kwargs)
-
-            self.frames.append(dataframe)
-
-            logging.info(f"Loaded {filepath} as expected.")
-
-    def wells(self,idframes=None):
-
-        if idframes is None:
-            idframes = range(len(self.frames))
-        elif isinstance(idframes,int):
-            idframes = (idframes,)
-
-        for index in idframes:
-
-            dataframe = self.frames[index]
-
-            print("\n\tWELL #{}".format(dataframe.well.get_row(mnemonic="WELL")["value"]))
-
-            # iterator = zip(dataframe.well["mnemonic"],dataframe.well["units"],dataframe.well["value"],dataframe.well.descriptions)
-
-            iterator = zip(*dataframe.well.get_columns())
-
-            for mnem,unit,value,descr in iterator:
-                print(f"{descr} ({mnem}):\t\t{value} [{unit}]")
-
-    def curves(self,idframes=None,mnemonic_space=33,tab_space=8):
-
-        if idframes is None:
-            idframes = range(len(self.frames))
-        elif isinstance(idframes,int):
-            idframes = (idframes,)
-
-        for index in idframes:
-
-            dataframe = self.frames[index]
-
-            iterator = zip(dataframe.headers,dataframe.units,dataframe.details,dataframe.running)
-
-            # file.write("\n\tLOG NUMBER {}\n".format(idframes))
-            print("\n\tLOG NUMBER {}".format(index))
-
-            for header,unit,detail,datacolumn in iterator:
-
-                if numpy.all(numpy.isnan(datacolumn)):
-                    minXval = numpy.nan
-                    maxXval = numpy.nan
-                else:
-                    minXval = numpy.nanmin(datacolumn)
-                    maxXval = numpy.nanmax(datacolumn)
-
-                tab_num = int(numpy.ceil((mnemonic_space-len(header))/tab_space))
-                tab_spc = "\t"*tab_num if tab_num>0 else "\t"
-
-                # file.write("Curve: {}{}Units: {}\tMin: {}\tMax: {}\tDescription: {}\n".format(
-                #     curve.mnemonic,tab_spc,curve.unit,minXval,maxXval,curve.descr))
-                print("Curve: {}{}Units: {}\tMin: {}\tMax: {}\tDescription: {}".format(
-                    header,tab_spc,unit,minXval,maxXval,detail))
-
-    def merge(self,fileIDs,curveNames):
-
-        if isinstance(fileIDs,int):
-
-            try:
-                depth = self.frames[fileIDs]["MD"]
-            except KeyError:
-                depth = self.frames[fileIDs]["DEPT"]
-
-            xvals1 = self.frames[fileIDs][curveNames[0]]
-
-            for curveName in curveNames[1:]:
-
-                xvals2 = self.frames[fileIDs][curveName]
-
-                xvals1[numpy.isnan(xvals1)] = xvals2[numpy.isnan(xvals1)]
-
-            return depth,xvals1
-
-        elif numpy.unique(numpy.array(fileIDs)).size==len(fileIDs):
-
-            if isinstance(curveNames,str):
-                curveNames = (curveNames,)*len(fileIDs)
-
-            depth = numpy.array([])
-            xvals = numpy.array([])
-
-            for (fileID,curveName) in zip(fileIDs,curveNames):
-
-                try:
-                    depth_loc = self.frames[fileID]["MD"]
-                except KeyError:
-                    depth_loc = self.frames[fileID]["DEPT"]
-
-                xvals_loc = self.frames[fileID][curveName]
-
-                depth_loc = depth_loc[~numpy.isnan(xvals_loc)]
-                xvals_loc = xvals_loc[~numpy.isnan(xvals_loc)]
-
-                depth_max = 0 if depth.size==0 else depth.max()
-
-                depth = numpy.append(depth,depth_loc[depth_loc>depth_max])
-                xvals = numpy.append(xvals,xvals_loc[depth_loc>depth_max])
-
-            return depth,xvals
 
 class colors():
 
@@ -823,6 +727,938 @@ class colors():
     @property
     def hatches(self):
         return [value[2] for key,value in self.__dict__.items()]
+
+class depthview():
+
+    def __init__(self,page_format="Letter"):
+
+        if page_format == "A4":
+            figsize = (8.3,11.7)
+        elif page_format == "Letter":
+            figsize = (8.5,11.0)
+
+        self.figure = pyplot.figure(figsize=figsize,dpi=100)
+        
+    def set_axes(self,naxes,ncurves_max=3,label_loc=None):
+
+        # naxes shows the number of column axis in the figure, integer
+        # ncurves_max shows the maximum number of curves in the axes, integer
+
+        if naxes == 1:
+            depth_column = 0
+            width_ratios = [1,10]
+        elif naxes == 2:
+            depth_column = 1
+            width_ratios = [10,3,20]
+        elif naxes == 3:
+            depth_column = 1
+            width_ratios = [10,3,10,10]
+        elif naxes == 4:
+            depth_column = 1
+            width_ratios = [5,2,5,5,5]
+        elif naxes == 5:
+            depth_column = 1
+            width_ratios = [2,1,2,2,2,2]
+        elif naxes == 6:
+            depth_column = 1
+            width_ratios = [5,3,5,5,5,5,5]
+        else:
+            raise ValueError("Maximum number of columns is 6!")
+
+        self.depth_column = depth_column
+
+        numcols = naxes+1
+
+        if label_loc is None:
+            numrows = 1
+            height_ratios = None
+            index = 0
+        elif label_loc == "top":
+            numrows = 2
+            height_ratios = [ncurves_max,19-ncurves_max]
+            index = 1
+        elif label_loc == "bottom":
+            numrows = 2
+            height_ratios = [19-ncurves_max,ncurves_max]
+            index = 0
+        else:
+            raise ValueError("The location of box can be top, bottom or None!")
+
+        self.gspecs = gridspec.GridSpec(
+            nrows=numrows,ncols=numcols,
+            width_ratios=width_ratios,
+            height_ratios=height_ratios)
+
+        self.axes_curve = []
+        self.axes_label = []
+
+        for i in range(numcols):
+
+            curve_axis = self.figure.add_subplot(self.gspecs[1,i])
+            label_axis = self.figure.add_subplot(self.gspecs[0,i])
+
+            if i != depth_column:
+                curve_axis = self._set_curveaxis(curve_axis)  
+            else:
+                curve_axis = self._set_depthaxis(curve_axis)
+
+            label_axis = self._set_labelaxis(label_axis,ncurves_max)
+
+            self.axes_curve.append(curve_axis)
+            self.axes_label.append(label_axis)
+
+    def set_xcycles(self,index,xcycles=2,xcycleskip=0,xscale='linear'):
+
+        axis = self.axes_curve[index]
+
+        if xscale=="linear":
+            xlim = (0+xcycleskip,10*xcycles+xcycleskip)
+        elif xscale=="log":
+            xlim = (1*(xcycleskip+1),(xcycleskip+1)*10**xcycles)
+        else:
+            raise ValueError(f"{xscale} has not been defined! options: {{linear,log}}")
+
+        axis.set_xlim(xlim)
+
+        axis.set_xscale(xscale)
+
+        if xscale=="linear":
+            axis.xaxis.set_minor_locator(MultipleLocator(1))
+            axis.xaxis.set_major_locator(MultipleLocator(10))
+        elif xscale=="log":
+            axis.xaxis.set_minor_locator(LogLocator(base=10,subs=range(1,10),numticks=12))
+            axis.xaxis.set_major_locator(LogLocator(base=10,numticks=12))
+        else:
+            raise ValueError(f"{xscale} has not been defined! options: {{linear,log}}")
+
+    def set_ycycles(self,ycycles,ycycleskip=0):
+
+        ylim = (10*ycycles+ycycleskip,0+ycycleskip)
+
+        for axis in self.axes_curve:
+            axis.set_ylim(ylim)
+
+    def _set_curveaxis(self,axis,xscale='linear',xcycles=2,xcycleskip=0,ycycles=7,ycycleskip=0):
+
+        if xscale=="linear":
+            xlim = (0+xcycleskip,10*xcycles+xcycleskip)
+        elif xscale=="log":
+            xlim = (1*(xcycleskip+1),(xcycleskip+1)*10**xcycles)
+        else:
+            raise ValueError(f"{xscale} has not been defined! options: {{linear,log}}")
+
+        ylim = (10*ycycles+ycycleskip,0+ycycleskip)
+
+        axis.set_xlim(xlim)
+        axis.set_ylim(ylim)
+
+        axis.set_xscale(xscale)
+
+        if xscale=="linear":
+            axis.xaxis.set_minor_locator(MultipleLocator(1))
+            axis.xaxis.set_major_locator(MultipleLocator(10))
+        elif xscale=="log":
+            axis.xaxis.set_minor_locator(LogLocator(base=10,subs=range(1,10),numticks=12))
+            axis.xaxis.set_major_locator(LogLocator(base=10,numticks=12))
+        else:
+            raise ValueError(f"{xscale} has not been defined! options: {{linear,log}}")
+
+        pyplot.setp(axis.get_xticklabels(),visible=False)
+        pyplot.setp(axis.get_xticklines(),visible=False)
+
+        axis.tick_params(axis="x",which="minor",bottom=False)
+
+        axis.grid(axis="x",which='minor',color='k',alpha=0.4)
+        axis.grid(axis="x",which='major',color='k',alpha=0.9)
+
+        axis.yaxis.set_minor_locator(MultipleLocator(1))
+        axis.yaxis.set_major_locator(MultipleLocator(10))
+
+        pyplot.setp(axis.get_yticklabels(),visible=False)
+        pyplot.setp(axis.get_yticklines(),visible=False)
+
+        axis.tick_params(axis="y",which="minor",left=False)
+
+        axis.grid(axis="y",which='minor',color='k',alpha=0.4)
+        axis.grid(axis="y",which='major',color='k',alpha=0.9)
+
+        return axis
+
+    def _set_depthaxis(self,axis,ycycles=7,ycycleskip=0):
+
+        xlim = (0,1)
+        ylim = (10*ycycles+ycycleskip,0+ycycleskip)
+        
+        axis.set_xlim(xlim)
+        axis.set_ylim(ylim)
+
+        pyplot.setp(axis.get_xticklabels(),visible=False)
+        pyplot.setp(axis.get_xticklines(),visible=False)
+
+        axis.yaxis.set_minor_locator(MultipleLocator(1))
+        axis.yaxis.set_major_locator(MultipleLocator(10))
+        
+        axis.tick_params(
+            axis="y",which="both",direction="in",right=True,pad=-40)
+
+        pyplot.setp(axis.get_yticklabels(),visible=False)
+
+        return axis
+
+    def _set_labelaxis(self,axis,ncurves_max):
+
+        axis.set_xlim((0,1))
+        axis.set_ylim((0,ncurves_max+1))
+
+        pyplot.setp(axis.get_xticklabels(),visible=False)
+        pyplot.setp(axis.get_xticklines(),visible=False)
+        pyplot.setp(axis.get_yticklabels(),visible=False)
+        pyplot.setp(axis.get_yticklines(),visible=False)
+
+        return axis
+
+    def add_depth(self,depth):
+
+        axis = self.axes_curve[self.depth_column]
+
+        self.yvals,ylim = self._get_linear_normalized(depth,axis.get_ylim(),multp=1)
+
+        axis_yticks = axis.get_yticks()
+
+        calc_yticks = MultipleLocator(base=10).tick_values(*ylim)
+
+        print(calc_yticks)
+
+        for axis_ytick,calc_ytick in zip(axis_yticks[2:-2],calc_yticks[2:-2]):
+
+            axis.text(0.5,axis_ytick,calc_ytick,
+                horizontalalignment='center',
+                verticalalignment='center',
+                backgroundcolor='white',
+                fontsize='small',)
+
+    def add_curve(self,index,curve):
+
+        curve_axis = self.axes_curve[index]
+        label_axis = self.axes_label[index]
+
+        xlim = curve_axis.get_xlim()
+
+        xscale = curve_axis.get_xscale()
+
+        if xscale == "linear":
+            xvals,xlim = self._get_linear_normalized(curve.vals,xlim)
+        elif xscale == "log":
+            xvals,xlim = self._get_log_normalized(curve.vals,xlim)
+        else:
+            raise ValueError(f"{xscale} has not been defined! options: {{linear,log}}")
+
+        curve_axis.plot(xvals,self.yvals,
+            color=curve.linecolor,linestyle=curve.linestyle,linewidth=curve.linewidth)
+
+        if curve.fill:
+            curve_axis.fill_betweenx(self.yvals,xvals,x2=0,facecolor=curve.fillfacecolor,hatch=curve.fillhatch)
+
+        numlines = len(curve_axis.lines)
+
+        if curve.fill:
+            self._add_label_fill(label_axis,curve,xlim,numlines)
+        else:
+            self._add_label_line(label_axis,curve,xlim,numlines)
+
+    def _get_linear_normalized(self,values,axis_limits,shift=None,multp=None):
+
+        axis_min,axis_max = min(axis_limits),max(axis_limits)
+        vals_min,vals_max = values.min(),values.max()
+
+        # print(f"{axis_min=},",f"{axis_max=}")
+        # print(f"given_{vals_min=},",f"given_{vals_max=}")
+
+        delta_temp = numpy.abs(vals_max-vals_min)
+
+        power_multp_min = -numpy.floor(numpy.log10(delta_temp))
+        power_multp_max = -numpy.ceil(numpy.log10(delta_temp))
+
+        # print(f"{power_multp_min=}")
+
+        vals_min_temp = numpy.floor(vals_min*10**power_multp_min)/10**power_multp_min
+        vals_max_temp = numpy.ceil(vals_max*10**power_multp_min)/10**power_multp_min
+
+        # print(f"{vals_min_temp=},",f"{vals_max_temp=}")
+
+        delta_temp = vals_max_temp-vals_min_temp
+
+        delta = numpy.ceil(delta_temp*10**power_multp_max)/10**power_multp_max
+
+        # print(f"{delta=}")
+            
+        if multp is None:
+            multp = numpy.floor((axis_max-axis_min)/delta)
+
+        if shift is None:
+            shift = -numpy.floor((vals_min_temp*multp-axis_min)/10)*10
+
+        # print(f"{multp=},",f"{shift=}")
+        
+        vals = shift+values*multp
+
+        vals_min = (axis_min-shift)/multp
+        vals_max = (axis_max-shift)/multp
+        
+        # print(f"normalized_{vals_min=},",f"normalized_{vals_max=}")
+
+        return vals,(vals_min,vals_max)
+
+    def _get_log_normalized(self,values,axis_limits,power_multp=None):
+
+        axis_min,axis_max = min(axis_limits),max(axis_limits)
+        vals_min,vals_max = values.min(),values.max()
+
+        if power_multp is None:
+            power_multp = numpy.ceil(numpy.log10(axis_min/vals_min))
+
+        vals = values*10**power_multp
+
+        vals_min = axis_min/10**power_multp
+        vals_max = axis_max/10**power_multp
+
+        return vals,(vals_min,vals_max)
+
+    def _add_label_line(self,label_axis,curve,xlim,numlines=0):
+
+        label_axis.plot((0,1),(numlines-0.7,numlines-0.7),
+            color=curve.linecolor,linestyle=curve.linestyle,linewidth=curve.linewidth)
+
+        label_axis.text(0.5,numlines-0.5,f"{curve.head} [{curve.unit}]",
+            horizontalalignment='center',
+            # verticalalignment='bottom',
+            fontsize='small',)
+
+        label_axis.text(0.02,numlines-0.5,f'{xlim[0]}',horizontalalignment='left')
+        label_axis.text(0.98,numlines-0.5,f'{xlim[1]}',horizontalalignment='right')
+
+    def _add_label_fill(self,label_axis,curve,xlim,numlines=0):
+
+        rect = Rectangle((0,numlines-1),1,1,
+            fill=True,facecolor=curve.fillfacecolor,hatch=curve.fillhatch)
+
+        label_axis.add_patch(rect)
+
+        label_axis.text(0.5,numlines-0.5,curve.head,
+            horizontalalignment='center',
+            verticalalignment='center',
+            backgroundcolor='white',
+            fontsize='small',)
+
+    def show(self,filename=None,wspace=0.0,hspace=0.0):
+
+        self.gspecs.tight_layout(self.figure)
+
+        self.gspecs.update(wspace=wspace,hspace=hspace)
+
+        if filename is not None:
+            self.figure.savefig(filename,format='pdf')
+
+        pyplot.show()
+
+class DepthView(): #Will BE DEPRECIATED
+
+    def __init__(self,root):
+        """It initializes the DepthView with listbox and figure canvas."""
+
+        self.root = root
+
+        self.root.title("Well Logs - Depth View")
+
+        self.header = tkinter.Canvas(self.root,height=200)
+        self.header.grid(row=0,column=0,sticky=tkinter.EW)
+
+        self.canvas = tkinter.Canvas(self.root)
+        self.canvas.grid(row=1,column=0,sticky=tkinter.NSEW)
+
+        # self.hscroll = tkinter.Scrollbar(self.root,orient=tkinter.HORIZONTAL)
+        # self.hscroll.grid(row=2,column=0,sticky=tkinter.EW)
+
+        self.vscroll = tkinter.Scrollbar(self.root,orient=tkinter.VERTICAL)
+        self.vscroll.grid(row=0,column=1,rowspan=2,sticky=tkinter.NS)
+
+        self.root.rowconfigure(0,weight=0)
+        self.root.rowconfigure(1,weight=1)
+        # self.root.rowconfigure(2,weight=0)
+
+        self.root.columnconfigure(0,weight=1)
+        self.root.columnconfigure(1,weight=0)
+
+        # self.canvas.config(xscrollcommand=self.hscroll.set)
+        self.canvas.config(yscrollcommand=self.vscroll.set)
+
+        # self.hscroll.config(command=self.canvas.xview)
+        self.vscroll.config(command=self.canvas.yview)
+
+        self.canvas.configure(bg='blue')
+
+        self.canvas.bind_all("<MouseWheel>",self._on_mousewheel)
+
+        # The colors to be used for lines
+
+        # self.colors = ("black","crimson","blue","sienna")
+        self.colors = pyplot.rcParams['axes.prop_cycle'].by_key()['color']
+        # self.colors.insert(0,"#000000")
+
+    def set_header(self,nrows=(1,3,2,2),ncols=4,fontsize=10,width=3.,height=2.,dpi=100.):
+
+        fig = pyplot.figure(dpi=dpi)
+
+        fig.set_figwidth(width*4)
+        fig.set_figheight(height)
+
+        axis = fig.add_subplot(111)
+
+        X,Y = [dpi*size for size in (width*ncols,height)]
+
+        w = X/ncols
+        h = Y/(max(nrows)+1)
+
+        names = ["Vsh","NGL","PHIT","PHIE","CBW","BVW","RL8","RL4"]
+
+        # colors = self.colors
+        # hatches = self.hatches
+
+        k = 0
+            
+        for idcol in range(ncols):
+
+            for idrow in range(nrows[idcol]):
+
+                y = Y-(idrow*h)-h
+
+                xmin = w*(idcol+0.05)
+                xmax = w*(idcol+0.25)
+
+                ymin = y-h*0.3
+                ymax = y+h*0.3
+
+                xtext = w*(idcol+0.3)
+
+                axis.text(xtext,y,names[k],fontsize=(fontsize),
+                        horizontalalignment='left',
+                        verticalalignment='center')
+
+                axis.add_patch(Rectangle((xmin,ymin),0.8*w,0.7*h,fill=True)
+                    ) #fill=True,hatch=hatches[k],facecolor=colors[k]
+
+                k += 1
+
+        axis.set_xlim(0,X)
+        axis.set_ylim(0,Y)
+
+        axis.set_axis_off()
+
+        buff = io.BytesIO()
+
+        fig.savefig(buff,format='png')
+
+        buff.seek(0)
+
+        image = ImageTk.PhotoImage(Image.open(buff))
+
+        self.header.create_image(0,0,anchor=tkinter.N,image=image)
+
+    def set_axes(self,numaxes=1,subaxes=None,depth=None,inchdepth=15.,width=3.,height=128.,dpi=100.):
+        """Creates the figure and axes and their sub-axes and stores them in the self.axes."""
+
+        # numaxes   : integer
+        #            Number of axes in the figure
+
+        # subaxes   : list or tuple of integers
+        #            Number of subaxes in each axis
+
+        # depth     : float
+        #            Depth of log in meters; every inch will represent inchdepth meter of formation
+        #            Default value for inchdepth is 15 meters.
+
+        # inchdepth : float
+        #            The depth (meters) to be shown in every inch of the figure
+
+        # width     : float
+        #            Width of each axis in inches
+
+        # height    : float
+        #            Height of figure in inches
+
+        # dpi       : integer
+        #            Resolution of the figure, dots per inches
+
+        self.figure = pyplot.figure(dpi=dpi)
+
+        self.figure.set_figwidth(width*numaxes)
+
+        if depth is None:
+            self.figure.set_figheight(height)
+        else:
+            self.figure.set_figheight(depth/inchdepth)
+
+        self.fgspec = gridspec.GridSpec(1,numaxes)
+
+        self.axes = []
+
+        if subaxes is None:
+            subaxes = (1,)*numaxes
+        elif not hasattr(subaxes,"__len__"):
+            logging.warning(f"Expected subaxes is a list or tuple with the length equal to numaxes; input is {type(subaxes)}")
+        elif len(subaxes)!=numaxes:
+            logging.warning(f"The length of subaxes should be equal to numaxes; {len(subaxes)} not equal to {numaxes=}")
+
+        for idaxis in range(numaxes):
+            self.add_axis(idaxis,subaxes[idaxis])
+
+    def add_axis(self,idaxis,numsubaxes=1):
+        """Adds main-axis and its subaxes to the list of self.axes."""
+
+        subaxes = []
+
+        subaxis_main = pyplot.subplot(self.fgspec[idaxis])
+
+        xlims = (0,1)
+
+        ylims = (0,1)
+
+        subaxis_main.set_xticks(numpy.linspace(*xlims,11))
+        subaxis_main.set_yticks(ylims)
+
+        subaxis_main.set_ylim(ylims[::-1])
+
+        subaxis_main.yaxis.set_minor_locator(AutoMinorLocator(25))
+
+        subaxis_main.grid(True,which="both",axis='y')
+
+        subaxis_main.grid(True,which="major",axis='x')
+
+        pyplot.setp(subaxis_main.get_xticklabels(),visible=False)
+        pyplot.setp(subaxis_main.get_xticklines(),visible=False)
+
+        # pyplot.setp(subaxis_main.xaxis.get_minorticklabels(),visible=False)
+        # pyplot.setp(subaxis_main.xaxis.get_minorticklines(),visible=False)
+
+        pyplot.setp(subaxis_main.yaxis.get_minorticklines(),visible=False)
+        # subaxis_main.tick_params(axis='y',which='major',length=0)
+
+        if idaxis>0:
+            pyplot.setp(subaxis_main.get_yticklabels(),visible=False)
+
+        subaxes.append(subaxis_main)
+
+        self.axes.append(subaxes)
+
+        self.set_subaxes(idaxis,numsubaxes)
+
+    def set_subaxes(self,idaxis,numsubaxes):
+        """Creates subaxes and stores them in self.axes."""
+
+        numsubaxes_current = len(self.axes[idaxis])-1
+
+        if numsubaxes_current>=numsubaxes:
+            return
+
+        roofpos = 1+0.4*numsubaxes/self.figure.get_figheight()
+
+        self.axes[idaxis][0].spines["top"].set_position(("axes",roofpos))
+
+        for idline in range(numsubaxes_current,numsubaxes):
+            self.add_subaxis(idaxis,idline)
+
+    def add_subaxis(self,idaxis,idline):
+        """Adds subaxis to the self.axes."""
+
+        axsub = self.axes[idaxis][0].twiny()
+
+        axsub.set_xticks((0.,1.))
+        axsub.set_ylim(self.axes[0][0].get_ylim())
+
+        spinepos = 1+0.4*idline/self.figure.get_figheight()
+
+        axsub.spines["top"].set_position(("axes",spinepos))
+        axsub.spines["top"].set_color(self.colors[idline])
+
+        axsub.spines["left"].set_visible(False)
+        axsub.spines["right"].set_visible(False)
+        axsub.spines["bottom"].set_visible(False)
+
+        axsub.tick_params(axis='x',labelcolor=self.colors[idline])
+
+        # self.axes[idaxis][0].yaxis.set_minor_locator(AutoMinorLocator(25))
+
+        # self.axes[idaxis][0].grid(True,which="both",axis='y')
+
+        pyplot.setp(self.axes[idaxis][0].get_xticklabels(),visible=False)
+        pyplot.setp(self.axes[idaxis][0].get_xticklines(),visible=False)
+
+        axsub.LineExistFlag = False
+
+        self.set_xaxis(axsub)
+
+        self.axes[idaxis].append(axsub)
+
+    def set_depth(self,depth=None):
+        """It will check the depths of axis and set depth which include all depths."""
+
+        for axis in self.axes:
+            for axsub in axis:
+                axsub.set_ylim(self.axes[0][0].get_ylim())
+
+            # axis[0].yaxis.set_minor_locator(AutoMinorLocator(25))
+            # axis[0].grid(True,which="both",axis='y')
+
+    def set_xaxis(self,axis):
+
+        pyplot.setp(axis.xaxis.get_majorticklabels()[1:-1],visible=False)
+
+        pyplot.setp(axis.xaxis.get_majorticklabels()[0],ha="left")
+        pyplot.setp(axis.xaxis.get_majorticklabels()[-1],ha="right")
+
+        if not axis.LineExistFlag:
+
+            loffset = transforms.ScaledTranslation(5/72,-5/72,self.figure.dpi_scale_trans)
+            
+            ltrans = axis.xaxis.get_majorticklabels()[0].get_transform()
+
+            axis.xaxis.get_majorticklabels()[0].set_transform(ltrans+loffset)
+
+            roffset = transforms.ScaledTranslation(-5/72,-5/72,self.figure.dpi_scale_trans)
+
+            rtrans = axis.xaxis.get_majorticklabels()[-1].get_transform()
+
+            axis.xaxis.get_majorticklabels()[-1].set_transform(rtrans+roffset)
+
+        else:
+
+            roffset = transforms.ScaledTranslation(-10/72,0,self.figure.dpi_scale_trans)
+
+            rtrans = axis.xaxis.get_majorticklabels()[-1].get_transform()
+
+            axis.xaxis.get_majorticklabels()[-1].set_transform(rtrans+roffset)
+
+        pyplot.setp(axis.xaxis.get_majorticklines()[2:-1],visible=False)
+
+        pyplot.setp(axis.xaxis.get_majorticklines()[1],markersize=25)
+        pyplot.setp(axis.xaxis.get_majorticklines()[-1],markersize=25)
+
+        # axis.xaxis.get_majorticklines()[0].set_markersize(100)
+
+    def set_lines(self,idaxis,idline,xcol,ycol):
+
+        axis = self.axes[idaxis][idline+1]
+
+        axis.plot(xcol.vals,ycol.vals,color=self.colors[idline])
+
+        axis.LineExistFlag = True
+
+        yticks = self.get_yticks(ycol.vals)
+        xticks = self.get_xticks(xcol.vals)
+
+        axis.set_xlabel(xcol.head)
+
+        # figheight_temp = (yticks.max()-yticks.min())/128
+
+        # if figheight_temp>self.figure.get_figheight():
+        #   self.figure.set_figheight(figheight_temp)
+
+        # figheight = max(self.figure.get_figheight(),figheight_temp)
+
+        axis.set_ylim((yticks.max(),yticks.min()))
+        axis.set_yticks(yticks)
+
+        axis.set_xlim((xticks.min(),xticks.max()))
+        axis.set_xticks(xticks)
+
+        self.set_xaxis(axis)
+
+        # axis.grid(True,which="both",axis='y')
+
+        # axis.yaxis.set_minor_locator(AutoMinorLocator(10))
+
+        # if idline==0:
+            # axis.grid(True,which="major",axis='x')
+
+        # axis.xaxis.set_major_formatter(ScalarFormatter())
+        # # axis.xaxis.set_major_formatter(LogFormatter())
+
+    def set_image(self):
+        """Creates the image of figure in memory and displays it on canvas."""
+
+        self.fgspec.tight_layout(self.figure,rect=[0,0,1.0,0.995])
+        self.fgspec.update(wspace=0)
+
+        buff = io.BytesIO()
+
+        self.figure.savefig(buff,format='png')
+
+        buff.seek(0)
+
+        self.image = ImageTk.PhotoImage(Image.open(buff))
+
+        self.canvas.create_image(0,0,anchor=tkinter.N,image=self.image)
+
+        self.canvas.config(scrollregion=self.canvas.bbox('all'))
+
+    def get_xticks(self,xvals,xmin=None,xmax=None,xscale="normal",xdelta=None,xdelta_count=11):
+
+        xvals_min = numpy.nanmin(xvals)
+
+        if xvals_min is numpy.nan:
+            xvals_min = 0.
+
+        xvals_max = numpy.nanmax(xvals)
+
+        if xvals_max is numpy.nan:
+            xvals_max= 1.
+
+        xrange_given = xvals_max-xvals_min
+
+        if xdelta is None:
+            xdelta = xrange_given/(xdelta_count-1)
+
+        beforeDot,afterDot = format(xdelta,'f').split('.')
+
+        nondim_xunit_sizes = numpy.array([1,2,4,5,10])
+
+        if xdelta>1:
+
+            xdelta_temp = xdelta/10**(len(beforeDot)-1)
+            xdelta_temp = nondim_xunit_sizes[(numpy.abs(nondim_xunit_sizes-xdelta_temp)).argmin()]
+
+            xdelta = xdelta_temp*10**(len(beforeDot)-1)
+
+        else:
+
+            zeroCountAfterDot = len(afterDot)-len(afterDot.lstrip('0'))
+
+            xdelta_temp = xdelta*10**(zeroCountAfterDot+1)
+            xdelta_temp = nondim_xunit_sizes[(numpy.abs(nondim_xunit_sizes-xdelta_temp)).argmin()]
+
+            xdelta = xdelta_temp/10**(zeroCountAfterDot+1)
+
+        if xscale=="normal":
+
+            if xmin is None:
+                xmin = (numpy.floor(xvals_min/xdelta)-1).astype(float)*xdelta
+
+            if xmax is None:
+                xmax = (numpy.ceil(xvals_max/xdelta)+1).astype(float)*xdelta
+
+            xticks = numpy.arange(xmin,xmax+xdelta/2,xdelta)
+
+        elif xscale=="log":
+
+            if xmin is None:
+                xmin = xvals_min if xvals_min>0 else 0.001
+
+            if xmax is None:
+                xmax = xvals_max if xvals_max>0 else 0.1
+
+            xmin_power = numpy.floor(numpy.log10(xmin))
+            xmax_power = numpy.ceil(numpy.log10(xmax))
+
+            xticks = 10**numpy.arange(xmin_power,xmax_power+1/2)
+
+        return xticks
+
+    def get_yticks(self,yvals=None,top=None,bottom=None,endmultiple=5.,ydelta=25.):
+
+        if yvals is None:
+            yvals = numpy.array([0,1])
+
+        if top is None:
+            top = numpy.nanmin(yvals)
+
+        if bottom is None:
+            bottom = numpy.nanmax(yvals)
+
+        if top>bottom:
+            top,bottom = bottom,top
+
+        ymin = numpy.floor(top/endmultiple)*endmultiple
+
+        ymax = numpy.ceil(bottom/endmultiple)*endmultiple
+
+        yticks = numpy.arange(ymin,ymax+ydelta/2,ydelta)
+
+        return yticks
+
+    def set_DepthViewGRcut(self,GRline,indexI,indexJ,perc_cut=40):
+
+        # indexI index of GR containing axis in the plot
+        # indexJ index of GR containing line in the axis
+
+        try:
+            depth = self.frames[GRline[0]].columns("MD")
+        except ValueError:
+            depth = self.frames[GRline[0]].columns("DEPT")
+
+        xvals = self.frames[GRline[0]].columns(GRline[1])
+
+        GRmin = numpy.nanmin(xvals)
+        GRmax = numpy.nanmax(xvals)
+
+        GRcut = (GRmin+(GRmax-GRmin)*perc_cut/100)
+
+        cut_line = GRcut*numpy.ones(depth.shape)
+
+        cond_clean = cut_line>=xvals
+
+        indexTop = []
+        indexBtm = []
+
+        for i,cond in enumerate(cond_clean):
+            
+            if i>0:
+                old_cond = cond_clean[i-1]
+            else:
+                old_cond = False
+                
+            try:
+                new_cond = cond_clean[i+1]
+            except IndexError:
+                new_cond = False
+                
+            if cond and not old_cond:
+                indexTop.append(i)
+
+            if cond and not new_cond:
+                indexBtm.append(i)
+
+        net_pay = 0
+
+        for i,j in zip(indexTop,indexBtm):
+
+            net_pay += depth[j]-depth[i]
+
+        self.axes[indexI].subax[indexJ].fill_betweenx(
+            depth,xvals,x2=cut_line,where=cond_clean,color=self.color_clean)
+
+        self.netPayThickness = net_pay
+        self.netToGrossRatio = net_pay/self.gross_thickness*100
+
+        return GRcut
+
+    def set_DepthViewNeuPorCorr(self,NeuPorLine,indexI,indexJ,Vsh,NeuPorShale):
+
+        # indexI index of Neutron Porosity containing axis in the plot
+        # indexJ index of Neutron Porosity containing line in the axis
+
+        try:
+            depth = self.frames[NeuPorLine[0]]["MD"]
+        except KeyError:
+            depth = self.frames[NeuPorLine[0]]["DEPT"]
+
+        xvals = self.frames[NeuPorLine[0]][NeuPorLine[1]]
+
+        NeuPorCorr = xvals-Vsh*NeuPorShale
+
+        self.axes[indexI].subax[indexJ].plot(NeuPorCorr,depth,
+            color=self.lineColors[indexJ],linestyle="--")
+
+    def set_DepthViewResistivityCut(self,ResLine,indexI,indexJ,ohmm_cut=10):
+
+        # indexI index of Resistivity containing axis in the plot
+        # indexJ index of Resistivity containing line in the axis
+
+        depth = self.frames[ResLine[0]].columns(0)
+
+        xvals = self.frames[ResLine[0]].columns(ResLine[1])
+
+        cut_line = ohmm_cut*numpy.ones(depth.shape)
+
+        self.axes[indexI].subax[indexJ].fill_betweenx(
+            depth,xvals,x2=cut_line,where=ohmm_cut<=xvals,color=self.color_HC)
+
+    def set_DepthViewSaturationCut(self,SwLine,indexI,indexJ,Sw_cut=0.5):
+
+        # indexI index of Resistivity containing axis in the plot
+        # indexJ index of Resistivity containing line in the axis
+
+        depth = self.frames[SwLine[0]].columns(0)
+
+        xvals = self.frames[SwLine[0]].columns(SwLine[1])
+
+        cut_line = Sw_cut*numpy.ones(depth.shape)
+
+        self.axes[indexI].subax[indexJ].fill_betweenx(
+            depth,xvals,x2=cut_line,where=Sw_cut>=xvals,color=self.color_HC)
+
+    def set_DepthViewNMRfluid(self,NMRline,indexI,water_clay,water_capi,water_move,HC):
+
+        # indexL index of NMR containing lasio in the pack
+        # indexI index of NMR containing axis in the plot
+
+        try:
+            depth = self.frames[NMRline]["MD"]
+        except KeyError:
+            depth = self.frames[NMRline]["DEPT"]
+
+        xvals0 = numpy.zeros(water_clay.shape)
+        xvals1 = water_clay
+        xvals2 = water_clay+water_capi
+        xvals3 = water_clay+water_capi+water_move
+        xvals4 = water_clay+water_capi+water_move+HC
+
+        self.axes[indexI].subax[0].fill_betweenx(
+            depth,xvals1,x2=xvals0,where=xvals0<=xvals1,color=self.color_waterclay)
+
+        self.axes[indexI].subax[0].fill_betweenx(
+            depth,xvals2,x2=xvals1,where=xvals1<=xvals2,color=self.color_watercapi)
+
+        self.axes[indexI].subax[0].fill_betweenx(
+            depth,xvals3,x2=xvals2,where=xvals2<=xvals3,color=self.color_watermove)
+
+        self.axes[indexI].subax[0].fill_betweenx(
+            depth,xvals4,x2=xvals3,where=xvals3<=xvals4,color=self.color_HC)
+
+    def set_DepthViewPerfs(self,indexI,indexJ,depths,perfs):
+
+        xtick = self.axes[indexI].subax[indexJ].get_xticks()
+
+        ytick = self.axes[indexI].subax[indexJ].get_yticks()
+
+        perfs = numpy.array(perfs)
+
+        perfs_just = perfs[perfs>0]
+
+        perfs_just[::10] -= perfs_just[::10]*0.5
+
+        perfs[perfs>0] = perfs_just
+
+        perfs_scaled = xtick.min()+(xtick.max()-xtick.min())/10/(perfs.max()-perfs.min())*perfs
+
+        # pfgun_point = xtick.min()
+
+        # for arg in args:
+
+        #     depths = numpy.arange(arg[0],arg[1]+1/2,1.)
+
+        #     for index,depth in enumerate(depths):
+
+        #         if index==0:
+        #             marker,size = 11,10
+        #         elif index==len(depths)-1:
+        #             marker,size = 10,10
+        #         else:
+        #             marker,size = 9,10
+
+        #         self.axes[indexI].subax[indexJ].plot(pfgun_point,depth,
+        #             marker=marker,color='orange',markersize=size,markerfacecolor='black')
+
+        self.axes[indexI].subax[indexJ].plot(perfs_scaled,depths)
+
+    def set_DepthViewCasing(self):
+        """It creates an axis to include casing set depths"""
+
+        pass
+
+    def _on_mousewheel(self,event):
+        """Lets the scroll work everywhere on the window."""
+
+        self.canvas.yview_scroll(int(-1*(event.delta/120)),"units")
 
 class gammaray():
 
@@ -1591,610 +2427,131 @@ class hingle():
 
         self.fig_hcp,self.axis_hcp = pyplot.subplots()
 
-""" DEPTVIEW RELATED EDITS (MOST OF THEM ARE SET)
- 1. Line numbers should not be predefined.
- 2. Adding line should not affect previous lines.
- 3. DepthView should be added to dataview and get dataframe as an input
- 4. Depth axis must be unique!
- 5. x-axis grids must be the same for the axis on top of each other.
- 6. add_cvurve() should be working smoothly
-"""
+class lasbatch(dirmaster):
 
-class DepthView():
+    def __init__(self,filepaths=None,**kwargs):
 
-    def __init__(self,root):
-        """It initializes the DepthView with listbox and figure canvas."""
+        homedir = None if kwargs.get("homedir") is None else kwargs.pop("homedir")
+        filedir = None if kwargs.get("filedir") is None else kwargs.pop("filedir")
 
-        self.root = root
+        super().__init__(homedir=homedir,filedir=filedir)
 
-        self.root.title("Well Logs - Depth View")
+        self.frames = []
 
-        self.header = tkinter.Canvas(self.root,height=200)
-        self.header.grid(row=0,column=0,sticky=tkinter.EW)
+        self.load(filepaths,**kwargs)
 
-        self.canvas = tkinter.Canvas(self.root)
-        self.canvas.grid(row=1,column=0,sticky=tkinter.NSEW)
+    def load(self,filepaths,**kwargs):
 
-        # self.hscroll = tkinter.Scrollbar(self.root,orient=tkinter.HORIZONTAL)
-        # self.hscroll.grid(row=2,column=0,sticky=tkinter.EW)
-
-        self.vscroll = tkinter.Scrollbar(self.root,orient=tkinter.VERTICAL)
-        self.vscroll.grid(row=0,column=1,rowspan=2,sticky=tkinter.NS)
-
-        self.root.rowconfigure(0,weight=0)
-        self.root.rowconfigure(1,weight=1)
-        # self.root.rowconfigure(2,weight=0)
-
-        self.root.columnconfigure(0,weight=1)
-        self.root.columnconfigure(1,weight=0)
-
-        # self.canvas.config(xscrollcommand=self.hscroll.set)
-        self.canvas.config(yscrollcommand=self.vscroll.set)
-
-        # self.hscroll.config(command=self.canvas.xview)
-        self.vscroll.config(command=self.canvas.yview)
-
-        self.canvas.configure(bg='blue')
-
-        self.canvas.bind_all("<MouseWheel>",self._on_mousewheel)
-
-        # The colors to be used for lines
-
-        # self.colors = ("black","crimson","blue","sienna")
-        self.colors = pyplot.rcParams['axes.prop_cycle'].by_key()['color']
-        # self.colors.insert(0,"#000000")
-
-    def set_header(self,nrows=(1,3,2,2),ncols=4,fontsize=10,width=3.,height=2.,dpi=100.):
-
-        fig = pyplot.figure(dpi=dpi)
-
-        fig.set_figwidth(width*4)
-        fig.set_figheight(height)
-
-        axis = fig.add_subplot(111)
-
-        X,Y = [dpi*size for size in (width*ncols,height)]
-
-        w = X/ncols
-        h = Y/(max(nrows)+1)
-
-        names = ["Vsh","NGL","PHIT","PHIE","CBW","BVW","RL8","RL4"]
-
-        # colors = self.colors
-        # hatches = self.hatches
-
-        k = 0
-            
-        for idcol in range(ncols):
-
-            for idrow in range(nrows[idcol]):
-
-                y = Y-(idrow*h)-h
-
-                xmin = w*(idcol+0.05)
-                xmax = w*(idcol+0.25)
-
-                ymin = y-h*0.3
-                ymax = y+h*0.3
-
-                xtext = w*(idcol+0.3)
-
-                axis.text(xtext,y,names[k],fontsize=(fontsize),
-                        horizontalalignment='left',
-                        verticalalignment='center')
-
-                axis.add_patch(Rectangle((xmin,ymin),0.8*w,0.7*h,fill=True)
-                    ) #fill=True,hatch=hatches[k],facecolor=colors[k]
-
-                k += 1
-
-        axis.set_xlim(0,X)
-        axis.set_ylim(0,Y)
-
-        axis.set_axis_off()
-
-        buff = io.BytesIO()
-
-        fig.savefig(buff,format='png')
-
-        buff.seek(0)
-
-        image = ImageTk.PhotoImage(Image.open(buff))
-
-        self.header.create_image(0,0,anchor=tkinter.N,image=image)
-
-    def set_axes(self,numaxes=1,subaxes=None,depth=None,inchdepth=15.,width=3.,height=128.,dpi=100.):
-        """Creates the figure and axes and their sub-axes and stores them in the self.axes."""
-
-        # numaxes   : integer
-        #            Number of axes in the figure
-
-        # subaxes   : list or tuple of integers
-        #            Number of subaxes in each axis
-
-        # depth     : float
-        #            Depth of log in meters; every inch will represent inchdepth meter of formation
-        #            Default value for inchdepth is 15 meters.
-
-        # inchdepth : float
-        #            The depth (meters) to be shown in every inch of the figure
-
-        # width     : float
-        #            Width of each axis in inches
-
-        # height    : float
-        #            Height of figure in inches
-
-        # dpi       : integer
-        #            Resolution of the figure, dots per inches
-
-        self.figure = pyplot.figure(dpi=dpi)
-
-        self.figure.set_figwidth(width*numaxes)
-
-        if depth is None:
-            self.figure.set_figheight(height)
-        else:
-            self.figure.set_figheight(depth/inchdepth)
-
-        self.fgspec = gridspec.GridSpec(1,numaxes)
-
-        self.axes = []
-
-        if subaxes is None:
-            subaxes = (1,)*numaxes
-        elif not hasattr(subaxes,"__len__"):
-            logging.warning(f"Expected subaxes is a list or tuple with the length equal to numaxes; input is {type(subaxes)}")
-        elif len(subaxes)!=numaxes:
-            logging.warning(f"The length of subaxes should be equal to numaxes; {len(subaxes)} not equal to {numaxes=}")
-
-        for idaxis in range(numaxes):
-            self.add_axis(idaxis,subaxes[idaxis])
-
-    def add_axis(self,idaxis,numsubaxes=1):
-        """Adds main-axis and its subaxes to the list of self.axes."""
-
-        subaxes = []
-
-        subaxis_main = pyplot.subplot(self.fgspec[idaxis])
-
-        xlims = (0,1)
-
-        ylims = (0,1)
-
-        subaxis_main.set_xticks(numpy.linspace(*xlims,11))
-        subaxis_main.set_yticks(ylims)
-
-        subaxis_main.set_ylim(ylims[::-1])
-
-        subaxis_main.yaxis.set_minor_locator(AutoMinorLocator(25))
-
-        subaxis_main.grid(True,which="both",axis='y')
-
-        subaxis_main.grid(True,which="major",axis='x')
-
-        pyplot.setp(subaxis_main.get_xticklabels(),visible=False)
-        pyplot.setp(subaxis_main.get_xticklines(),visible=False)
-
-        # pyplot.setp(subaxis_main.xaxis.get_minorticklabels(),visible=False)
-        # pyplot.setp(subaxis_main.xaxis.get_minorticklines(),visible=False)
-
-        pyplot.setp(subaxis_main.yaxis.get_minorticklines(),visible=False)
-        # subaxis_main.tick_params(axis='y',which='major',length=0)
-
-        if idaxis>0:
-            pyplot.setp(subaxis_main.get_yticklabels(),visible=False)
-
-        subaxes.append(subaxis_main)
-
-        self.axes.append(subaxes)
-
-        self.set_subaxes(idaxis,numsubaxes)
-
-    def set_subaxes(self,idaxis,numsubaxes):
-        """Creates subaxes and stores them in self.axes."""
-
-        numsubaxes_current = len(self.axes[idaxis])-1
-
-        if numsubaxes_current>=numsubaxes:
+        if filepaths is None:
             return
 
-        roofpos = 1+0.4*numsubaxes/self.figure.get_figheight()
+        if not isinstance(filepaths,list) and not isinstance(filepaths,tuple):
+            filepaths = (filepaths,)
 
-        self.axes[idaxis][0].spines["top"].set_position(("axes",roofpos))
+        for filepath in filepaths:
 
-        for idline in range(numsubaxes_current,numsubaxes):
-            self.add_subaxis(idaxis,idline)
+            dataframe = loadlas(filepath,**kwargs)
 
-    def add_subaxis(self,idaxis,idline):
-        """Adds subaxis to the self.axes."""
+            self.frames.append(dataframe)
 
-        axsub = self.axes[idaxis][0].twiny()
+            logging.info(f"Loaded {filepath} as expected.")
 
-        axsub.set_xticks((0.,1.))
-        axsub.set_ylim(self.axes[0][0].get_ylim())
+    def wells(self,idframes=None):
 
-        spinepos = 1+0.4*idline/self.figure.get_figheight()
+        if idframes is None:
+            idframes = range(len(self.frames))
+        elif isinstance(idframes,int):
+            idframes = (idframes,)
 
-        axsub.spines["top"].set_position(("axes",spinepos))
-        axsub.spines["top"].set_color(self.colors[idline])
+        for index in idframes:
 
-        axsub.spines["left"].set_visible(False)
-        axsub.spines["right"].set_visible(False)
-        axsub.spines["bottom"].set_visible(False)
+            dataframe = self.frames[index]
 
-        axsub.tick_params(axis='x',labelcolor=self.colors[idline])
+            print("\n\tWELL #{}".format(dataframe.well.get_row(mnemonic="WELL")["value"]))
 
-        # self.axes[idaxis][0].yaxis.set_minor_locator(AutoMinorLocator(25))
+            # iterator = zip(dataframe.well["mnemonic"],dataframe.well["units"],dataframe.well["value"],dataframe.well.descriptions)
 
-        # self.axes[idaxis][0].grid(True,which="both",axis='y')
+            iterator = zip(*dataframe.well.get_columns())
 
-        pyplot.setp(self.axes[idaxis][0].get_xticklabels(),visible=False)
-        pyplot.setp(self.axes[idaxis][0].get_xticklines(),visible=False)
+            for mnem,unit,value,descr in iterator:
+                print(f"{descr} ({mnem}):\t\t{value} [{unit}]")
 
-        axsub.LineExistFlag = False
+    def curves(self,idframes=None,mnemonic_space=33,tab_space=8):
 
-        self.set_xaxis(axsub)
+        if idframes is None:
+            idframes = range(len(self.frames))
+        elif isinstance(idframes,int):
+            idframes = (idframes,)
 
-        self.axes[idaxis].append(axsub)
+        for index in idframes:
 
-    def set_depth(self,depth=None):
-        """It will check the depths of axis and set depth which include all depths."""
+            dataframe = self.frames[index]
 
-        for axis in self.axes:
-            for axsub in axis:
-                axsub.set_ylim(self.axes[0][0].get_ylim())
+            iterator = zip(dataframe.headers,dataframe.units,dataframe.details,dataframe.running)
 
-            # axis[0].yaxis.set_minor_locator(AutoMinorLocator(25))
-            # axis[0].grid(True,which="both",axis='y')
+            # file.write("\n\tLOG NUMBER {}\n".format(idframes))
+            print("\n\tLOG NUMBER {}".format(index))
 
-    def set_xaxis(self,axis):
+            for header,unit,detail,datacolumn in iterator:
 
-        pyplot.setp(axis.xaxis.get_majorticklabels()[1:-1],visible=False)
+                if numpy.all(numpy.isnan(datacolumn)):
+                    minXval = numpy.nan
+                    maxXval = numpy.nan
+                else:
+                    minXval = numpy.nanmin(datacolumn)
+                    maxXval = numpy.nanmax(datacolumn)
 
-        pyplot.setp(axis.xaxis.get_majorticklabels()[0],ha="left")
-        pyplot.setp(axis.xaxis.get_majorticklabels()[-1],ha="right")
+                tab_num = int(numpy.ceil((mnemonic_space-len(header))/tab_space))
+                tab_spc = "\t"*tab_num if tab_num>0 else "\t"
 
-        if not axis.LineExistFlag:
+                # file.write("Curve: {}{}Units: {}\tMin: {}\tMax: {}\tDescription: {}\n".format(
+                #     curve.mnemonic,tab_spc,curve.unit,minXval,maxXval,curve.descr))
+                print("Curve: {}{}Units: {}\tMin: {}\tMax: {}\tDescription: {}".format(
+                    header,tab_spc,unit,minXval,maxXval,detail))
 
-            loffset = transforms.ScaledTranslation(5/72,-5/72,self.figure.dpi_scale_trans)
-            
-            ltrans = axis.xaxis.get_majorticklabels()[0].get_transform()
+    def merge(self,fileIDs,curveNames):
 
-            axis.xaxis.get_majorticklabels()[0].set_transform(ltrans+loffset)
+        if isinstance(fileIDs,int):
 
-            roffset = transforms.ScaledTranslation(-5/72,-5/72,self.figure.dpi_scale_trans)
-
-            rtrans = axis.xaxis.get_majorticklabels()[-1].get_transform()
-
-            axis.xaxis.get_majorticklabels()[-1].set_transform(rtrans+roffset)
-
-        else:
-
-            roffset = transforms.ScaledTranslation(-10/72,0,self.figure.dpi_scale_trans)
-
-            rtrans = axis.xaxis.get_majorticklabels()[-1].get_transform()
-
-            axis.xaxis.get_majorticklabels()[-1].set_transform(rtrans+roffset)
-
-        pyplot.setp(axis.xaxis.get_majorticklines()[2:-1],visible=False)
-
-        pyplot.setp(axis.xaxis.get_majorticklines()[1],markersize=25)
-        pyplot.setp(axis.xaxis.get_majorticklines()[-1],markersize=25)
-
-        # axis.xaxis.get_majorticklines()[0].set_markersize(100)
-
-    def set_lines(self,idaxis,idline,xcol,ycol):
-
-        axis = self.axes[idaxis][idline+1]
-
-        axis.plot(xcol.vals,ycol.vals,color=self.colors[idline])
-
-        axis.LineExistFlag = True
-
-        yticks = self.get_yticks(ycol.vals)
-        xticks = self.get_xticks(xcol.vals)
-
-        axis.set_xlabel(xcol.head)
-
-        # figheight_temp = (yticks.max()-yticks.min())/128
-
-        # if figheight_temp>self.figure.get_figheight():
-        #   self.figure.set_figheight(figheight_temp)
-
-        # figheight = max(self.figure.get_figheight(),figheight_temp)
-
-        axis.set_ylim((yticks.max(),yticks.min()))
-        axis.set_yticks(yticks)
-
-        axis.set_xlim((xticks.min(),xticks.max()))
-        axis.set_xticks(xticks)
-
-        self.set_xaxis(axis)
-
-        # axis.grid(True,which="both",axis='y')
-
-        # axis.yaxis.set_minor_locator(AutoMinorLocator(10))
-
-        # if idline==0:
-            # axis.grid(True,which="major",axis='x')
-
-        # axis.xaxis.set_major_formatter(ScalarFormatter())
-        # # axis.xaxis.set_major_formatter(LogFormatter())
-
-    def set_image(self):
-        """Creates the image of figure in memory and displays it on canvas."""
-
-        self.fgspec.tight_layout(self.figure,rect=[0,0,1.0,0.995])
-        self.fgspec.update(wspace=0)
-
-        buff = io.BytesIO()
-
-        self.figure.savefig(buff,format='png')
-
-        buff.seek(0)
-
-        self.image = ImageTk.PhotoImage(Image.open(buff))
-
-        self.canvas.create_image(0,0,anchor=tkinter.N,image=self.image)
-
-        self.canvas.config(scrollregion=self.canvas.bbox('all'))
-
-    def get_xticks(self,xvals,xmin=None,xmax=None,xscale="normal",xdelta=None,xdelta_count=11):
-
-        xvals_min = numpy.nanmin(xvals)
-
-        if xvals_min is numpy.nan:
-            xvals_min = 0.
-
-        xvals_max = numpy.nanmax(xvals)
-
-        if xvals_max is numpy.nan:
-            xvals_max= 1.
-
-        xrange_given = xvals_max-xvals_min
-
-        if xdelta is None:
-            xdelta = xrange_given/(xdelta_count-1)
-
-        beforeDot,afterDot = format(xdelta,'f').split('.')
-
-        nondim_xunit_sizes = numpy.array([1,2,4,5,10])
-
-        if xdelta>1:
-
-            xdelta_temp = xdelta/10**(len(beforeDot)-1)
-            xdelta_temp = nondim_xunit_sizes[(numpy.abs(nondim_xunit_sizes-xdelta_temp)).argmin()]
-
-            xdelta = xdelta_temp*10**(len(beforeDot)-1)
-
-        else:
-
-            zeroCountAfterDot = len(afterDot)-len(afterDot.lstrip('0'))
-
-            xdelta_temp = xdelta*10**(zeroCountAfterDot+1)
-            xdelta_temp = nondim_xunit_sizes[(numpy.abs(nondim_xunit_sizes-xdelta_temp)).argmin()]
-
-            xdelta = xdelta_temp/10**(zeroCountAfterDot+1)
-
-        if xscale=="normal":
-
-            if xmin is None:
-                xmin = (numpy.floor(xvals_min/xdelta)-1).astype(float)*xdelta
-
-            if xmax is None:
-                xmax = (numpy.ceil(xvals_max/xdelta)+1).astype(float)*xdelta
-
-            xticks = numpy.arange(xmin,xmax+xdelta/2,xdelta)
-
-        elif xscale=="log":
-
-            if xmin is None:
-                xmin = xvals_min if xvals_min>0 else 0.001
-
-            if xmax is None:
-                xmax = xvals_max if xvals_max>0 else 0.1
-
-            xmin_power = numpy.floor(numpy.log10(xmin))
-            xmax_power = numpy.ceil(numpy.log10(xmax))
-
-            xticks = 10**numpy.arange(xmin_power,xmax_power+1/2)
-
-        return xticks
-
-    def get_yticks(self,yvals=None,top=None,bottom=None,endmultiple=5.,ydelta=25.):
-
-        if yvals is None:
-            yvals = numpy.array([0,1])
-
-        if top is None:
-            top = numpy.nanmin(yvals)
-
-        if bottom is None:
-            bottom = numpy.nanmax(yvals)
-
-        if top>bottom:
-            top,bottom = bottom,top
-
-        ymin = numpy.floor(top/endmultiple)*endmultiple
-
-        ymax = numpy.ceil(bottom/endmultiple)*endmultiple
-
-        yticks = numpy.arange(ymin,ymax+ydelta/2,ydelta)
-
-        return yticks
-
-    def set_DepthViewGRcut(self,GRline,indexI,indexJ,perc_cut=40):
-
-        # indexI index of GR containing axis in the plot
-        # indexJ index of GR containing line in the axis
-
-        try:
-            depth = self.frames[GRline[0]].columns("MD")
-        except ValueError:
-            depth = self.frames[GRline[0]].columns("DEPT")
-
-        xvals = self.frames[GRline[0]].columns(GRline[1])
-
-        GRmin = numpy.nanmin(xvals)
-        GRmax = numpy.nanmax(xvals)
-
-        GRcut = (GRmin+(GRmax-GRmin)*perc_cut/100)
-
-        cut_line = GRcut*numpy.ones(depth.shape)
-
-        cond_clean = cut_line>=xvals
-
-        indexTop = []
-        indexBtm = []
-
-        for i,cond in enumerate(cond_clean):
-            
-            if i>0:
-                old_cond = cond_clean[i-1]
-            else:
-                old_cond = False
-                
             try:
-                new_cond = cond_clean[i+1]
-            except IndexError:
-                new_cond = False
-                
-            if cond and not old_cond:
-                indexTop.append(i)
+                depth = self.frames[fileIDs]["MD"]
+            except KeyError:
+                depth = self.frames[fileIDs]["DEPT"]
 
-            if cond and not new_cond:
-                indexBtm.append(i)
+            xvals1 = self.frames[fileIDs][curveNames[0]]
 
-        net_pay = 0
+            for curveName in curveNames[1:]:
 
-        for i,j in zip(indexTop,indexBtm):
+                xvals2 = self.frames[fileIDs][curveName]
 
-            net_pay += depth[j]-depth[i]
+                xvals1[numpy.isnan(xvals1)] = xvals2[numpy.isnan(xvals1)]
 
-        self.axes[indexI].subax[indexJ].fill_betweenx(
-            depth,xvals,x2=cut_line,where=cond_clean,color=self.color_clean)
+            return depth,xvals1
 
-        self.netPayThickness = net_pay
-        self.netToGrossRatio = net_pay/self.gross_thickness*100
+        elif numpy.unique(numpy.array(fileIDs)).size==len(fileIDs):
 
-        return GRcut
+            if isinstance(curveNames,str):
+                curveNames = (curveNames,)*len(fileIDs)
 
-    def set_DepthViewNeuPorCorr(self,NeuPorLine,indexI,indexJ,Vsh,NeuPorShale):
+            depth = numpy.array([])
+            xvals = numpy.array([])
 
-        # indexI index of Neutron Porosity containing axis in the plot
-        # indexJ index of Neutron Porosity containing line in the axis
+            for (fileID,curveName) in zip(fileIDs,curveNames):
 
-        try:
-            depth = self.frames[NeuPorLine[0]]["MD"]
-        except KeyError:
-            depth = self.frames[NeuPorLine[0]]["DEPT"]
+                try:
+                    depth_loc = self.frames[fileID]["MD"]
+                except KeyError:
+                    depth_loc = self.frames[fileID]["DEPT"]
 
-        xvals = self.frames[NeuPorLine[0]][NeuPorLine[1]]
+                xvals_loc = self.frames[fileID][curveName]
 
-        NeuPorCorr = xvals-Vsh*NeuPorShale
+                depth_loc = depth_loc[~numpy.isnan(xvals_loc)]
+                xvals_loc = xvals_loc[~numpy.isnan(xvals_loc)]
 
-        self.axes[indexI].subax[indexJ].plot(NeuPorCorr,depth,
-            color=self.lineColors[indexJ],linestyle="--")
+                depth_max = 0 if depth.size==0 else depth.max()
 
-    def set_DepthViewResistivityCut(self,ResLine,indexI,indexJ,ohmm_cut=10):
+                depth = numpy.append(depth,depth_loc[depth_loc>depth_max])
+                xvals = numpy.append(xvals,xvals_loc[depth_loc>depth_max])
 
-        # indexI index of Resistivity containing axis in the plot
-        # indexJ index of Resistivity containing line in the axis
+            return depth,xvals
 
-        depth = self.frames[ResLine[0]].columns(0)
-
-        xvals = self.frames[ResLine[0]].columns(ResLine[1])
-
-        cut_line = ohmm_cut*numpy.ones(depth.shape)
-
-        self.axes[indexI].subax[indexJ].fill_betweenx(
-            depth,xvals,x2=cut_line,where=ohmm_cut<=xvals,color=self.color_HC)
-
-    def set_DepthViewSaturationCut(self,SwLine,indexI,indexJ,Sw_cut=0.5):
-
-        # indexI index of Resistivity containing axis in the plot
-        # indexJ index of Resistivity containing line in the axis
-
-        depth = self.frames[SwLine[0]].columns(0)
-
-        xvals = self.frames[SwLine[0]].columns(SwLine[1])
-
-        cut_line = Sw_cut*numpy.ones(depth.shape)
-
-        self.axes[indexI].subax[indexJ].fill_betweenx(
-            depth,xvals,x2=cut_line,where=Sw_cut>=xvals,color=self.color_HC)
-
-    def set_DepthViewNMRfluid(self,NMRline,indexI,water_clay,water_capi,water_move,HC):
-
-        # indexL index of NMR containing lasio in the pack
-        # indexI index of NMR containing axis in the plot
-
-        try:
-            depth = self.frames[NMRline]["MD"]
-        except KeyError:
-            depth = self.frames[NMRline]["DEPT"]
-
-        xvals0 = numpy.zeros(water_clay.shape)
-        xvals1 = water_clay
-        xvals2 = water_clay+water_capi
-        xvals3 = water_clay+water_capi+water_move
-        xvals4 = water_clay+water_capi+water_move+HC
-
-        self.axes[indexI].subax[0].fill_betweenx(
-            depth,xvals1,x2=xvals0,where=xvals0<=xvals1,color=self.color_waterclay)
-
-        self.axes[indexI].subax[0].fill_betweenx(
-            depth,xvals2,x2=xvals1,where=xvals1<=xvals2,color=self.color_watercapi)
-
-        self.axes[indexI].subax[0].fill_betweenx(
-            depth,xvals3,x2=xvals2,where=xvals2<=xvals3,color=self.color_watermove)
-
-        self.axes[indexI].subax[0].fill_betweenx(
-            depth,xvals4,x2=xvals3,where=xvals3<=xvals4,color=self.color_HC)
-
-    def set_DepthViewPerfs(self,indexI,indexJ,depths,perfs):
-
-        xtick = self.axes[indexI].subax[indexJ].get_xticks()
-
-        ytick = self.axes[indexI].subax[indexJ].get_yticks()
-
-        perfs = numpy.array(perfs)
-
-        perfs_just = perfs[perfs>0]
-
-        perfs_just[::10] -= perfs_just[::10]*0.5
-
-        perfs[perfs>0] = perfs_just
-
-        perfs_scaled = xtick.min()+(xtick.max()-xtick.min())/10/(perfs.max()-perfs.min())*perfs
-
-        # pfgun_point = xtick.min()
-
-        # for arg in args:
-
-        #     depths = numpy.arange(arg[0],arg[1]+1/2,1.)
-
-        #     for index,depth in enumerate(depths):
-
-        #         if index==0:
-        #             marker,size = 11,10
-        #         elif index==len(depths)-1:
-        #             marker,size = 10,10
-        #         else:
-        #             marker,size = 9,10
-
-        #         self.axes[indexI].subax[indexJ].plot(pfgun_point,depth,
-        #             marker=marker,color='orange',markersize=size,markerfacecolor='black')
-
-        self.axes[indexI].subax[indexJ].plot(perfs_scaled,depths)
-
-    def set_DepthViewCasing(self):
-        """It creates an axis to include casing set depths"""
-
-        pass
-
-    def _on_mousewheel(self,event):
-        """Lets the scroll work everywhere on the window."""
-
-        self.canvas.yview_scroll(int(-1*(event.delta/120)),"units")

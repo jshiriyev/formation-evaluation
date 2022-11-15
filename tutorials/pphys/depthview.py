@@ -1,63 +1,63 @@
-import matplotlib.pyplot as plt
-
-import tkinter
+import numpy
 
 import dirsetup
 
 from pphys import loadlas
 
-from pphys import DepthView
+from pphys import depthview
 
-filename = "lasfile.las"
+ls = loadlas("lasfile.las")
 
-ls = loadlas(filename)
+# print(ls.homedir)
+# print(ls.filedir)
+# print(ls.well)
 
-print(ls.well)
-print(ls.curve)
+frame = ls.depths(3782,3848)
 
-FS_t = 3600
-FS_b = 3700
+depths = frame['DEPT']
 
-# ls.frame = ls.depths(FS_t,FS_b)
+dv = depthview()
 
-# fig = plt.figure()
+dv.set_axes(naxes=4,ncurves_max=3,label_loc="top")
+# dv.set_ycycles(7,1)
 
-# axis = fig.add_subplot(111)
+# dv.set_xcycles(0,xcycles=2,xcycleskip=0,xscale='linear')
+# dv.set_xcycles(3,xcycles=5,xcycleskip=0,xscale='log')
+# dv.set_ycycles(7,4)
 
-# # axis = ls.nanplot(axis)
-# # axis = ls.frame['VSH'].histogram(axis)
+dv.add_depth(depths)
 
-# fig.tight_layout()
+class curve():
 
-# plt.show()
+    def __init__(self,
+        datacolumn,
+        linecolor="k",
+        linestyle="solid",
+        linewidth=0.75,
+        fill=False,
+        fillhatch='..',
+        fillfacecolor='gold'):
 
-root = tkinter.Tk()
+        self.vals = datacolumn.vals
+        self.head = datacolumn.head
+        self.unit = datacolumn.unit
+        self.info = datacolumn.info
+        
+        self.linecolor = linecolor
+        self.linestyle = linestyle
+        self.linewidth = linewidth
 
-dv = DepthView(root)
+        self.fill = fill
+        self.fillhatch = fillhatch
+        self.fillfacecolor = fillfacecolor
 
-dv.set_axes(4)
+dv.add_curve(0,curve(frame['VSH']))
+dv.add_curve(2,curve(frame['PHIE']))
+dv.add_curve(2,curve(frame['PHIT'],linestyle="dashed"))
+dv.add_curve(2,curve(frame['NGL230986'],linestyle="dotted"))
+dv.add_curve(3,curve(frame['bvw']))
+dv.add_curve(3,curve(frame['CBW'],linestyle="dashed"))
+dv.add_curve(4,curve(frame['RL4']))
+dv.add_curve(4,curve(frame['RL8'],linestyle="dashed"))
 
-dv.set_subaxes(0,1)
-dv.set_subaxes(1,3)
-dv.set_subaxes(2,2)
-dv.set_subaxes(3,2)
-
-dv.set_lines(0,0,xcol=ls.frame["VSH"],ycol=ls.frame.running[0])
-dv.set_lines(1,0,xcol=ls.frame["PHIE"],ycol=ls.frame.running[0])
-dv.set_lines(1,1,xcol=ls.frame["PHIT"],ycol=ls.frame.running[0])
-dv.set_lines(1,2,xcol=ls.frame["NGL230986"],ycol=ls.frame.running[0])
-dv.set_lines(2,0,xcol=ls.frame["bvw"],ycol=ls.frame.running[0])
-dv.set_lines(2,1,xcol=ls.frame["CBW"],ycol=ls.frame.running[0])
-dv.set_lines(3,0,xcol=ls.frame["RL4"],ycol=ls.frame.running[0])
-dv.set_lines(3,1,xcol=ls.frame["RL8"],ycol=ls.frame.running[0])
-
-dv.set_header()
-dv.set_image()
-
-# root.geometry("750x270")
-
-# dv.figure.savefig("filename.png")
-
-# plt.show()
-
-tkinter.mainloop()
+dv.show() #"sample.pdf"

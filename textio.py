@@ -15,13 +15,9 @@ import openpyxl
 if __name__ == "__main__":
     import dirsetup
 
-from core import frame
-from core import column
-
-from core import any2column
-from core import key2column
-
 from cypy.vectorpy import strtype
+
+# EVERYHTING BUT HEADER AND DIRMASTER SHOULD BE REMOVED!
 
 # A File Front Information
 
