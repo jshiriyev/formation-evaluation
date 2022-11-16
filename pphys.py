@@ -809,47 +809,47 @@ class depthview():
             self.axes_curve.append(curve_axis)
             self.axes_label.append(label_axis)
 
-    def set_xcycles(self,index,xcycles=2,xcycleskip=0,xscale='linear'):
+    def set_xcycles(self,index,cycles=2,subskip=0,scale='linear'):
 
         axis = self.axes_curve[index]
 
-        if xscale=="linear":
-            xlim = (0+xcycleskip,10*xcycles+xcycleskip)
-        elif xscale=="log":
-            xlim = (1*(xcycleskip+1),(xcycleskip+1)*10**xcycles)
+        if scale=="linear":
+            xlim = (0+subskip,10*cycles+subskip)
+        elif scale=="log":
+            xlim = (1*(subskip+1),(subskip+1)*10**cycles)
         else:
-            raise ValueError(f"{xscale} has not been defined! options: {{linear,log}}")
+            raise ValueError(f"{scale} has not been defined! options: {{linear,log}}")
 
         axis.set_xlim(xlim)
 
-        axis.set_xscale(xscale)
+        axis.set_xscale(scale)
 
-        if xscale=="linear":
+        if scale=="linear":
             axis.xaxis.set_minor_locator(MultipleLocator(1))
             axis.xaxis.set_major_locator(MultipleLocator(10))
-        elif xscale=="log":
+        elif scale=="log":
             axis.xaxis.set_minor_locator(LogLocator(base=10,subs=range(1,10),numticks=12))
             axis.xaxis.set_major_locator(LogLocator(base=10,numticks=12))
         else:
-            raise ValueError(f"{xscale} has not been defined! options: {{linear,log}}")
+            raise ValueError(f"{scale} has not been defined! options: {{linear,log}}")
 
-    def set_ycycles(self,ycycles,ycycleskip=0):
+    def set_ycycles(self,cycles,subskip=0):
 
-        ylim = (10*ycycles+ycycleskip,0+ycycleskip)
+        ylim = (10*cycles+subskip,0+subskip)
 
         for axis in self.axes_curve:
             axis.set_ylim(ylim)
 
-    def _set_curveaxis(self,axis,xscale='linear',xcycles=2,xcycleskip=0,ycycles=7,ycycleskip=0):
+    def _set_curveaxis(self,axis,xscale='linear',xcycles=2,xsubkip=0,ycycles=7,ysubskip=0):
 
         if xscale=="linear":
-            xlim = (0+xcycleskip,10*xcycles+xcycleskip)
+            xlim = (0+xsubkip,10*xcycles+xsubkip)
         elif xscale=="log":
-            xlim = (1*(xcycleskip+1),(xcycleskip+1)*10**xcycles)
+            xlim = (1*(xsubkip+1),(xsubkip+1)*10**xcycles)
         else:
             raise ValueError(f"{xscale} has not been defined! options: {{linear,log}}")
 
-        ylim = (10*ycycles+ycycleskip,0+ycycleskip)
+        ylim = (10*ycycles+ysubskip,0+ysubskip)
 
         axis.set_xlim(xlim)
         axis.set_ylim(ylim)
@@ -886,10 +886,10 @@ class depthview():
 
         return axis
 
-    def _set_depthaxis(self,axis,ycycles=7,ycycleskip=0):
+    def _set_depthaxis(self,axis,cycles=7,subskip=0):
 
         xlim = (0,1)
-        ylim = (10*ycycles+ycycleskip,0+ycycleskip)
+        ylim = (10*cycles+subskip,0+subskip)
         
         axis.set_xlim(xlim)
         axis.set_ylim(ylim)
@@ -966,7 +966,7 @@ class depthview():
         else:
             self._add_label_line(label_axis,curve,xlim,numlines)
 
-    def _get_linear_normalized(self,values,axis_limits,shift=None,multp=None):
+    def _get_linear_normalized(self,values,axis_limits,multp=None):
 
         axis_min,axis_max = min(axis_limits),max(axis_limits)
         vals_min,vals_max = values.min(),values.max()
@@ -974,36 +974,33 @@ class depthview():
         # print(f"{axis_min=},",f"{axis_max=}")
         # print(f"given_{vals_min=},",f"given_{vals_max=}")
 
-        delta_temp = numpy.abs(vals_max-vals_min)
+        delta_axis = numpy.abs(axis_max-axis_min)
+        delta_vals = numpy.abs(vals_max-vals_min)
 
-        power_multp_min = -numpy.floor(numpy.log10(delta_temp))
-        power_multp_max = -numpy.ceil(numpy.log10(delta_temp))
+        delta_powr = -numpy.floor(numpy.log10(delta_vals))
 
-        # print(f"{power_multp_min=}",f"{power_multp_max=}")
+        # print(f"{delta_powr=}")
 
-        vals_min_temp = numpy.floor(vals_min*10**power_multp_min)/10**power_multp_min
-        vals_max_temp = numpy.ceil(vals_max*10**power_multp_min)/10**power_multp_min
+        vals_min = numpy.floor(vals_min*10**delta_powr)/10**delta_powr
 
-        # print(f"{vals_min_temp=},",f"{vals_max_temp=}")
+        vals_max_temp = numpy.ceil(vals_max*10**delta_powr)/10**delta_powr
 
-        multp_temp = (vals_max_temp-vals_min_temp)/(axis_max-axis_min)
-
-        power_multp = -numpy.floor(numpy.log10(multp_temp))
-
-        # print(f"{multp_temp=},")
+        # print(f"{vals_min=},",f"{vals_max_temp=}")
 
         if multp is None:
-            multp = numpy.ceil(multp_temp*10**power_multp)/10**power_multp
-            
-        if shift is None:
-            shift = vals_min_temp-axis_min
 
-        # print(f"{multp=},",f"{shift=}")
+            multp_temp = (vals_max_temp-vals_min)/(delta_axis)
+            multp_powr = -numpy.floor(numpy.log10(multp_temp))
+
+            # print(f"{multp_temp=},")
+
+            multp = numpy.ceil(multp_temp*10**multp_powr)/10**multp_powr
+
+            # print(f"{multp=},")
         
-        axis_vals = (values-shift)/multp
+        axis_vals = axis_min+(values-vals_min)/multp
 
-        vals_min = axis_min*multp+shift
-        vals_max = axis_max*multp+shift
+        vals_max = delta_axis*multp+vals_min
         
         # print(f"normalized_{vals_min=},",f"normalized_{vals_max=}")
 
