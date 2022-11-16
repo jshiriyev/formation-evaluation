@@ -624,28 +624,30 @@ class colors():
 
     def __init__(self,**kwargs):
 
-        self.SH         = ("Shale","gray",None)
-        self.clean      = ("Clean Formation","tan",None)
+        self.SH         = ("Shale","gray",'--')
+        self.clean      = ("Clean Formation","navajowhite",'||')
         self.SS         = ("Sandstone","gold","..")
-        self.LS         = ("Limestone","navajowhite","-")
-        self.DOL        = ("Dolomite","darkkhaki","/")
-        self.fluid      = ("Pore Volume","white","o")
+        self.SSH        = ("Shaly Sandstone","gold",'..--')
+        self.LS         = ("Limestone","tan","\\\\")
+        self.DOL        = ("Dolomite","darkkhaki","//")
+        self.PV         = ("Pore Volume","white","OO")
 
-        self.liquid     = ("Liquid","blue","O")
-        self.water      = ("Water","aqua","OO")
-        self.waterCLAY  = ("Water Clay Bound","lightskyblue","X")
-        self.waterCAP   = ("Water Capillary Bound","lightsteelblue","X")
-        self.waterIRRE  = ("Water Irreducible","lightblue","X")
-        self.waterM     = ("Water Movable","steelblue",None)
-        self.fluidM     = ("Fluid Movable","seagreen",None)
+        self.liquid     = ("Liquid","blue","OO")
+        self.water      = ("Water","steelblue","OO")
+        self.waterCLAY  = ("Water Clay Bound","lightskyblue","XX")
+        self.waterCAP   = ("Water Capillary Bound","lightsteelblue","XX")
+        self.waterIRRE  = ("Water Irreducible","lightblue","XX")
+        self.waterM     = ("Water Movable","aqua",'..')
+        self.fluidM     = ("Fluid Movable","teal",'..')
 
-        self.HC         = ("Hydrocarbon","green",None)
-        self.gas        = ("Gas","red","oo")
-        self.gasR       = ("Gas Residual","red",None)
-        self.gasM       = ("Gas Movable","red",None)
-        self.oil        = ("Oil","limegreen",None)
-        self.oilR       = ("Oil Residual","limegreen",None)
-        self.oilM       = ("Oil Movable","limegreen",None)
+        self.HC         = ("Hydrocarbon","green",'OO')
+        self.gas        = ("Gas","lightcoral","OO")
+        self.gasR       = ("Gas Residual","indianred",'XX')
+        self.gasM       = ("Gas Movable","red",'..')
+        self.GC         = ("Condensate","firebrick","OO.")
+        self.oil        = ("Oil","seagreen",'OO')
+        self.oilR       = ("Oil Residual","forestgreen",'XX')
+        self.oilM       = ("Oil Movable","limegreen",'..')
         
         self.set_colors(**kwargs)
 
@@ -666,7 +668,7 @@ class colors():
 
             getattr(self,key)[2] = value
 
-    def view(self,axis,nrows=(6,7,7),ncols=3,fontsize=10,sizes=(8,5),dpi=100):
+    def view(self,axis,nrows=(7,7,8),ncols=3,fontsize=10,sizes=(8,5),dpi=100):
 
         X,Y = [dpi*size for size in sizes]
 
@@ -927,8 +929,6 @@ class depthview():
 
         calc_yticks = MultipleLocator(base=10).tick_values(*ylim)
 
-        print(calc_yticks)
-
         for axis_ytick,calc_ytick in zip(axis_yticks[2:-2],calc_yticks[2:-2]):
 
             axis.text(0.5,axis_ytick,calc_ytick,
@@ -979,35 +979,35 @@ class depthview():
         power_multp_min = -numpy.floor(numpy.log10(delta_temp))
         power_multp_max = -numpy.ceil(numpy.log10(delta_temp))
 
-        # print(f"{power_multp_min=}")
+        # print(f"{power_multp_min=}",f"{power_multp_max=}")
 
         vals_min_temp = numpy.floor(vals_min*10**power_multp_min)/10**power_multp_min
         vals_max_temp = numpy.ceil(vals_max*10**power_multp_min)/10**power_multp_min
 
         # print(f"{vals_min_temp=},",f"{vals_max_temp=}")
 
-        delta_temp = vals_max_temp-vals_min_temp
+        multp_temp = (vals_max_temp-vals_min_temp)/(axis_max-axis_min)
 
-        delta = numpy.ceil(delta_temp*10**power_multp_max)/10**power_multp_max
+        power_multp = -numpy.floor(numpy.log10(multp_temp))
 
-        # print(f"{delta=}")
-            
+        # print(f"{multp_temp=},")
+
         if multp is None:
-            multp = numpy.floor((axis_max-axis_min)/delta)
-
+            multp = numpy.ceil(multp_temp*10**power_multp)/10**power_multp
+            
         if shift is None:
-            shift = -numpy.floor((vals_min_temp*multp-axis_min)/10)*10
+            shift = vals_min_temp-axis_min
 
         # print(f"{multp=},",f"{shift=}")
         
-        vals = shift+values*multp
+        axis_vals = (values-shift)/multp
 
-        vals_min = (axis_min-shift)/multp
-        vals_max = (axis_max-shift)/multp
+        vals_min = axis_min*multp+shift
+        vals_max = axis_max*multp+shift
         
         # print(f"normalized_{vals_min=},",f"normalized_{vals_max=}")
 
-        return vals,(vals_min,vals_max)
+        return axis_vals,(vals_min,vals_max)
 
     def _get_log_normalized(self,values,axis_limits,power_multp=None):
 
@@ -1034,8 +1034,8 @@ class depthview():
             # verticalalignment='bottom',
             fontsize='small',)
 
-        label_axis.text(0.02,numlines-0.5,f'{xlim[0]}',horizontalalignment='left')
-        label_axis.text(0.98,numlines-0.5,f'{xlim[1]}',horizontalalignment='right')
+        label_axis.text(0.02,numlines-0.5,f'{xlim[0]:.5g}',horizontalalignment='left')
+        label_axis.text(0.98,numlines-0.5,f'{xlim[1]:.5g}',horizontalalignment='right')
 
     def _add_label_fill(self,label_axis,curve,xlim,numlines=0):
 
