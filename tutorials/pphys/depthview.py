@@ -21,7 +21,7 @@ dv = depthview()
 dv.set_axes(naxes=4,ncurves_max=3,label_loc="top")
 # dv.set_ycycles(7,1)
 
-dv.set_xcycles(0,cycles=2,subskip=0,scale='linear')
+dv.set_xcycles(0,cycles=2,subskip=2,scale='linear')
 # dv.set_xcycles(3,cycles=5,subskip=0,scale='log')
 # dv.set_ycycles(7,4)
 
@@ -53,7 +53,7 @@ class curve():
 
 dv.add_curve(0,curve(frame['VSH']))
 dv.add_curve(2,curve(frame['PHIE']))
-dv.add_curve(2,curve(frame['PHIT'],linestyle="dashed"))
+dv.add_curve(2,curve(frame['PHIT'],linestyle="dashed"),vmin=0)
 dv.add_curve(2,curve(frame['NGL230986'],linestyle="dotted"))
 dv.add_curve(3,curve(frame['bvw']))
 dv.add_curve(3,curve(frame['CBW'],linestyle="dashed"))

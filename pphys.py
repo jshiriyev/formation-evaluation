@@ -921,11 +921,11 @@ class depthview():
 
         return axis
 
-    def add_depth(self,depth,cycleshift=None):
+    def add_depth(self,depth,**kwargs):
 
         axis = self.axes_curve[self.depth_column]
 
-        self.yvals,ylim,_ = self._get_linear_normalized(depth,axis.get_ylim(),multp=1,cycleshift=cycleshift)
+        self.yvals,ylim,_ = self._get_linear_normalized(depth,axis.get_ylim(),multp=1,**kwargs)
 
         axis_yticks = axis.get_yticks()
 
@@ -939,7 +939,7 @@ class depthview():
                 backgroundcolor='white',
                 fontsize='small',)
 
-    def add_curve(self,index,curve,cycleshift=0):
+    def add_curve(self,index,curve,**kwargs):
 
         curve_axis = self.axes_curve[index]
         label_axis = self.axes_label[index]
@@ -949,9 +949,9 @@ class depthview():
         xscale = curve_axis.get_xscale()
 
         if xscale == "linear":
-            xvals,xlim,multp = self._get_linear_normalized(curve.vals,xlim,cycleshift=cycleshift)
+            xvals,xlim,multp = self._get_linear_normalized(curve.vals,xlim,**kwargs)
         elif xscale == "log":
-            xvals,xlim,multp = self._get_log_normalized(curve.vals,xlim,cycleshift=cycleshift)
+            xvals,xlim,multp = self._get_log_normalized(curve.vals,xlim,**kwargs)
         else:
             raise ValueError(f"{xscale} has not been defined! options: {{linear,log}}")
 
@@ -973,30 +973,35 @@ class depthview():
         else:
             self._add_label_line(label_axis,curve,xlim,numlines)
 
-    def _get_linear_normalized(self,values,axis_limits,multp=None,cycleshift=0):
+    def _get_linear_normalized(self,values,alim,multp=None,vmin=None,vmax=None):
 
-        axis_min,axis_max = min(axis_limits),max(axis_limits)
-        vals_min,vals_max = values.min(),values.max()
+        amin,amax = min(alim),max(alim)
 
-        # print(f"{axis_min=},",f"{axis_max=}")
-        # print(f"given_{vals_min=},",f"given_{vals_max=}")
+        if vmin is None:
+            vmin = values.min()
+        
+        if vmax is None:
+            vmax = values.max()
 
-        delta_axis = numpy.abs(axis_max-axis_min)
-        delta_vals = numpy.abs(vals_max-vals_min)
+        # print(f"{amin=},",f"{amax=}")
+        # print(f"given_{vmin=},",f"given_{vmax=}")
+
+        delta_axis = numpy.abs(amax-amin)
+        delta_vals = numpy.abs(vmax-vmin)
 
         delta_powr = -numpy.floor(numpy.log10(delta_vals))
 
         # print(f"{delta_powr=}")
 
-        vals_min = numpy.floor(vals_min*10**delta_powr)/10**delta_powr
+        vmin = numpy.floor(vmin*10**delta_powr)/10**delta_powr
 
-        vals_max_temp = numpy.ceil(vals_max*10**delta_powr)/10**delta_powr
+        vmax_temp = numpy.ceil(vmax*10**delta_powr)/10**delta_powr
 
-        # print(f"{vals_min=},",f"{vals_max_temp=}")
+        # print(f"{vmin=},",f"{vmax_temp=}")
 
         if multp is None:
 
-            multp_temp = (vals_max_temp-vals_min)/(delta_axis)
+            multp_temp = (vmax_temp-vmin)/(delta_axis)
             multp_powr = -numpy.floor(numpy.log10(multp_temp))
 
             # print(f"{multp_temp=},")
@@ -1005,30 +1010,28 @@ class depthview():
 
             # print(f"{multp=},")
         
-        axis_vals = (values-vals_min)/multp
+        axis_vals = amin+(values-vmin)/multp
 
-        vals_min = vals_min+axis_min*multp
-        vals_max = delta_axis*multp+vals_min
+        vmax = delta_axis*multp+vmin
         
-        # print(f"normalized_{vals_min=},",f"normalized_{vals_max=}")
+        # print(f"normalized_{vmin=},",f"normalized_{vmax=}")
 
-        return axis_vals,(vals_min,vals_max),multp
+        return axis_vals,(vmin,vmax),multp
 
-    def _get_log_normalized(self,values,axis_limits,power_multp=None,cycleshift=0):
+    def _get_log_normalized(self,values,alim,multp=None,vmin=None):
+        
+        if vmin is None:
+            vmin = values.min()
 
-        axis_min = 10**cycleshift
-            
-        vals_min,vals_max = values.min(),values.max()
+        if multp is None:
+            multp = numpy.ceil(numpy.log10(1/vmin))
 
-        if power_multp is None:
-            power_multp = numpy.ceil(numpy.log10(axis_min/vals_min))
+        axis_vals = values*10**multp
 
-        axis_vals = values*10**power_multp
+        vmin = min(alim)/10**multp
+        vmax = max(alim)/10**multp
 
-        vals_min = min(axis_limits)/10**power_multp
-        vals_max = max(axis_limits)/10**power_multp
-
-        return axis_vals,(vals_min,vals_max),power_multp
+        return axis_vals,(vmin,vmax),multp
 
     def _add_label_line(self,label_axis,curve,xlim,numlines=0):
 
