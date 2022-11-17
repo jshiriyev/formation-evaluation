@@ -818,7 +818,7 @@ class depthview():
         if scale=="linear":
             xlim = (0+subskip,10*cycles+subskip)
         elif scale=="log":
-            xlim = (1*(subskip+1),(subskip+1)*10**cycles)
+            xlim = ((subskip+1)*10**0,(subskip+1)*10**cycles)
         else:
             raise ValueError(f"{scale} has not been defined! options: {{linear,log}}")
 
@@ -921,11 +921,11 @@ class depthview():
 
         return axis
 
-    def add_depth(self,depth,usecycles=None):
+    def add_depth(self,depth,cycleshift=None):
 
         axis = self.axes_curve[self.depth_column]
 
-        self.yvals,ylim,_ = self._get_linear_normalized(depth,axis.get_ylim(),multp=1,usecycles=usecycles)
+        self.yvals,ylim,_ = self._get_linear_normalized(depth,axis.get_ylim(),multp=1,cycleshift=cycleshift)
 
         axis_yticks = axis.get_yticks()
 
@@ -939,7 +939,7 @@ class depthview():
                 backgroundcolor='white',
                 fontsize='small',)
 
-    def add_curve(self,index,curve,usecycles=None):
+    def add_curve(self,index,curve,cycleshift=0):
 
         curve_axis = self.axes_curve[index]
         label_axis = self.axes_label[index]
@@ -949,9 +949,9 @@ class depthview():
         xscale = curve_axis.get_xscale()
 
         if xscale == "linear":
-            xvals,xlim,multp = self._get_linear_normalized(curve.vals,xlim,usecycles=usecycles)
+            xvals,xlim,multp = self._get_linear_normalized(curve.vals,xlim,cycleshift=cycleshift)
         elif xscale == "log":
-            xvals,xlim,multp = self._get_log_normalized(curve.vals,xlim,usecycles=usecycles)
+            xvals,xlim,multp = self._get_log_normalized(curve.vals,xlim,cycleshift=cycleshift)
         else:
             raise ValueError(f"{xscale} has not been defined! options: {{linear,log}}")
 
@@ -973,7 +973,7 @@ class depthview():
         else:
             self._add_label_line(label_axis,curve,xlim,numlines)
 
-    def _get_linear_normalized(self,values,axis_limits,multp=None,usecycles=None):
+    def _get_linear_normalized(self,values,axis_limits,multp=None,cycleshift=0):
 
         axis_min,axis_max = min(axis_limits),max(axis_limits)
         vals_min,vals_max = values.min(),values.max()
@@ -1005,32 +1005,30 @@ class depthview():
 
             # print(f"{multp=},")
         
-        axis_vals = axis_min+(values-vals_min)/multp
+        axis_vals = (values-vals_min)/multp
 
+        vals_min = vals_min+axis_min*multp
         vals_max = delta_axis*multp+vals_min
         
         # print(f"normalized_{vals_min=},",f"normalized_{vals_max=}")
 
         return axis_vals,(vals_min,vals_max),multp
 
-    def _get_log_normalized(self,values,axis_limits,power_multp=None,usecycles=None):
+    def _get_log_normalized(self,values,axis_limits,power_multp=None,cycleshift=0):
 
-        axis_min = min(axis_limits)
-
-        if usecycles is not None:
-            axis_min *= 10**usecycles[0]
+        axis_min = 10**cycleshift
             
         vals_min,vals_max = values.min(),values.max()
 
         if power_multp is None:
             power_multp = numpy.ceil(numpy.log10(axis_min/vals_min))
 
-        vals = values*10**power_multp
+        axis_vals = values*10**power_multp
 
         vals_min = min(axis_limits)/10**power_multp
         vals_max = max(axis_limits)/10**power_multp
 
-        return vals,(vals_min,vals_max),power_multp
+        return axis_vals,(vals_min,vals_max),power_multp
 
     def _add_label_line(self,label_axis,curve,xlim,numlines=0):
 
@@ -1057,18 +1055,6 @@ class depthview():
             verticalalignment='center',
             backgroundcolor='white',
             fontsize='small',)
-
-    # def set_xlim(self,index,xlim):
-
-    #     axis = self.axes_curve[index]
-
-    #     xscale = axis.get_xscale()
-
-    #     if xscale == "log":
-    #         for line,multp in axis.multipliers:
-                
-
-    #     axis.set_xlim(xlim)
 
     def show(self,filename=None,wspace=0.0,hspace=0.0):
 

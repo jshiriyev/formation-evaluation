@@ -21,7 +21,7 @@ dv = depthview()
 dv.set_axes(naxes=4,ncurves_max=3,label_loc="top")
 # dv.set_ycycles(7,1)
 
-dv.set_xcycles(0,cycles=2,subskip=1,scale='linear')
+dv.set_xcycles(0,cycles=2,subskip=0,scale='linear')
 # dv.set_xcycles(3,cycles=5,subskip=0,scale='log')
 # dv.set_ycycles(7,4)
 
