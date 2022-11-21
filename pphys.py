@@ -29,8 +29,8 @@ from PIL import ImageTk, Image
 if __name__ == "__main__":
     import dirsetup
 
-from core import frame
-from core import column
+from datum import frame
+from datum import column
 
 from textio import header
 from textio import dirmaster
