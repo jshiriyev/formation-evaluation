@@ -1,62 +1,76 @@
+from matplotlib import pyplot as plt
+
+from matplotlib.backend_bases import MouseButton
+
 import numpy as np
-import matplotlib.pyplot as plt
 
 class MoveGraphLine():
 
-    def __init__(self,axis,line,obj,eubv):
+    def __init__(self,axis,line,eubv):
 
         self.axis = axis
-        self.figcanvas = self.axis.figure.canvas
+        self.canvas = self.axis.figure.canvas
         self.line = line
-        self.obj = obj
-        self.kayma = 0.0
+        self.xydata = self.line.get_xydata()
+        self.shift = 0.0
         self.ebv, self.eub = eubv
         self.moved = None
         self.point = None
         self.pressed = False
         self.start = False
 
-        self.figcanvas.mpl_connect('button_press_event', self.mouse_press)
-        self.figcanvas.mpl_connect('button_release_event', self.mouse_release)
-        self.figcanvas.mpl_connect('motion_notify_event', self.mouse_move)
+        self.canvas.mpl_connect('button_press_event', self.mouse_press)
+        self.canvas.mpl_connect('motion_notify_event', self.mouse_move)
+        self.canvas.mpl_connect('button_release_event', self.mouse_release)
 
-    def mouse_release(self, event):
-        if self.axis.get_navigate_mode()!= None: return
-        if not event.inaxes: return
-        if event.inaxes != self.axis: return
-        if self.pressed: 
-            self.pressed = False
-            self.start = False
-            self.point = None
-            self.ebv -= self.kayma
-            self.obj = self.moved
-            return
+    def mouse_press(self,event):
 
-    def mouse_press(self, event):
+        # print(event.button)
+
         if self.axis.get_navigate_mode()!= None: return
         if not event.inaxes: return
         if event.inaxes != self.axis: return
         if self.start: return
+        if event.button is not MouseButton.LEFT: return
+
         self.point = event.xdata
         self.pressed = True
 
-    def mouse_move(self, event):
-        if self.axis.get_navigate_mode()!= None: return
+    def mouse_move(self,event):
+
+        if self.axis.get_navigate_mode()!=None: return
         if not event.inaxes: return
-        if event.inaxes != self.axis: return
+        if event.inaxes!=self.axis: return
         if not self.pressed: return
+
         self.start = True
 
-        self.kayma = self.point - event.xdata
-        keub = 0.72 * self.kayma + 0.025 * self.kayma**2
-        self.moved = self.obj - [self.kayma, keub]
+        self.shift = self.point-event.xdata
+
+        keub = 0.72*self.shift+0.025*self.shift**2
+
+        self.moved = self.xydata-[self.shift,keub]
+
         mvdx, mvdy = self.moved[:, 0], self.moved[:, 1]
 
         self.line.remove()
         self.line, = self.axis.plot(mvdx, mvdy, linewidth=1.1, c="b")
 
-        self.figcanvas.draw()
+        self.canvas.draw()
 
+    def mouse_release(self,event):
+
+        if self.axis.get_navigate_mode()!=None: return
+        if not event.inaxes: return
+        if event.inaxes!=self.axis: return
+
+        if self.pressed: 
+            self.pressed = False
+            self.start = False
+            self.point = None
+            self.ebv -= self.shift
+            self.xydata = self.moved
+            return
 
 model = np.array([
     (0.310, -0.687), (0.407, -0.355), (0.455, -0.142), (0.504, 0.061), (0.552, 0.238), 
@@ -77,17 +91,18 @@ obser = np.array([
     (0.889, 0.416), (0.876, 0.503), (1.027, 0.522), (1.040, 0.601), (0.965, 0.656), 
     (1.130, 0.796), (1.224, 0.845), (1.261, 0.964), (1.378, 1.149)])
 
-
 obv, oub = obser[:, 0], obser[:, 1]
 
 fig, ax1 = plt.subplots(nrows=1, ncols=1, figsize=(5.31,6.79))
 
 fig.subplots_adjust(left=0.14, bottom=0.08, right=0.95, top=0.97, wspace=0, hspace=0)
 
-shift = (model.mean(axis=0) - obser.mean(axis=0))
+shift = (model.mean(axis=0)-obser.mean(axis=0))
+
+print(shift)
 
 sebv = shift[0]
-seub = 0.72 * sebv + 0.025 * sebv**2
+seub = 0.72*sebv+0.025*sebv**2
 
 ax1.invert_yaxis()
 ax1.set_xlabel("BmV")
@@ -96,8 +111,11 @@ ax1.set_ylim(2, -1)
 ax1.set_xlim(-0.5, 2)
 ax1.scatter(obv, oub, s=2, c="k")
 
-gmdl, = ax1.plot(model[:, 0], model[:, 1], linewidth=1.1, c="b")
+line, = ax1.plot(model[:,0],model[:,1],linewidth=1.1,c="b")
 
-moveline = MoveGraphLine(ax1, gmdl, model, (sebv, seub))
+# print(line.get_xydata())
+# print(model)
+
+moveline = MoveGraphLine(ax1,line,(sebv,seub))
 
 plt.show()
