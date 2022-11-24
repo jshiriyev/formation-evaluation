@@ -4,33 +4,83 @@ from matplotlib.backend_bases import MouseButton
 
 import numpy
 
-class PicketPlot():
+class pickett():
 
-    def __init__(self,axis,ebv,eub):
+    def __init__(self,axis):
 
-        self.axis = axis
-        self.canvas = self.axis.figure.canvas
+        self.set_archie_coeffs()
+        self.set_axis(axis)
+        self.set_water_lines(50,20,10)
+        self.set_mouse_connection()
 
-        self.archie_m = 1
-        self.archie_a = 0
-        self.archie_Rw = 1
-        self.archie_n = 2
+    def set_archie_coeffs(self,a=1,m=2,n=2,Rw=0.01):
+
+        self.archie_a = a
+        self.archie_m = m
+        self.archie_n = n
+        self.archie_Rw = Rw
 
         self.slope = self.archie_m
 
-        self.intercept = self.archie_Rw*self.archie_a
+        self.intercept = self.archie_a*self.archie_Rw
 
-        self.line, = axis.plot(*self.water_line(),linewidth=1.1,c="b")
+    def set_axis(self,axis=None):
 
-        self.xydata = self.line.get_xydata()
+        if axis is None:
+            figure,axis = plt.subplots(nrows=1,ncols=1)
 
-        self.shift = 0.0
-        
-        self.ebv = ebv
-        self.eub = eub
+        self.axis = axis
 
-        self.moved = None
-        self.point = None
+        self.xlim = numpy.array([-0.5,2])
+        self.ylim = numpy.array([2,-1])
+
+        self.axis.invert_yaxis()
+
+        self.axis.set_xlabel("x-axis")
+        self.axis.set_ylabel("y-axis")
+
+        self.axis.set_xlim(self.xlim)
+        self.axis.set_ylim(self.ylim)
+
+        self.lines = []
+
+        self.canvas = self.axis.figure.canvas
+
+    def set_water_lines(self,*args):
+        """arguments must be water saturation percentage in a decreasing order!"""
+
+        saturations = [100]
+
+        [saturations.append(arg) for arg in args]
+
+        base = self.slope*self.xlim+self.intercept
+
+        for line in self.lines:
+
+            line.remove()
+
+        self.lines = []
+
+        linewidth = 1.0
+
+        alpha = 1.0
+
+        for saturation in saturations:
+
+            yvals = base+self.archie_n*numpy.log10(saturation/100)
+
+            line, = self.axis.plot(self.xlim,yvals,linewidth=linewidth,color="blue",alpha=alpha)
+
+            linewidth -= 0.1
+
+            alpha -= 0.1
+
+            self.lines.append(line)
+
+        self.canvas.draw()
+
+    def set_mouse_connection(self):
+
         self.pressed = False
         self.start = False
 
@@ -38,19 +88,9 @@ class PicketPlot():
         self.canvas.mpl_connect('motion_notify_event',self.mouse_move)
         self.canvas.mpl_connect('button_release_event',self.mouse_release)
 
-    def water_line(self,slope=None,intercept=None,percent=None):
+    def saturations(self):
 
-        if slope is None:
-            slope = self.slope
-
-        if intercept is None:
-            intercept = self.intercept
-
-        x_values = self.axis.get_xlim()
-
-        y_values = [slope*x+intercept for x in x_values]
-
-        return x_values,y_values
+        pass
 
     def mouse_press(self,event):
 
@@ -62,7 +102,6 @@ class PicketPlot():
 
         if event.button is not MouseButton.LEFT: return
 
-        self.point = event.xdata
         self.pressed = True
 
     def mouse_move(self,event):
@@ -75,20 +114,9 @@ class PicketPlot():
 
         self.start = True
 
-        # intercept = self.slope*event.xdata+event.ydata
+        self.intercept = event.ydata-self.slope*event.xdata
 
-        self.shift = self.point-event.xdata
-
-        keub = 0.72*self.shift+0.025*self.shift**2
-
-        self.moved = self.xydata-[self.shift,keub]
-
-        self.line.remove()
-
-        # self.line, = self.axis.plot(*self.water_line(intercept=intercept),linewidth=1.1,c="b")
-        self.line, = self.axis.plot(self.moved[:,0],self.moved[:,1],linewidth=1.1,c="b")
-
-        self.canvas.draw()
+        self.set_water_lines()
 
     def mouse_release(self,event):
 
@@ -100,9 +128,8 @@ class PicketPlot():
 
             self.pressed = False
             self.start = False
-            self.point = None
-            self.ebv -= self.shift
-            self.xydata = self.moved
+
+            self.set_water_lines(50,20,10)
 
             return
 
@@ -126,22 +153,11 @@ obser = numpy.array([
     (1.130, 0.796), (1.224, 0.845), (1.261, 0.964), (1.378, 1.149)])
 
 fig,ax1 = plt.subplots(nrows=1,ncols=1)
-
 # fig.subplots_adjust(left=0.14,bottom=0.08,right=0.95,top=0.97,wspace=0,hspace=0)
 
-shift = (model.mean(axis=0)-obser.mean(axis=0))
+pickett = pickett(ax1)
 
-sebv = shift[0]
-seub = 0.72*sebv+0.025*sebv**2
-
-ax1.invert_yaxis()
-ax1.set_xlabel("BmV")
-ax1.set_ylabel("UmB")
-ax1.set_ylim(2, -1)
-ax1.set_xlim(-0.5, 2)
-ax1.scatter(obser[:,0],obser[:,1],s=2,c="k")
-
-moveline = PicketPlot(ax1,sebv,seub)
+pickett.axis.scatter(*obser.T,s=2,c="k")
 
 fig.tight_layout()
 
