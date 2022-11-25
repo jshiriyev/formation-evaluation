@@ -11,6 +11,8 @@ from matplotlib import gridspec
 from matplotlib import pyplot
 from matplotlib import transforms
 
+from matplotlib.backend_bases import MouseButton
+
 from matplotlib.patches import Rectangle
 
 from matplotlib.ticker import AutoMinorLocator
@@ -2299,11 +2301,158 @@ class rhoumaa(crossplots):
 
 class pickett():
 
-    def __init__(self):
+    def __init__(self,offsets,slope=None,intercept=None,m=2,a=1,Rw=0.01,n=2):
+        """offsets is Nx2 matrix, first column is (x-axis) resistivity and the second is (y-axis) porosity."""
 
-        pass
+        self.offsets = offsets
 
-    def PickettCrossPlot(
+        self.archie_m = m
+        self.archie_a = a
+        self.archie_Rw = Rw
+        self.archie_n = n
+
+        if slope is None:
+            slope = self.archie_m
+
+        self.slope = slope
+
+        if intercept is None:
+            intercept = self.archie_a*self.archie_Rw
+
+        self.intercept = intercept
+
+    def set_axis(self,axis=None):
+
+        if axis is None:
+            figure,axis = pyplot.subplots(nrows=1,ncols=1)
+
+        self.axis = axis
+
+        self.axis.scatter(*self.offsets.T,s=2,c="k")
+
+        self.axis.invert_yaxis()
+
+        xlim = numpy.array(self.axis.get_xlim())
+        ylim = numpy.array(self.axis.get_ylim())
+
+        self.xlim = numpy.array((3*xlim-numpy.flip(xlim))/2)
+        self.ylim = numpy.array((3*ylim-numpy.flip(ylim))/2)
+
+        self.axis.set_xlabel("x-axis")
+        self.axis.set_ylabel("y-axis")
+
+        self.axis.set_xlim(self.xlim)
+        self.axis.set_ylim(self.ylim)
+
+        fstring = 'x={:1.3f} y={:1.3f} m={:1.3f} b={:1.3f}'
+
+        self.axis.format_coord = lambda x,y: fstring.format(x,y,self.slope,self.intercept)
+
+        self.lines = []
+
+        self.canvas = self.axis.figure.canvas
+
+    def set_lines(self,*args):
+        """arguments must be water saturation percentage in a decreasing order!"""
+
+        saturations = [100]
+
+        [saturations.append(arg) for arg in args]
+
+        base = self.slope*self.xlim+self.intercept
+
+        for line in self.lines:
+
+            line.remove()
+
+        self.lines = []
+
+        linewidth = 1.0
+
+        alpha = 1.0
+
+        for saturation in saturations:
+
+            yvals = base+self.archie_n*numpy.log10(saturation/100)
+
+            line, = self.axis.plot(self.xlim,yvals,linewidth=linewidth,color="blue",alpha=alpha)
+
+            linewidth -= 0.1
+
+            alpha -= 0.1
+
+            self.lines.append(line)
+
+        self.canvas.draw()
+
+    def connect_mouse(self):
+
+        self.pressed = False
+        self.start = False
+
+        self.canvas.mpl_connect('button_press_event',self._mouse_press)
+        self.canvas.mpl_connect('motion_notify_event',self._mouse_move)
+        self.canvas.mpl_connect('button_release_event',self._mouse_release)
+
+    def _mouse_press(self,event):
+
+        if self.axis.get_navigate_mode()!= None: return
+        if not event.inaxes: return
+        if event.inaxes != self.axis: return
+
+        if self.start: return
+
+        if event.button is not MouseButton.LEFT: return
+
+        # for a in dir(self.axis):
+        #     print(a)
+
+        self.pressed = True
+
+    def _mouse_move(self,event):
+
+        if self.axis.get_navigate_mode()!=None: return
+        if not event.inaxes: return
+        if event.inaxes!=self.axis: return
+
+        if not self.pressed: return
+
+        self.start = True
+
+        self.intercept = event.ydata-self.slope*event.xdata
+
+        self.set_lines()
+
+    def _mouse_release(self,event):
+
+        if self.axis.get_navigate_mode()!=None: return
+        if not event.inaxes: return
+        if event.inaxes!=self.axis: return
+
+        if self.pressed:
+
+            self.pressed = False
+            self.start = False
+
+            self.set_lines(50,20,10)
+
+            return
+
+    def saturation(self):
+
+        res,por = self.offsets.T
+
+        resporm = res*numpy.power(por,self.slope)
+
+        saturation = numpy.power(self.intercept/resporm,1/self.archie_n)
+
+        saturation[saturation>1] = 1
+
+        return saturation
+
+class PickettCrossPlot(): #Will BE DEPRECIATED
+
+    def __init__(
         self,
         resLine,
         phiLine,

@@ -7,8 +7,8 @@ from scipy import optimize
 if __name__ == "__main__":
     import setup
 
-from optimize.root import newton
-from optimize.root import secant
+from optimize.rootfind import newton
+from optimize.rootfind import secant
 
 def obj(phi,epd,Re):
     xx = np.power(phi,-0.5)
