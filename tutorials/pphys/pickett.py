@@ -1,5 +1,3 @@
-from matplotlib import pyplot
-
 import numpy
 
 import dirsetup
@@ -22,9 +20,9 @@ pickett = pickett(obser)
 
 pickett.set_axis()
 pickett.set_lines(50,20,10)
-pickett.connect_mouse()
+pickett.set_mouse()
 
-pyplot.show()
+pickett.show()
 
 # Sw = pickett.saturation()
 

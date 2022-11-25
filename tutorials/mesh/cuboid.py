@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 
 import numpy as np
 
+import dirsetup
+
 from cypy.vectorpy import starsplit
 
 Nx,Ny,Nz = (1,1,2)

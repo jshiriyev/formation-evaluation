@@ -1488,7 +1488,7 @@ class frame():
 
         return [datacolumn.info for datacolumn in self.running]
 
-class frameview():
+class scape():
 
     def __init__(self,**kwargs):
 

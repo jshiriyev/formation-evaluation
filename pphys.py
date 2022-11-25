@@ -2385,7 +2385,7 @@ class pickett():
 
         self.canvas.draw()
 
-    def connect_mouse(self):
+    def set_mouse(self):
 
         self.pressed = False
         self.start = False
@@ -2437,6 +2437,10 @@ class pickett():
             self.set_lines(50,20,10)
 
             return
+
+    def show(self):
+
+        pyplot.show()
 
     def saturation(self):
 

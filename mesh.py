@@ -5,8 +5,6 @@ if __name__ == "__main__":
 
 from dataview import View3D
 
-## BASIC GEOMETRIES
-
 class Line():
 
     def __init__(self,**kwargs):
@@ -327,113 +325,113 @@ class Ellipse():
 
 class Cuboid():
 
+    """
+    For rectangular parallelepiped, dimensions is a tuple
+    with three entries for sizes in x,y,z direction.
+    """
+
+    def __init__(self,lengths,**kwargs):
+
+        super().__init__(**kwargs)
+
+        self.lengths = lengths
+
+        self.edge_vertices = np.zeros((8,3))
+
+        self.edge_vertices[0,:] = (0,0,0)
+        self.edge_vertices[1,:] = (self.lengths[0],0,0)
+        self.edge_vertices[2,:] = (self.lengths[0],self.lengths[1],0)
+        self.edge_vertices[3,:] = (0,self.lengths[1],0)
+
+        self.edge_vertices[4,:] = (0,0,self.lengths[2])
+        self.edge_vertices[5,:] = (self.lengths[0],0,self.lengths[2])
+        self.edge_vertices[6,:] = (self.lengths[0],self.lengths[1],self.lengths[2])
+        self.edge_vertices[7,:] = (0,self.lengths[1],self.lengths[2])
+
+        indices = np.empty((12,2),dtype=int)
+
+        indices[:,0] = (0,1,2,3,0,1,2,3,4,5,6,7)
+        indices[:,1] = (1,2,3,0,4,5,6,7,5,6,7,4)
+        
+        x_aspects = self.edge_vertices[:,0][indices]
+        y_aspects = self.edge_vertices[:,1][indices]
+        z_aspects = self.edge_vertices[:,2][indices]
+
+        self.boundaries = []
+
+        for x_aspect,y_aspect,z_aspect in zip(x_aspects,y_aspects,z_aspects):
+            self.boundaries.append(np.array([x_aspect,y_aspect,z_aspect]))
+
+        self.gridFlag = False
+
+    def grid(self,grid_num):
+
         """
-        For rectangular parallelepiped, dimensions is a tuple
-        with three entries for sizes in x,y,z direction.
+        self.grid_num        : number of grids in x, y, z directions
+        self.grid_numtot     : number of totla grids 
+        self.grid_indices    : connectivity map containing index of all grids and their neighbours.
+        self.grid_sizes      : size of grids in all directions.
+        self.grid_areas      : area of all faces
+        self.grid_volumes    : volume of grids
+        self.grid_centers    : coordinates of the center of grids
         """
+        
+        self.grid_num = grid_num
 
-        def __init__(self,lengths,**kwargs):
+        self.grid_numtot = np.prod(self.grid_num)
 
-            super().__init__(**kwargs)
+        idx = np.arange(self.grid_numtot)
+        
+        self.grid_indices = np.tile(idx,(7,1)).T
 
-            self.lengths = lengths
+        self.grid_indices[idx.reshape(-1,self.grid_num[0])[:,1:].ravel(),1] -= 1
+        self.grid_indices[idx.reshape(-1,self.grid_num[0])[:,:-1].ravel(),2] += 1
+        self.grid_indices[idx.reshape(self.grid_num[2],-1)[:,self.grid_num[0]:],3] -= self.grid_num[0]
+        self.grid_indices[idx.reshape(self.grid_num[2],-1)[:,:-self.grid_num[0]],4] += self.grid_num[0]
+        self.grid_indices[idx.reshape(self.grid_num[2],-1)[1:,:],5] -= self.grid_num[0]*self.grid_num[1]
+        self.grid_indices[idx.reshape(self.grid_num[2],-1)[:-1,:],6] += self.grid_num[0]*self.grid_num[1]
 
-            self.edge_vertices = np.zeros((8,3))
+        self.grid_hasxmin = ~(self.grid_indices[:,0]==self.grid_indices[:,1])
+        self.grid_hasxmax = ~(self.grid_indices[:,0]==self.grid_indices[:,2])
+        self.grid_hasymin = ~(self.grid_indices[:,0]==self.grid_indices[:,3])
+        self.grid_hasymax = ~(self.grid_indices[:,0]==self.grid_indices[:,4])
+        self.grid_haszmin = ~(self.grid_indices[:,0]==self.grid_indices[:,5])
+        self.grid_haszmax = ~(self.grid_indices[:,0]==self.grid_indices[:,6])
 
-            self.edge_vertices[0,:] = (0,0,0)
-            self.edge_vertices[1,:] = (self.lengths[0],0,0)
-            self.edge_vertices[2,:] = (self.lengths[0],self.lengths[1],0)
-            self.edge_vertices[3,:] = (0,self.lengths[1],0)
+        self.grid_xnodes = np.linspace(0,self.lengths[0],self.grid_num[0]+1)
+        self.grid_ynodes = np.linspace(0,self.lengths[1],self.grid_num[1]+1)
+        self.grid_znodes = np.linspace(0,self.lengths[2],self.grid_num[2]+1)
+        
+        xsize = self.grid_xnodes[1:]-self.grid_xnodes[:-1]
+        ysize = self.grid_ynodes[1:]-self.grid_ynodes[:-1]
+        zsize = self.grid_znodes[1:]-self.grid_znodes[:-1]
+        
+        self.grid_sizes = np.zeros((self.grid_numtot,3))
+        self.grid_sizes[:,0] = np.tile(xsize,self.grid_num[1]*self.grid_num[2])
+        self.grid_sizes[:,1] = np.tile(ysize.repeat(self.grid_num[0]),self.grid_num[2])
+        self.grid_sizes[:,2] = zsize.repeat(self.grid_num[0]*self.grid_num[1])
 
-            self.edge_vertices[4,:] = (0,0,self.lengths[2])
-            self.edge_vertices[5,:] = (self.lengths[0],0,self.lengths[2])
-            self.edge_vertices[6,:] = (self.lengths[0],self.lengths[1],self.lengths[2])
-            self.edge_vertices[7,:] = (0,self.lengths[1],self.lengths[2])
+        self.grid_areas = np.zeros((self.grid_numtot,3))
+        self.grid_areas[:,0] = self.grid_sizes[:,1]*self.grid_sizes[:,2]
+        self.grid_areas[:,1] = self.grid_sizes[:,2]*self.grid_sizes[:,0]
+        self.grid_areas[:,2] = self.grid_sizes[:,0]*self.grid_sizes[:,1]
 
-            indices = np.empty((12,2),dtype=int)
+        self.grid_volumes = np.prod(self.grid_sizes,axis=1)
 
-            indices[:,0] = (0,1,2,3,0,1,2,3,4,5,6,7)
-            indices[:,1] = (1,2,3,0,4,5,6,7,5,6,7,4)
-            
-            x_aspects = self.edge_vertices[:,0][indices]
-            y_aspects = self.edge_vertices[:,1][indices]
-            z_aspects = self.edge_vertices[:,2][indices]
+        xcenter = self.grid_xnodes[:-1]+xsize/2
+        ycenter = self.grid_ynodes[:-1]+ysize/2
+        zcenter = self.grid_znodes[:-1]+zsize/2
+        
+        self.grid_centers = np.zeros((self.grid_numtot,3))
+        self.grid_centers[:,0] = np.tile(xcenter,self.grid_num[1]*self.grid_num[2])
+        self.grid_centers[:,1] = np.tile(ycenter.repeat(self.grid_num[0]),self.grid_num[2])
+        self.grid_centers[:,2] = zcenter.repeat(self.grid_num[0]*self.grid_num[1])
 
-            self.boundaries = []
+        self.gridFlag = True
 
-            for x_aspect,y_aspect,z_aspect in zip(x_aspects,y_aspects,z_aspects):
-                self.boundaries.append(np.array([x_aspect,y_aspect,z_aspect]))
+    def plot(self):
 
-            self.gridFlag = False
-
-        def grid(self,grid_num):
-
-            """
-            self.grid_num        : number of grids in x, y, z directions
-            self.grid_numtot     : number of totla grids 
-            self.grid_indices    : connectivity map containing index of all grids and their neighbours.
-            self.grid_sizes      : size of grids in all directions.
-            self.grid_areas      : area of all faces
-            self.grid_volumes    : volume of grids
-            self.grid_centers    : coordinates of the center of grids
-            """
-            
-            self.grid_num = grid_num
-
-            self.grid_numtot = np.prod(self.grid_num)
-
-            idx = np.arange(self.grid_numtot)
-            
-            self.grid_indices = np.tile(idx,(7,1)).T
-
-            self.grid_indices[idx.reshape(-1,self.grid_num[0])[:,1:].ravel(),1] -= 1
-            self.grid_indices[idx.reshape(-1,self.grid_num[0])[:,:-1].ravel(),2] += 1
-            self.grid_indices[idx.reshape(self.grid_num[2],-1)[:,self.grid_num[0]:],3] -= self.grid_num[0]
-            self.grid_indices[idx.reshape(self.grid_num[2],-1)[:,:-self.grid_num[0]],4] += self.grid_num[0]
-            self.grid_indices[idx.reshape(self.grid_num[2],-1)[1:,:],5] -= self.grid_num[0]*self.grid_num[1]
-            self.grid_indices[idx.reshape(self.grid_num[2],-1)[:-1,:],6] += self.grid_num[0]*self.grid_num[1]
-
-            self.grid_hasxmin = ~(self.grid_indices[:,0]==self.grid_indices[:,1])
-            self.grid_hasxmax = ~(self.grid_indices[:,0]==self.grid_indices[:,2])
-            self.grid_hasymin = ~(self.grid_indices[:,0]==self.grid_indices[:,3])
-            self.grid_hasymax = ~(self.grid_indices[:,0]==self.grid_indices[:,4])
-            self.grid_haszmin = ~(self.grid_indices[:,0]==self.grid_indices[:,5])
-            self.grid_haszmax = ~(self.grid_indices[:,0]==self.grid_indices[:,6])
-
-            self.grid_xnodes = np.linspace(0,self.lengths[0],self.grid_num[0]+1)
-            self.grid_ynodes = np.linspace(0,self.lengths[1],self.grid_num[1]+1)
-            self.grid_znodes = np.linspace(0,self.lengths[2],self.grid_num[2]+1)
-            
-            xsize = self.grid_xnodes[1:]-self.grid_xnodes[:-1]
-            ysize = self.grid_ynodes[1:]-self.grid_ynodes[:-1]
-            zsize = self.grid_znodes[1:]-self.grid_znodes[:-1]
-            
-            self.grid_sizes = np.zeros((self.grid_numtot,3))
-            self.grid_sizes[:,0] = np.tile(xsize,self.grid_num[1]*self.grid_num[2])
-            self.grid_sizes[:,1] = np.tile(ysize.repeat(self.grid_num[0]),self.grid_num[2])
-            self.grid_sizes[:,2] = zsize.repeat(self.grid_num[0]*self.grid_num[1])
-
-            self.grid_areas = np.zeros((self.grid_numtot,3))
-            self.grid_areas[:,0] = self.grid_sizes[:,1]*self.grid_sizes[:,2]
-            self.grid_areas[:,1] = self.grid_sizes[:,2]*self.grid_sizes[:,0]
-            self.grid_areas[:,2] = self.grid_sizes[:,0]*self.grid_sizes[:,1]
-
-            self.grid_volumes = np.prod(self.grid_sizes,axis=1)
-
-            xcenter = self.grid_xnodes[:-1]+xsize/2
-            ycenter = self.grid_ynodes[:-1]+ysize/2
-            zcenter = self.grid_znodes[:-1]+zsize/2
-            
-            self.grid_centers = np.zeros((self.grid_numtot,3))
-            self.grid_centers[:,0] = np.tile(xcenter,self.grid_num[1]*self.grid_num[2])
-            self.grid_centers[:,1] = np.tile(ycenter.repeat(self.grid_num[0]),self.grid_num[2])
-            self.grid_centers[:,2] = zcenter.repeat(self.grid_num[0]*self.grid_num[1])
-
-            self.gridFlag = True
-
-        def plot(self):
-
-            pass
+        pass
 
 class Cylinder():
 
