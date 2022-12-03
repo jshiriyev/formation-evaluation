@@ -24,12 +24,14 @@ def objective4(x):
 xL = -3
 xU = 3
 
-golden(objective1,xL,xU,r=0.51,Nmax=10000,tol=1e-5)
+gs = golden(objective1,(xL,xU),ratio=0.51,nitermax=10000,tol=1e-5)
 
-# x = np.linspace(xL,xU,200)
+x = np.linspace(xL,xU,200)
 
-# plt.plot(x,objective1(x))
-# plt.xlabel('x-axis')
-# plt.ylabel('objective function')
+plt.plot(x,objective1(x))
+plt.scatter(gs.minsol,gs.minval)
 
-# plt.show()
+plt.xlabel('x-axis')
+plt.ylabel('objective function')
+
+plt.show()
