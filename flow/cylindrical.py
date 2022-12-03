@@ -6,7 +6,7 @@ from scipy.optimize import minimize
 from scipy.optimize import minimize_scalar
 
 if __name__ == "__main__":
-    import setup
+    import dirsetup
 
 from stream.items import Fluids
 

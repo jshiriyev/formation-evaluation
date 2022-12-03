@@ -7,7 +7,7 @@ from scipy.sparse import diags
 from scipy.sparse.linalg import spsolve as sps
 
 if __name__ == "__main__":
-    import setup
+    import dirsetup
 
 from petepy.items import Fluids
 

@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 
 if __name__ == "__main__":
-    import setup
+    import dirsetup
 
 from flow.pormed.complex import rectangular_parallelepiped
 

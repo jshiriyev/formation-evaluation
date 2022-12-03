@@ -1,7 +1,7 @@
 import numpy as np 
 
 if __name__ == "__main__":
-    import setup
+    import dirsetup
 
 from mathbox.elliptictheta import kind3
 

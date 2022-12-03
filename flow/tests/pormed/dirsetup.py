@@ -5,10 +5,8 @@ path = __file__
 
 while True:
 
-    if os.path.basename(path)=="datum": break
+    if os.path.basename(path)=="borepy": break
     
     path = os.path.dirname(path)
-
-print(path)
 
 sys.path.append(path)

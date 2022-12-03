@@ -6,7 +6,7 @@ from scipy.sparse import csr_matrix as csr
 ## from PIL import Imag
 
 if __name__ == "__main__":
-    import setup
+    import dirsetup
 
 class singlephase():
 

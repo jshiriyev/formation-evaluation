@@ -3,7 +3,7 @@ import numpy as np
 from scipy.special import erf
 
 if __name__ == "__main__":
-    import setup
+    import dirsetup
 
 class kind3():
 
