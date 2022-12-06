@@ -2312,12 +2312,12 @@ class pickett():
         self.archie_n = n
 
         if slope is None:
-            slope = self.archie_m
+            slope = -self.archie_m
 
         self.slope = slope
 
         if intercept is None:
-            intercept = self.archie_a*self.archie_Rw
+            intercept = numpy.log10(self.archie_a*self.archie_Rw)
 
         self.intercept = intercept
 
@@ -2330,23 +2330,24 @@ class pickett():
 
         self.axis.scatter(*self.offsets.T,s=2,c="k")
 
-        self.axis.invert_yaxis()
+        self.axis.set_xscale('log')
+        self.axis.set_yscale('log')
 
         xlim = numpy.array(self.axis.get_xlim())
         ylim = numpy.array(self.axis.get_ylim())
 
-        self.xlim = numpy.array((3*xlim-numpy.flip(xlim))/2)
-        self.ylim = numpy.array((3*ylim-numpy.flip(ylim))/2)
+        self.xlim = numpy.floor(numpy.log10(xlim))+numpy.array([0,1])
+        self.ylim = numpy.floor(numpy.log10(ylim))+numpy.array([0,1])
 
         self.axis.set_xlabel("x-axis")
         self.axis.set_ylabel("y-axis")
 
-        self.axis.set_xlim(self.xlim)
-        self.axis.set_ylim(self.ylim)
+        self.axis.set_xlim(10**self.xlim)
+        self.axis.set_ylim(10**self.ylim)
 
         fstring = 'x={:1.3f} y={:1.3f} m={:1.3f} b={:1.3f}'
 
-        self.axis.format_coord = lambda x,y: fstring.format(x,y,self.slope,self.intercept)
+        self.axis.format_coord = lambda x,y: fstring.format(x,y,-self.slope,self.intercept)
 
         self.lines = []
 
@@ -2371,11 +2372,13 @@ class pickett():
 
         alpha = 1.0
 
+        X = 10**self.xlim
+
         for saturation in saturations:
 
-            yvals = base+self.archie_n*numpy.log10(saturation/100)
+            Y = 10**(base-self.archie_n*numpy.log10(saturation/100))
 
-            line, = self.axis.plot(self.xlim,yvals,linewidth=linewidth,color="blue",alpha=alpha)
+            line, = self.axis.plot(X,Y,linewidth=linewidth,color="blue",alpha=alpha)
 
             linewidth -= 0.1
 
@@ -2404,9 +2407,6 @@ class pickett():
 
         if event.button is not MouseButton.LEFT: return
 
-        # for a in dir(self.axis):
-        #     print(a)
-
         self.pressed = True
 
     def _mouse_move(self,event):
@@ -2419,7 +2419,10 @@ class pickett():
 
         self.start = True
 
-        self.intercept = event.ydata-self.slope*event.xdata
+        x = numpy.log10(event.xdata)
+        y = numpy.log10(event.ydata)
+
+        self.intercept = y-self.slope*x
 
         self.set_lines()
 
@@ -2446,9 +2449,9 @@ class pickett():
 
         res,por = self.offsets.T
 
-        resporm = res*numpy.power(por,self.slope)
+        resporm = res*numpy.power(por,-self.slope)
 
-        saturation = numpy.power(self.intercept/resporm,1/self.archie_n)
+        saturation = numpy.power(10**self.intercept/resporm,1/self.archie_n)
 
         saturation[saturation>1] = 1
 
