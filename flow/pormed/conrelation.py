@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+
 import numpy as np
 
 if __name__ == "__main__":
@@ -55,19 +56,7 @@ class relative_permeability():
     
     """
 
-    def __init__(self,
-                 Sorow=0.4,
-                 Sorgo=0.4,
-                 Swc=0.1,
-                 Sgc=0.05,
-                 krowc=0.8,
-                 krwor=0.3,
-                 krogc=0.8,
-                 krglc=0.3,
-                 no=2,
-                 nw=2,
-                 ng=2,
-                 Som=None):
+    def __init__(self,Sorow=0.4,Sorgo=0.4,Swc=0.1,Sgc=0.05,krowc=0.8,krwor=0.3,krogc=0.8,krglc=0.3,no=2,nw=2,ng=2,Som=None):
 
         self.Sorow = Sorow
         self.Sorgo = Sorgo
