@@ -1902,7 +1902,7 @@ def any2column(*args,**kwargs):
     return column(dataarray,head=head,unit=unit,info=info,dtype=dtype)
 
 def key2column(*args,**kwargs):
-    "Generating column by defining dtype and sending the keywords for array creating methods."
+    """Generating column by defining dtype and sending the keywords for array creating methods."""
 
     head = kwargs.get('head')
     unit = kwargs.get('unit')

@@ -33,14 +33,13 @@ from textio import dirmaster
 
 from cypy.vectorpy import strtype
 
-class curve():
+class lascurve(column):
 
-    def __init__(self,vals,unit=None,info=None):
+    def __init__(self,*args,**kwargs):
 
-        self.vals = vals
+        self.depths = kwargs.pop('depths')
 
-        self.unit = unit
-        self.info = info
+        super().__init__(*args,**kwargs)
 
     def set_linestyle(self,color="k",style="solid",width=0.75):
 
@@ -53,7 +52,7 @@ class curve():
         self.fillhatch = hatch
         self.fillfacecolor = facecolor
 
-    def get_unknownthickness(self,depths):
+    def get_nanheight(self,depths):
 
         node_top = numpy.roll(depths,1)
         node_bottom = numpy.roll(depths,-1)
@@ -780,7 +779,7 @@ class lasbatch(dirmaster):
 
             return depth,xvals
 
-class rockmodel():
+class bulkmodel():
 
     SS = {"lithology": "Sandstone","marker": "2","markercolor": "red",}
     SS["type1"] = {"description": "Sandstone, Porosity > 10%","DTma": 55.5,"rhoma": 2.65,"phima_SNP": -0.035,"phima_CNL": -0.05,}
@@ -910,12 +909,21 @@ class rockmodel():
 
 class depthview():
 
-    def __init__(self,page_format="Letter"):
+    def __init__(self,page_format="Letter",page_orientation="Portrait"):
 
         if page_format == "A4":
             figsize = (8.3,11.7)
         elif page_format == "Letter":
             figsize = (8.5,11.0)
+        else:
+            raise(f'{page_format=} has not been defined!')
+
+        if page_orientation == "Portrait":
+            pass
+        elif page_orientation == "Landscape":
+            figsize = figsize[::-1]
+        else:
+            raise(f'{page_orientation=} has not been defined!')
 
         self.figure = pyplot.figure(figsize=figsize,dpi=100)
         
@@ -1236,6 +1244,61 @@ class depthview():
             verticalalignment='center',
             backgroundcolor='white',
             fontsize='small',)
+
+    def add_fill(self,saturationline,indexI,indexJ,Sw_cut=0.5):
+
+        # indexI index of Resistivity containing axis in the plot
+        # indexJ index of Resistivity containing line in the axis
+
+        depth = self.frames[saturationline[0]].columns(0)
+
+        xvals = self.frames[saturationline[0]].columns(saturationline[1])
+
+        cut_line = Sw_cut*numpy.ones(depth.shape)
+
+        self.axes[indexI].subax[indexJ].fill_betweenx(
+            depth,xvals,x2=cut_line,where=Sw_cut>=xvals,color=self.color_HC)
+
+    def add_perfs(self,indexI,indexJ,depths,perfs):
+
+        xtick = self.axes[indexI].subax[indexJ].get_xticks()
+
+        ytick = self.axes[indexI].subax[indexJ].get_yticks()
+
+        perfs = numpy.array(perfs)
+
+        perfs_just = perfs[perfs>0]
+
+        perfs_just[::10] -= perfs_just[::10]*0.5
+
+        perfs[perfs>0] = perfs_just
+
+        perfs_scaled = xtick.min()+(xtick.max()-xtick.min())/10/(perfs.max()-perfs.min())*perfs
+
+        # pfgun_point = xtick.min()
+
+        # for arg in args:
+
+        #     depths = numpy.arange(arg[0],arg[1]+1/2,1.)
+
+        #     for index,depth in enumerate(depths):
+
+        #         if index==0:
+        #             marker,size = 11,10
+        #         elif index==len(depths)-1:
+        #             marker,size = 10,10
+        #         else:
+        #             marker,size = 9,10
+
+        #         self.axes[indexI].subax[indexJ].plot(pfgun_point,depth,
+        #             marker=marker,color='orange',markersize=size,markerfacecolor='black')
+
+        self.axes[indexI].subax[indexJ].plot(perfs_scaled,depths)
+
+    def add_casing(self):
+        """It includes casing set depths"""
+
+        pass
 
     def show(self,filename=None,wspace=0.0,hspace=0.0):
 
@@ -1759,19 +1822,7 @@ class DepthView(): #Will BE DEPRECIATED
         self.axes[indexI].subax[indexJ].fill_betweenx(
             depth,xvals,x2=cut_line,where=ohmm_cut<=xvals,color=self.color_HC)
 
-    def set_DepthViewSaturationCut(self,SwLine,indexI,indexJ,Sw_cut=0.5):
-
-        # indexI index of Resistivity containing axis in the plot
-        # indexJ index of Resistivity containing line in the axis
-
-        depth = self.frames[SwLine[0]].columns(0)
-
-        xvals = self.frames[SwLine[0]].columns(SwLine[1])
-
-        cut_line = Sw_cut*numpy.ones(depth.shape)
-
-        self.axes[indexI].subax[indexJ].fill_betweenx(
-            depth,xvals,x2=cut_line,where=Sw_cut>=xvals,color=self.color_HC)
+    
 
     def set_DepthViewNMRfluid(self,NMRline,indexI,water_clay,water_capi,water_move,HC):
 
@@ -1800,47 +1851,6 @@ class DepthView(): #Will BE DEPRECIATED
 
         self.axes[indexI].subax[0].fill_betweenx(
             depth,xvals4,x2=xvals3,where=xvals3<=xvals4,color=self.color_HC)
-
-    def set_DepthViewPerfs(self,indexI,indexJ,depths,perfs):
-
-        xtick = self.axes[indexI].subax[indexJ].get_xticks()
-
-        ytick = self.axes[indexI].subax[indexJ].get_yticks()
-
-        perfs = numpy.array(perfs)
-
-        perfs_just = perfs[perfs>0]
-
-        perfs_just[::10] -= perfs_just[::10]*0.5
-
-        perfs[perfs>0] = perfs_just
-
-        perfs_scaled = xtick.min()+(xtick.max()-xtick.min())/10/(perfs.max()-perfs.min())*perfs
-
-        # pfgun_point = xtick.min()
-
-        # for arg in args:
-
-        #     depths = numpy.arange(arg[0],arg[1]+1/2,1.)
-
-        #     for index,depth in enumerate(depths):
-
-        #         if index==0:
-        #             marker,size = 11,10
-        #         elif index==len(depths)-1:
-        #             marker,size = 10,10
-        #         else:
-        #             marker,size = 9,10
-
-        #         self.axes[indexI].subax[indexJ].plot(pfgun_point,depth,
-        #             marker=marker,color='orange',markersize=size,markerfacecolor='black')
-
-        self.axes[indexI].subax[indexJ].plot(perfs_scaled,depths)
-
-    def set_DepthViewCasing(self):
-        """It creates an axis to include casing set depths"""
-
-        pass
 
     def _on_mousewheel(self,event):
         """Lets the scroll work everywhere on the window."""

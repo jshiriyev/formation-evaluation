@@ -23,158 +23,6 @@ if __name__ == "__main__":
 
 # TOOL INTERPRETATION
 
-class gammaray():
-
-    def __init__(self,values,depths=None):
-
-        self.values = values
-        self.depths = depths
-
-    def get_unknownthickness(self):
-
-        node_top = numpy.roll(self.depths,1)
-        node_bottom = numpy.roll(self.depths,-1)
-
-        thickness = (node_bottom-node_top)/2
-
-        thickness[0] = (self.depths[1]-self.depths[0])/2
-        thickness[-1] = (self.depths[-1]-self.depths[-2])/2
-
-        return numpy.sum(thickness[numpy.isnan(self.values)])
-
-    def get_shaleindex(self,grmin=None,grmax=None):
-
-        if grmin is None:
-            grmin = numpy.nanmin(self.values)
-
-        if grmax is None:
-            grmax = numpy.nanmax(self.values)
-
-        return (self.values-grmin)/(grmax-grmin)
-
-    def get_shalevolume(self,model="linear",factor=None,grmin=None,grmax=None):
-
-        if grmin is None:
-            grmin = numpy.nanmin(self.values)
-
-        if grmax is None:
-            grmax = numpy.nanmax(self.values)
-
-        index = (self.values-grmin)/(grmax-grmin)
-
-        if model == "linear":
-            volume = index
-        elif factor is None:
-            volume = getattr(self,f"_{model}")(index)
-        else:
-            volume = getattr(self,f"_{model}")(index,factor=factor)
-
-        return volume
-
-    def get_cut(self,percent=40,model="linear",factor=None,grmin=None,grmax=None):
-
-        if model == "linear":
-            index = percent/100
-        elif factor is None:
-            index = getattr(self,f"_{model}")(None,volume=percent/100)
-        else:
-            index = getattr(self,f"_{model}")(None,volume=percent/100,factor=factor)
-
-        if grmin is None:
-            grmin = numpy.nanmin(self.values)
-
-        if grmax is None:
-            grmax = numpy.nanmax(self.values)
-
-        return index*(grmax-grmin)+grmin
-
-    def get_netthickness(self,percent,**kwargs):
-
-        grcut = self.get_cut(percent,**kwargs)
-
-        node_top = numpy.roll(self.depths,1)
-        node_bottom = numpy.roll(self.depths,-1)
-
-        thickness = (node_bottom-node_top)/2
-
-        thickness[0] = (self.depths[1]-self.depths[0])/2
-        thickness[-1] = (self.depths[-1]-self.depths[-2])/2
-
-        return numpy.sum(thickness[self.values<grcut])
-
-    def get_netgrossratio(self,percent,**kwargs):
-
-        return self.get_netthickness(percent,**kwargs)/self.grossthickness
-
-    def spectral(self,axis):
-
-        pass
-
-    @property
-    def grossthickness(self):
-        return self.depths.max()-self.depths.min()
-
-    @staticmethod
-    def _larionov_oldrocks(index,volume=None):
-        if volume is None:
-            return 0.33*(2**(2*index)-1)
-        elif index is None:
-            return numpy.log2(volume/0.33+1)/2
-
-    @staticmethod
-    def _clavier(index,volume=None):
-        if volume is None:
-            return 1.7-numpy.sqrt(3.38-(0.7+index)**2)
-        elif index is None:
-            return numpy.sqrt(3.38-(1.7-volume)**2)-0.7
-
-    @staticmethod
-    def _bateman(index,volume=None,factor=1.2):
-        if volume is None:
-            return index**(index+factor)
-        elif index is None:
-            return #could not calculate inverse yet
-
-    @staticmethod
-    def _stieber(index,volume=None,factor=3):
-        if volume is None:
-            return index/(index+factor*(1-index))
-        elif index is None:
-            return volume*factor/(1+volume*(factor-1))
-
-    @staticmethod
-    def _larionov_tertiary(index,volume=None):
-        if volume is None:
-            return 0.083*(2**(3.7*index)-1)
-        elif index is None:
-            return numpy.log2(volume/0.083+1)/3.7
-
-class density():
-
-    def __init__(self,values,depths=None):
-
-        self.values = values
-        self.depths = depths
-
-    def get_porosity(self):
-
-        pass
-
-    def set_denphe(self,axis):
-
-        pass
-
-class neutron():
-
-    def __init__(self,values,depths=None):
-
-        self.values = values
-        self.depths = depths
-
-    def get_porosity(self):
-
-        pass
-
 class sonic():
 
     def __init__(self,values,depths=None):
@@ -344,7 +192,159 @@ class induction():
 
         pass
 
-class quantum():
+class gammaray():
+
+    def __init__(self,values,depths=None):
+
+        self.values = values
+        self.depths = depths
+
+    def get_unknownthickness(self):
+
+        node_top = numpy.roll(self.depths,1)
+        node_bottom = numpy.roll(self.depths,-1)
+
+        thickness = (node_bottom-node_top)/2
+
+        thickness[0] = (self.depths[1]-self.depths[0])/2
+        thickness[-1] = (self.depths[-1]-self.depths[-2])/2
+
+        return numpy.sum(thickness[numpy.isnan(self.values)])
+
+    def get_shaleindex(self,grmin=None,grmax=None):
+
+        if grmin is None:
+            grmin = numpy.nanmin(self.values)
+
+        if grmax is None:
+            grmax = numpy.nanmax(self.values)
+
+        return (self.values-grmin)/(grmax-grmin)
+
+    def get_shalevolume(self,model="linear",factor=None,grmin=None,grmax=None):
+
+        if grmin is None:
+            grmin = numpy.nanmin(self.values)
+
+        if grmax is None:
+            grmax = numpy.nanmax(self.values)
+
+        index = (self.values-grmin)/(grmax-grmin)
+
+        if model == "linear":
+            volume = index
+        elif factor is None:
+            volume = getattr(self,f"_{model}")(index)
+        else:
+            volume = getattr(self,f"_{model}")(index,factor=factor)
+
+        return volume
+
+    def get_cut(self,percent=40,model="linear",factor=None,grmin=None,grmax=None):
+
+        if model == "linear":
+            index = percent/100
+        elif factor is None:
+            index = getattr(self,f"_{model}")(None,volume=percent/100)
+        else:
+            index = getattr(self,f"_{model}")(None,volume=percent/100,factor=factor)
+
+        if grmin is None:
+            grmin = numpy.nanmin(self.values)
+
+        if grmax is None:
+            grmax = numpy.nanmax(self.values)
+
+        return index*(grmax-grmin)+grmin
+
+    def get_netthickness(self,percent,**kwargs):
+
+        grcut = self.get_cut(percent,**kwargs)
+
+        node_top = numpy.roll(self.depths,1)
+        node_bottom = numpy.roll(self.depths,-1)
+
+        thickness = (node_bottom-node_top)/2
+
+        thickness[0] = (self.depths[1]-self.depths[0])/2
+        thickness[-1] = (self.depths[-1]-self.depths[-2])/2
+
+        return numpy.sum(thickness[self.values<grcut])
+
+    def get_netgrossratio(self,percent,**kwargs):
+
+        return self.get_netthickness(percent,**kwargs)/self.grossthickness
+
+    def spectral(self,axis):
+
+        pass
+
+    @property
+    def grossthickness(self):
+        return self.depths.max()-self.depths.min()
+
+    @staticmethod
+    def _larionov_oldrocks(index,volume=None):
+        if volume is None:
+            return 0.33*(2**(2*index)-1)
+        elif index is None:
+            return numpy.log2(volume/0.33+1)/2
+
+    @staticmethod
+    def _clavier(index,volume=None):
+        if volume is None:
+            return 1.7-numpy.sqrt(3.38-(0.7+index)**2)
+        elif index is None:
+            return numpy.sqrt(3.38-(1.7-volume)**2)-0.7
+
+    @staticmethod
+    def _bateman(index,volume=None,factor=1.2):
+        if volume is None:
+            return index**(index+factor)
+        elif index is None:
+            return #could not calculate inverse yet
+
+    @staticmethod
+    def _stieber(index,volume=None,factor=3):
+        if volume is None:
+            return index/(index+factor*(1-index))
+        elif index is None:
+            return volume*factor/(1+volume*(factor-1))
+
+    @staticmethod
+    def _larionov_tertiary(index,volume=None):
+        if volume is None:
+            return 0.083*(2**(3.7*index)-1)
+        elif index is None:
+            return numpy.log2(volume/0.083+1)/3.7
+
+class density():
+
+    def __init__(self,values,depths=None):
+
+        self.values = values
+        self.depths = depths
+
+    def get_porosity(self):
+
+        pass
+
+    def set_denphe(self,axis):
+
+        pass
+
+class neutron():
+
+    def __init__(self,values,depths=None):
+
+        self.values = values
+        self.depths = depths
+
+    def get_porosity(self):
+
+        pass
+
+class nmrlog():
 
     def __init__(self,values,depths=None):
 
