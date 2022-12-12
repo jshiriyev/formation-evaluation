@@ -25,11 +25,11 @@ from PIL import ImageTk, Image
 if __name__ == "__main__":
     import dirsetup
 
-from datum import frame
 from datum import column
+from datum import frame
 
-from textio import header
 from textio import dirmaster
+from textio import header
 
 from cypy.vectorpy import strtype
 
@@ -41,26 +41,21 @@ class lascurve(column):
 
         super().__init__(*args,**kwargs)
 
-    def set_linestyle(self,color="k",style="solid",width=0.75):
+    def set_style(self,color="k",style="solid",width=0.75):
 
-        self.linecolor = color
-        self.linestyle = style
-        self.linewidth = width
+        self.color = color
+        self.style = style
+        self.width = width
 
-    def set_fillstyle(self,hatch='..',facecolor='gold'):
+    def get_nanheight(self):
 
-        self.fillhatch = hatch
-        self.fillfacecolor = facecolor
-
-    def get_nanheight(self,depths):
-
-        node_top = numpy.roll(depths,1)
-        node_bottom = numpy.roll(depths,-1)
+        node_top = numpy.roll(self.depths,1)
+        node_bottom = numpy.roll(self.depths,-1)
 
         thickness = (node_bottom-node_top)/2
 
-        thickness[0] = (depths[1]-depths[0])/2
-        thickness[-1] = (depths[-1]-depths[-2])/2
+        thickness[0] = (self.depths[1]-self.depths[0])/2
+        thickness[-1] = (self.depths[-1]-self.depths[-2])/2
 
         return numpy.sum(thickness[numpy.isnan(self.vals)])
 
@@ -1144,9 +1139,6 @@ class depthview():
         curve_axis.plot(xvals,self.yvals,
             color=curve.linecolor,linestyle=curve.linestyle,linewidth=curve.linewidth)
 
-        if curve.fill:
-            curve_axis.fill_betweenx(self.yvals,xvals,x2=0,facecolor=curve.fillfacecolor,hatch=curve.fillhatch)
-
         numlines = len(curve_axis.lines)
 
         try:
@@ -1154,10 +1146,7 @@ class depthview():
         except IndexError:
             curve_axis.multipliers.append(multp)
 
-        if curve.fill:
-            self._add_label_fill(label_axis,curve,xlim,numlines)
-        else:
-            self._add_label_line(label_axis,curve,xlim,numlines)
+        self._add_label_line(label_axis,curve,xlim,numlines)
 
     def _get_linear_normalized(self,values,alim,multp=None,vmin=None,vmax=None):
 
@@ -1256,8 +1245,14 @@ class depthview():
 
         cut_line = Sw_cut*numpy.ones(depth.shape)
 
+        # if curve.fill:
+        #     curve_axis.fill_betweenx(self.yvals,xvals,x2=0,facecolor=curve.fillfacecolor,hatch=curve.fillhatch)
+
         self.axes[indexI].subax[indexJ].fill_betweenx(
             depth,xvals,x2=cut_line,where=Sw_cut>=xvals,color=self.color_HC)
+
+        # if curve.fill:
+        #     self._add_label_fill(label_axis,curve,xlim,numlines)
 
     def add_perfs(self,indexI,indexJ,depths,perfs):
 
