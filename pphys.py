@@ -814,50 +814,230 @@ class _lasworm():
 
 class bulkmodel():
 
-    SS = {"lithology": "Sandstone","marker": "2","markercolor": "red",}
-    SS["type1"] = {"description": "Sandstone, Porosity > 10%","DTma": 55.5,"rhoma": 2.65,"phima_SNP": -0.035,"phima_CNL": -0.05,}
-    SS["type2"] = {"description": "Sandstone, Porosity < 10%","DTma": 51.2,"rhoma": 2.65,"phima_SNP": -0.035,"phima_CNL": -0.005,}
-
-    LS = {"lithology": "Limestone","marker": "2","markercolor": "blue",}
-    LS["type1"] = {"description": "Limestone","DTma": 47.5,"rhoma": 2.71,"phima_SNP": 0,"phima_CNL": 0,}
-
-    DOL = {"lithology": "Dolomite","marker": "2","markercolor": "green",}
-    DOL["type1"] = {"description": "Dolomite, 5.5% < Porosity < 30%","DTma": 43.5,"rhoma": 2.87,"phima_SNP": 0.035,"phima_CNL": 0.085,}
-    DOL["type2"] = {"description": "Dolomite, 1.5% < Porosity < 5.5% && Porosity>30%","DTma": 43.5,"rhoma": 2.87,"phima_SNP": 0.02,"phima_CNL": 0.065,}
-    DOL["type3"] = {"description": "Dolomite, 0% < Porosity < 1.5%","DTma": 43.5,"rhoma": 2.87,"phima_SNP": 0.005,"phima_CNL": 0.04,}
-
-    ANH = {"lithology": "Anhydrite","marker": "2","markercolor": "cyan",}
-    ANH["type1"] = {"description": "Anhydrite","DTma": 50.0,"rhoma": 2.98,"phima_SNP": -0.005,"phima_CNL": -0.002,}
-
-    SLT = {"lithology": "Salt","marker": "2","markercolor": "black",}
-    SLT["type1"] = {"description": "Salt","DTma": 67.0,"rhoma": 2.03,"phima_SNP": 0.04,"phima_CNL": -0.01,}
-
     def __init__(self,**kwargs):
 
-        self.SH         = ("Shale","gray",'--')
-        self.clean      = ("Clean Formation","navajowhite",'||')
-        self.SS         = ("Sandstone","gold","..")
-        self.SSH        = ("Shaly Sandstone","gold",'..--')
-        self.LS         = ("Limestone","tan","\\\\")
-        self.DOL        = ("Dolomite","darkkhaki","//")
-        self.PV         = ("Pore Volume","white","OO")
+        self.SH = {
+            "head": "Shale",
+            "fillcolor": "gray",
+            "hatch": '--',
+            }
 
-        self.liquid     = ("Liquid","blue","OO")
-        self.water      = ("Water","steelblue","OO")
-        self.waterCLAY  = ("Water Clay Bound","lightskyblue","XX")
-        self.waterCAP   = ("Water Capillary Bound","lightsteelblue","XX")
-        self.waterIRRE  = ("Water Irreducible","lightblue","XX")
-        self.waterM     = ("Water Movable","aqua",'..')
-        self.fluidM     = ("Fluid Movable","teal",'..')
+        self.clean = {
+            "head": "Clean Formation",
+            "fillcolor": "navajowhite",
+            "hatch": '||',
+            }
 
-        self.HC         = ("Hydrocarbon","green",'OO')
-        self.gas        = ("Gas","lightcoral","OO")
-        self.gasR       = ("Gas Residual","indianred",'XX')
-        self.gasM       = ("Gas Movable","red",'..')
-        self.GC         = ("Condensate","firebrick","OO.")
-        self.oil        = ("Oil","seagreen",'OO')
-        self.oilR       = ("Oil Residual","forestgreen",'XX')
-        self.oilM       = ("Oil Movable","limegreen",'..')
+        self.SS = {
+            "head": "Sandstone",
+            "category": "rock-matrix",
+            "marker": "2",
+            "markercolor": "red",
+            "fillcolor": "gold",
+            "hatch": "..",
+            }
+
+        self.SS["type1"] = {
+            "description": "Sandstone, Porosity > 10%",
+            "DTma": 55.5,
+            "rhoma": 2.65,
+            "phima_SNP": -0.035,
+            "phima_CNL": -0.05,
+            }
+
+        self.SS["type2"] = {
+            "description": "Sandstone, Porosity < 10%",
+            "DTma": 51.2,
+            "rhoma": 2.65,
+            "phima_SNP": -0.035,
+            "phima_CNL": -0.005,
+            }
+
+        self.SSH = {
+            "head": "Shaly Sandstone",
+            "fillcolor": "gold",
+            "hatch": '..--',
+            }
+
+        self.LS = {
+            "head": "Limestone",
+            "fillcolor": "tan",
+            "hatch": "\\\\",
+            }
+        
+        self.LS = {
+            "head": "Limestone",
+            "marker": "2",
+            "markercolor": "blue",
+            }
+        
+        self.LS["type1"] = {
+            "description": "Limestone",
+            "DTma": 47.5,
+            "rhoma": 2.71,
+            "phima_SNP": 0,
+            "phima_CNL": 0,
+            }
+        
+        self.DOL = {
+            "head": "Dolomite",
+            "fillcolor": "darkkhaki",
+            "hatch": "//",
+            }
+        
+        self.DOL = {
+            "head": "Dolomite",
+            "marker": "2",
+            "markercolor": "green",
+            }
+        
+        self.DOL["type1"] = {
+            "description": "Dolomite, 5.5% < Porosity < 30%",
+            "DTma": 43.5,
+            "rhoma": 2.87,
+            "phima_SNP": 0.035,
+            "phima_CNL": 0.085,
+            }
+        
+        self.DOL["type2"] = {
+            "description": "Dolomite, 1.5% < Porosity < 5.5% && Porosity>30%",
+            "DTma": 43.5,
+            "rhoma": 2.87,
+            "phima_SNP": 0.02,
+            "phima_CNL": 0.065,
+            }
+        
+        self.DOL["type3"] = {
+            "description": "Dolomite, 0% < Porosity < 1.5%",
+            "DTma": 43.5,
+            "rhoma": 2.87,
+            "phima_SNP": 0.005,
+            "phima_CNL": 0.04,
+            }
+        
+        self.ANH = {
+            "head": "Anhydrite",
+            "marker": "2",
+            "markercolor": "cyan",
+            }
+        
+        self.ANH["type1"] = {
+            "description": "Anhydrite",
+            "DTma": 50.0,
+            "rhoma": 2.98,
+            "phima_SNP": -0.005,
+            "phima_CNL": -0.002,
+            }
+        
+        self.SLT = {
+            "head": "Salt",
+            "marker": "2",
+            "markercolor": "black",
+            }
+        
+        self.SLT["type1"] = {
+            "description": "Salt",
+            "DTma": 67.0,
+            "rhoma": 2.03,
+            "phima_SNP": 0.04,
+            "phima_CNL": -0.01,
+            }
+
+        self.PV = {
+            "head": "Pore Volume",
+            "fillcolor": "white",
+            "hatch": "OO",
+            }
+
+        self.liquid = {
+            "head": "Liquid",
+            "fillcolor": "blue",
+            "hatch": "OO",
+            }
+        
+        self.water = {
+            "head": "Water",
+            "fillcolor": "steelblue",
+            "hatch": "OO",
+            }
+        
+        self.waterCLAY = {
+            "head": "Water Clay Bound",
+            "fillcolor": "lightskyblue",
+            "hatch": "XX",
+            }
+        
+        self.waterCAP = {
+            "head": "Water Capillary Bound",
+            "fillcolor": "lightsteelblue",
+            "hatch": "XX",
+            }
+        
+        self.waterIRRE = {
+            "head": "Water Irreducible",
+            "fillcolor": "lightblue",
+            "hatch": "XX",
+            }
+        
+        self.waterM = {
+            "head": "Water Movable",
+            "fillcolor": "aqua",
+            "hatch": '..',
+            }
+        
+        self.fluidM = {
+            "head": "Fluid Movable",
+            "fillcolor": "teal",
+            "hatch": '..',
+            }
+
+        self.HC = {
+            "head": "Hydrocarbon",
+            "fillcolor": "green",
+            "hatch": 'OO',
+            }
+        
+        self.gas = {
+            "head": "Gas",
+            "fillcolor": "lightcoral",
+            "hatch": "OO",
+            }
+        
+        self.gasR = {
+            "head": "Gas Residual",
+            "fillcolor": "indianred",
+            "hatch": 'XX',
+            }
+        
+        self.gasM = {
+            "head": "Gas Movable",
+            "fillcolor": "red",
+            "hatch": '..',
+            }
+        
+        self.GC = {
+            "head": "Condensate",
+            "fillcolor": "firebrick",
+            "hatch": "OO.",
+            }
+        
+        self.oil = {
+            "head": "Oil",
+            "fillcolor": "seagreen",
+            "hatch": 'oo',
+            }
+        
+        self.oilR = {
+            "head": "Oil Residual",
+            "fillcolor": "forestgreen",
+            "hatch": 'XX',
+            }
+        
+        self.oilM = {
+            "head": "Oil Movable",
+            "fillcolor": "limegreen",
+            "hatch": '..',
+            }
         
         self.set_colors(**kwargs)
 
@@ -1030,7 +1210,7 @@ class depthview():
             self.axes_curve.append(curve_axis)
             self.axes_label.append(label_axis)
 
-    def set_xcycles(self,index,cycles=2,subskip=0,scale='linear'):
+    def set_xcycles(self,index,cycles=2,subskip=0,scale='linear',subs=None):
 
         axis = self.axes_curve[index]
 
@@ -1046,10 +1226,12 @@ class depthview():
         axis.set_xscale(scale)
 
         if scale=="linear":
-            axis.xaxis.set_minor_locator(MultipleLocator(1))
+            subs = 1 if subs is None else subs
+            axis.xaxis.set_minor_locator(MultipleLocator(subs))
             axis.xaxis.set_major_locator(MultipleLocator(10))
         elif scale=="log":
-            axis.xaxis.set_minor_locator(LogLocator(base=10,subs=range(1,10),numticks=12))
+            subs = range(1,10) if subs is None else subs
+            axis.xaxis.set_minor_locator(LogLocator(base=10,subs=subs,numticks=12))
             axis.xaxis.set_major_locator(LogLocator(base=10,numticks=12))
         else:
             raise ValueError(f"{scale} has not been defined! options: {{linear,log}}")
@@ -1253,10 +1435,15 @@ class depthview():
 
     def _add_label_line(self,label_axis,curve,xlim,numlines=0):
 
-        label_axis.plot((0,1),(numlines-0.7,numlines-0.7),
+        label_axis.plot((0,1),(numlines-0.6,numlines-0.6),
             color=curve.color,linestyle=curve.style,linewidth=curve.width)
 
-        label_axis.text(0.5,numlines-0.5,f"{curve.head} [{curve.unit}]",
+        label_axis.text(0.5,numlines-0.5,f"{curve.head}",
+            horizontalalignment='center',
+            # verticalalignment='bottom',
+            fontsize='small',)
+
+        label_axis.text(0.5,numlines-0.9,f"[{curve.unit}]",
             horizontalalignment='center',
             # verticalalignment='bottom',
             fontsize='small',)
@@ -1264,38 +1451,40 @@ class depthview():
         label_axis.text(0.02,numlines-0.5,f'{xlim[0]:.5g}',horizontalalignment='left')
         label_axis.text(0.98,numlines-0.5,f'{xlim[1]:.5g}',horizontalalignment='right')
 
-    def _add_label_fill(self,label_axis,curve,xlim,numlines=0):
+    def add_module(self,index,module,left=0,right=None):
 
-        rect = Rectangle((0,numlines-1),1,1,
-            fill=True,facecolor=curve.fillfacecolor,hatch=curve.fillhatch)
+        curve_axis = self.axes_curve[index]
+        label_axis = self.axes_label[index]
+
+        xlim = curve_axis.get_xlim()
+
+        lines = curve_axis.lines
+
+        xvals = lines[left].get_xdata()
+
+        if right is None:
+            x2 = 0
+        elif right>=len(lines):
+            x2 = max(xlim)
+        else:
+            x2 = lines[right].get_xdata()
+
+        curve_axis.fill_betweenx(self.yvals,xvals,x2=x2,facecolor=module["fillcolor"],hatch=module["hatch"])
+
+        self._add_label_module(label_axis,module,len(lines))
+
+    def _add_label_module(self,label_axis,module,numlines=0):
+
+        rect = Rectangle((0,numlines),1,1,
+            fill=True,facecolor=module["fillcolor"],hatch=module["hatch"])
 
         label_axis.add_patch(rect)
 
-        label_axis.text(0.5,numlines-0.5,curve.head,
+        label_axis.text(0.5,numlines+0.5,module["head"],
             horizontalalignment='center',
             verticalalignment='center',
             backgroundcolor='white',
             fontsize='small',)
-
-    def add_fill(self,saturationline,indexI,indexJ,Sw_cut=0.5):
-
-        # indexI index of Resistivity containing axis in the plot
-        # indexJ index of Resistivity containing line in the axis
-
-        depth = self.frames[saturationline[0]].columns(0)
-
-        xvals = self.frames[saturationline[0]].columns(saturationline[1])
-
-        cut_line = Sw_cut*numpy.ones(depth.shape)
-
-        # if curve.fill:
-        #     curve_axis.fill_betweenx(self.yvals,xvals,x2=0,facecolor=curve.fillfacecolor,hatch=curve.fillhatch)
-
-        self.axes[indexI].subax[indexJ].fill_betweenx(
-            depth,xvals,x2=cut_line,where=Sw_cut>=xvals,color=self.color_HC)
-
-        # if curve.fill:
-        #     self._add_label_fill(label_axis,curve,xlim,numlines)
 
     def add_perfs(self,*perfs):
 

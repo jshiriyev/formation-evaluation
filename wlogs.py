@@ -36,10 +36,10 @@ class sonic():
 
 class spotential():
 
-    def __init__(self,values,depths,**kwargs):
+    def __init__(self,curve,**kwargs):
 
-        self.values = values
-        self.depths = depths
+        self.values = curve.vals
+        self.depths = curve.depths
 
         self.set_temps(**kwargs)
 
