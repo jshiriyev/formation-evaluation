@@ -31,6 +31,8 @@ from datum import frame
 from textio import dirmaster
 from textio import header
 
+from wlogs import *
+
 from cypy.vectorpy import strtype
 
 class lascurve(column):
@@ -41,13 +43,22 @@ class lascurve(column):
 
         super().__init__(*args,**kwargs)
 
-    def set_style(self,color="k",style="solid",width=0.75):
+    def set_style(self,color="k",style="solid",width=0.75,**kwargs):
 
         self.color = color
         self.style = style
         self.width = width
 
-    def get_nanheight(self):
+        for key,value in kwargs.items():
+            setattr(self,key,value)
+
+    @property
+    def height_total(self):
+
+        return self.depths.max()-self.depths.min()
+
+    @property
+    def height_null(self):
 
         node_top = numpy.roll(self.depths,1)
         node_bottom = numpy.roll(self.depths,-1)
@@ -59,59 +70,39 @@ class lascurve(column):
 
         return numpy.sum(thickness[numpy.isnan(self.vals)])
 
+    @property
+    def height_valid(self):
+
+        return self.height_total-self.height_null
+    
 class lasfile(dirmaster):
 
     def __init__(self,**kwargs):
 
-        homedir = kwargs.get("homedir")
-        filedir = kwargs.get("filedir")
-
-        filepath = kwargs.get("filepath")
-
-        if homedir is not None:
-            kwargs.pop("homedir")
-
-        if filedir is not None:
-            kwargs.pop("filedir")
-
-        if filepath is not None:
-            kwargs.pop("filepath")
-
-        super().__init__(homedir=homedir,filedir=filedir,filepath=filepath)
+        super().__init__(**kwargs)
 
         self.sections = []
 
-    def _version(self,mnemonic,unit,value,description):
+    def add_section(self,head,mnemonic,unit,value,description):
 
-        self.sections.append("version")
+        setattr(self,head,
+            header(
+                mnemonic=mnemonic,
+                unit=unit,
+                value=value,
+                description=description
+                )
+            )
 
-        self.version = header(mnemonic=mnemonic,unit=unit,value=value,description=description)
+        self.sections.append(head)
 
-    def _well(self,mnemonic,unit,value,description):
-
-        self.sections.append("well")
-
-        self.well = header(mnemonic=mnemonic,unit=unit,value=value,description=description)
-
-    def _parameter(self,mnemonic,unit,value,description):
-
-        self.sections.append("parameter")
-
-        self.parameter = header(mnemonic=mnemonic,unit=unit,value=value,description=description)
-
-    def _curve(self,mnemonic,unit,value,description):
-
-        self.sections.append("curve")
-
-        self.curve = header(mnemonic=mnemonic,unit=unit,value=value,description=description)
-
-    def _ascii(self,*args,**kwargs):
-
-        self.sections.append("ascii")
+    def add_ascii(self,*args,**kwargs):
 
         self.ascii = frame(*args,**kwargs)
 
-    def write(self,filepath,mnemonics,data,units=None,descriptions=None,values=None):
+        self.sections.append("ascii")
+
+    def write(self,filepath):
 
         import lasio
 
@@ -165,20 +156,6 @@ class lasfile(dirmaster):
         with open(filepath, mode='w') as filePathToWrite:
             lasmaster.write(filePathToWrite)
 
-    def issorted(self):
-
-        depths_ = self.ascii.running[0].vals
-
-        return lasfile._issorted(depths_)
-
-    @staticmethod
-    def _issorted(depths):
-
-        if numpy.all(depths[:-1]<depths[1:]):
-            return True
-        else:
-            return False
-
     def nanplot(self,axis):
 
         yvals = []
@@ -226,19 +203,39 @@ class lasfile(dirmaster):
 
         return axis
 
-    def depths(self,top,bottom,curve=None):
+    def trim(self,*args,strt=None,stop=None,curve=None):
+        """It trims the data based on the strt and stop depths"""
 
-        depth = self.ascii.running[0].vals
-
-        conds = numpy.logical_and(depth>=top,depth<=bottom)
-
-        if curve is None:
-            dataframe = copy.deepcopy(self.ascii)
-            return dataframe[conds]
-
+        if len(args)==0:
+            pass
+        elif len(args)==1:
+            strt, = args
+        elif len(args)==2:
+            strt,stop = args
+        elif len(args)==3:
+            strt,stop,curve = args
         else:
-            datacolumn = copy.deepcopy(self.ascii[curve])
-            return datacolumn[conds]
+            raise("Too many arguments!")
+
+        self.well['STRT'].value
+        self.well['STOP'].value
+
+        if strt is None and stop is None:
+            return
+        elif strt is None and stop is not None:
+            conds = self.depths<=stop
+        elif strt is not None and stop is None:
+            conds = self.depths>=strt
+        else:
+            conds = numpy.logical_and(self.depths>=strt,self.depths<=stop)
+
+        if curve is not None:
+            return self[curve][conds]
+
+        self.ascii = self.ascii[conds]
+
+        self.well.fields[2][self.well.mnemonic.index('STRT')] = str(self.depths[0])
+        self.well.fields[2][self.well.mnemonic.index('STOP')] = str(self.depths[-1])
 
     def resample(self,depths1,curve=None):
         """Resamples the frame data based on given depths1."""
@@ -363,20 +360,189 @@ class lasfile(dirmaster):
 
         return values
 
+    def __getitem__(self,key):
+
+        return lascurve(
+            vals = self.ascii[key].vals,
+            head = self.ascii[key].head,
+            unit = self.ascii[key].unit,
+            info = self.ascii[key].info,
+            depths = self.depths,
+            )
+
     @property
-    def grossthickness(self):
+    def height_total(self):
+
         return self.depths.max()-self.depths.min()
 
-class loadlas(lasfile):
+    @property
+    def depths(self):
 
-    def __init__(self,filepath,homedir=None,filedir=None):
+        return self.ascii.running[0].vals
 
-        super().__init__(homedir=homedir,filedir=filedir,filepath=filepath)
+    @property
+    def issorted(self):
 
-        with open(self.filepath,"r",encoding="latin1") as lasmaster:
+        return lasfile._issorted(self.depths)
+
+    @staticmethod
+    def _issorted(depths):
+
+        if numpy.all(depths[:-1]<depths[1:]):
+            return True
+        else:
+            return False
+
+class lasbatch(dirmaster):
+
+    def __init__(self,filepaths=None,**kwargs):
+
+        homedir = None if kwargs.get("homedir") is None else kwargs.pop("homedir")
+        filedir = None if kwargs.get("filedir") is None else kwargs.pop("filedir")
+
+        super().__init__(homedir=homedir,filedir=filedir)
+
+        self.frames = []
+
+        self.load(filepaths,**kwargs)
+
+    def load(self,filepaths,**kwargs):
+
+        if filepaths is None:
+            return
+
+        if not isinstance(filepaths,list) and not isinstance(filepaths,tuple):
+            filepaths = (filepaths,)
+
+        for filepath in filepaths:
+
+            dataframe = loadlas(filepath,**kwargs)
+
+            self.frames.append(dataframe)
+
+            logging.info(f"Loaded {filepath} as expected.")
+
+    def wells(self,idframes=None):
+
+        if idframes is None:
+            idframes = range(len(self.frames))
+        elif isinstance(idframes,int):
+            idframes = (idframes,)
+
+        for index in idframes:
+
+            dataframe = self.frames[index]
+
+            print("\n\tWELL #{}".format(dataframe.well.get_row(mnemonic="WELL")["value"]))
+
+            # iterator = zip(dataframe.well["mnemonic"],dataframe.well["units"],dataframe.well["value"],dataframe.well.descriptions)
+
+            iterator = zip(*dataframe.well.get_columns())
+
+            for mnem,unit,value,descr in iterator:
+                print(f"{descr} ({mnem}):\t\t{value} [{unit}]")
+
+    def curves(self,idframes=None,mnemonic_space=33,tab_space=8):
+
+        if idframes is None:
+            idframes = range(len(self.frames))
+        elif isinstance(idframes,int):
+            idframes = (idframes,)
+
+        for index in idframes:
+
+            dataframe = self.frames[index]
+
+            iterator = zip(dataframe.headers,dataframe.units,dataframe.details,dataframe.running)
+
+            # file.write("\n\tLOG NUMBER {}\n".format(idframes))
+            print("\n\tLOG NUMBER {}".format(index))
+
+            for header,unit,detail,datacolumn in iterator:
+
+                if numpy.all(numpy.isnan(datacolumn)):
+                    minXval = numpy.nan
+                    maxXval = numpy.nan
+                else:
+                    minXval = numpy.nanmin(datacolumn)
+                    maxXval = numpy.nanmax(datacolumn)
+
+                tab_num = int(numpy.ceil((mnemonic_space-len(header))/tab_space))
+                tab_spc = "\t"*tab_num if tab_num>0 else "\t"
+
+                # file.write("Curve: {}{}Units: {}\tMin: {}\tMax: {}\tDescription: {}\n".format(
+                #     curve.mnemonic,tab_spc,curve.unit,minXval,maxXval,curve.descr))
+                print("Curve: {}{}Units: {}\tMin: {}\tMax: {}\tDescription: {}".format(
+                    header,tab_spc,unit,minXval,maxXval,detail))
+
+    def merge(self,fileIDs,curveNames):
+
+        if isinstance(fileIDs,int):
+
+            try:
+                depth = self.frames[fileIDs]["MD"]
+            except KeyError:
+                depth = self.frames[fileIDs]["DEPT"]
+
+            xvals1 = self.frames[fileIDs][curveNames[0]]
+
+            for curveName in curveNames[1:]:
+
+                xvals2 = self.frames[fileIDs][curveName]
+
+                xvals1[numpy.isnan(xvals1)] = xvals2[numpy.isnan(xvals1)]
+
+            return depth,xvals1
+
+        elif numpy.unique(numpy.array(fileIDs)).size==len(fileIDs):
+
+            if isinstance(curveNames,str):
+                curveNames = (curveNames,)*len(fileIDs)
+
+            depth = numpy.array([])
+            xvals = numpy.array([])
+
+            for (fileID,curveName) in zip(fileIDs,curveNames):
+
+                try:
+                    depth_loc = self.frames[fileID]["MD"]
+                except KeyError:
+                    depth_loc = self.frames[fileID]["DEPT"]
+
+                xvals_loc = self.frames[fileID][curveName]
+
+                depth_loc = depth_loc[~numpy.isnan(xvals_loc)]
+                xvals_loc = xvals_loc[~numpy.isnan(xvals_loc)]
+
+                depth_max = 0 if depth.size==0 else depth.max()
+
+                depth = numpy.append(depth,depth_loc[depth_loc>depth_max])
+                xvals = numpy.append(xvals,xvals_loc[depth_loc>depth_max])
+
+            return depth,xvals
+
+def loadlas(*args,**kwargs):
+    """Returns either lasfile or lasbatch depending on the number of input filepaths."""
+
+    lasfiles_null = [lasfile(filepath=filepath,**kwargs) for filepath in args]
+    lasfiles_read = [_lasworm(lasfile).ufile for lasfile in lasfiles_null]
+
+    if len(args)==1:
+        return lasfiles_read[0]
+    else:
+        return lasbatch(lasfiles_read)
+
+class _lasworm():
+    """Reads a las file with all sections."""
+
+    def __init__(self,ufile):
+
+        self.ufile = ufile
+
+        with open(self.ufile.filepath,"r",encoding="latin1") as lasmaster:
             dataframe = self.text(lasmaster)
 
-        self.ascii = dataframe
+        self.ufile.ascii = dataframe
 
     def seeksection(self,lasmaster,section=None):
 
@@ -530,9 +696,9 @@ class loadlas(lasfile):
                 sectionhead = line[1:].split()[0].lower()
                 sectionbody = self._header(lasmaster,program)
 
-                self.sections.append(sectionhead)
+                self.ufile.sections.append(sectionhead)
 
-                setattr(self,sectionhead,sectionbody)
+                setattr(self.ufile,sectionhead,sectionbody)
 
                 lasmaster.seek(0)
 
@@ -611,7 +777,7 @@ class loadlas(lasfile):
 
         types = self.headers(lasmaster)
 
-        value_null = float(self.well['NULL'].value)
+        value_null = float(self.ufile.well['NULL'].value)
 
         dtypes = [numpy.dtype(type_) for type_ in types]
 
@@ -626,7 +792,7 @@ class loadlas(lasfile):
         else:
             cols = numpy.loadtxt(lasmaster,comments="#",unpack=True,encoding="latin1",dtype='str')
 
-        iterator = zip(cols,self.curve.mnemonic,self.curve.unit,self.curve.description,dtypes)
+        iterator = zip(cols,self.ufile.curve.mnemonic,self.ufile.curve.unit,self.ufile.curve.description,dtypes)
 
         running = []
 
@@ -645,134 +811,6 @@ class loadlas(lasfile):
             dataframe = dataframe.sort((dataframe.running[0].head,))
 
         return dataframe
-
-class lasbatch(dirmaster):
-
-    def __init__(self,filepaths=None,**kwargs):
-
-        homedir = None if kwargs.get("homedir") is None else kwargs.pop("homedir")
-        filedir = None if kwargs.get("filedir") is None else kwargs.pop("filedir")
-
-        super().__init__(homedir=homedir,filedir=filedir)
-
-        self.frames = []
-
-        self.load(filepaths,**kwargs)
-
-    def load(self,filepaths,**kwargs):
-
-        if filepaths is None:
-            return
-
-        if not isinstance(filepaths,list) and not isinstance(filepaths,tuple):
-            filepaths = (filepaths,)
-
-        for filepath in filepaths:
-
-            dataframe = loadlas(filepath,**kwargs)
-
-            self.frames.append(dataframe)
-
-            logging.info(f"Loaded {filepath} as expected.")
-
-    def wells(self,idframes=None):
-
-        if idframes is None:
-            idframes = range(len(self.frames))
-        elif isinstance(idframes,int):
-            idframes = (idframes,)
-
-        for index in idframes:
-
-            dataframe = self.frames[index]
-
-            print("\n\tWELL #{}".format(dataframe.well.get_row(mnemonic="WELL")["value"]))
-
-            # iterator = zip(dataframe.well["mnemonic"],dataframe.well["units"],dataframe.well["value"],dataframe.well.descriptions)
-
-            iterator = zip(*dataframe.well.get_columns())
-
-            for mnem,unit,value,descr in iterator:
-                print(f"{descr} ({mnem}):\t\t{value} [{unit}]")
-
-    def curves(self,idframes=None,mnemonic_space=33,tab_space=8):
-
-        if idframes is None:
-            idframes = range(len(self.frames))
-        elif isinstance(idframes,int):
-            idframes = (idframes,)
-
-        for index in idframes:
-
-            dataframe = self.frames[index]
-
-            iterator = zip(dataframe.headers,dataframe.units,dataframe.details,dataframe.running)
-
-            # file.write("\n\tLOG NUMBER {}\n".format(idframes))
-            print("\n\tLOG NUMBER {}".format(index))
-
-            for header,unit,detail,datacolumn in iterator:
-
-                if numpy.all(numpy.isnan(datacolumn)):
-                    minXval = numpy.nan
-                    maxXval = numpy.nan
-                else:
-                    minXval = numpy.nanmin(datacolumn)
-                    maxXval = numpy.nanmax(datacolumn)
-
-                tab_num = int(numpy.ceil((mnemonic_space-len(header))/tab_space))
-                tab_spc = "\t"*tab_num if tab_num>0 else "\t"
-
-                # file.write("Curve: {}{}Units: {}\tMin: {}\tMax: {}\tDescription: {}\n".format(
-                #     curve.mnemonic,tab_spc,curve.unit,minXval,maxXval,curve.descr))
-                print("Curve: {}{}Units: {}\tMin: {}\tMax: {}\tDescription: {}".format(
-                    header,tab_spc,unit,minXval,maxXval,detail))
-
-    def merge(self,fileIDs,curveNames):
-
-        if isinstance(fileIDs,int):
-
-            try:
-                depth = self.frames[fileIDs]["MD"]
-            except KeyError:
-                depth = self.frames[fileIDs]["DEPT"]
-
-            xvals1 = self.frames[fileIDs][curveNames[0]]
-
-            for curveName in curveNames[1:]:
-
-                xvals2 = self.frames[fileIDs][curveName]
-
-                xvals1[numpy.isnan(xvals1)] = xvals2[numpy.isnan(xvals1)]
-
-            return depth,xvals1
-
-        elif numpy.unique(numpy.array(fileIDs)).size==len(fileIDs):
-
-            if isinstance(curveNames,str):
-                curveNames = (curveNames,)*len(fileIDs)
-
-            depth = numpy.array([])
-            xvals = numpy.array([])
-
-            for (fileID,curveName) in zip(fileIDs,curveNames):
-
-                try:
-                    depth_loc = self.frames[fileID]["MD"]
-                except KeyError:
-                    depth_loc = self.frames[fileID]["DEPT"]
-
-                xvals_loc = self.frames[fileID][curveName]
-
-                depth_loc = depth_loc[~numpy.isnan(xvals_loc)]
-                xvals_loc = xvals_loc[~numpy.isnan(xvals_loc)]
-
-                depth_max = 0 if depth.size==0 else depth.max()
-
-                depth = numpy.append(depth,depth_loc[depth_loc>depth_max])
-                xvals = numpy.append(xvals,xvals_loc[depth_loc>depth_max])
-
-            return depth,xvals
 
 class bulkmodel():
 
@@ -904,7 +942,7 @@ class bulkmodel():
 
 class depthview():
 
-    def __init__(self,page_format="Letter",page_orientation="Portrait"):
+    def __init__(self,page_format="A4",page_orientation="Portrait"):
 
         if page_format == "A4":
             figsize = (8.3,11.7)
@@ -1106,11 +1144,14 @@ class depthview():
 
         axis = self.axes_curve[self.depth_column]
 
-        self.yvals,ylim,_ = self._get_linear_normalized(depth,axis.get_ylim(),multp=1,**kwargs)
+        self.yvals,dlim,_ = self._get_linear_normalized(
+            depth,axis.get_ylim(),multp=1,**kwargs)
+
+        self.dlim = numpy.array(dlim,dtype=float)
 
         axis_yticks = axis.get_yticks()
 
-        calc_yticks = MultipleLocator(base=10).tick_values(*ylim)
+        calc_yticks = MultipleLocator(base=10).tick_values(*dlim)
 
         for axis_ytick,calc_ytick in zip(axis_yticks[2:-2],calc_yticks[2:-2]):
 
@@ -1137,7 +1178,7 @@ class depthview():
             raise ValueError(f"{xscale} has not been defined! options: {{linear,log}}")
 
         curve_axis.plot(xvals,self.yvals,
-            color=curve.linecolor,linestyle=curve.linestyle,linewidth=curve.linewidth)
+            color=curve.color,linestyle=curve.style,linewidth=curve.width)
 
         numlines = len(curve_axis.lines)
 
@@ -1163,6 +1204,8 @@ class depthview():
 
         delta_axis = numpy.abs(amax-amin)
         delta_vals = numpy.abs(vmax-vmin)
+
+        # print(f"{delta_vals=}")
 
         delta_powr = -numpy.floor(numpy.log10(delta_vals))
 
@@ -1211,7 +1254,7 @@ class depthview():
     def _add_label_line(self,label_axis,curve,xlim,numlines=0):
 
         label_axis.plot((0,1),(numlines-0.7,numlines-0.7),
-            color=curve.linecolor,linestyle=curve.linestyle,linewidth=curve.linewidth)
+            color=curve.color,linestyle=curve.style,linewidth=curve.width)
 
         label_axis.text(0.5,numlines-0.5,f"{curve.head} [{curve.unit}]",
             horizontalalignment='center',
@@ -1254,41 +1297,39 @@ class depthview():
         # if curve.fill:
         #     self._add_label_fill(label_axis,curve,xlim,numlines)
 
-    def add_perfs(self,indexI,indexJ,depths,perfs):
+    def add_perfs(self,*perfs):
 
-        xtick = self.axes[indexI].subax[indexJ].get_xticks()
+        depth_axis = self.axes_curve[self.depth_column]
 
-        ytick = self.axes[indexI].subax[indexJ].get_yticks()
+        for perf in perfs:
 
-        perfs = numpy.array(perfs)
+            perf = numpy.array(perf,dtype=float)
 
-        perfs_just = perfs[perfs>0]
+            ylim = depth_axis.get_ylim()
 
-        perfs_just[::10] -= perfs_just[::10]*0.5
+            yvals = perf-self.dlim.min()
 
-        perfs[perfs>0] = perfs_just
+            yvals = numpy.arange(yvals.min(),yvals.max()+0.5,1.0)
 
-        perfs_scaled = xtick.min()+(xtick.max()-xtick.min())/10/(perfs.max()-perfs.min())*perfs
+            xvals = numpy.zeros(yvals.shape)
 
-        # pfgun_point = xtick.min()
+            depth_axis.plot(xvals[0],yvals[0],
+                marker=11,
+                color='orange',
+                markersize=10,
+                markerfacecolor='black')
 
-        # for arg in args:
+            depth_axis.plot(xvals[-1],yvals[-1],
+                marker=10,
+                color='orange',
+                markersize=10,
+                markerfacecolor='black')
 
-        #     depths = numpy.arange(arg[0],arg[1]+1/2,1.)
-
-        #     for index,depth in enumerate(depths):
-
-        #         if index==0:
-        #             marker,size = 11,10
-        #         elif index==len(depths)-1:
-        #             marker,size = 10,10
-        #         else:
-        #             marker,size = 9,10
-
-        #         self.axes[indexI].subax[indexJ].plot(pfgun_point,depth,
-        #             marker=marker,color='orange',markersize=size,markerfacecolor='black')
-
-        self.axes[indexI].subax[indexJ].plot(perfs_scaled,depths)
+            depth_axis.plot(xvals[1:-1],yvals[1:-1],
+                marker=9,
+                color='orange',
+                markersize=10,
+                markerfacecolor='black')
 
     def add_casing(self):
         """It includes casing set depths"""
@@ -1816,8 +1857,6 @@ class DepthView(): #Will BE DEPRECIATED
 
         self.axes[indexI].subax[indexJ].fill_betweenx(
             depth,xvals,x2=cut_line,where=ohmm_cut<=xvals,color=self.color_HC)
-
-    
 
     def set_DepthViewNMRfluid(self,NMRline,indexI,water_clay,water_capi,water_move,HC):
 

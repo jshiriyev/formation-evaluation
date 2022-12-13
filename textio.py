@@ -20,7 +20,7 @@ from cypy.vectorpy import strtype
 class header():
     """It is a table of parameters, columns are fields."""
 
-    def __init__(self,oneLineHeader=False,**kwargs):
+    def __init__(self,oneline=False,**kwargs):
         """parameters should be predefined, all entries must be string."""
 
         if len(kwargs)==0:
@@ -28,7 +28,7 @@ class header():
 
         super().__setattr__("parameters",[param for param in kwargs.keys()])
 
-        if oneLineHeader:
+        if oneline:
             fields = [str(field) for field in kwargs.values()]
 
         else:
@@ -49,8 +49,7 @@ class header():
             if len(set(sizes))!=1:
                 raise ValueError("The lengths of field are not equal!")
 
-        for parameter,field in zip(kwargs.keys(),fields):
-            super().__setattr__(parameter,field)
+        super().__setattr__("fields",fields)
 
     def extend(self,row):
 
@@ -71,6 +70,18 @@ class header():
 
         raise AttributeError(f"'Header' object has no attribute '{key}'.")
 
+    def __getattr__(self,key):
+
+        field = self.fields[self.parameters.index(key)]
+
+        if isinstance(field,str):
+            try:
+                return(float(field))
+            except ValueError:
+                return field
+
+        return field
+
     def __getitem__(self,key):
 
         if not isinstance(key,str):
@@ -80,7 +91,7 @@ class header():
             if row[0].lower()==key.lower():
                 break
         
-        return header(oneLineHeader=True,**dict(zip(self.parameters,row)))
+        return header(oneline=True,**dict(zip(self.parameters,row)))
 
     def __repr__(self,comment=None):
 
@@ -135,11 +146,6 @@ class header():
 
         return iter([(p,f) for p,f in zip(self.parameters,self.fields)])
 
-    @property
-    def fields(self):
-
-        return [getattr(self,parm) for parm in self.parameters]
-
 class dirmaster():
     """Base directory class to manage files in the input & output directories."""
 
@@ -147,9 +153,17 @@ class dirmaster():
         """Initializes base directory class with home & file directories."""
 
         self.set_homedir(homedir)
-        self.set_filedir(filedir)
 
-        self.set_filepath(filepath)
+        if filepath is None and filedir is None:
+            self.set_filedir(None)
+        elif filepath is None and filedir is not None:
+            self.set_filedir(filedir)
+        elif filepath is not None and filedir is None:
+            self.set_filedir(filepath)
+            self.set_filepath(filepath)
+        else:
+            self.set_filedir(filedir)
+            self.set_filepath(filepath)
 
     def set_homedir(self,path=None):
         """Sets the home directory to put outputs."""
@@ -382,6 +396,6 @@ if __name__ == "__main__":
 
     import unittest
 
-    from tests import textio_test
+    from tests.textio import header
 
-    unittest.main(textio_test)
+    unittest.main(header)
