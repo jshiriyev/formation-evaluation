@@ -521,28 +521,45 @@ class lasbatch(dirmaster):
 
             return depth,xvals
 
-def loadlas(*args,**kwargs):
-    """Returns either lasfile or lasbatch depending on the number of input filepaths."""
+def loadlas(*filepaths,**kwargs):
+    """
+    Returns an instance of lasfile for the given filepath.
+    If more than one filepath is provided, it will return an instance of lasbatch.
+    
+    Arguments:
+        filepaths {str} -- path to the given lasfile
 
-    lasfiles_null = [lasfile(filepath=filepath,**kwargs) for filepath in args]
-    lasfiles_read = [_lasworm(lasfile).ufile for lasfile in lasfiles_null]
+    Keyword Arguments:
+        homedir {str} -- path to the home (output) directory
+        filedir {str} -- path to the file (input) directory
+    
+    Returns:
+        pphys.lasfile -- an instance of lasfile with all read text
+        pphys.lasbatch -- an instance of lasbatch filled with pphys.lasfile
 
-    if len(args)==1:
-        return lasfiles_read[0]
+    """
+
+    # It creates a list of emoty lasfile instances.
+    nullfiles = [lasfile(filepath=path,**kwargs) for path in filepaths]
+    # It reads textfiles and fills lasfile instances.
+    readfiles = [lasworm(file).item for file in nullfiles]
+
+    if len(filepaths)==1:
+        return readfiles[0]
     else:
-        return lasbatch(lasfiles_read)
+        return lasbatch(readfiles)
 
-class _lasworm():
+class lasworm():
     """Reads a las file with all sections."""
 
-    def __init__(self,ufile):
+    def __init__(self,item):
 
-        self.ufile = ufile
+        self.item = item
 
-        with open(self.ufile.filepath,"r",encoding="latin1") as lasmaster:
+        with open(self.item.filepath,"r",encoding="latin1") as lasmaster:
             dataframe = self.text(lasmaster)
 
-        self.ufile.ascii = dataframe
+        self.item.ascii = dataframe
 
     def seeksection(self,lasmaster,section=None):
 
@@ -696,9 +713,9 @@ class _lasworm():
                 sectionhead = line[1:].split()[0].lower()
                 sectionbody = self._header(lasmaster,program)
 
-                self.ufile.sections.append(sectionhead)
+                self.item.sections.append(sectionhead)
 
-                setattr(self.ufile,sectionhead,sectionbody)
+                setattr(self.item,sectionhead,sectionbody)
 
                 lasmaster.seek(0)
 
@@ -777,7 +794,7 @@ class _lasworm():
 
         types = self.headers(lasmaster)
 
-        value_null = float(self.ufile.well['NULL'].value)
+        value_null = float(self.item.well['NULL'].value)
 
         dtypes = [numpy.dtype(type_) for type_ in types]
 
@@ -792,7 +809,7 @@ class _lasworm():
         else:
             cols = numpy.loadtxt(lasmaster,comments="#",unpack=True,encoding="latin1",dtype='str')
 
-        iterator = zip(cols,self.ufile.curve.mnemonic,self.ufile.curve.unit,self.ufile.curve.description,dtypes)
+        iterator = zip(cols,self.item.curve.mnemonic,self.item.curve.unit,self.item.curve.description,dtypes)
 
         running = []
 
