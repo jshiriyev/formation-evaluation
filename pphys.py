@@ -102,6 +102,16 @@ class lasfile(dirmaster):
 
         self.sections.append("ascii")
 
+    def __getitem__(self,key):
+
+        return lascurve(
+            vals = self.ascii[key].vals,
+            head = self.ascii[key].head,
+            unit = self.ascii[key].unit,
+            info = self.ascii[key].info,
+            depths = self.depths,
+            )
+
     def write(self,filepath):
 
         import lasio
@@ -360,16 +370,6 @@ class lasfile(dirmaster):
 
         return values
 
-    def __getitem__(self,key):
-
-        return lascurve(
-            vals = self.ascii[key].vals,
-            head = self.ascii[key].head,
-            unit = self.ascii[key].unit,
-            info = self.ascii[key].info,
-            depths = self.depths,
-            )
-
     @property
     def height_total(self):
 
@@ -393,161 +393,27 @@ class lasfile(dirmaster):
         else:
             return False
 
-class lasbatch(dirmaster):
-
-    def __init__(self,filepaths=None,**kwargs):
-
-        homedir = None if kwargs.get("homedir") is None else kwargs.pop("homedir")
-        filedir = None if kwargs.get("filedir") is None else kwargs.pop("filedir")
-
-        super().__init__(homedir=homedir,filedir=filedir)
-
-        self.frames = []
-
-        self.load(filepaths,**kwargs)
-
-    def load(self,filepaths,**kwargs):
-
-        if filepaths is None:
-            return
-
-        if not isinstance(filepaths,list) and not isinstance(filepaths,tuple):
-            filepaths = (filepaths,)
-
-        for filepath in filepaths:
-
-            dataframe = loadlas(filepath,**kwargs)
-
-            self.frames.append(dataframe)
-
-            logging.info(f"Loaded {filepath} as expected.")
-
-    def wells(self,idframes=None):
-
-        if idframes is None:
-            idframes = range(len(self.frames))
-        elif isinstance(idframes,int):
-            idframes = (idframes,)
-
-        for index in idframes:
-
-            dataframe = self.frames[index]
-
-            print("\n\tWELL #{}".format(dataframe.well.get_row(mnemonic="WELL")["value"]))
-
-            # iterator = zip(dataframe.well["mnemonic"],dataframe.well["units"],dataframe.well["value"],dataframe.well.descriptions)
-
-            iterator = zip(*dataframe.well.get_columns())
-
-            for mnem,unit,value,descr in iterator:
-                print(f"{descr} ({mnem}):\t\t{value} [{unit}]")
-
-    def curves(self,idframes=None,mnemonic_space=33,tab_space=8):
-
-        if idframes is None:
-            idframes = range(len(self.frames))
-        elif isinstance(idframes,int):
-            idframes = (idframes,)
-
-        for index in idframes:
-
-            dataframe = self.frames[index]
-
-            iterator = zip(dataframe.headers,dataframe.units,dataframe.details,dataframe.running)
-
-            # file.write("\n\tLOG NUMBER {}\n".format(idframes))
-            print("\n\tLOG NUMBER {}".format(index))
-
-            for header,unit,detail,datacolumn in iterator:
-
-                if numpy.all(numpy.isnan(datacolumn)):
-                    minXval = numpy.nan
-                    maxXval = numpy.nan
-                else:
-                    minXval = numpy.nanmin(datacolumn)
-                    maxXval = numpy.nanmax(datacolumn)
-
-                tab_num = int(numpy.ceil((mnemonic_space-len(header))/tab_space))
-                tab_spc = "\t"*tab_num if tab_num>0 else "\t"
-
-                # file.write("Curve: {}{}Units: {}\tMin: {}\tMax: {}\tDescription: {}\n".format(
-                #     curve.mnemonic,tab_spc,curve.unit,minXval,maxXval,curve.descr))
-                print("Curve: {}{}Units: {}\tMin: {}\tMax: {}\tDescription: {}".format(
-                    header,tab_spc,unit,minXval,maxXval,detail))
-
-    def merge(self,fileIDs,curveNames):
-
-        if isinstance(fileIDs,int):
-
-            try:
-                depth = self.frames[fileIDs]["MD"]
-            except KeyError:
-                depth = self.frames[fileIDs]["DEPT"]
-
-            xvals1 = self.frames[fileIDs][curveNames[0]]
-
-            for curveName in curveNames[1:]:
-
-                xvals2 = self.frames[fileIDs][curveName]
-
-                xvals1[numpy.isnan(xvals1)] = xvals2[numpy.isnan(xvals1)]
-
-            return depth,xvals1
-
-        elif numpy.unique(numpy.array(fileIDs)).size==len(fileIDs):
-
-            if isinstance(curveNames,str):
-                curveNames = (curveNames,)*len(fileIDs)
-
-            depth = numpy.array([])
-            xvals = numpy.array([])
-
-            for (fileID,curveName) in zip(fileIDs,curveNames):
-
-                try:
-                    depth_loc = self.frames[fileID]["MD"]
-                except KeyError:
-                    depth_loc = self.frames[fileID]["DEPT"]
-
-                xvals_loc = self.frames[fileID][curveName]
-
-                depth_loc = depth_loc[~numpy.isnan(xvals_loc)]
-                xvals_loc = xvals_loc[~numpy.isnan(xvals_loc)]
-
-                depth_max = 0 if depth.size==0 else depth.max()
-
-                depth = numpy.append(depth,depth_loc[depth_loc>depth_max])
-                xvals = numpy.append(xvals,xvals_loc[depth_loc>depth_max])
-
-            return depth,xvals
-
-def loadlas(*filepaths,**kwargs):
+def loadlas(filepath,**kwargs):
     """
-    Returns an instance of lasfile for the given filepath.
-    If more than one filepath is provided, it will return an instance of lasbatch.
+    Returns an instance of pphys.lasfile for the given filepath.
     
     Arguments:
-        filepaths {str} -- path to the given lasfile
+        filepath {str} -- path to the given LAS file
 
     Keyword Arguments:
         homedir {str} -- path to the home (output) directory
         filedir {str} -- path to the file (input) directory
     
     Returns:
-        pphys.lasfile -- an instance of lasfile with all read text
-        pphys.lasbatch -- an instance of lasbatch filled with pphys.lasfile
+        pphys.lasfile -- an instance of pphys.lasfile filled with LAS file text.
 
     """
 
-    # It creates a list of emoty lasfile instances.
-    nullfiles = [lasfile(filepath=path,**kwargs) for path in filepaths]
-    # It reads textfiles and fills lasfile instances.
-    readfiles = [lasworm(file).item for file in nullfiles]
+    # It creates an empty pphys.lasfile instance.
+    nullfile = lasfile(filepath=filepath,**kwargs)
 
-    if len(filepaths)==1:
-        return readfiles[0]
-    else:
-        return lasbatch(readfiles)
+    # It reads LAS file and returns pphys.lasfile instance.
+    return lasworm(nullfile).item
 
 class lasworm():
     """Reads a las file with all sections."""
@@ -828,6 +694,134 @@ class lasworm():
             dataframe = dataframe.sort((dataframe.running[0].head,))
 
         return dataframe
+
+class lasbatch(dirmaster):
+
+    def __init__(self,filepaths=None,**kwargs):
+
+        homedir = None if kwargs.get("homedir") is None else kwargs.pop("homedir")
+        filedir = None if kwargs.get("filedir") is None else kwargs.pop("filedir")
+
+        super().__init__(homedir=homedir,filedir=filedir)
+
+        self.frames = []
+
+        self.load(filepaths,**kwargs)
+
+    def load(self,filepaths,**kwargs):
+
+        if filepaths is None:
+            return
+
+        if not isinstance(filepaths,list) and not isinstance(filepaths,tuple):
+            filepaths = (filepaths,)
+
+        for filepath in filepaths:
+
+            dataframe = loadlas(filepath,**kwargs)
+
+            self.frames.append(dataframe)
+
+            logging.info(f"Loaded {filepath} as expected.")
+
+    def wells(self,idframes=None):
+
+        if idframes is None:
+            idframes = range(len(self.frames))
+        elif isinstance(idframes,int):
+            idframes = (idframes,)
+
+        for index in idframes:
+
+            dataframe = self.frames[index]
+
+            print("\n\tWELL #{}".format(dataframe.well.get_row(mnemonic="WELL")["value"]))
+
+            # iterator = zip(dataframe.well["mnemonic"],dataframe.well["units"],dataframe.well["value"],dataframe.well.descriptions)
+
+            iterator = zip(*dataframe.well.get_columns())
+
+            for mnem,unit,value,descr in iterator:
+                print(f"{descr} ({mnem}):\t\t{value} [{unit}]")
+
+    def curves(self,idframes=None,mnemonic_space=33,tab_space=8):
+
+        if idframes is None:
+            idframes = range(len(self.frames))
+        elif isinstance(idframes,int):
+            idframes = (idframes,)
+
+        for index in idframes:
+
+            dataframe = self.frames[index]
+
+            iterator = zip(dataframe.headers,dataframe.units,dataframe.details,dataframe.running)
+
+            # file.write("\n\tLOG NUMBER {}\n".format(idframes))
+            print("\n\tLOG NUMBER {}".format(index))
+
+            for header,unit,detail,datacolumn in iterator:
+
+                if numpy.all(numpy.isnan(datacolumn)):
+                    minXval = numpy.nan
+                    maxXval = numpy.nan
+                else:
+                    minXval = numpy.nanmin(datacolumn)
+                    maxXval = numpy.nanmax(datacolumn)
+
+                tab_num = int(numpy.ceil((mnemonic_space-len(header))/tab_space))
+                tab_spc = "\t"*tab_num if tab_num>0 else "\t"
+
+                # file.write("Curve: {}{}Units: {}\tMin: {}\tMax: {}\tDescription: {}\n".format(
+                #     curve.mnemonic,tab_spc,curve.unit,minXval,maxXval,curve.descr))
+                print("Curve: {}{}Units: {}\tMin: {}\tMax: {}\tDescription: {}".format(
+                    header,tab_spc,unit,minXval,maxXval,detail))
+
+    def merge(self,fileIDs,curveNames):
+
+        if isinstance(fileIDs,int):
+
+            try:
+                depth = self.frames[fileIDs]["MD"]
+            except KeyError:
+                depth = self.frames[fileIDs]["DEPT"]
+
+            xvals1 = self.frames[fileIDs][curveNames[0]]
+
+            for curveName in curveNames[1:]:
+
+                xvals2 = self.frames[fileIDs][curveName]
+
+                xvals1[numpy.isnan(xvals1)] = xvals2[numpy.isnan(xvals1)]
+
+            return depth,xvals1
+
+        elif numpy.unique(numpy.array(fileIDs)).size==len(fileIDs):
+
+            if isinstance(curveNames,str):
+                curveNames = (curveNames,)*len(fileIDs)
+
+            depth = numpy.array([])
+            xvals = numpy.array([])
+
+            for (fileID,curveName) in zip(fileIDs,curveNames):
+
+                try:
+                    depth_loc = self.frames[fileID]["MD"]
+                except KeyError:
+                    depth_loc = self.frames[fileID]["DEPT"]
+
+                xvals_loc = self.frames[fileID][curveName]
+
+                depth_loc = depth_loc[~numpy.isnan(xvals_loc)]
+                xvals_loc = xvals_loc[~numpy.isnan(xvals_loc)]
+
+                depth_max = 0 if depth.size==0 else depth.max()
+
+                depth = numpy.append(depth,depth_loc[depth_loc>depth_max])
+                xvals = numpy.append(xvals,xvals_loc[depth_loc>depth_max])
+
+            return depth,xvals
 
 class bulkmodel():
 
@@ -2096,3 +2090,10 @@ class DepthView(): #Will BE DEPRECIATED
         """Lets the scroll work everywhere on the window."""
 
         self.canvas.yview_scroll(int(-1*(event.delta/120)),"units")
+
+class batchview():
+    """It creates correlation based on multiple las files from different wells."""
+
+    def __init__(self):
+
+        pass
