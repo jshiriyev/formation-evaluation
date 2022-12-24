@@ -21,41 +21,89 @@ class gas():
 
     MWair = 28.96
 
-	def __init__(self,sp_gr=None,units='SI',**kwargs):
+    def __init__(self,spgr=None,spgr_refT=None,spgr_refP=None,units='SI',**kwargs):
         """
-        Parameters in the dictionary should be components, mole_fractions and
-        molecular_weights.
-        """
+        Gas can be defined based on specific gravity or molecular composition.
         
-        self.sp_gr = sp_gr
-		self.units = units
+        When specific gravity (spgr) is defined reference temperature and pressure must be indicated.
+
+        spgr        : specific gravity of the gas when the composition is not defined
+        spgr_refT   : reference temperature where specific gravity is defined
+        spgr_refP   : reference pressure where specific gravity is defined
+        units       : unit system, options are international system (SI) and field units (FU)
+        
+        Molecular can be defined in dictionary (**kwargs) and it may contain:
+
+        component   : abbreviation of component ('CH4','C2H6','H2S',etc.)
+        molefrac    : mole fraction of each component
+        moleweight  : molecular weight of each component
+        tpcritic    : pseudo critical temperature for each component
+        ppcritic    : pseudo critical pressure for each component
+
+        """
+
+        self._spgr = spgr
+
+        self._spgr_refT = self.tSC_FU if spgr_refT is None else spgr_refT
+        self._spgr_refP = self.pSC_FU if spgr_refP is None else spgr_refP
+
+        self.units = units
 
         if len(kwargs)==0:
             return
 
-        if len(kwargs)==1:
-            oneline = True
-        else:
-            oneline = False
+        self.composition = header(**kwargs)
 
-        self.composition = header(oneline=oneline,**kwargs)
+        self._fill_composition_table() # for the cases when moleweights are not defined for some components
 
-    def get_molecular_weight_apparent(self,mole_fraction,molecular_weight):
+    def _fill_composition_table(self):
 
-        return numpy.sum(mole_fraction*molecular_weight)
+        pass
 
-    def get_specific_gravity(self,standard_conditions=False):
+    def set_specific_gravity(self,standard_conditions=False):
+        """
+        specific gravity can be calculated at two different conditions:
+        1) At any conditions:
 
-        Ma = self.get_molecular_weight_apparent(**kwwargs)
+        2) At standard conditions:
+        Assuming that the behavior of both the gas mixture and the air is
+        described by the ideal gas equation at the standard conditions.
+        
+        """
+
+        MWapp = self.get_molecular_weight_apparent()
 
         if not standard_conditions:
             return (density)/(density_of_air)
-        else:        
-            # Assuming that the behavior of both the gas mixture and the air is
-            # described by the ideal gas equation at the standard conditions:
-            return (molecular_weight_apparent)/(molecular_weight_air)
+        else:
+            return (MWapp)/(self.MWair)
 
-    def get_pseudo_critical_properties(self,
+    def _specific_gravity_from_spgr(self):
+
+        pass
+
+    def _specific_gravity_from_mole_fraction(self):
+
+        pass
+
+    def set_molecular_weight_apparent(self):
+
+        _sum = 0
+
+        for mf,mw in zip(self.composition.molefracs,self.composition.moleweights):
+            _sum += mf*mw
+
+        return _sum
+
+    def _molecular_weight_apparent_from_spgr(self):
+
+        pass
+
+    def _molecular_weight_apparent_from_mole_fraction(self):
+
+        pass
+
+    def set_pseudo_critical_properties(self,
         specific_gravity=None,
         system="Natural Gas",
         mole_fractions=None,
@@ -66,7 +114,7 @@ class gas():
         N2_mole_fraction=0.0):
 
         if specific_gravity is None:
-            tpc,ppc = self._pseudo_critical_mole_fraction(mole_fractions,temperature_pseudo_criticals,pressure_pseudo_criticals)
+            tpc,ppc = self._pseudo_critical_from_mole_fraction(mole_fractions,temperature_pseudo_criticals,pressure_pseudo_criticals)
         elif system=="Natural Gas":
             tpc,ppc = self._pseudo_critical_natural_gas(specific_gravity)
         elif system=="Gas Condensate":
@@ -101,7 +149,7 @@ class gas():
 
         return tpc,ppc
 
-    def _pseudo_critical_mole_fraction(self,mole_fractions,temperature_pseudo_criticals,pressure_pseudo_criticals):
+    def _pseudo_critical_from_mole_fraction(self,mole_fractions,temperature_pseudo_criticals,pressure_pseudo_criticals):
         """It calculates pseudo-critical temperature and pressure based on mole fraction and pseudo properties of each component."""
 
         tpc = numpy.sum(mole_fractions*temperature_pseudo_criticals)
@@ -132,6 +180,14 @@ class gas():
         return tpc,ppc
 
     def _pseudo_critical_correction_high_molecular_weight(self):
+
+        pass
+
+    def get_specific_gravity(self):
+
+        pass
+
+    def get_molecular_weight_apparent(self):
 
         pass
 

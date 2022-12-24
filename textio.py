@@ -15,72 +15,89 @@ import openpyxl
 if __name__ == "__main__":
     import dirsetup
 
+from datum import frame
+
 from cypy.vectorpy import strtype
 
-class header():
-    """It is a table of parameters, columns are fields."""
+class _header():
 
-    def __init__(self,oneline=False,**kwargs):
+    def __init__(self):
+
+        self.params = []
+        self.fields = []
+
+    def __getattr__(self,key):
+
+        return self.fields[self.params.index(key)]
+
+class header(_header):
+    """It is a table of params, columns are fields."""
+
+    def __init__(self,**kwargs):
         """parameters should be predefined, all entries must be string."""
 
         if len(kwargs)==0:
             raise ValueError("At least one field is required.")
 
-        super().__setattr__("parameters",[param for param in kwargs.keys()])
+        params = []
+        fields = []
+        fsizes = []
 
-        if oneline:
-            fields = [str(field) for field in kwargs.values()]
+        for param,field in kwargs.items():
 
-        else:
+            params.append(param)
 
-            fields = []
+            if isinstance(field,list) or isinstance(field,tuple):
+                field = [str(data) for data in field]
+            else:
+                field = [str(field)]
 
-            for field in kwargs.values():
+            fields.append(field)
+            fsizes.append(len(field))
 
-                if isinstance(field,list) or isinstance(field,tuple):
-                    field = [str(data) for data in field]
-                else:
-                    field = [str(field)]
+        if len(set(fsizes))!=1:
+            raise ValueError("The lengths of field are not equal!")
 
-                fields.append(field)
-
-            sizes = [len(field) for field in fields]
-
-            if len(set(sizes))!=1:
-                raise ValueError("The lengths of field are not equal!")
-
+        super().__setattr__("params",params)
         super().__setattr__("fields",fields)
 
     def extend(self,row):
 
-        if len(self.parameters)!=len(row):
+        if len(self.params)!=len(row):
             raise ValueError("The lengths of 'fields' and 'row' are not equal!")
 
         if isinstance(row,list) or isinstance(row,tuple):
-            toextend = header(**dict(zip(self.parameters,row)))
+            toextend = header(**dict(zip(self.params,row)))
         elif isinstance(row,dict):
             toextend = header(**row)
         elif isinstance(row,header):
             toextend = row
 
-        for parameter,field in toextend.items():
-            getattr(self,parameter).extend(field)
+        for param,field in toextend.items():
+            super().__getattr__(param).extend(field)
 
     def __setattr__(self,key,vals):
 
         raise AttributeError(f"'Header' object has no attribute '{key}'.")
 
-    def __getattr__(self,key):
+    def __getattr__(self,param):
 
-        field = self.fields[self.parameters.index(key)]
+        field = self.fields[self.params.index(param)]
 
-        if isinstance(field,str):
+        _field = [] # it may actually return numbers too.
+
+        for value in field:
+
             try:
-                return(float(field))
+                _field.append(float(value))
             except ValueError:
-                return field
+                _field.append(value)
 
-        return field
+        if len(_field)==1:
+
+            _field, = _field
+
+        return _field
 
     def __getitem__(self,key):
 
@@ -91,7 +108,7 @@ class header():
             if row[0].lower()==key.lower():
                 break
         
-        return header(oneline=True,**dict(zip(self.parameters,row)))
+        return header(**dict(zip(self.params,row)))
 
     def __repr__(self,comment=None):
 
@@ -109,10 +126,10 @@ class header():
         
         underline = []
 
-        for parameter,field in zip(self.parameters,self.fields):
+        for param,field in zip(self.params,self.fields):
 
             field_ = list(field)
-            field_.append(parameter)
+            field_.append(param)
 
             count_ = max([len(value) for value in field_])
 
@@ -122,7 +139,7 @@ class header():
 
         fstring += "\n"
 
-        text = fstring.format(*[parm.capitalize() for parm in self.parameters])
+        text = fstring.format(*[parm.capitalize() for parm in self.params])
         
         text += fstring.format(*underline)
         
@@ -144,7 +161,7 @@ class header():
 
     def items(self):
 
-        return iter([(p,f) for p,f in zip(self.parameters,self.fields)])
+        return iter([(p,f) for p,f in zip(self.params,self.fields)])
 
 class dirmaster():
     """Base directory class to manage files in the input & output directories."""
@@ -394,15 +411,20 @@ class dirview():
 
 class txtfile(dirmaster):
 
-    def __init__(self,dataframe):
+    def __init__(self,dataframe=None,**kwargs):
 
-        self.frame = dataframe
+        super().__init__(**kwargs)
 
-        self.header = header(
-            heads=self.frame.heads,
-            units=self.frame.units,
-            infos=self.frame.infos,
-            )
+        if dataframe is None:
+            self.frame = frame()
+        else:
+            self.frame = dataframe
+
+        # self.header = header(
+        #     heads=self.frame.heads,
+        #     units=self.frame.units,
+        #     infos=self.frame.infos,
+        #     )
 
     def write(self,filepath,comment=None,**kwargs):
         """It writes text form of frame."""

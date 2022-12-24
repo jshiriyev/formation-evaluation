@@ -11,7 +11,7 @@ from core import column
 from textio import header
 from textio import dirmaster
 
-class schedfile(dirmaster):
+class schedule(dirmaster):
 
     def __init__(self,*args,**kwargs):
 
@@ -103,7 +103,7 @@ def loadsched(self):
 
     pass
 
-class schedworm(schedfile):
+class schedworm():
 
     def __init__(self,filepath):
 
