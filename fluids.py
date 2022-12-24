@@ -1,55 +1,52 @@
 import numpy
 
+if __name__ == "__main__":
+    import dirsetup
+
+from textio import header
+
 class gas():
-
     """
-    All the equations are based on the Tarek Ahmed's reservoir engineering book, Chapter 2.
-
-    - A gas is defined as a homogeneous fluid of low viscosity and density
-    that has no definite volume but expands to completely fill the vessel in
-    which it is placed.
-
-    - Generally, the natural gas is a mixture of hydrocarbon and
-    nonhydrocarbon gases.
-
-    - The hydrocarbon gases that are normally found in a natural gas are
+    The hydrocarbon gases that are normally found in a natural gas are
     methanes, ethanes, propanes, butanes, pentanes, and small amounts of
-    hexanes and heavier.
-
-    - The nonhydrocarbon gases (i.e., impurities) include carbon dioxide,
+    hexanes and heavier. The nonhydrocarbon gases include carbon dioxide,
     hydrogen sulfide, and nitrogen.
-
-    01. properties of natural gases
-    02. behavior of ideal gases
-    03. behavior of real gases
-    04. effect of non-hydrocarbon components on z-factor
-    05. non-hydrocarbon adjustment methods
-    06. correction for high-molecular-weight gases
-    07. direct calculation of compressibility factors
-    08. compressibility of natural gases
-    09. gas formation volume factor
-    10. gas viscosity
-    11. methods of calculating the viscosity of natural gases
-    
     """
 
-    p_SC_FU = 14.7  # pressure at standard conditions, psi
-    T_SC_FU = 60.0  # temperature at standard conditions, Fahrenheit
+    pSC_FU = 14.7  # pressure at standard conditions, psi
+    TSC_FU = 60.0  # temperature at standard conditions, Fahrenheit
 
     R_SI = 8.31446261815324 # universal gas constant, (Pa*m3)/(mol*Kelvin)
     R_FU = 10.731577089016  # universal gas constant, (psi*ft3)/(lbmol*Rankine)
 
-    M_air = 28.96
+    MWair = 28.96
 
-	def __init__(self,units='SI'):
-
+	def __init__(self,sp_gr=None,units='SI',**kwargs):
+        """
+        Parameters in the dictionary should be components, mole_fractions and
+        molecular_weights.
+        """
+        
+        self.sp_gr = sp_gr
 		self.units = units
+
+        if len(kwargs)==0:
+            return
+
+        if len(kwargs)==1:
+            oneline = True
+        else:
+            oneline = False
+
+        self.composition = header(oneline=oneline,**kwargs)
 
     def get_molecular_weight_apparent(self,mole_fraction,molecular_weight):
 
         return numpy.sum(mole_fraction*molecular_weight)
 
     def get_specific_gravity(self,standard_conditions=False):
+
+        Ma = self.get_molecular_weight_apparent(**kwwargs)
 
         if not standard_conditions:
             return (density)/(density_of_air)

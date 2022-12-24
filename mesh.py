@@ -3,9 +3,7 @@ import numpy as np
 if __name__ == "__main__":
     import dirsetup
 
-from dataview import View3D
-
-class Line():
+class line():
 
     def __init__(self,**kwargs):
 
@@ -57,7 +55,7 @@ class Line():
         axis.set_zlabel("z-axis")
         axis.invert_zaxis()
 
-class Rectangle():
+class rectangle():
 
     # it is a 2D object in 3D space
 
@@ -194,7 +192,7 @@ class Rectangle():
 
         axis.set_box_aspect(self.lengths[1]/self.lengths[0])
 
-class Ellipse():
+class ellipse():
 
     # This class is supposed to create 2-D surface in 3-D domain
     # thickness: thickness of the ellipse
@@ -323,7 +321,7 @@ class Ellipse():
         if showGridCenters:
             axis.scatter(*self.grid_centers.T)
 
-class Cuboid():
+class cuboid():
 
     """
     For rectangular parallelepiped, dimensions is a tuple
@@ -433,7 +431,7 @@ class Cuboid():
 
         pass
 
-class Cylinder():
+class cylinder():
 
     """
     For cylindrical disk, dimensions is a tuple with two entries for sizes in r,z direction
@@ -476,6 +474,71 @@ class Cylinder():
         pass
 
     def plot(self):
+        pass
+
+class sphere():
+
+    def __init__(self):
+
+        pass
+
+class view2d():
+
+    def __init__(self):
+
+        pass
+
+class view3d():
+
+    def __init__(self,window,**kwargs):
+
+        super().__init__(**kwargs)
+
+        self.dirname = os.path.dirname(__file__)
+
+        self.root = window
+
+    def set_plot(self):
+
+        self.pane_EW = tkinter.ttk.PanedWindow(self.root,orient=tkinter.HORIZONTAL)
+
+        self.frame_side = tkinter.ttk.Frame(self.root)
+
+        self.pane_EW.add(self.frame_side,weight=1)
+
+        self.frame_plot = tkinter.ttk.Frame(self.root)
+
+        self.pane_EW.add(self.frame_plot,weight=1)
+
+        self.pane_EW.pack(side=tkinter.LEFT,expand=1,fill=tkinter.BOTH)
+
+        self.frame_plot.columnconfigure(0,weight=1)
+        self.frame_plot.columnconfigure(1,weight=0)
+
+        self.frame_plot.rowconfigure(0,weight=1)
+        self.frame_plot.rowconfigure(1,weight=0)
+
+        self.figure = pyplot.Figure()
+        self.canvas = FigureCanvasTkAgg(self.figure,self.frame_plot)
+
+        self.plotbox = self.canvas.get_tk_widget()
+        self.plotbox.grid(row=0,column=0,sticky=tkinter.NSEW)        
+
+        self.plotbar = VerticalNavigationToolbar2Tk(self.canvas,self.frame_plot)
+        self.plotbar.update()
+        self.plotbar.grid(row=0,column=1,sticky=tkinter.N)
+
+        self.itembox = AutocompleteEntryListbox(self.frame_side,height=250,padding=0)
+
+        self.itembox.content = self.itemnames.tolist()
+        self.itembox.config(completevalues=self.itembox.content,allow_other_values=True)
+
+        self.itembox.listbox.bind('<<ListboxSelect>>',lambda event: self.set_object(event))
+
+        self.itembox.pack(expand=1,fill=tkinter.BOTH)
+
+    def set_object(self,event):
+
         pass
 
 if __name__ == "__main__":
