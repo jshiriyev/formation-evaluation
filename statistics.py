@@ -8,7 +8,7 @@ from scipy.stats import norm
 
 """
 univariate classes uses a single property data item with optional
-spatial information and includes following ananlysis:
+spatial information and includes following analysis:
 
     - non-spatial similarity measurements (heterogeneity)
     - non-spatial estimation calculations (uncertainty)
