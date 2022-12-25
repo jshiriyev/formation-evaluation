@@ -603,7 +603,7 @@ class xlsheet(dirmaster):
 
         wb.save(filepath)
 
-def loadxl(filepath,sheetname,**kwargs):
+def loadxlsheet(filepath,sheetname,**kwargs):
 
     pass
 

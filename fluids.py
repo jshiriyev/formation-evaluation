@@ -402,13 +402,7 @@ class water():
 
         pass
 
-class component():
-
-	def __init__(self):
-
-		pass
-
-class mixture():
+class singlephase():
 
     def __init__(self,number):
 
@@ -452,3 +446,9 @@ class mixture():
 
         for arg in args:
             self.fvf.append(arg)
+
+class multiphase():
+
+    def __init__(self):
+
+        pass
