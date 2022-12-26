@@ -19,18 +19,7 @@ from datum import frame
 
 from cypy.vectorpy import strtype
 
-class _header():
-
-    def __init__(self):
-
-        self.params = []
-        self.fields = []
-
-    def __getattr__(self,key):
-
-        return self.fields[self.params.index(key)]
-
-class header(_header):
+class header():
     """It is a table of params, columns are fields."""
 
     def __init__(self,**kwargs):
@@ -74,11 +63,11 @@ class header(_header):
             toextend = row
 
         for param,field in toextend.items():
-            super().__getattr__(param).extend(field)
+            self.fields[self.params.index(param)].extend(field)
 
-    # def __setattr__(self,key,vals):
+    def __setattr__(self,key,vals):
 
-    #     raise AttributeError(f"'Header' object has no attribute '{key}'.")
+        raise AttributeError(f"'Header' object has no attribute '{key}'.")
 
     def __getattr__(self,param):
 

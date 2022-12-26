@@ -29,7 +29,7 @@
 			}
 		},
 
-		"CH4" : {
+		"methane" : {
 			"name":	"methane",
 			"symb":	"CH4",
 			"moleweight":	16.04,
@@ -43,7 +43,7 @@
 			}
 		},
 
-		"C2H6" : {
+		"ethane" : {
 			"name":	"ethane",
 			"symb":	"C2H6",
 			"moleweight":	30.07,
@@ -57,7 +57,7 @@
 			}
 		},
 
-		"C3H8" : {
+		"propane" : {
 			"name":	"propane",
 			"symb":	"C3H8",
 			"moleweight":	44.1,
@@ -71,7 +71,7 @@
 			}
 		},
 
-		"n-C4H10": {
+		"n-butane": {
 			"name":	"n-butane",
 			"symb":	"n-C4H10",
 			"moleweight":	58.12,
@@ -85,7 +85,7 @@
 			}
 		},
 
-		"n-C5H12": {
+		"n-pentane": {
 			"name":	"n-pentane",
 			"symb":	"n-C5H12",
 			"moleweight":	72.15,
@@ -99,7 +99,7 @@
 			}
 		},
 
-		"n-C6H14": {
+		"n-hexane": {
 			"name":	"n-hexane",
 			"symb": "n-C6H14",
 			"moleweight":	86.18,
@@ -113,7 +113,7 @@
 			}
 		},
 
-		"H2S": {
+		"hydrogen-sulfide": {
 			"name":	"hydrogen sulfide",
 			"symb": "H2S",
 			"moleweight":	34.1,

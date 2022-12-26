@@ -3,7 +3,180 @@ import json
 if __name__ == "__main__":
     import dirsetup
 
-from textio import header
+class mixture():
+
+    def __init__(self,**kwargs):
+        """keys are parameters 'str', and values are fields 'float' or 'None'."""
+
+        if len(kwargs)==0:
+            raise ValueError("At least one field is required.")
+
+        params = []
+        fields = []
+        fsizes = []
+
+        for param,field in kwargs.items():
+
+            params.append(param)
+
+            if isinstance(field,list) or isinstance(field,tuple):
+                field = list(field)
+            else:
+                field = [field]
+
+            fields.append(field)
+            fsizes.append(len(field))
+
+        if len(set(fsizes))!=1:
+            raise ValueError("The lengths of field are not equal!")
+
+        super().__setattr__("params",params)
+        super().__setattr__("fields",fields)
+
+    def setsum(self,param,value):
+
+        index = self.params.index(param)
+
+        field = self.fields[index]
+
+        factor = value/sum(field)
+
+        field_new = [number*factor for number in field]
+
+        self.fields[index] = field_new
+
+    def fillna(self,library):
+
+        for rindex,row in enumerate(self):
+            for cindex,param in enumerate(self.params):
+                if cindex==0:
+                    continue
+                if row[cindex] is None:
+                    self.fields[cindex][rindex] = library[row[0]][param]
+
+    def extend(self,row):
+
+        if len(self.params)!=len(row):
+            raise ValueError("The lengths of 'fields' and 'row' are not equal!")
+
+        if isinstance(row,list) or isinstance(row,tuple):
+            toextend = mixture(**dict(zip(self.params,row)))
+        elif isinstance(row,dict):
+            toextend = mixture(**row)
+        elif isinstance(row,mixture):
+            toextend = row
+
+        for param,field in toextend.items():
+            self.fields[self.params.index(param)].extend(field)
+
+    def __setattr__(self,param,field):
+
+        if isinstance(field,list):
+            pass
+        if isinstance(field,tuple):
+            field = list(field)
+        else:
+            field = [field]
+
+        number_of_rows = len(self)
+
+        if len(field)!=number_of_rows:
+            raise AttributeError(f"field len does not fit the len of rows in Mixture object, {len(field)}!={number_of_rows}.")
+        
+        if param in self.params:
+            self.fields[self.params.index(param)] = field
+        else:
+            self.params.append(param)
+            self.fields.append(field)
+
+    def __getattr__(self,param):
+
+        field = self.fields[self.params.index(param)]
+
+        if len(field)==1:
+            field, = field
+
+        return field
+
+    def __setitem__(self,key,row):
+
+        if len(self.params)!=len(row)+1:
+            raise ValueError("The lengths of 'fields' and 'row' are not equal!")
+
+        if isinstance(row,list) or isinstance(row,tuple):
+            toset = mixture(**dict(zip(self.params,row)))
+        elif isinstance(row,dict):
+            toset = mixture(**row)
+        elif isinstance(row,mixture):
+            toset = row
+
+        for index,row in enumerate(self):
+            if row[0].lower()==key.lower():
+                break
+
+        for param,field in zip(self.params,self.fields):
+            field[index] = getattr(toset,param)[0]
+
+    def __getitem__(self,key):
+
+        if not isinstance(key,str):
+            raise TypeError("key must be string!")
+
+        for row in self:
+            if row[0].lower()==key.lower():
+                break
+        
+        return mixture(**dict(zip(self.params,row)))
+
+    def __repr__(self,comment=None):
+
+        return self.__str__(comment)
+
+    def __str__(self,comment=None):
+
+        if len(self)==1:
+            return repr(tuple(self.fields))
+
+        if comment is None:
+            comment = ""
+
+        fstring = comment
+        
+        underline = []
+
+        for param,field in zip(self.params,self.fields):
+
+            field_ = list(field)
+            field_.append(param)
+
+            count_ = max([len(str(value)) for value in field_])
+
+            fstring += f"{{:<{count_}}}   "
+            
+            underline.append("-"*count_)
+
+        fstring += "\n"
+
+        text = fstring.format(*[parm.capitalize() for parm in self.params])
+        
+        text += fstring.format(*underline)
+        
+        for row in self:
+            text += fstring.format(*row)
+
+        return text
+
+    def __iter__(self):
+
+        return iter([row for row in zip(*self.fields)])
+
+    def __len__(self):
+
+        return len(self.fields[0])
+
+    def items(self):
+
+        return iter([(p,f) for p,f in zip(self.params,self.fields)])
 
 class gas():
     """
@@ -42,13 +215,12 @@ class gas():
         self.units = units
 
         if spgr is not None and len(kwargs)==0:
-            self.composition = header(
-                component=name,
-                molefraction=1.0,
-                moleweight=spgr*self.library["air"]["moleweight"])
+            """define specific gravity"""
+            pass
         elif spgr is None and len(kwargs)>0:
-            self.composition = header(**kwargs)
-            self.set_compositional_properties()
+            self.composition = mixture(**kwargs)
+            self.composition.setsum("molefraction",1.0)
+            self.composition.fillna(self.library)
         
         if not hasattr(self,"composition"):
             return
@@ -59,7 +231,6 @@ class gas():
             "viscosity-calculation": "",
             }
 
-        self.set_mole_fraction_sum_to_one()
         # self.set_molecular_weight_apparent()
         # self.set_specific_gravity()
         # self.set_pseudo_critical_properties()
@@ -73,20 +244,6 @@ class gas():
             self.standard = library['standard-condition']
             self.gasconst = library['gas-constant']
             self.library = library['substances']
-
-    def set_mole_fraction_sum_to_one(self):
-
-        fraction_temp = self.composition.molefraction
-
-        factor = 1/sum(fraction_temp)
-
-        fraction = [frac*factor for frac in fraction_temp]
-
-        self.composition.molefraction = fraction
-
-    def set_compositional_properties(self):
-
-        pass
 
     def set_molecular_weight_apparent(self):
 
@@ -202,13 +359,17 @@ class gas():
 
         pass
 
-    def get_molecular_weight_apparent(self):
+    @property
+    def mwapparent(self):
 
         pass
 
-    def get_specific_gravity(self):
+    @property
+    def spgr_atsc(self):
+        """The calculation assumes that the behavior of both the gas mixture and
+        air is described by the ideal gas equation at standard conditions."""
 
-        pass
+        self.spgr = self.mwapparent/self.library["air"]["moleweight"]
 
     def get_zfactor(self,temperature,pressure,method="Hall-Yarborough",**kwargs):
 
@@ -299,40 +460,31 @@ class gas():
         A07 = +0.68157001
         A08 = +0.68446549
 
-    @property
-    def density(self):
+    def get_density(self,temperature,pressure):
 
         return (pressure*molecular_weight)/(zfactor*self.R_FU*temperature)
 
-    @property
-    def spgr(self):
-        """The calculation assumes that the behavior of both the gas mixture and
-        air is described by the ideal gas equation at standard conditions."""
+    def get_spgr(self,temperature,pressure):
+        
+        pass
 
-        self.spgr = self.mwapp/self.library["air"]["moleweight"]
+    def get_specific_volume(self,temperature,pressure):
 
-    @property
-    def sp_volume(self,**kwargs):
-
-        return 1/self.get_density(**kwargs)
+        return 1/self.get_density(temperature,pressure)
     
-    @property
-    def cg_isothermal(self):
+    def get_compressibility_isothermal(self):
 
         pass
 
-    @property
-    def fvf(self):
+    def get_fvf(self):
 
         pass
 
-    @property
-    def expansion_factor(self):
+    def get_expansion_factor(self):
 
         pass
 
-    @property
-    def viscosity(self,method="Carr-Kobayashi-Burrows"):
+    def get_viscosity(self,method="Carr-Kobayashi-Burrows"):
 
         if method=="Carr-Kobayashi-Burrows":
             viscosity = self._viscosity_carr_kobayashi_burrows()
@@ -434,51 +586,6 @@ class water():
 
         pass
 
-class singlephase():
-
-    def __init__(self,number):
-
-        self.number = number
-
-        self.itemnames = []
-        self.molarweight = []
-        self.density = []
-        self.compressibility = []
-        self.viscosity = []
-        self.fvf = []
-
-    def set_names(self,*args):
-
-        for arg in args:
-            self.itemnames.append(arg)
-
-    def set_molarweight(self,*args):
-
-        for arg in args:
-            self.molarweight.append(arg)
-
-    def set_density(self,density1,*args):
-
-        self.density = [density1,]
-
-        for arg in args:
-            self.density.append(arg)
-
-    def set_compressibility(self,*args):
-
-        for arg in args:
-            self.compressibility.append(arg)
-
-    def set_viscosity(self,*args):
-
-        for arg in args:
-            self.viscosity.append(arg)
-
-    def set_fvf(self,*args):
-
-        for arg in args:
-            self.fvf.append(arg)
-
 class multiphase():
 
     def __init__(self):
@@ -487,11 +594,11 @@ class multiphase():
 
 if __name__ == "__main__":
 
-    fluids = gas(component=['CH4','C2H6'],molefraction=[0.2,0.4])
+    fluids = gas(
+        component=['methane','ethane'],
+        molefraction=[0.2,0.4],
+        moleweight=[12.0,None])
 
     print(fluids.composition.molefraction)
-
-    print(fluids.composition['CH4'].molefraction)
-    print(len(fluids.composition))
-
-    print(fluids.library['CH4']['moleweight'])
+    print(fluids.composition.moleweight)
+    print(fluids.composition)
