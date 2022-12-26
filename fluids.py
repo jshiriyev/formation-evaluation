@@ -1,4 +1,4 @@
-import numpy
+import json
 
 if __name__ == "__main__":
     import dirsetup
@@ -13,152 +13,170 @@ class gas():
     hydrogen sulfide, and nitrogen.
     """
 
-    pSC_FU = 14.7  # pressure at standard conditions, psi
-    TSC_FU = 60.0  # temperature at standard conditions, Fahrenheit
-
-    R_SI = 8.31446261815324 # universal gas constant, (Pa*m3)/(mol*Kelvin)
-    R_FU = 10.731577089016  # universal gas constant, (psi*ft3)/(lbmol*Rankine)
-
-    MWair = 28.96
-
-    def __init__(self,spgr=None,spgr_refT=None,spgr_refP=None,units='SI',**kwargs):
+    def __init__(self,name=None,spgr=None,units='SI',**kwargs):
         """
         Gas can be defined based on specific gravity or molecular composition.
         
-        When specific gravity (spgr) is defined reference temperature and pressure must be indicated.
-
-        spgr        : specific gravity of the gas when the composition is not defined
-        spgr_refT   : reference temperature where specific gravity is defined
-        spgr_refP   : reference pressure where specific gravity is defined
-        units       : unit system, options are international system (SI) and field units (FU)
+        First option, specific gravity (spgr) must be defined at standard conditions:
         
-        Molecular can be defined in dictionary (**kwargs) and it may contain:
+        name            : 'natural-gas', 'gas-condensate' or 'custom'.
+        spgr            : specific gravity of the gas at standard conditions.
+        
+        Second option, molecular composition can be defined in dictionary (**kwargs) and it may contain:
 
-        component   : abbreviation of component ('CH4','C2H6','H2S',etc.)
-        molefrac    : mole fraction of each component
-        moleweight  : molecular weight of each component
-        tpcritic    : pseudo critical temperature for each component
-        ppcritic    : pseudo critical pressure for each component
+        component       : abbreviation of component ('CH4','C2H6','H2S',etc.)
+        molefraction    : mole fraction of each component
+        moleweight      : molecular weight of each component
+        Tcritical       : critical temperature for each component
+        Pcritical       : critical pressure for each component
+        .               :
+        .               :
+        .               :
+
+        units           : unit system, options are international system (SI) and field units (FU)
 
         """
 
-        self._spgr = spgr
-
-        self._spgr_refT = self.tSC_FU if spgr_refT is None else spgr_refT
-        self._spgr_refP = self.pSC_FU if spgr_refP is None else spgr_refP
+        self.set_library()
 
         self.units = units
 
-        if len(kwargs)==0:
+        if spgr is not None and len(kwargs)==0:
+            self.composition = header(
+                component=name,
+                molefraction=1.0,
+                moleweight=spgr*self.library["air"]["moleweight"])
+        elif spgr is None and len(kwargs)>0:
+            self.composition = header(**kwargs)
+            self.set_compositional_properties()
+        
+        if not hasattr(self,"composition"):
             return
 
-        self.composition = header(**kwargs)
+        self.methods = {
+            "non-hydrocarbon-correction": "",
+            "high-molecular-weight-correction": "",
+            "viscosity-calculation": "",
+            }
 
-        self._fill_composition_table() # for the cases when moleweights are not defined for some components
+        self.set_mole_fraction_sum_to_one()
+        # self.set_molecular_weight_apparent()
+        # self.set_specific_gravity()
+        # self.set_pseudo_critical_properties()
 
-    def _fill_composition_table(self):
+    def set_library(self):
 
-        pass
+        with open("fluids.json","r") as jsonfile:
 
-    def set_specific_gravity(self,standard_conditions=False):
-        """
-        specific gravity can be calculated at two different conditions:
-        1) At any conditions:
+            library = json.load(jsonfile)
 
-        2) At standard conditions:
-        Assuming that the behavior of both the gas mixture and the air is
-        described by the ideal gas equation at the standard conditions.
-        
-        """
+            self.standard = library['standard-condition']
+            self.gasconst = library['gas-constant']
+            self.library = library['substances']
 
-        MWapp = self.get_molecular_weight_apparent()
+    def set_mole_fraction_sum_to_one(self):
 
-        if not standard_conditions:
-            return (density)/(density_of_air)
-        else:
-            return (MWapp)/(self.MWair)
+        fraction_temp = self.composition.molefraction
 
-    def _specific_gravity_from_spgr(self):
+        factor = 1/sum(fraction_temp)
 
-        pass
+        fraction = [frac*factor for frac in fraction_temp]
 
-    def _specific_gravity_from_mole_fraction(self):
+        self.composition.molefraction = fraction
+
+    def set_compositional_properties(self):
 
         pass
 
     def set_molecular_weight_apparent(self):
 
-        _sum = 0
+        molefractions = self.composition.molefraction
+        moleweights = self.composition.moleweight
 
-        for mf,mw in zip(self.composition.molefracs,self.composition.moleweights):
-            _sum += mf*mw
+        table = zip(molefractions,moleweights)
 
-        return _sum
+        weights = [fraction*weight for fraction,weight in table]
 
-    def _molecular_weight_apparent_from_spgr(self):
+        self.mwapp = sum(weights)
 
-        pass
+    def set_pseudo_critical_properties(self,nhc_corr="",hmw_corr=""):
 
-    def _molecular_weight_apparent_from_mole_fraction(self):
+        if len(self.composition)==1:
+            if self.composition.component=="natural-gas":
+                tpc,ppc = self._pseudo_critical_for_natural_gas()
+            elif self.composition.component=="gas-condensate":
+                tpc,ppc = self._pseudo_critical_for_gas_condensate()
+            else:
+                raise Warning("Pseudo-critical-properties have not been calculated.")
+        elif len(self.composition)>1:
+            tpc,ppc = self._pseudo_critical_for_composition()
 
-        pass
+        try:
+            H2S = self.composition['H2S']
+        except KeyError:
+            H2S_mf = 0
+        else:
+            H2S_mf = H2S.molefraction
 
-    def set_pseudo_critical_properties(self,
-        specific_gravity=None,
-        system="Natural Gas",
-        mole_fractions=None,
-        temperature_pseudo_criticals=None,
-        pressure_pseudo_criticals=None,
-        H2S_mole_fraction=0.0,
-        CO2_mole_fraction=0.0,
-        N2_mole_fraction=0.0):
+        try:
+            CO2 = self.composition['CO2']
+        except KeyError:
+            CO2_mf = 0
+        else:
+            CO2_mf = CO2.molefraction
 
-        if specific_gravity is None:
-            tpc,ppc = self._pseudo_critical_from_mole_fraction(mole_fractions,temperature_pseudo_criticals,pressure_pseudo_criticals)
-        elif system=="Natural Gas":
-            tpc,ppc = self._pseudo_critical_natural_gas(specific_gravity)
-        elif system=="Gas Condensate":
-            tpc,ppc = self._pseudo_critical_gas_condensate(specific_gravity)
+        try:
+            N2 = self.composition['N2']
+        except KeyError:
+            N2_mf = 0
+        else:
+            N2_mf = N2.molefraction
 
-        nonHC_mole_fraction = H2S_mole_fraction+CO2_mole_fraction+N2_mole_fraction
-
-        if nonHC_mole_fraction>0:
+        if H2S_mf+CO2_mf+N2_mf>0:
 
             if correction_method == "WA": # Wichert-Aziz Correction Method
                 tpc,ppc = self._pseudo_critical_correction_wichert_aziz(
-                    tpc,ppc,H2S_mole_fraction,CO2_mole_fraction)
+                    tpc,ppc,H2S_mf,CO2_mf)
             elif correction_method == "CKB": # Carr-Kobayashi-Burrows Correction Method
                 tpc,ppc = self._pseudo_critical_correction_carr_kobayashi_burrows(
-                    tpc,ppc,H2S_mole_fraction,CO2_mole_fraction,N2_mole_fraction)
+                    tpc,ppc,H2S_mf,CO2_mf,N2_mf)
+
+        self.tpc,self.ppc = tpc,ppc
+
+    def _pseudo_critical_for_natural_gas(self):
+        """It calculates pseudo-critical temperature and pressure for
+        natural-gas systems based on specific gravity."""
+
+        tpc = 168+325*self.spgr-12.5*self.spgr**2
+        ppc = 677+15*self.spgr-37.5*self.spgr**2
 
         return tpc,ppc
 
-    def _pseudo_critical_natural_gas(self,specific_gravity):
-        """It calculates pseudo-critical temperature and pressure for natural gas systems based on specific gravity."""
+    def _pseudo_critical_for_gas_condensate(self):
+        """It calculates pseudo-critical temperature and pressure for
+        gas-condensate systems based on specific gravity."""
 
-        tpc = 168+325*specific_gravity-12.5*specific_gravity**2
-        ppc = 677+15*specific_gravity-37.5*specific_gravity**2
-
-        return tpc,ppc
-
-    def _pseudo_critical_gas_condensate(self,specific_gravity):
-        """It calculates pseudo-critical temperature and pressure for gas condensate systems based on specific gravity."""
-
-        tpc = 1887+33*specific_gravity-71.5*specific_gravity**2
-        ppc = 706-51.7*specific_gravity-11.1*specific_gravity**2
+        tpc = 1887+33*self.spgr-71.5*self.spgr**2
+        ppc = 706-51.7*self.spgr-11.1*self.spgr**2
 
         return tpc,ppc
 
-    def _pseudo_critical_from_mole_fraction(self,mole_fractions,temperature_pseudo_criticals,pressure_pseudo_criticals):
-        """It calculates pseudo-critical temperature and pressure based on mole fraction and pseudo properties of each component."""
+    def _pseudo_critical_for_composition(self):
+        """It calculates pseudo-critical temperature and pressure based on
+        mole fraction and pseudo properties of each component."""
 
-        tpc = numpy.sum(mole_fractions*temperature_pseudo_criticals)
-        ppc = numpy.sum(mole_fractions*pressure_pseudo_criticals)
+        MF = self.composition.molefraction
+        TC = self.composition.Tcritical
+        PC = self.composition.Pcritical
 
-        return tpc,ppc
+        tpcs = [frac*T for frac,T in zip(MF,TC)]
+        ppcs = [frac*P for frac,P in zip(MF,PC)]
+
+        return sum(tpcs),sum(ppcs)
 
     def _pseudo_critical_correction_wichert_aziz(self,tpc,ppc,H2S=0.0,CO2=0.0):
-        """It corrects pseudo-critical temperature and pressure based on the non-hydrocarbon mole fraction."""
+        """It corrects pseudo-critical temperature and pressure based on
+        the non-hydrocarbon mole fraction."""
 
         A,B = H2S+CO2,H2S
         
@@ -172,7 +190,8 @@ class gas():
         return tpc,ppc
 
     def _pseudo_critical_correction_carr_kobayashi_burrows(self,tpc,ppc,H2S=0.0,CO2=0.0,N2=0.0):
-        """It corrects pseudo-critical temperature and pressure based on the non-hydrocarbon mole fraction."""
+        """It corrects pseudo-critical temperature and pressure based on
+        the non-hydrocarbon mole fraction."""
 
         tpc = tpc-80*CO2+130*H2S-250*N2
         ppc = ppc+440*CO2+600*H2S-170*N2
@@ -183,11 +202,11 @@ class gas():
 
         pass
 
-    def get_specific_gravity(self):
+    def get_molecular_weight_apparent(self):
 
         pass
 
-    def get_molecular_weight_apparent(self):
+    def get_specific_gravity(self):
 
         pass
 
@@ -280,27 +299,40 @@ class gas():
         A07 = +0.68157001
         A08 = +0.68446549
 
-    def get_density(self):
+    @property
+    def density(self):
 
         return (pressure*molecular_weight)/(zfactor*self.R_FU*temperature)
 
-    def get_specific_volume(self,**kwargs):
+    @property
+    def spgr(self):
+        """The calculation assumes that the behavior of both the gas mixture and
+        air is described by the ideal gas equation at standard conditions."""
+
+        self.spgr = self.mwapp/self.library["air"]["moleweight"]
+
+    @property
+    def sp_volume(self,**kwargs):
 
         return 1/self.get_density(**kwargs)
-
-    def get_compressibility_isothermal(self):
-
-        pass
-
-    def get_fvf(self):
+    
+    @property
+    def cg_isothermal(self):
 
         pass
 
-    def get_expansion_factor(self):
+    @property
+    def fvf(self):
 
         pass
 
-    def get_viscosity(self,method="Carr-Kobayashi-Burrows"):
+    @property
+    def expansion_factor(self):
+
+        pass
+
+    @property
+    def viscosity(self,method="Carr-Kobayashi-Burrows"):
 
         if method=="Carr-Kobayashi-Burrows":
             viscosity = self._viscosity_carr_kobayashi_burrows()
@@ -452,3 +484,14 @@ class multiphase():
     def __init__(self):
 
         pass
+
+if __name__ == "__main__":
+
+    fluids = gas(component=['CH4','C2H6'],molefraction=[0.2,0.4])
+
+    print(fluids.composition.molefraction)
+
+    print(fluids.composition['CH4'].molefraction)
+    print(len(fluids.composition))
+
+    print(fluids.library['CH4']['moleweight'])

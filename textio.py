@@ -76,9 +76,9 @@ class header(_header):
         for param,field in toextend.items():
             super().__getattr__(param).extend(field)
 
-    def __setattr__(self,key,vals):
+    # def __setattr__(self,key,vals):
 
-        raise AttributeError(f"'Header' object has no attribute '{key}'.")
+    #     raise AttributeError(f"'Header' object has no attribute '{key}'.")
 
     def __getattr__(self,param):
 
