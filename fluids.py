@@ -3,6 +3,9 @@ import json
 if __name__ == "__main__":
     import dirsetup
 
+with open("fluids.json","r") as jsonfile:
+    library = json.load(jsonfile)
+
 class mixture():
 
     def __init__(self,**kwargs):
@@ -33,6 +36,8 @@ class mixture():
         super().__setattr__("params",params)
         super().__setattr__("fields",fields)
 
+        super().__setattr__("elements",library['elements'])
+
     def setsum(self,param,value):
 
         index = self.params.index(param)
@@ -45,14 +50,14 @@ class mixture():
 
         self.fields[index] = field_new
 
-    def fillna(self,library):
+    def fillna(self):
 
         for rindex,row in enumerate(self):
             for cindex,param in enumerate(self.params):
                 if cindex==0:
                     continue
                 if row[cindex] is None:
-                    self.fields[cindex][rindex] = library[row[0]][param]
+                    self.fields[cindex][rindex] = self.elements[row[0]][param]
 
     def extend(self,row):
 
@@ -125,6 +130,8 @@ class mixture():
         for row in self:
             if row[0].lower()==key.lower():
                 break
+        else:
+            return
         
         return mixture(**dict(zip(self.params,row)))
 
@@ -210,7 +217,8 @@ class gas():
 
         """
 
-        self.set_library()
+        self.standard = library['standard-condition']
+        self.gasconst = library['gas-constant']
 
         self.units = units
 
@@ -220,7 +228,7 @@ class gas():
         elif spgr is None and len(kwargs)>0:
             self.composition = mixture(**kwargs)
             self.composition.setsum("molefraction",1.0)
-            self.composition.fillna(self.library)
+            self.composition.fillna()
         
         if not hasattr(self,"composition"):
             return
@@ -234,16 +242,6 @@ class gas():
         # self.set_molecular_weight_apparent()
         # self.set_specific_gravity()
         # self.set_pseudo_critical_properties()
-
-    def set_library(self):
-
-        with open("fluids.json","r") as jsonfile:
-
-            library = json.load(jsonfile)
-
-            self.standard = library['standard-condition']
-            self.gasconst = library['gas-constant']
-            self.library = library['substances']
 
     def set_molecular_weight_apparent(self):
 
@@ -597,7 +595,11 @@ if __name__ == "__main__":
     fluids = gas(
         component=['methane','ethane'],
         molefraction=[0.2,0.4],
-        moleweight=[12.0,None])
+        moleweight=[12.5,None])
+
+    print(fluids.standard['pressure']['SI'])
+
+    print(fluids.composition['H2S'])
 
     print(fluids.composition.molefraction)
     print(fluids.composition.moleweight)

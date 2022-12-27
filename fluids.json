@@ -15,7 +15,7 @@
 		}
 	},
 
-	"substances": {
+	"elements": {
 		"air" : {
 			"name":	"air",
 			"moleweight":	28.96,

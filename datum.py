@@ -1007,6 +1007,11 @@ class column():
         return bool_arr
 
     @property
+    def issorted(self):
+
+        return numpy.all(self.vals[:-1]<self.vals[1:])
+    
+    @property
     def nondim(self):
         """It checks whether column has unit or not."""
 

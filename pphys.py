@@ -1,5 +1,7 @@
 import copy
 
+import json
+
 import re
 
 from matplotlib import colors as mcolors
@@ -35,7 +37,10 @@ from wlogs import *
 
 from cypy.vectorpy import strtype
 
-class lascurve(column):
+with open("pphys.json","r") as jsonfile:
+    library = json.load(jsonfile)
+
+class curve(column):
 
     def __init__(self,*args,**kwargs):
 
@@ -43,37 +48,33 @@ class lascurve(column):
 
         super().__init__(*args,**kwargs)
 
-    def set_style(self,color="k",style="solid",width=0.75,**kwargs):
+        self.color = 'k'
+        self.style = 'solid'
+        self.width = 0.75
 
-        self.color = color
-        self.style = style
-        self.width = width
+    def set_style(self,**kwargs):
 
         for key,value in kwargs.items():
             setattr(self,key,value)
 
     @property
-    def height_total(self):
+    def height(self):
 
-        return self.depths.max()-self.depths.min()
+        depths = self.depths
 
-    @property
-    def height_null(self):
+        total = depths.max()-depths.min()
 
-        node_top = numpy.roll(self.depths,1)
-        node_bottom = numpy.roll(self.depths,-1)
+        node_head = numpy.roll(depths,1)
+        node_foot = numpy.roll(depths,-1)
 
-        thickness = (node_bottom-node_top)/2
+        thickness = (node_foot-node_head)/2
 
-        thickness[0] = (self.depths[1]-self.depths[0])/2
-        thickness[-1] = (self.depths[-1]-self.depths[-2])/2
+        thickness[ 0] = (depths[ 1]-depths[ 0])/2
+        thickness[-1] = (depths[-1]-depths[-2])/2
 
-        return numpy.sum(thickness[numpy.isnan(self.vals)])
+        null = numpy.sum(thickness[self.isnone()])
 
-    @property
-    def height_valid(self):
-
-        return self.height_total-self.height_null
+        return {'total': total, 'null': null, 'valid': total-null,}
     
 class lasfile(dirmaster):
 
@@ -83,9 +84,9 @@ class lasfile(dirmaster):
 
         self.sections = []
 
-    def add_section(self,head,mnemonic,unit,value,description):
+    def add_section(self,key,mnemonic,unit,value,description):
 
-        setattr(self,head,
+        setattr(self,key,
             header(
                 mnemonic=mnemonic,
                 unit=unit,
@@ -94,7 +95,7 @@ class lasfile(dirmaster):
                 )
             )
 
-        self.sections.append(head)
+        self.sections.append(key)
 
     def add_ascii(self,*args,**kwargs):
 
@@ -104,7 +105,7 @@ class lasfile(dirmaster):
 
     def __getitem__(self,key):
 
-        return lascurve(
+        return curve(
             vals = self.ascii[key].vals,
             head = self.ascii[key].head,
             unit = self.ascii[key].unit,
@@ -247,133 +248,128 @@ class lasfile(dirmaster):
         self.well.fields[2][self.well.mnemonic.index('STRT')] = str(self.depths[0])
         self.well.fields[2][self.well.mnemonic.index('STOP')] = str(self.depths[-1])
 
-    def resample(self,depths1,curve=None):
-        """Resamples the frame data based on given depths1."""
+    def resample(self,depths):
+        """Resamples the frame data based on given depths:
 
-        """
-        depths1 :   The depth values where new curve data will be calculated;
-        curve   :   The head of curve to resample; If None, all curves in the file will be resampled;
-
+        depths :   The depth values where new curve data will be calculated;
         """
 
-        depths0 = self.ascii.running[0].vals
+        depths_current = self.ascii.running[0].vals
 
-        if curve is not None:
-            values0 = self.ascii[curve].vals
+        if not lasfile.isvalid(depths):
+            raise ValueError("There are none values in depths.")
 
-            datacolumn = copy.deepcopy(self.ascii[curve])
-            datacolumn.vals = lasfile._resample(depths1,depths0,values0)
-            
-            return datacolumn
+        if not lasfile.issorted(depths):
+            depths = numpy.sort(depths)
 
-        if not lasfile._issorted(depths1):
-            raise ValueError("Input depths are not sorted.")
-
-        outers_above = depths1<depths0.min()
-        outers_below = depths1>depths0.max()
+        outers_above = depths<depths_current.min()
+        outers_below = depths>depths_current.max()
 
         inners = numpy.logical_and(~outers_above,~outers_below)
 
-        depths1_inners_ = depths1[inners]
+        depths_inners = depths[inners]
 
-        lowers = numpy.empty(depths1_inners_.shape,dtype=int)
-        uppers = numpy.empty(depths1_inners_.shape,dtype=int)
-
-        lower = 0
-        upper = 0
-
-        for index,depth in enumerate(depths1_inners_):
-
-            while depth>depths0[lower]:
-                lower += 1
-
-            while depth>depths0[upper]:
-                upper += 1
-
-            lowers[index] = lower-1
-            uppers[index] = upper
-
-        delta_depths1 = depths1_inners_-depths0[lowers]
-        delta_depths0 = depths0[uppers]-depths0[lowers]
-
-        grads = delta_depths1/delta_depths0
-
-        dataframe = copy.deepcopy(self.ascii)
-
-        for index,datacolumn in enumerate(self.ascii.running):
-
-            if index==0:
-                dataframe[datacolumn.head].vals = depths1
-                continue
-
-            delta_values = datacolumn.vals[uppers]-datacolumn.vals[lowers]
-
-            dataframe[datacolumn.head].vals = numpy.empty(depths1.shape,dtype=float)
-
-            dataframe[datacolumn.head].vals[outers_above] = numpy.nan
-            dataframe[datacolumn.head].vals[inners] = datacolumn.vals[lowers]+grads*(delta_values)
-            dataframe[datacolumn.head].vals[outers_below] = numpy.nan
-
-        return dataframe
-
-    @staticmethod
-    def _resample(depths1,depths0,values0):
-
-        """
-        depths1 :   The depths where new curve values will be calculated;
-        depths0 :   The depths where the values are available;
-        values0 :   The values to be resampled;
-
-        """
-
-        if not lasfile._issorted(depths1):
-            raise ValueError("Input depths are not sorted.")
-
-        outers_above = depths1<depths0.min()
-        outers_below = depths1>depths0.max()
-
-        inners = numpy.logical_and(~outers_above,~outers_below)
-
-        depths1_inners_ = depths1[inners]
-
-        lowers = numpy.empty(depths1_inners_.shape,dtype=int)
-        uppers = numpy.empty(depths1_inners_.shape,dtype=int)
+        lowers = numpy.empty(depths_inners.shape,dtype=int)
+        uppers = numpy.empty(depths_inners.shape,dtype=int)
 
         lower,upper = 0,0
 
-        for index,depth in enumerate(depths1_inners_):
+        for index,depth in enumerate(depths_inners):
 
-            while depth>depths0[lower]:
+            while depth>depths_current[lower]:
                 lower += 1
 
-            while depth>depths0[upper]:
+            while depth>depths_current[upper]:
                 upper += 1
 
             lowers[index] = lower-1
             uppers[index] = upper
 
-            # diff = depths0-depth
-            # lowers[index] = numpy.where(diff<0,diff,-numpy.inf).argmax()
-            # uppers[index] = numpy.where(diff>0,diff,+numpy.inf).argmin()
+        delta_depths = depths_inners-depths_current[lowers]
 
-        delta_depths1 = depths1_inners_-depths0[lowers]
-        delta_depths0 = depths0[uppers]-depths0[lowers]
-        delta_values0 = values0[uppers]-values0[lowers]
+        delta_depths_current = depths_current[uppers]-depths_current[lowers]
 
-        grads = delta_depths1/delta_depths0
+        grads = delta_depths/delta_depths_current
 
-        values = numpy.empty(depths1.shape,dtype=float)
+        for index,_column in enumerate(self.ascii.running):
+
+            if index==0:
+                self.ascii.running[index].vals = depths
+                continue
+
+            delta_values = _column.vals[uppers]-_column.vals[lowers]
+
+            self.ascii.running[index].vals = numpy.empty(depths.shape,dtype=float)
+
+            self.ascii.running[index].vals[outers_above] = numpy.nan
+            self.ascii.running[index].vals[inners] = _column.vals[lowers]+grads*(delta_values)
+            self.ascii.running[index].vals[outers_below] = numpy.nan
+
+    @staticmethod
+    def resample_curve(depths,lascurve):
+        """Resamples the lascurve.vals based on given depths, and returns lascurve:
+
+        depths      :   The depths where new curve values will be calculated;
+        lascurve    :   The lascurve object to be resampled
+
+        """
+
+        if not lasfile.isvalid(depths):
+            raise ValueError("There are none values in depths.")
+
+        if not lasfile.issorted(depths):
+            depths = numpy.sort(depths)
+
+        outers_above = depths<lascurve.depths.min()
+        outers_below = depths>lascurve.depths.max()
+
+        inners = numpy.logical_and(~outers_above,~outers_below)
+
+        depths_inners = depths[inners]
+
+        lowers = numpy.empty(depths_inners.shape,dtype=int)
+        uppers = numpy.empty(depths_inners.shape,dtype=int)
+
+        lower,upper = 0,0
+
+        for index,depth in enumerate(depths_inners):
+
+            while depth>lascurve.depths[lower]:
+                lower += 1
+
+            while depth>lascurve.depths[upper]:
+                upper += 1
+
+            lowers[index] = lower-1
+            uppers[index] = upper
+
+        delta_depths = depths_inners-lascurve.depths[lowers]
+
+        delta_depths_current = lascurve.depths[uppers]-lascurve.depths[lowers]
+        delta_values_current = lascurve.vals[uppers]-lascurve.vals[lowers]
+
+        grads = delta_depths/delta_depths_current
+
+        values = numpy.empty(depths.shape,dtype=float)
 
         values[outers_above] = numpy.nan
-        values[inners] = values0[lowers]+grads*(delta_values0)
+        values[inners] = lascurve.vals[lowers]+grads*(delta_values_current)
         values[outers_below] = numpy.nan
 
-        return values
+        lascurve.depths = depths
+
+        lascurve.vals = values
+
+        return lascurve
 
     @property
-    def height_total(self):
+    def height(self):
 
-        return self.depths.max()-self.depths.min()
+        depths = self.depths
+
+        total = depths.max()-depths.min()
+
+        return {'total': total,}
 
     @property
     def depths(self):
@@ -381,17 +377,34 @@ class lasfile(dirmaster):
         return self.ascii.running[0].vals
 
     @property
-    def issorted(self):
-
-        return lasfile._issorted(self.depths)
+    def isdepthvalid(self):
+        
+        return lasfile.isvalid(self.depths)
 
     @staticmethod
-    def _issorted(depths):
+    def isvalid(vals):
 
-        if numpy.all(depths[:-1]<depths[1:]):
-            return True
-        else:
-            return False
+        return numpy.all(~numpy.isnan(vals))
+
+    @property
+    def isdepthpositive(self):
+
+        return lasfile.ispositive(self.depths)
+
+    @staticmethod
+    def ispositive(vals):
+
+        return numpy.all(vals>=0)
+
+    @property
+    def isdepthsorted(self):
+
+        return lasfile.issorted(self.depths)
+
+    @staticmethod
+    def issorted(vals):
+
+        return numpy.all(vals[:-1]<vals[1:])
 
 def loadlas(filepath,**kwargs):
     """
@@ -413,7 +426,9 @@ def loadlas(filepath,**kwargs):
     nullfile = lasfile(filepath=filepath,**kwargs)
 
     # It reads LAS file and returns pphys.lasfile instance.
-    return lasworm(nullfile).item
+    fullfile = lasworm(nullfile).item
+
+    return fullfile
 
 class lasworm():
     """Reads a las file with all sections."""
@@ -690,7 +705,13 @@ class lasworm():
 
         dataframe = frame(*running)
 
-        if not lasfile._issorted(dataframe.running[0].vals):
+        if not lasfile.isvalid(dataframe.running[0].vals):
+            raise Warning("There are none depth values.")
+
+        if not lasfile.ispositive(dataframe.running[0].vals):
+            raise Warning("There are negative depth values.")
+
+        if not lasfile.issorted(dataframe.running[0].vals):
             dataframe = dataframe.sort((dataframe.running[0].head,))
 
         return dataframe
@@ -823,234 +844,13 @@ class lasbatch(dirmaster):
 
             return depth,xvals
 
-class bulkmodel():
+class bulkmodel(header):
 
     def __init__(self,**kwargs):
 
-        self.SH = {
-            "head": "Shale",
-            "fillcolor": "gray",
-            "hatch": '--',
-            }
+        super().__init__(**kwargs)
 
-        self.clean = {
-            "head": "Clean Formation",
-            "fillcolor": "navajowhite",
-            "hatch": '||',
-            }
-
-        self.SS = {
-            "head": "Sandstone",
-            "category": "rock-matrix",
-            "marker": "2",
-            "markercolor": "red",
-            "fillcolor": "gold",
-            "hatch": "..",
-            }
-
-        self.SS["type1"] = {
-            "description": "Sandstone, Porosity > 10%",
-            "DTma": 55.5,
-            "rhoma": 2.65,
-            "phima_SNP": -0.035,
-            "phima_CNL": -0.05,
-            }
-
-        self.SS["type2"] = {
-            "description": "Sandstone, Porosity < 10%",
-            "DTma": 51.2,
-            "rhoma": 2.65,
-            "phima_SNP": -0.035,
-            "phima_CNL": -0.005,
-            }
-
-        self.SSH = {
-            "head": "Shaly Sandstone",
-            "fillcolor": "gold",
-            "hatch": '..--',
-            }
-
-        self.LS = {
-            "head": "Limestone",
-            "fillcolor": "tan",
-            "hatch": "\\\\",
-            }
-        
-        self.LS = {
-            "head": "Limestone",
-            "marker": "2",
-            "markercolor": "blue",
-            }
-        
-        self.LS["type1"] = {
-            "description": "Limestone",
-            "DTma": 47.5,
-            "rhoma": 2.71,
-            "phima_SNP": 0,
-            "phima_CNL": 0,
-            }
-        
-        self.DOL = {
-            "head": "Dolomite",
-            "fillcolor": "darkkhaki",
-            "hatch": "//",
-            }
-        
-        self.DOL = {
-            "head": "Dolomite",
-            "marker": "2",
-            "markercolor": "green",
-            }
-        
-        self.DOL["type1"] = {
-            "description": "Dolomite, 5.5% < Porosity < 30%",
-            "DTma": 43.5,
-            "rhoma": 2.87,
-            "phima_SNP": 0.035,
-            "phima_CNL": 0.085,
-            }
-        
-        self.DOL["type2"] = {
-            "description": "Dolomite, 1.5% < Porosity < 5.5% && Porosity>30%",
-            "DTma": 43.5,
-            "rhoma": 2.87,
-            "phima_SNP": 0.02,
-            "phima_CNL": 0.065,
-            }
-        
-        self.DOL["type3"] = {
-            "description": "Dolomite, 0% < Porosity < 1.5%",
-            "DTma": 43.5,
-            "rhoma": 2.87,
-            "phima_SNP": 0.005,
-            "phima_CNL": 0.04,
-            }
-        
-        self.ANH = {
-            "head": "Anhydrite",
-            "marker": "2",
-            "markercolor": "cyan",
-            }
-        
-        self.ANH["type1"] = {
-            "description": "Anhydrite",
-            "DTma": 50.0,
-            "rhoma": 2.98,
-            "phima_SNP": -0.005,
-            "phima_CNL": -0.002,
-            }
-        
-        self.SLT = {
-            "head": "Salt",
-            "marker": "2",
-            "markercolor": "black",
-            }
-        
-        self.SLT["type1"] = {
-            "description": "Salt",
-            "DTma": 67.0,
-            "rhoma": 2.03,
-            "phima_SNP": 0.04,
-            "phima_CNL": -0.01,
-            }
-
-        self.PV = {
-            "head": "Pore Volume",
-            "fillcolor": "white",
-            "hatch": "OO",
-            }
-
-        self.liquid = {
-            "head": "Liquid",
-            "fillcolor": "blue",
-            "hatch": "OO",
-            }
-        
-        self.water = {
-            "head": "Water",
-            "fillcolor": "steelblue",
-            "hatch": "OO",
-            }
-        
-        self.waterCLAY = {
-            "head": "Water Clay Bound",
-            "fillcolor": "lightskyblue",
-            "hatch": "XX",
-            }
-        
-        self.waterCAP = {
-            "head": "Water Capillary Bound",
-            "fillcolor": "lightsteelblue",
-            "hatch": "XX",
-            }
-        
-        self.waterIRRE = {
-            "head": "Water Irreducible",
-            "fillcolor": "lightblue",
-            "hatch": "XX",
-            }
-        
-        self.waterM = {
-            "head": "Water Movable",
-            "fillcolor": "aqua",
-            "hatch": '..',
-            }
-        
-        self.fluidM = {
-            "head": "Fluid Movable",
-            "fillcolor": "teal",
-            "hatch": '..',
-            }
-
-        self.HC = {
-            "head": "Hydrocarbon",
-            "fillcolor": "green",
-            "hatch": 'OO',
-            }
-        
-        self.gas = {
-            "head": "Gas",
-            "fillcolor": "lightcoral",
-            "hatch": "OO",
-            }
-        
-        self.gasR = {
-            "head": "Gas Residual",
-            "fillcolor": "indianred",
-            "hatch": 'XX',
-            }
-        
-        self.gasM = {
-            "head": "Gas Movable",
-            "fillcolor": "red",
-            "hatch": '..',
-            }
-        
-        self.GC = {
-            "head": "Condensate",
-            "fillcolor": "firebrick",
-            "hatch": "OO.",
-            }
-        
-        self.oil = {
-            "head": "Oil",
-            "fillcolor": "seagreen",
-            "hatch": 'oo',
-            }
-        
-        self.oilR = {
-            "head": "Oil Residual",
-            "fillcolor": "forestgreen",
-            "hatch": 'XX',
-            }
-        
-        self.oilM = {
-            "head": "Oil Movable",
-            "fillcolor": "limegreen",
-            "hatch": '..',
-            }
-        
-        self.set_colors(**kwargs)
+        object.__setattr__(self,"library",library)
 
     def set_colors(self,**kwargs):
 
@@ -1063,13 +863,11 @@ class bulkmodel():
 
             getattr(self,key)[1] = value
 
-    def set_hatches(self,**kwargs):
+    def view(self):
 
-        for key,value in kwargs.items():
+        pass
 
-            getattr(self,key)[2] = value
-
-    def view(self,axis,nrows=(7,7,8),ncols=3,fontsize=10,sizes=(8,5),dpi=100):
+    def viewlib(self,axis,nrows=(7,7,8),ncols=3,fontsize=10,sizes=(8,5),dpi=100):
 
         X,Y = [dpi*size for size in sizes]
 
@@ -1114,22 +912,6 @@ class bulkmodel():
         axis.set_axis_off()
 
         return axis
-
-    @property
-    def items(self):
-        return list(self.__dict__.keys())
-    
-    @property
-    def names(self):
-        return [value[0] for key,value in self.__dict__.items()]
-
-    @property
-    def colors(self):
-        return [value[1] for key,value in self.__dict__.items()]
-
-    @property
-    def hatches(self):
-        return [value[2] for key,value in self.__dict__.items()]
 
 class depthview():
 
@@ -1547,553 +1329,20 @@ class depthview():
 
         pyplot.show()
 
-class DepthView(): #Will BE DEPRECIATED
-
-    def __init__(self,root):
-        """It initializes the DepthView with listbox and figure canvas."""
-
-        self.root = root
-
-        self.root.title("Well Logs - Depth View")
-
-        self.header = tkinter.Canvas(self.root,height=200)
-        self.header.grid(row=0,column=0,sticky=tkinter.EW)
-
-        self.canvas = tkinter.Canvas(self.root)
-        self.canvas.grid(row=1,column=0,sticky=tkinter.NSEW)
-
-        # self.hscroll = tkinter.Scrollbar(self.root,orient=tkinter.HORIZONTAL)
-        # self.hscroll.grid(row=2,column=0,sticky=tkinter.EW)
-
-        self.vscroll = tkinter.Scrollbar(self.root,orient=tkinter.VERTICAL)
-        self.vscroll.grid(row=0,column=1,rowspan=2,sticky=tkinter.NS)
-
-        self.root.rowconfigure(0,weight=0)
-        self.root.rowconfigure(1,weight=1)
-        # self.root.rowconfigure(2,weight=0)
-
-        self.root.columnconfigure(0,weight=1)
-        self.root.columnconfigure(1,weight=0)
-
-        # self.canvas.config(xscrollcommand=self.hscroll.set)
-        self.canvas.config(yscrollcommand=self.vscroll.set)
-
-        # self.hscroll.config(command=self.canvas.xview)
-        self.vscroll.config(command=self.canvas.yview)
-
-        self.canvas.configure(bg='blue')
-
-        self.canvas.bind_all("<MouseWheel>",self._on_mousewheel)
-
-        # The colors to be used for lines
-
-        # self.colors = ("black","crimson","blue","sienna")
-        self.colors = pyplot.rcParams['axes.prop_cycle'].by_key()['color']
-        # self.colors.insert(0,"#000000")
-
-    def set_header(self,nrows=(1,3,2,2),ncols=4,fontsize=10,width=3.,height=2.,dpi=100.):
-
-        fig = pyplot.figure(dpi=dpi)
-
-        fig.set_figwidth(width*4)
-        fig.set_figheight(height)
-
-        axis = fig.add_subplot(111)
-
-        X,Y = [dpi*size for size in (width*ncols,height)]
-
-        w = X/ncols
-        h = Y/(max(nrows)+1)
-
-        names = ["Vsh","NGL","PHIT","PHIE","CBW","BVW","RL8","RL4"]
-
-        # colors = self.colors
-        # hatches = self.hatches
-
-        k = 0
-            
-        for idcol in range(ncols):
-
-            for idrow in range(nrows[idcol]):
-
-                y = Y-(idrow*h)-h
-
-                xmin = w*(idcol+0.05)
-                xmax = w*(idcol+0.25)
-
-                ymin = y-h*0.3
-                ymax = y+h*0.3
-
-                xtext = w*(idcol+0.3)
-
-                axis.text(xtext,y,names[k],fontsize=(fontsize),
-                        horizontalalignment='left',
-                        verticalalignment='center')
-
-                axis.add_patch(Rectangle((xmin,ymin),0.8*w,0.7*h,fill=True)
-                    ) #fill=True,hatch=hatches[k],facecolor=colors[k]
-
-                k += 1
-
-        axis.set_xlim(0,X)
-        axis.set_ylim(0,Y)
-
-        axis.set_axis_off()
-
-        buff = io.BytesIO()
-
-        fig.savefig(buff,format='png')
-
-        buff.seek(0)
-
-        image = ImageTk.PhotoImage(Image.open(buff))
-
-        self.header.create_image(0,0,anchor=tkinter.N,image=image)
-
-    def set_axes(self,numaxes=1,subaxes=None,depth=None,inchdepth=15.,width=3.,height=128.,dpi=100.):
-        """Creates the figure and axes and their sub-axes and stores them in the self.axes."""
-
-        # numaxes   : integer
-        #            Number of axes in the figure
-
-        # subaxes   : list or tuple of integers
-        #            Number of subaxes in each axis
-
-        # depth     : float
-        #            Depth of log in meters; every inch will represent inchdepth meter of formation
-        #            Default value for inchdepth is 15 meters.
-
-        # inchdepth : float
-        #            The depth (meters) to be shown in every inch of the figure
-
-        # width     : float
-        #            Width of each axis in inches
-
-        # height    : float
-        #            Height of figure in inches
-
-        # dpi       : integer
-        #            Resolution of the figure, dots per inches
-
-        self.figure = pyplot.figure(dpi=dpi)
-
-        self.figure.set_figwidth(width*numaxes)
-
-        if depth is None:
-            self.figure.set_figheight(height)
-        else:
-            self.figure.set_figheight(depth/inchdepth)
-
-        self.fgspec = gridspec.GridSpec(1,numaxes)
-
-        self.axes = []
-
-        if subaxes is None:
-            subaxes = (1,)*numaxes
-        elif not hasattr(subaxes,"__len__"):
-            logging.warning(f"Expected subaxes is a list or tuple with the length equal to numaxes; input is {type(subaxes)}")
-        elif len(subaxes)!=numaxes:
-            logging.warning(f"The length of subaxes should be equal to numaxes; {len(subaxes)} not equal to {numaxes=}")
-
-        for idaxis in range(numaxes):
-            self.add_axis(idaxis,subaxes[idaxis])
-
-    def add_axis(self,idaxis,numsubaxes=1):
-        """Adds main-axis and its subaxes to the list of self.axes."""
-
-        subaxes = []
-
-        subaxis_main = pyplot.subplot(self.fgspec[idaxis])
-
-        xlims = (0,1)
-
-        ylims = (0,1)
-
-        subaxis_main.set_xticks(numpy.linspace(*xlims,11))
-        subaxis_main.set_yticks(ylims)
-
-        subaxis_main.set_ylim(ylims[::-1])
-
-        subaxis_main.yaxis.set_minor_locator(AutoMinorLocator(25))
-
-        subaxis_main.grid(True,which="both",axis='y')
-
-        subaxis_main.grid(True,which="major",axis='x')
-
-        pyplot.setp(subaxis_main.get_xticklabels(),visible=False)
-        pyplot.setp(subaxis_main.get_xticklines(),visible=False)
-
-        # pyplot.setp(subaxis_main.xaxis.get_minorticklabels(),visible=False)
-        # pyplot.setp(subaxis_main.xaxis.get_minorticklines(),visible=False)
-
-        pyplot.setp(subaxis_main.yaxis.get_minorticklines(),visible=False)
-        # subaxis_main.tick_params(axis='y',which='major',length=0)
-
-        if idaxis>0:
-            pyplot.setp(subaxis_main.get_yticklabels(),visible=False)
-
-        subaxes.append(subaxis_main)
-
-        self.axes.append(subaxes)
-
-        self.set_subaxes(idaxis,numsubaxes)
-
-    def set_subaxes(self,idaxis,numsubaxes):
-        """Creates subaxes and stores them in self.axes."""
-
-        numsubaxes_current = len(self.axes[idaxis])-1
-
-        if numsubaxes_current>=numsubaxes:
-            return
-
-        roofpos = 1+0.4*numsubaxes/self.figure.get_figheight()
-
-        self.axes[idaxis][0].spines["top"].set_position(("axes",roofpos))
-
-        for idline in range(numsubaxes_current,numsubaxes):
-            self.add_subaxis(idaxis,idline)
-
-    def add_subaxis(self,idaxis,idline):
-        """Adds subaxis to the self.axes."""
-
-        axsub = self.axes[idaxis][0].twiny()
-
-        axsub.set_xticks((0.,1.))
-        axsub.set_ylim(self.axes[0][0].get_ylim())
-
-        spinepos = 1+0.4*idline/self.figure.get_figheight()
-
-        axsub.spines["top"].set_position(("axes",spinepos))
-        axsub.spines["top"].set_color(self.colors[idline])
-
-        axsub.spines["left"].set_visible(False)
-        axsub.spines["right"].set_visible(False)
-        axsub.spines["bottom"].set_visible(False)
-
-        axsub.tick_params(axis='x',labelcolor=self.colors[idline])
-
-        # self.axes[idaxis][0].yaxis.set_minor_locator(AutoMinorLocator(25))
-
-        # self.axes[idaxis][0].grid(True,which="both",axis='y')
-
-        pyplot.setp(self.axes[idaxis][0].get_xticklabels(),visible=False)
-        pyplot.setp(self.axes[idaxis][0].get_xticklines(),visible=False)
-
-        axsub.LineExistFlag = False
-
-        self.set_xaxis(axsub)
-
-        self.axes[idaxis].append(axsub)
-
-    def set_depth(self,depth=None):
-        """It will check the depths of axis and set depth which include all depths."""
-
-        for axis in self.axes:
-            for axsub in axis:
-                axsub.set_ylim(self.axes[0][0].get_ylim())
-
-            # axis[0].yaxis.set_minor_locator(AutoMinorLocator(25))
-            # axis[0].grid(True,which="both",axis='y')
-
-    def set_xaxis(self,axis):
-
-        pyplot.setp(axis.xaxis.get_majorticklabels()[1:-1],visible=False)
-
-        pyplot.setp(axis.xaxis.get_majorticklabels()[0],ha="left")
-        pyplot.setp(axis.xaxis.get_majorticklabels()[-1],ha="right")
-
-        if not axis.LineExistFlag:
-
-            loffset = transforms.ScaledTranslation(5/72,-5/72,self.figure.dpi_scale_trans)
-            
-            ltrans = axis.xaxis.get_majorticklabels()[0].get_transform()
-
-            axis.xaxis.get_majorticklabels()[0].set_transform(ltrans+loffset)
-
-            roffset = transforms.ScaledTranslation(-5/72,-5/72,self.figure.dpi_scale_trans)
-
-            rtrans = axis.xaxis.get_majorticklabels()[-1].get_transform()
-
-            axis.xaxis.get_majorticklabels()[-1].set_transform(rtrans+roffset)
-
-        else:
-
-            roffset = transforms.ScaledTranslation(-10/72,0,self.figure.dpi_scale_trans)
-
-            rtrans = axis.xaxis.get_majorticklabels()[-1].get_transform()
-
-            axis.xaxis.get_majorticklabels()[-1].set_transform(rtrans+roffset)
-
-        pyplot.setp(axis.xaxis.get_majorticklines()[2:-1],visible=False)
-
-        pyplot.setp(axis.xaxis.get_majorticklines()[1],markersize=25)
-        pyplot.setp(axis.xaxis.get_majorticklines()[-1],markersize=25)
-
-        # axis.xaxis.get_majorticklines()[0].set_markersize(100)
-
-    def set_lines(self,idaxis,idline,xcol,ycol):
-
-        axis = self.axes[idaxis][idline+1]
-
-        axis.plot(xcol.vals,ycol.vals,color=self.colors[idline])
-
-        axis.LineExistFlag = True
-
-        yticks = self.get_yticks(ycol.vals)
-        xticks = self.get_xticks(xcol.vals)
-
-        axis.set_xlabel(xcol.head)
-
-        # figheight_temp = (yticks.max()-yticks.min())/128
-
-        # if figheight_temp>self.figure.get_figheight():
-        #   self.figure.set_figheight(figheight_temp)
-
-        # figheight = max(self.figure.get_figheight(),figheight_temp)
-
-        axis.set_ylim((yticks.max(),yticks.min()))
-        axis.set_yticks(yticks)
-
-        axis.set_xlim((xticks.min(),xticks.max()))
-        axis.set_xticks(xticks)
-
-        self.set_xaxis(axis)
-
-        # axis.grid(True,which="both",axis='y')
-
-        # axis.yaxis.set_minor_locator(AutoMinorLocator(10))
-
-        # if idline==0:
-            # axis.grid(True,which="major",axis='x')
-
-        # axis.xaxis.set_major_formatter(ScalarFormatter())
-        # # axis.xaxis.set_major_formatter(LogFormatter())
-
-    def set_image(self):
-        """Creates the image of figure in memory and displays it on canvas."""
-
-        self.fgspec.tight_layout(self.figure,rect=[0,0,1.0,0.995])
-        self.fgspec.update(wspace=0)
-
-        buff = io.BytesIO()
-
-        self.figure.savefig(buff,format='png')
-
-        buff.seek(0)
-
-        self.image = ImageTk.PhotoImage(Image.open(buff))
-
-        self.canvas.create_image(0,0,anchor=tkinter.N,image=self.image)
-
-        self.canvas.config(scrollregion=self.canvas.bbox('all'))
-
-    def get_xticks(self,xvals,xmin=None,xmax=None,xscale="normal",xdelta=None,xdelta_count=11):
-
-        xvals_min = numpy.nanmin(xvals)
-
-        if xvals_min is numpy.nan:
-            xvals_min = 0.
-
-        xvals_max = numpy.nanmax(xvals)
-
-        if xvals_max is numpy.nan:
-            xvals_max= 1.
-
-        xrange_given = xvals_max-xvals_min
-
-        if xdelta is None:
-            xdelta = xrange_given/(xdelta_count-1)
-
-        beforeDot,afterDot = format(xdelta,'f').split('.')
-
-        nondim_xunit_sizes = numpy.array([1,2,4,5,10])
-
-        if xdelta>1:
-
-            xdelta_temp = xdelta/10**(len(beforeDot)-1)
-            xdelta_temp = nondim_xunit_sizes[(numpy.abs(nondim_xunit_sizes-xdelta_temp)).argmin()]
-
-            xdelta = xdelta_temp*10**(len(beforeDot)-1)
-
-        else:
-
-            zeroCountAfterDot = len(afterDot)-len(afterDot.lstrip('0'))
-
-            xdelta_temp = xdelta*10**(zeroCountAfterDot+1)
-            xdelta_temp = nondim_xunit_sizes[(numpy.abs(nondim_xunit_sizes-xdelta_temp)).argmin()]
-
-            xdelta = xdelta_temp/10**(zeroCountAfterDot+1)
-
-        if xscale=="normal":
-
-            if xmin is None:
-                xmin = (numpy.floor(xvals_min/xdelta)-1).astype(float)*xdelta
-
-            if xmax is None:
-                xmax = (numpy.ceil(xvals_max/xdelta)+1).astype(float)*xdelta
-
-            xticks = numpy.arange(xmin,xmax+xdelta/2,xdelta)
-
-        elif xscale=="log":
-
-            if xmin is None:
-                xmin = xvals_min if xvals_min>0 else 0.001
-
-            if xmax is None:
-                xmax = xvals_max if xvals_max>0 else 0.1
-
-            xmin_power = numpy.floor(numpy.log10(xmin))
-            xmax_power = numpy.ceil(numpy.log10(xmax))
-
-            xticks = 10**numpy.arange(xmin_power,xmax_power+1/2)
-
-        return xticks
-
-    def get_yticks(self,yvals=None,top=None,bottom=None,endmultiple=5.,ydelta=25.):
-
-        if yvals is None:
-            yvals = numpy.array([0,1])
-
-        if top is None:
-            top = numpy.nanmin(yvals)
-
-        if bottom is None:
-            bottom = numpy.nanmax(yvals)
-
-        if top>bottom:
-            top,bottom = bottom,top
-
-        ymin = numpy.floor(top/endmultiple)*endmultiple
-
-        ymax = numpy.ceil(bottom/endmultiple)*endmultiple
-
-        yticks = numpy.arange(ymin,ymax+ydelta/2,ydelta)
-
-        return yticks
-
-    def set_DepthViewGRcut(self,GRline,indexI,indexJ,perc_cut=40):
-
-        # indexI index of GR containing axis in the plot
-        # indexJ index of GR containing line in the axis
-
-        try:
-            depth = self.frames[GRline[0]].columns("MD")
-        except ValueError:
-            depth = self.frames[GRline[0]].columns("DEPT")
-
-        xvals = self.frames[GRline[0]].columns(GRline[1])
-
-        GRmin = numpy.nanmin(xvals)
-        GRmax = numpy.nanmax(xvals)
-
-        GRcut = (GRmin+(GRmax-GRmin)*perc_cut/100)
-
-        cut_line = GRcut*numpy.ones(depth.shape)
-
-        cond_clean = cut_line>=xvals
-
-        indexTop = []
-        indexBtm = []
-
-        for i,cond in enumerate(cond_clean):
-            
-            if i>0:
-                old_cond = cond_clean[i-1]
-            else:
-                old_cond = False
-                
-            try:
-                new_cond = cond_clean[i+1]
-            except IndexError:
-                new_cond = False
-                
-            if cond and not old_cond:
-                indexTop.append(i)
-
-            if cond and not new_cond:
-                indexBtm.append(i)
-
-        net_pay = 0
-
-        for i,j in zip(indexTop,indexBtm):
-
-            net_pay += depth[j]-depth[i]
-
-        self.axes[indexI].subax[indexJ].fill_betweenx(
-            depth,xvals,x2=cut_line,where=cond_clean,color=self.color_clean)
-
-        self.netPayThickness = net_pay
-        self.netToGrossRatio = net_pay/self.gross_thickness*100
-
-        return GRcut
-
-    def set_DepthViewNeuPorCorr(self,NeuPorLine,indexI,indexJ,Vsh,NeuPorShale):
-
-        # indexI index of Neutron Porosity containing axis in the plot
-        # indexJ index of Neutron Porosity containing line in the axis
-
-        try:
-            depth = self.frames[NeuPorLine[0]]["MD"]
-        except KeyError:
-            depth = self.frames[NeuPorLine[0]]["DEPT"]
-
-        xvals = self.frames[NeuPorLine[0]][NeuPorLine[1]]
-
-        NeuPorCorr = xvals-Vsh*NeuPorShale
-
-        self.axes[indexI].subax[indexJ].plot(NeuPorCorr,depth,
-            color=self.lineColors[indexJ],linestyle="--")
-
-    def set_DepthViewResistivityCut(self,ResLine,indexI,indexJ,ohmm_cut=10):
-
-        # indexI index of Resistivity containing axis in the plot
-        # indexJ index of Resistivity containing line in the axis
-
-        depth = self.frames[ResLine[0]].columns(0)
-
-        xvals = self.frames[ResLine[0]].columns(ResLine[1])
-
-        cut_line = ohmm_cut*numpy.ones(depth.shape)
-
-        self.axes[indexI].subax[indexJ].fill_betweenx(
-            depth,xvals,x2=cut_line,where=ohmm_cut<=xvals,color=self.color_HC)
-
-    def set_DepthViewNMRfluid(self,NMRline,indexI,water_clay,water_capi,water_move,HC):
-
-        # indexL index of NMR containing lasio in the pack
-        # indexI index of NMR containing axis in the plot
-
-        try:
-            depth = self.frames[NMRline]["MD"]
-        except KeyError:
-            depth = self.frames[NMRline]["DEPT"]
-
-        xvals0 = numpy.zeros(water_clay.shape)
-        xvals1 = water_clay
-        xvals2 = water_clay+water_capi
-        xvals3 = water_clay+water_capi+water_move
-        xvals4 = water_clay+water_capi+water_move+HC
-
-        self.axes[indexI].subax[0].fill_betweenx(
-            depth,xvals1,x2=xvals0,where=xvals0<=xvals1,color=self.color_waterclay)
-
-        self.axes[indexI].subax[0].fill_betweenx(
-            depth,xvals2,x2=xvals1,where=xvals1<=xvals2,color=self.color_watercapi)
-
-        self.axes[indexI].subax[0].fill_betweenx(
-            depth,xvals3,x2=xvals2,where=xvals2<=xvals3,color=self.color_watermove)
-
-        self.axes[indexI].subax[0].fill_betweenx(
-            depth,xvals4,x2=xvals3,where=xvals3<=xvals4,color=self.color_HC)
-
-    def _on_mousewheel(self,event):
-        """Lets the scroll work everywhere on the window."""
-
-        self.canvas.yview_scroll(int(-1*(event.delta/120)),"units")
-
 class batchview():
     """It creates correlation based on multiple las files from different wells."""
 
     def __init__(self):
 
         pass
+
+
+if __name__ == "__main__":
+
+    bm = bulkmodel(sandstone=1)
+
+    for key in bm.library.keys():
+        print(key)
+
+    # for item in bm.library:
+    #     print(item)
