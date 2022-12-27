@@ -2,6 +2,8 @@ import copy
 
 import json
 
+import math
+
 import re
 
 from matplotlib import colors as mcolors
@@ -924,6 +926,8 @@ class depthview():
         else:
             raise(f'{page_format=} has not been defined!')
 
+        self.page_format = page_format
+
         if page_orientation == "Portrait":
             pass
         elif page_orientation == "Landscape":
@@ -931,50 +935,64 @@ class depthview():
         else:
             raise(f'{page_orientation=} has not been defined!')
 
+        self.page_orientation = page_orientation
+
         self.figure = pyplot.figure(figsize=figsize,dpi=100)
         
     def set_axes(self,naxes,ncurves_max=3,label_loc=None):
+        """It sets the number of axes and maximum number of lines in the axes.
 
-        # naxes shows the number of column axis in the figure, integer
-        # ncurves_max shows the maximum number of curves in the axes, integer
+        naxes       : number of column axis (except depth axis) in the figure, integer
+        ncurves_max : maximum number of curves in the axes, integer
+
+        FOR NOW RATIOS ARE DEFINED ONLY FOR A4 FORMAT PORTRAIT VIEW
+
+        """
+
+        if self.page_format!="A4":
+            return
+
+        if self.page_orientation!="Portrait":
+            return
 
         if naxes == 1:
-            depth_column = 0
+            depth_axis = 0
             width_ratios = [1,10]
         elif naxes == 2:
-            depth_column = 1
+            depth_axis = 1
             width_ratios = [10,3,20]
         elif naxes == 3:
-            depth_column = 1
+            depth_axis = 1
             width_ratios = [10,3,10,10]
         elif naxes == 4:
-            depth_column = 1
+            depth_axis = 1
             width_ratios = [5,2,5,5,5]
         elif naxes == 5:
-            depth_column = 1
+            depth_axis = 1
             width_ratios = [2,1,2,2,2,2]
         elif naxes == 6:
-            depth_column = 1
+            depth_axis = 1
             width_ratios = [5,3,5,5,5,5,5]
         else:
             raise ValueError("Maximum number of columns is 6!")
 
-        self.depth_column = depth_column
+        self.depth_axis = depth_axis
+
+        page_label_depth = ncurves_max*4
+
+        self.page_depth = 86-page_label_depth
 
         numcols = naxes+1
 
         if label_loc is None:
             numrows = 1
             height_ratios = None
-            index = 0
         elif label_loc == "top":
             numrows = 2
-            height_ratios = [ncurves_max,19-ncurves_max]
-            index = 1
+            height_ratios = [page_label_depth,self.page_depth]
         elif label_loc == "bottom":
             numrows = 2
-            height_ratios = [19-ncurves_max,ncurves_max]
-            index = 0
+            height_ratios = [self.page_depth,page_label_depth]
         else:
             raise ValueError("The location of box can be top, bottom or None!")
 
@@ -991,7 +1009,7 @@ class depthview():
             curve_axis = self.figure.add_subplot(self.gspecs[1,i])
             label_axis = self.figure.add_subplot(self.gspecs[0,i])
 
-            if i != depth_column:
+            if i != depth_axis:
                 curve_axis = self._set_curveaxis(curve_axis)  
             else:
                 curve_axis = self._set_depthaxis(curve_axis)
@@ -1029,14 +1047,14 @@ class depthview():
         else:
             raise ValueError(f"{scale} has not been defined! options: {{linear,log}}")
 
-    def set_ycycles(self,cycles,subskip=0):
+    def set_ycycles(self,subskip=0):
 
-        ylim = (10*cycles+subskip,0+subskip)
+        ylim = (self.page_depth+subskip,0+subskip)
 
         for axis in self.axes_curve:
             axis.set_ylim(ylim)
 
-    def _set_curveaxis(self,axis,xscale='linear',xcycles=2,xsubkip=0,ycycles=7,ysubskip=0):
+    def _set_curveaxis(self,axis,xscale='linear',xcycles=2,xsubkip=0):
 
         if xscale=="linear":
             xlim = (0+xsubkip,10*xcycles+xsubkip)
@@ -1045,7 +1063,7 @@ class depthview():
         else:
             raise ValueError(f"{xscale} has not been defined! options: {{linear,log}}")
 
-        ylim = (10*ycycles+ysubskip,0+ysubskip)
+        ylim = (self.page_depth,0)
 
         axis.set_xlim(xlim)
         axis.set_ylim(ylim)
@@ -1082,10 +1100,10 @@ class depthview():
 
         return axis
 
-    def _set_depthaxis(self,axis,cycles=7,subskip=0):
+    def _set_depthaxis(self,axis,subskip=0):
 
         xlim = (0,1)
-        ylim = (10*cycles+subskip,0+subskip)
+        ylim = (self.page_depth+subskip,0+subskip)
         
         axis.set_xlim(xlim)
         axis.set_ylim(ylim)
@@ -1106,7 +1124,7 @@ class depthview():
     def _set_labelaxis(self,axis,ncurves_max):
 
         axis.set_xlim((0,1))
-        axis.set_ylim((0,ncurves_max+1))
+        axis.set_ylim((0,ncurves_max))
 
         pyplot.setp(axis.get_xticklabels(),visible=False)
         pyplot.setp(axis.get_xticklines(),visible=False)
@@ -1116,10 +1134,13 @@ class depthview():
         return axis
 
     def add_depth(self,depth,**kwargs):
+        """This depth should calculate the number of pages I am going to have"""
 
-        axis = self.axes_curve[self.depth_column]
+        number_of_pages = math.ceil(depth/self.page_depth)
 
-        self.yvals,dlim,_ = self._get_linear_normalized(
+        axis = self.axes_curve[self.depth_axis]
+
+        _,dlim,_ = self._get_linear_normalized(
             depth,axis.get_ylim(),multp=1,**kwargs)
 
         self.dlim = numpy.array(dlim,dtype=float)
@@ -1152,7 +1173,7 @@ class depthview():
         else:
             raise ValueError(f"{xscale} has not been defined! options: {{linear,log}}")
 
-        curve_axis.plot(xvals,self.yvals,
+        curve_axis.plot(xvals,curve.depths,
             color=curve.color,linestyle=curve.style,linewidth=curve.width)
 
         numlines = len(curve_axis.lines)
@@ -1254,6 +1275,7 @@ class depthview():
         lines = curve_axis.lines
 
         xvals = lines[left].get_xdata()
+        yvals = lines[left].get_ydata()
 
         if right is None:
             x2 = 0
@@ -1262,7 +1284,7 @@ class depthview():
         else:
             x2 = lines[right].get_xdata()
 
-        curve_axis.fill_betweenx(self.yvals,xvals,x2=x2,facecolor=module["fillcolor"],hatch=module["hatch"])
+        curve_axis.fill_betweenx(yvals,xvals,x2=x2,facecolor=module["fillcolor"],hatch=module["hatch"])
 
         self._add_label_module(label_axis,module,len(lines))
 
@@ -1281,7 +1303,7 @@ class depthview():
 
     def add_perfs(self,*perfs):
 
-        depth_axis = self.axes_curve[self.depth_column]
+        depth_axis = self.axes_curve[self.depth_axis]
 
         for perf in perfs:
 
