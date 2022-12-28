@@ -215,6 +215,22 @@ class dirmaster():
 
         super().__setattr__("filepath",path)
 
+    def set_extension(self,path=None,extension=None):
+
+        if path is None:
+            path = self.filepath
+
+        if extension is None:
+            extension = ""
+
+        basename = os.path.basename(path)
+
+        rootname = os.path.splitext(basename)[0]
+
+        basename = f"{rootname}{extension}"
+
+        return os.path.normpath(os.path.join(self.filedir,basename))
+
     def get_abspath(self,path,homeFlag=False):
         """Returns absolute path for a given relative path."""
 
@@ -296,14 +312,17 @@ class dirmaster():
 
     @property
     def basename(self):
+
         return os.path.basename(self.filepath)
 
     @property
     def rootname(self):
+
         return os.path.splitext(self.basename)[0]
 
     @property
     def extension(self):
+
         return os.path.splitext(self.filepath)[1]
 
 class dirview():

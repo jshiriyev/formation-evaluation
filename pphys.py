@@ -915,146 +915,388 @@ class bulkmodel(header):
 
         return axis
 
-class depthview():
+class depthview(dirmaster):
 
-    def __init__(self,page_format="A4",page_orientation="Portrait"):
+    def __init__(self,**kwargs):
 
-        if page_format == "A4":
-            figsize = (8.3,11.7)
-        elif page_format == "Letter":
-            figsize = (8.5,11.0)
-        else:
-            raise(f'{page_format=} has not been defined!')
+        super().__init__(**kwargs)
 
-        self.page_format = page_format
+        self.depths = {}
+        self.axes = {}
+        self.curves = []
+        self.modules = []
+        self.perfs = []
+        self.casings = []
+        self.pages = {}
+        self.figures = []
 
-        if page_orientation == "Portrait":
-            pass
-        elif page_orientation == "Landscape":
-            figsize = figsize[::-1]
-        else:
-            raise(f'{page_orientation=} has not been defined!')
-
-        self.page_orientation = page_orientation
-
-        self.figure = pyplot.figure(figsize=figsize,dpi=100)
+    def set_depths(self,top,bottom,base=10,subs=1,subskip=None,subskip_top=0,subskip_bottom=0):
+        """It sets the depth interval for which log data will be shown.
         
-    def set_axes(self,naxes,ncurves_max=3,label_loc=None):
-        """It sets the number of axes and maximum number of lines in the axes.
-
-        naxes       : number of column axis (except depth axis) in the figure, integer
-        ncurves_max : maximum number of curves in the axes, integer
-
-        FOR NOW RATIOS ARE DEFINED ONLY FOR A4 FORMAT PORTRAIT VIEW
+        top             : top of interval
+        bottom          : bottom of interval
+        base            : major grid intervals on the plot
+        subs            : minor grid intervals on the plot
+        subskip         : number of minors to skip at the top and bottom
+        subskip_top     : number of minors to skip at the top
+        subskip_bottom  : number of minors to skip at the bottom
 
         """
 
-        if self.page_format!="A4":
+        if top<0 or bottom<0:
             return
 
-        if self.page_orientation!="Portrait":
-            return
+        if top>bottom:
+            top,bottom = bottom,top
 
-        if naxes == 1:
-            depth_axis = 0
+        top = numpy.floor(top/base)*base
+
+        bottom = top+numpy.ceil((bottom-top)/base)*base
+
+        if subskip is not None:
+            subskip_bottom,subskip_top = subskip,subskip
+
+        top += subs*subskip_top
+
+        bottom += subs*subskip_bottom
+
+        self.depths['top'] = top
+        self.depths['bottom'] = bottom
+        self.depths['height'] = bottom-top
+        self.depths['base'] = base
+        self.depths['subs'] = subs
+        self.depths['subskip_top'] = subskip_top
+        self.depths['subskip_bottom'] = subskip_bottom
+    
+    def set_axes(self,ncols=4,depth=1,ncurves=3,legends='top'):
+        """It sets the number of axes and maximum number of lines in the axes.
+
+        ncols       : number of column axis including depth axis in the figure, integer
+        depth       : index of depth axis, integer
+        ncurves     : maximum number of curves in the axes, integer
+        legends     : location of labels, top, bottom or None
+
+        """
+
+        self.axes['ncols'] = ncols
+        self.axes['depth'] = depth
+
+        self.axes['ncurves'] = ncurves
+        self.axes['legends'] = legends
+
+        if legends is None:
+            self.axes['nrows'] = 1
+        else:
+            self.axes['nrows'] = 2
+
+        self.axes['curves'] = [{} for _ in range(ncols)]
+        self.axes['labels'] = [{} for _ in range(ncols)]
+
+        for index in range(self.axes['ncols']):
+            self.set_xaxis(index)
+
+    def set_xaxis(self,index,cycles=2,subskip=None,subskip_left=0,subskip_right=0,scale='linear',subs=None,limits=None):
+
+        if subskip is None:
+            subskip_left,subskip_right = subskip,subskip
+
+        if index!=self.axes['depth']:
+
+            self.axes['curves'][index]['cycles'] = cycles
+            self.axes['curves'][index]['subskip_left'] = cycles
+            self.axes['curves'][index]['subskip_right'] = cycles
+            self.axes['curves'][index]['scale'] = scale
+            self.axes['curves'][index]['subs'] = subs
+
+            if scale=="linear":
+                xlim = numpy.array([0+subskip_left,cycles*10+subskip_right])
+            elif scale=="log":
+                xlim = numpy.array([(1+subskip_left)*10**0,(1+subskip_right)*10**cycles])
+
+        if index==self.axes['depth']:
+
+            xlim = (0,1) if limits is None else limits
+
+        self.axes['curves'][index]['xlim'] = xlim
+
+    def set_curve(self,index,curve,**kwargs):
+        """It adds las curve to the defined curve axis."""
+
+        _curve = {}
+
+        _curve['curve'] = curve
+
+        for key,value in kwargs.items():
+            _curve[key] = value
+
+        self.curves.append(_curve)
+
+    def set_module(self,index,module,left=0,right=None,**kwargs):
+        """It adds petrophysical module to the defined curve axis."""
+
+        _module = {}
+
+        _module['module'] = module
+        _module['left'] = left
+        _module['right'] = right
+
+        for key,value in kwargs.items():
+            _module[key] = value
+
+        self.modules.append(_module)
+
+    def set_perf(self,depth,**kwargs):
+        """It adds perforation depths to the depth axis."""
+
+        _depth = {}
+
+        _depth['depth'] = depth
+
+        for key,value in kwargs.items():
+            _depth[key] = value
+
+        self.perfs.append(_depth)
+
+    def set_casing(self,depth,**kwargs):
+        """It adds casing depths to the depth axis."""
+
+        _depth = {}
+
+        _depth['depth'] = depth
+
+        for key,value in kwargs.items():
+            _depth[key] = value
+
+        self.perfs.append(_depth)
+
+    def set_pages(self,fmt='A4',orientation='portrait',dpi=100):
+        """It sets the format of page for printing."""
+
+        if fmt == "A4":
+            self.pages['size'] = (8.3,11.7)
+            self.pages['grid'] = (66 ,86)
+        elif fmt == "letter":
+            self.pages['size'] = (8.5,11.0)
+            self.pages['grid'] = (66 ,81)
+        else:
+            raise(f'Page {fmt=} has not been defined!')
+
+        if orientation == "portrait":
+            pass
+        elif orientation == "landscape":
+            self.pages['size'] = self.pages['size'][::-1]
+            if fmt == "A4":
+                self.pages['grid'] = (90,61)
+            elif fmt == "letter":
+                self.pages['grid'] = (90,62)
+        else:
+            raise(f'Page {orientation=} has not been defined!')
+
+        self.pages['orientation'] = orientation
+
+        self.pages['dpi'] = dpi
+
+        self.pages['number'] = math.ceil(self.depths['height']/self.pages['height'])
+
+        self.axes['ratios'] = {}
+
+        if self.axes['ncols'] == 1:
             width_ratios = [1,10]
-        elif naxes == 2:
-            depth_axis = 1
+        elif self.axes['ncols'] == 2:
             width_ratios = [10,3,20]
-        elif naxes == 3:
-            depth_axis = 1
+        elif self.axes['ncols'] == 3:
             width_ratios = [10,3,10,10]
-        elif naxes == 4:
-            depth_axis = 1
+        elif self.axes['ncols'] == 4:
             width_ratios = [5,2,5,5,5]
-        elif naxes == 5:
-            depth_axis = 1
+        elif self.axes['ncols'] == 5:
             width_ratios = [2,1,2,2,2,2]
-        elif naxes == 6:
-            depth_axis = 1
+        elif self.axes['ncols'] == 6:
             width_ratios = [5,3,5,5,5,5,5]
         else:
             raise ValueError("Maximum number of columns is 6!")
 
-        self.depth_axis = depth_axis
+        self.axes['ratios']['width'] = width_ratios
 
-        page_label_depth = ncurves_max*4
+        page_label_ygrid = self.axes['ncurves']*4
 
-        self.page_depth = 86-page_label_depth
+        self.pages['grid'][1] -= page_label_ygrid
 
         numcols = naxes+1
 
-        if label_loc is None:
-            numrows = 1
+        if self.axes['legends'] is None:
             height_ratios = None
-        elif label_loc == "top":
-            numrows = 2
-            height_ratios = [page_label_depth,self.page_depth]
-        elif label_loc == "bottom":
-            numrows = 2
-            height_ratios = [self.page_depth,page_label_depth]
+        elif self.axes['legends'] == "top":
+            height_ratios = [page_label_ygrid,self.pages['grid'][1]]
+        elif self.axes['legends'] == "bottom":
+            height_ratios = [self.pages['grid'][1],page_label_ygrid]
         else:
             raise ValueError("The location of box can be top, bottom or None!")
 
+        self.axes['ratios']['height'] = height_ratios
+
+    def savepdf(self,wspace=0.0,hspace=0.0):
+        """ALL MATPLOTLIB FUNCTIONS START FROM HERE!!"""
+
+        self.set_extension(extension='.pdf')
+
+        for i in range(self.pages[number]):
+            self.figures.append(pyplot.figure(figsize=self.pages['size'],dpi=self.pages['dpi']))
+
+        self.add_axes()
+        self.add_curves()
+        self.add_modules()
+        self.add_perfs()
+        self.add_casings()
+        self.add_pages()
+
+        self.gspecs.tight_layout(self.figure)
+
+        self.gspecs.update(wspace=wspace,hspace=hspace)
+
+        self.figure.savefig(filepath=None,format='pdf')
+
+    """EVERYTHING BELOW IS FOR DOING THE ACTUAL PLOTTING JOB USING MATPLOTLIB."""
+
+    def add_axes(self):
+
         self.gspecs = gridspec.GridSpec(
-            nrows=numrows,ncols=numcols,
-            width_ratios=width_ratios,
-            height_ratios=height_ratios)
+            nrows=self.axes['nrows'],
+            ncols=self.axes['ncols'],
+            width_ratios=self.axes['ratios']['width'],
+            height_ratios=self.axes['ratios']['height'])
 
         self.axes_curve = []
         self.axes_label = []
 
-        for i in range(numcols):
+        for i in range(self.axes['ncols']):
 
             curve_axis = self.figure.add_subplot(self.gspecs[1,i])
             label_axis = self.figure.add_subplot(self.gspecs[0,i])
 
-            if i != depth_axis:
-                curve_axis = self._set_curveaxis(curve_axis)  
+            if i != self.axes['depth']:
+                curve_axis = self.set_curveaxis(curve_axis,self.pages['grid'][1])  
             else:
-                curve_axis = self._set_depthaxis(curve_axis)
+                curve_axis = self.set_depthaxis(curve_axis,self.pages['grid'][1])
 
-            label_axis = self._set_labelaxis(label_axis,ncurves_max)
+            label_axis = self.set_labelaxis(label_axis,self.axes['ncurves'])
 
             curve_axis.multipliers = []
 
             self.axes_curve.append(curve_axis)
             self.axes_label.append(label_axis)
 
-    def set_xcycles(self,index,cycles=2,subskip=0,scale='linear',subs=None):
+    def add_curves(self):
 
-        axis = self.axes_curve[index]
+        # for curve in self.axes_curve
 
-        if scale=="linear":
-            xlim = (0+subskip,10*cycles+subskip)
-        elif scale=="log":
-            xlim = ((subskip+1)*10**0,(subskip+1)*10**cycles)
+        curve_axis = self.axes_curve[index]
+        label_axis = self.axes_label[index]
+
+        xlim = curve_axis.get_xlim()
+
+        xscale = curve_axis.get_xscale()
+
+        if xscale == "linear":
+            xvals,xlim,multp = self.get_linear_normalized(curve.vals,xlim,**kwargs)
+        elif xscale == "log":
+            xvals,xlim,multp = self.get_log_normalized(curve.vals,xlim,**kwargs)
         else:
-            raise ValueError(f"{scale} has not been defined! options: {{linear,log}}")
+            raise ValueError(f"{xscale} has not been defined! options: {{linear,log}}")
 
+        curve_axis.plot(xvals,curve.depths,
+            color=curve.color,linestyle=curve.style,linewidth=curve.width)
+
+        numlines = len(curve_axis.lines)
+
+        try:
+            curve_axis.multipliers[numlines-1] = multp
+        except IndexError:
+            curve_axis.multipliers.append(multp)
+
+        self.add_label_line(label_axis,curve,xlim,numlines)
+
+    def add_modules(self,index,module,left=0,right=None):
+
+        curve_axis = self.axes_curve[index]
+        label_axis = self.axes_label[index]
+
+        xlim = curve_axis.get_xlim()
+
+        lines = curve_axis.lines
+
+        xvals = lines[left].get_xdata()
+        yvals = lines[left].get_ydata()
+
+        if right is None:
+            x2 = 0
+        elif right>=len(lines):
+            x2 = max(xlim)
+        else:
+            x2 = lines[right].get_xdata()
+
+        curve_axis.fill_betweenx(yvals,xvals,x2=x2,facecolor=module["fillcolor"],hatch=module["hatch"])
+
+        self.add_label_module(label_axis,module,len(lines))
+
+    def add_perfs(self,*perfs):
+
+        axis = self.axes_curve[self.depth_axis]
+
+        for perf in perfs:
+
+            perf = numpy.array(perf,dtype=float)
+
+            yvals = numpy.arange(perf.min(),perf.max()+0.5,1.0)
+
+            xvals = numpy.zeros(yvals.shape)
+
+            axis.plot(xvals[0],yvals[0],
+                marker=11,
+                color='orange',
+                markersize=10,
+                markerfacecolor='black')
+
+            axis.plot(xvals[-1],yvals[-1],
+                marker=10,
+                color='orange',
+                markersize=10,
+                markerfacecolor='black')
+
+            axis.plot(xvals[1:-1],yvals[1:-1],
+                marker=9,
+                color='orange',
+                markersize=10,
+                markerfacecolor='black')
+
+    def add_casings(self):
+        """It includes casing set depths"""
+
+        pass
+
+    @staticmethod
+    def set_depthaxis(axis,depthticks):
+
+        axis.set_ylim(ylim)
         axis.set_xlim(xlim)
 
-        axis.set_xscale(scale)
+        pyplot.setp(axis.get_xticklabels(),visible=False)
+        pyplot.setp(axis.get_xticklines(),visible=False)
 
-        if scale=="linear":
-            subs = 1 if subs is None else subs
-            axis.xaxis.set_minor_locator(MultipleLocator(subs))
-            axis.xaxis.set_major_locator(MultipleLocator(10))
-        elif scale=="log":
-            subs = range(1,10) if subs is None else subs
-            axis.xaxis.set_minor_locator(LogLocator(base=10,subs=subs,numticks=12))
-            axis.xaxis.set_major_locator(LogLocator(base=10,numticks=12))
-        else:
-            raise ValueError(f"{scale} has not been defined! options: {{linear,log}}")
+        axis.yaxis.set_minor_locator(MultipleLocator(subs))
+        axis.yaxis.set_major_locator(MultipleLocator(10))
+        
+        axis.tick_params(
+            axis="y",which="both",direction="in",right=True,pad=-40)
 
-    def set_ycycles(self,subskip=0):
+        pyplot.setp(axis.get_yticklabels(),visible=False)
 
-        ylim = (self.page_depth+subskip,0+subskip)
+        for ytick in depthticks[2:-2]:
 
-        for axis in self.axes_curve:
-            axis.set_ylim(ylim)
+            axis.text(0.5,ytick,ytick,horizontalalignment='center',
+                verticalalignment='center',backgroundcolor='white',fontsize='small',)
 
-    def _set_curveaxis(self,axis,xscale='linear',xcycles=2,xsubkip=0):
+    @staticmethod
+    def set_curveaxis(axis,depth,xscale='linear',xcycles=2,xsubkip=0):
 
         if xscale=="linear":
             xlim = (0+xsubkip,10*xcycles+xsubkip)
@@ -1063,7 +1305,7 @@ class depthview():
         else:
             raise ValueError(f"{xscale} has not been defined! options: {{linear,log}}")
 
-        ylim = (self.page_depth,0)
+        ylim = (depth,0)
 
         axis.set_xlim(xlim)
         axis.set_ylim(ylim)
@@ -1096,96 +1338,46 @@ class depthview():
         axis.tick_params(axis="y",which="minor",left=False)
 
         axis.grid(axis="y",which='minor',color='k',alpha=0.4)
-        axis.grid(axis="y",which='major',color='k',alpha=0.9)
+        axis.grid(axis="y",which='major',color='k',alpha=0.9)  
 
-        return axis
+    @staticmethod
+    def set_curveaxis_xcycles(axis,cycles=2,subskip=0,scale='linear',subs=None):
 
-    def _set_depthaxis(self,axis,subskip=0):
+        if scale=="linear":
+            xlim = (0+subskip,10*cycles+subskip)
+        elif scale=="log":
+            xlim = ((subskip+1)*10**0,(subskip+1)*10**cycles)
+        else:
+            raise ValueError(f"{scale} has not been defined! options: {{linear,log}}")
 
-        xlim = (0,1)
-        ylim = (self.page_depth+subskip,0+subskip)
-        
         axis.set_xlim(xlim)
-        axis.set_ylim(ylim)
 
-        pyplot.setp(axis.get_xticklabels(),visible=False)
-        pyplot.setp(axis.get_xticklines(),visible=False)
+        axis.set_xscale(scale)
 
-        axis.yaxis.set_minor_locator(MultipleLocator(1))
-        axis.yaxis.set_major_locator(MultipleLocator(10))
-        
-        axis.tick_params(
-            axis="y",which="both",direction="in",right=True,pad=-40)
+        if scale=="linear":
+            subs = 1 if subs is None else subs
+            axis.xaxis.set_minor_locator(MultipleLocator(subs))
+            axis.xaxis.set_major_locator(MultipleLocator(10))
+        elif scale=="log":
+            subs = range(1,10) if subs is None else subs
+            axis.xaxis.set_minor_locator(LogLocator(base=10,subs=subs,numticks=12))
+            axis.xaxis.set_major_locator(LogLocator(base=10,numticks=12))
+        else:
+            raise ValueError(f"{scale} has not been defined! options: {{linear,log}}")
 
-        pyplot.setp(axis.get_yticklabels(),visible=False)
-
-        return axis
-
-    def _set_labelaxis(self,axis,ncurves_max):
+    @staticmethod
+    def set_labelaxis(axis,ncurves):
 
         axis.set_xlim((0,1))
-        axis.set_ylim((0,ncurves_max))
+        axis.set_ylim((0,ncurves))
 
         pyplot.setp(axis.get_xticklabels(),visible=False)
         pyplot.setp(axis.get_xticklines(),visible=False)
         pyplot.setp(axis.get_yticklabels(),visible=False)
         pyplot.setp(axis.get_yticklines(),visible=False)
 
-        return axis
-
-    def add_depth(self,depth,**kwargs):
-        """This depth should calculate the number of pages I am going to have"""
-
-        number_of_pages = math.ceil(depth/self.page_depth)
-
-        axis = self.axes_curve[self.depth_axis]
-
-        _,dlim,_ = self._get_linear_normalized(
-            depth,axis.get_ylim(),multp=1,**kwargs)
-
-        self.dlim = numpy.array(dlim,dtype=float)
-
-        axis_yticks = axis.get_yticks()
-
-        calc_yticks = MultipleLocator(base=10).tick_values(*dlim)
-
-        for axis_ytick,calc_ytick in zip(axis_yticks[2:-2],calc_yticks[2:-2]):
-
-            axis.text(0.5,axis_ytick,calc_ytick,
-                horizontalalignment='center',
-                verticalalignment='center',
-                backgroundcolor='white',
-                fontsize='small',)
-
-    def add_curve(self,index,curve,**kwargs):
-
-        curve_axis = self.axes_curve[index]
-        label_axis = self.axes_label[index]
-
-        xlim = curve_axis.get_xlim()
-
-        xscale = curve_axis.get_xscale()
-
-        if xscale == "linear":
-            xvals,xlim,multp = self._get_linear_normalized(curve.vals,xlim,**kwargs)
-        elif xscale == "log":
-            xvals,xlim,multp = self._get_log_normalized(curve.vals,xlim,**kwargs)
-        else:
-            raise ValueError(f"{xscale} has not been defined! options: {{linear,log}}")
-
-        curve_axis.plot(xvals,curve.depths,
-            color=curve.color,linestyle=curve.style,linewidth=curve.width)
-
-        numlines = len(curve_axis.lines)
-
-        try:
-            curve_axis.multipliers[numlines-1] = multp
-        except IndexError:
-            curve_axis.multipliers.append(multp)
-
-        self._add_label_line(label_axis,curve,xlim,numlines)
-
-    def _get_linear_normalized(self,values,alim,multp=None,vmin=None,vmax=None):
+    @staticmethod
+    def get_linear_normalized(values,alim,multp=None,vmin=None,vmax=None):
 
         amin,amax = min(alim),max(alim)
 
@@ -1232,7 +1424,8 @@ class depthview():
 
         return axis_vals,(vmin,vmax),multp
 
-    def _get_log_normalized(self,values,alim,multp=None,vmin=None):
+    @staticmethod
+    def get_log_normalized(values,alim,multp=None,vmin=None):
         
         if vmin is None:
             vmin = values.min()
@@ -1247,109 +1440,38 @@ class depthview():
 
         return axis_vals,(vmin,vmax),multp
 
-    def _add_label_line(self,label_axis,curve,xlim,numlines=0):
+    @staticmethod
+    def add_label_line(axis,curve,xlim,numlines=0):
 
-        label_axis.plot((0,1),(numlines-0.6,numlines-0.6),
+        axis.plot((0,1),(numlines-0.6,numlines-0.6),
             color=curve.color,linestyle=curve.style,linewidth=curve.width)
 
-        label_axis.text(0.5,numlines-0.5,f"{curve.head}",
+        axis.text(0.5,numlines-0.5,f"{curve.head}",
             horizontalalignment='center',
             # verticalalignment='bottom',
             fontsize='small',)
 
-        label_axis.text(0.5,numlines-0.9,f"[{curve.unit}]",
+        axis.text(0.5,numlines-0.9,f"[{curve.unit}]",
             horizontalalignment='center',
             # verticalalignment='bottom',
             fontsize='small',)
 
-        label_axis.text(0.02,numlines-0.5,f'{xlim[0]:.5g}',horizontalalignment='left')
-        label_axis.text(0.98,numlines-0.5,f'{xlim[1]:.5g}',horizontalalignment='right')
+        axis.text(0.02,numlines-0.5,f'{xlim[0]:.5g}',horizontalalignment='left')
+        axis.text(0.98,numlines-0.5,f'{xlim[1]:.5g}',horizontalalignment='right')
 
-    def add_module(self,index,module,left=0,right=None):
-
-        curve_axis = self.axes_curve[index]
-        label_axis = self.axes_label[index]
-
-        xlim = curve_axis.get_xlim()
-
-        lines = curve_axis.lines
-
-        xvals = lines[left].get_xdata()
-        yvals = lines[left].get_ydata()
-
-        if right is None:
-            x2 = 0
-        elif right>=len(lines):
-            x2 = max(xlim)
-        else:
-            x2 = lines[right].get_xdata()
-
-        curve_axis.fill_betweenx(yvals,xvals,x2=x2,facecolor=module["fillcolor"],hatch=module["hatch"])
-
-        self._add_label_module(label_axis,module,len(lines))
-
-    def _add_label_module(self,label_axis,module,numlines=0):
+    @staticmethod
+    def add_label_module(axis,module,numlines=0):
 
         rect = Rectangle((0,numlines),1,1,
             fill=True,facecolor=module["fillcolor"],hatch=module["hatch"])
 
-        label_axis.add_patch(rect)
+        axis.add_patch(rect)
 
-        label_axis.text(0.5,numlines+0.5,module["head"],
+        axis.text(0.5,numlines+0.5,module["head"],
             horizontalalignment='center',
             verticalalignment='center',
             backgroundcolor='white',
             fontsize='small',)
-
-    def add_perfs(self,*perfs):
-
-        depth_axis = self.axes_curve[self.depth_axis]
-
-        for perf in perfs:
-
-            perf = numpy.array(perf,dtype=float)
-
-            ylim = depth_axis.get_ylim()
-
-            yvals = perf-self.dlim.min()
-
-            yvals = numpy.arange(yvals.min(),yvals.max()+0.5,1.0)
-
-            xvals = numpy.zeros(yvals.shape)
-
-            depth_axis.plot(xvals[0],yvals[0],
-                marker=11,
-                color='orange',
-                markersize=10,
-                markerfacecolor='black')
-
-            depth_axis.plot(xvals[-1],yvals[-1],
-                marker=10,
-                color='orange',
-                markersize=10,
-                markerfacecolor='black')
-
-            depth_axis.plot(xvals[1:-1],yvals[1:-1],
-                marker=9,
-                color='orange',
-                markersize=10,
-                markerfacecolor='black')
-
-    def add_casing(self):
-        """It includes casing set depths"""
-
-        pass
-
-    def show(self,filename=None,wspace=0.0,hspace=0.0):
-
-        self.gspecs.tight_layout(self.figure)
-
-        self.gspecs.update(wspace=wspace,hspace=hspace)
-
-        if filename is not None:
-            self.figure.savefig(filename,format='pdf')
-
-        pyplot.show()
 
 class batchview():
     """It creates correlation based on multiple las files from different wells."""
@@ -1357,7 +1479,6 @@ class batchview():
     def __init__(self):
 
         pass
-
 
 if __name__ == "__main__":
 
