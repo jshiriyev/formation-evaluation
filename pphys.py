@@ -44,7 +44,7 @@ from cypy.vectorpy import strtype
 with open("pphys.json","r") as jsonfile:
     library = json.load(jsonfile)
 
-class curve(column):
+class lascurve(column):
 
     def __init__(self,*args,**kwargs):
 
@@ -267,7 +267,7 @@ class lasfile(dirmaster):
             depths = numpy.sort(depths)
 
         outers_above = depths<depths_current.min()
-        outers_below = depths>depths_current.max()
+        outers_below = depths>depths_current.max()`
 
         inners = numpy.logical_and(~outers_above,~outers_below)
 
@@ -933,8 +933,10 @@ class depthview(dirmaster):
         self.page = {}
 
         class grids(): pass
+        class depths(): pass
 
         self.page['grids'] = grids()
+        self.page['depths'] = depths()
 
     def set_depths(self,top,bottom,base=10,subs=1,subskip=None,subskip_top=0,subskip_bottom=0):
         """It sets the depth interval for which log data will be shown.
@@ -1005,20 +1007,20 @@ class depthview(dirmaster):
         for index in range(self.axes['ncols']):
             self.set_xaxis(index)
 
-    def set_xaxis(self,index,cycles=2,subskip=None,subskip_left=0,subskip_right=0,scale='linear',subs=None):
+    def set_xaxis(self,index,cycles=2,subskip=None,subskip_left=0,subskip_right=0,scale='lin',subs=None):
 
         if subskip is not None:
             subskip_left,subskip_right = subskip,subskip
 
         if index==self.axes['depth']:
-            xlim = (0,1)
+            limit = (0,1)
 
         if index!=self.axes['depth']:
 
-            if scale=="linear":
-                xlim = (0+subskip_left,cycles*10+subskip_right)
+            if scale=="lin":
+                limit = (0+subskip_left,cycles*10+subskip_right)
             elif scale=="log":
-                xlim = ((1+subskip_left)*10**0,(1+subskip_right)*10**cycles)
+                limit = ((1+subskip_left)*10**0,(1+subskip_right)*10**cycles)
 
             self.axes['xaxis'][index]['cycles'] = cycles
 
@@ -1032,7 +1034,7 @@ class depthview(dirmaster):
             self.axes['xaxis'][index]['scale'] = scale
             self.axes['xaxis'][index]['subs'] = subs
 
-        self.axes['xaxis'][index]['xlim'] = xlim
+        self.axes['xaxis'][index]['limit'] = limit
 
     def set_curve(self,index,curve,**kwargs):
         """It adds las curve to the defined curve axis."""
@@ -1042,23 +1044,25 @@ class depthview(dirmaster):
         _curve['index'] = index
         _curve['curve'] = curve
 
-        _curve['multiply'] = multiply # IT IS THE PLACE TO DEFINE MULTIPLIER
+        axislimit = self.axes['xaxis'][index]['limit']
+        axisscale = self.axes['xaxis'][index]['scale']
+
+        getattr(self,f"_{axisscale}axis")(_curve,axislimit,**kwargs)
 
         for key,value in kwargs.items():
             _curve[key] = value
 
         self.curves.append(_curve)
 
-    @staticmethod
-    def get_linear_normalized(values,alim,multp=None,vmin=None,vmax=None):
+    def _linxaxis(self,_curve,axislim,multp=None,vmin=None,vmax=None):
 
-        amin,amax = min(alim),max(alim)
+        amin,amax = min(axislim),max(axislim)
 
         if vmin is None:
-            vmin = values.min()
+            vmin = _curve['curve'].vals.min()
         
         if vmax is None:
-            vmax = values.max()
+            vmax = _curve['curve'].vals.max()
 
         # print(f"{amin=},",f"{amax=}")
         # print(f"given_{vmin=},",f"given_{vmax=}")
@@ -1089,29 +1093,32 @@ class depthview(dirmaster):
 
             # print(f"{multp=},")
         
-        axis_vals = amin+(values-vmin)/multp
+        axis_vals = amin+(_curve['curve'].vals-vmin)/multp
 
         vmax = delta_axis*multp+vmin
         
         # print(f"normalized_{vmin=},",f"normalized_{vmax=}")
 
-        return axis_vals,(vmin,vmax),multp
+        _curve['xaxis'] = axis_vals
+        _curve['limit'] = (vmin,vmax)
+        _curve['multp'] = multp
 
-    @staticmethod
-    def get_log_normalized(values,alim,multp=None,vmin=None):
+    def _logxaxis(self,_curve,axislim,multp=None,vmin=None):
         
         if vmin is None:
-            vmin = values.min()
+            vmin = _curve['curve'].vals.min()
 
         if multp is None:
             multp = numpy.ceil(numpy.log10(1/vmin))
 
-        axis_vals = values*10**multp
+        axis_vals = _curve['curve'].vals*10**multp
 
-        vmin = min(alim)/10**multp
-        vmax = max(alim)/10**multp
+        vmin = min(axislim)/10**multp
+        vmax = max(axislim)/10**multp
 
-        return axis_vals,(vmin,vmax),multp
+        _curve['xaxis'] = axis_vals
+        _curve['limit'] = (vmin,vmax)
+        _curve['multp'] = multp
 
     def set_module(self,index,module,left=0,right=None,**kwargs):
         """It adds petrophysical module to the defined curve axis."""
@@ -1159,7 +1166,7 @@ class depthview(dirmaster):
 
         self.page['orientation'] = orientation.lower()
 
-        size = getattr(self,f"get_{self.page['fmt']}_size")(self.page['orientation'])
+        size = getattr(self,f"get_{self.page['fmt']}size")(self.page['orientation'])
 
         self.page['width'] = size['width']
 
@@ -1170,9 +1177,10 @@ class depthview(dirmaster):
         self.page['dpi'] = dpi
 
         self.set_pagegrids()
+        self.set_pagedepths()
 
     @staticmethod
-    def get_a4_size(orientation):
+    def get_a4size(orientation):
 
         if orientation=="portrait":
             return {'height': 11.7, 'width': 8.3}
@@ -1182,7 +1190,7 @@ class depthview(dirmaster):
             raise(f'Page orientation={orientation} has not been defined!')
 
     @staticmethod
-    def get_letter_size(orientation):
+    def get_lettersize(orientation):
 
         if orientation=="portrait":
             return {'height': 11.0, 'width': 8.5}
@@ -1239,7 +1247,7 @@ class depthview(dirmaster):
         self.page['grids'].ratio = ratio
 
     @staticmethod
-    def get_a4_grid(orientation):
+    def get_a4grid(orientation):
 
         if orientation=="portrait":
             return {'height': 86, 'width': 66}
@@ -1249,7 +1257,7 @@ class depthview(dirmaster):
             raise(f'Page orientation={orientation} has not been defined!')
 
     @staticmethod
-    def get_letter_grid(orientation):
+    def get_lettergrid(orientation):
 
         if orientation=="portrait":
             return {'height': 81, 'width': 66}
@@ -1258,10 +1266,23 @@ class depthview(dirmaster):
         else:
             raise(f'Page orientation={orientation} has not been defined!')
 
+    def set_pagedepths(self):
+
+        height_total = self.depths['height']
+
+        height_pages = self.page['grids'].curves
+
+        self.page['depths'].number = math.ceil(height_total/height_pages)
+
+        self.page['depths'].limits = []
+
+        for index in range(self.page['depths'].number):
+            self.page['depths'].limits.append([(index+1)*height_pages,index*height_pages])
+
+        self.page['depths'].limits[-1][0] = height_total
+
     def savepdf(self,wspace=0.0,hspace=0.0):
         """ALL MATPLOTLIB FUNCTIONS START FROM HERE!!"""
-
-        number_of_pages = math.ceil(self.depths['height']/self.page['grids'].curves)
 
         self.set_extension(extension='.pdf')
 
@@ -1288,9 +1309,13 @@ class depthview(dirmaster):
 
         with PdfPages(self.filepath) as pdf:
 
-            for index in range(number_of_pages):
+            for limit in self.pages['depths'].limits:
 
-                #CHANGE AXIS LIMITS
+                for index,axis in enumerate(self.figure.axes):
+                    if self.axes['legends'] is None:
+                        axis.set_ylim(limit)
+                    elif index%2==1:
+                        axis.set_ylim(limit)
 
                 pdf.savefig()
 
@@ -1311,10 +1336,10 @@ class depthview(dirmaster):
                 self.set_labelaxis(label_axis,self.axes['ncurves'])
 
             if index != self.axes['depth']:
-                self.set_curveyaxis(curve_axis,self.page['grids'].height)
+                self.set_curveyaxis(curve_axis,self.page['depths'].limits[0])
                 self.set_curvexaxis(curve_axis)
             else:
-                self.set_depthaxis(curve_axis,self.page['grids'].height)
+                self.set_depthaxis(curve_axis,self.page['depths'].limits[0])
 
     @staticmethod
     def set_depthaxis(axis,ylim,yticks,base=10,subs=1):
@@ -1359,20 +1384,20 @@ class depthview(dirmaster):
         axis.grid(axis="y",which='major',color='k',alpha=0.9)
 
     @staticmethod
-    def set_curvexaxis(axis,cycles=2,subskip=0,scale='linear',subs=None):
+    def set_curvexaxis(axis,cycles=2,subskip=0,scale='lin',subs=None):
 
-        if scale=="linear":
+        if scale=="lin":
             xlim = (0+subskip,10*cycles+subskip)
         elif scale=="log":
             xlim = ((subskip+1)*10**0,(subskip+1)*10**cycles)
         else:
-            raise ValueError(f"{scale} has not been defined! options: {{linear,log}}")
+            raise ValueError(f"{scale} has not been defined! options: {{lin,log}}")
 
         axis.set_xlim(xlim)
 
         axis.set_xscale(scale)
 
-        if scale=="linear":
+        if scale=="lin":
             subs = 1 if subs is None else subs
             axis.xaxis.set_minor_locator(MultipleLocator(subs))
             axis.xaxis.set_major_locator(MultipleLocator(10))
@@ -1381,7 +1406,7 @@ class depthview(dirmaster):
             axis.xaxis.set_minor_locator(LogLocator(base=10,subs=subs,numticks=12))
             axis.xaxis.set_major_locator(LogLocator(base=10,numticks=12))
         else:
-            raise ValueError(f"{scale} has not been defined! options: {{linear,log}}")
+            raise ValueError(f"{scale} has not been defined! options: {{lin,log}}")
 
         pyplot.setp(axis.get_xticklabels(),visible=False)
         pyplot.setp(axis.get_xticklines(),visible=False)
@@ -1427,10 +1452,10 @@ class depthview(dirmaster):
             except IndexError:
                 curve_axis.multipliers.append(multp)
 
-            self.set_curve_label(label_axis,curve,xlim,numlines)
+            self.set_curvelabel(label_axis,curve,xlim,numlines)
 
     @staticmethod
-    def set_curve_label(axis,curve,xlim,numlines=0):
+    def set_curvelabel(axis,curve,xlim,numlines=0):
 
         axis.plot((0,1),(numlines-0.6,numlines-0.6),
             color=curve.color,linestyle=curve.style,linewidth=curve.width)
@@ -1471,10 +1496,10 @@ class depthview(dirmaster):
 
             curve_axis.fill_betweenx(yvals,xvals,x2=x2,facecolor=module["fillcolor"],hatch=module["hatch"])
 
-            self.set_module_label(label_axis,module,len(lines))
+            self.set_modulelabel(label_axis,module,len(lines))
 
     @staticmethod
-    def set_module_label(axis,module,numlines=0):
+    def set_modulelabel(axis,module,numlines=0):
 
         rect = Rectangle((0,numlines),1,1,
             fill=True,facecolor=module["fillcolor"],hatch=module["hatch"])
