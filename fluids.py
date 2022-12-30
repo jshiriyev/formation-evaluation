@@ -3,7 +3,11 @@ import json
 if __name__ == "__main__":
     import dirsetup
 
-with open("fluids.json","r") as jsonfile:
+filedir = os.path.dirname(__file__)
+
+filepath = os.path.join(filedir,"fluids.json")
+
+with open(filepath,"r") as jsonfile:
     library = json.load(jsonfile)
 
 class mixture():
