@@ -919,29 +919,25 @@ class bulkmodel(header):
 
 class depthview(dirmaster):
 
-    def __init__(self,filepath,**kwargs):
+    def __init__(self,filepath,default=True,**kwargs):
 
         super().__init__(**kwargs)
 
         self.depths = {}
         self.axes = {}
+        self.grids = {}
+
         self.curves = []
         self.modules = []
         self.perfs = []
         self.casings = []
 
-        self.page = {}
-
-        class grids(): pass
-        class depths(): pass
-
-        self.page['grids'] = grids()
-        self.page['depths'] = depths()
-
         self.lasfile = loadlas(filepath,**kwargs)
 
-        self.set_depths()
-        self.set_axes()
+        if default:
+            self.set_depths()
+            self.set_axes()
+            self.set_grids()
 
     def set_depths(self,base=10,subs=1,subskip=None,subskip_top=0,subskip_bottom=0):
         """It sets the depth interval for which log data will be shown.
@@ -1036,6 +1032,47 @@ class depthview(dirmaster):
 
         self.axes['xaxis'][index]['limit'] = limit
 
+    def set_grids(self,width_ratio=None,height_ratio=None,label=6,depth=6,width=0.1,height=0.1):
+        """It sets page grids for plotting."""
+
+        class ratio(): pass
+
+        if width_ratio is not None:
+            ratio.width = width_ratio
+        elif self.axes['ncols'] == 1:
+            ratio.width = (66,)
+        elif self.axes['ncols'] == 2:
+            ratio.width = (depth,60)
+        elif self.axes['ncols'] == 3:
+            ratio.width = (20,depth,40),
+        elif self.axes['ncols'] == 4:
+            ratio.width = (20,depth,20,20),
+        elif self.axes['ncols'] == 5:
+            ratio.width = (15,depth,15,15,15),
+        elif self.axes['ncols'] == 6:
+            ratio.width = (12,depth,12,12,12,12),
+        elif self.axes['ncols'] == 7:
+            ratio.width = (10,depth,10,10,10,10,10)
+
+        if height_ratio is not None:
+            ratio.height = height_ratio
+        elif self.axes['legends'] is None:
+            ratio.height = (66,)
+        elif self.axes['legends'] == 'top':
+            labels = self.axes['ncurves']*label
+            ratio.height = (labels,66-labels)
+        elif self.axes['legends'] == 'bottom':
+            labels = self.axes['ncurves']*label
+            ratio.height = (66-labels,labels)
+
+        self.grids['ratio'] = ratio
+
+        self.grids['width'] = sum(ratio.width)*width
+        
+        self.grids['height'] = sum(ratio.height)*height
+
+        self.grids['size'] = (self.grids['width'],self.grids['height'])
+
     def set_curve(self,index,curve,**kwargs):
         """It adds las curve to the defined curve axis."""
 
@@ -1047,78 +1084,12 @@ class depthview(dirmaster):
         axislimit = self.axes['xaxis'][index]['limit']
         axisscale = self.axes['xaxis'][index]['scale']
 
-        getattr(self,f"_{axisscale}axis")(_curve,axislimit,**kwargs)
+        getattr(self,f"set_{axisscale}axis")(_curve,axislimit,**kwargs)
 
         for key,value in kwargs.items():
             _curve[key] = value
 
         self.curves.append(_curve)
-
-    def _linxaxis(self,_curve,axislim,multp=None,vmin=None,vmax=None):
-
-        amin,amax = min(axislim),max(axislim)
-
-        if vmin is None:
-            vmin = _curve['curve'].vals.min()
-        
-        if vmax is None:
-            vmax = _curve['curve'].vals.max()
-
-        # print(f"{amin=},",f"{amax=}")
-        # print(f"given_{vmin=},",f"given_{vmax=}")
-
-        delta_axis = numpy.abs(amax-amin)
-        delta_vals = numpy.abs(vmax-vmin)
-
-        # print(f"{delta_vals=}")
-
-        delta_powr = -numpy.floor(numpy.log10(delta_vals))
-
-        # print(f"{delta_powr=}")
-
-        vmin = numpy.floor(vmin*10**delta_powr)/10**delta_powr
-
-        vmax_temp = numpy.ceil(vmax*10**delta_powr)/10**delta_powr
-
-        # print(f"{vmin=},",f"{vmax_temp=}")
-
-        if multp is None:
-
-            multp_temp = (vmax_temp-vmin)/(delta_axis)
-            multp_powr = -numpy.floor(numpy.log10(multp_temp))
-
-            # print(f"{multp_temp=},")
-
-            multp = numpy.ceil(multp_temp*10**multp_powr)/10**multp_powr
-
-            # print(f"{multp=},")
-        
-        axis_vals = amin+(_curve['curve'].vals-vmin)/multp
-
-        vmax = delta_axis*multp+vmin
-        
-        # print(f"normalized_{vmin=},",f"normalized_{vmax=}")
-
-        _curve['xaxis'] = axis_vals
-        _curve['limit'] = (vmin,vmax)
-        _curve['multp'] = multp
-
-    def _logxaxis(self,_curve,axislim,multp=None,vmin=None):
-        
-        if vmin is None:
-            vmin = _curve['curve'].vals.min()
-
-        if multp is None:
-            multp = numpy.ceil(numpy.log10(1/vmin))
-
-        axis_vals = _curve['curve'].vals*10**multp
-
-        vmin = min(axislim)/10**multp
-        vmax = max(axislim)/10**multp
-
-        _curve['xaxis'] = axis_vals
-        _curve['limit'] = (vmin,vmax)
-        _curve['multp'] = multp
 
     def set_module(self,index,module,left=0,right=None,**kwargs):
         """It adds petrophysical module to the defined curve axis."""
@@ -1159,150 +1130,22 @@ class depthview(dirmaster):
 
         self.perfs.append(_depth)
 
-    def set_page(self,fmt='A4',orientation='portrait',dpi=100):
-        """It sets the format of page for printing."""
-
-        self.page['fmt'] = fmt.lower()
-
-        self.page['orientation'] = orientation.lower()
-
-        size = getattr(self,f"get_{self.page['fmt']}size")(self.page['orientation'])
-
-        self.page['width'] = size['width']
-
-        self.page['height'] = size['height']
-
-        self.page['size'] = (size['width'],size['height'])
-
-        self.page['dpi'] = dpi
-
-        self.set_pagegrids()
-        self.set_pagedepths()
-
-    @staticmethod
-    def get_a4size(orientation):
-
-        if orientation=="portrait":
-            return {'height': 11.7, 'width': 8.3}
-        elif orientation=="landscape":
-            return {'height': 8.3, 'width': 11.7}
-        else:
-            raise(f'Page orientation={orientation} has not been defined!')
-
-    @staticmethod
-    def get_lettersize(orientation):
-
-        if orientation=="portrait":
-            return {'height': 11.0, 'width': 8.5}
-        elif orientation=="landscape":
-            return {'height': 8.5, 'width': 11.0}
-        else:
-            raise(f'Page orientation={orientation} has not been defined!')
-
-    def set_pagegrids(self,label=4,width_ratio=None,height_ratio=None):
-        """It sets page grids for plotting."""
-
-        self.page['grids'].label = label
-
-        self.page['grids'].labels = self.axes['ncurves']*self.page['grids'].label
-
-        grid = getattr(self,f"get_{self.page['fmt']}_grid")(self.page['orientation'])
-
-        self.page['grids'].width = grid['width']
-
-        self.page['grids'].height = grid['height']
-
-        self.page['grids'].size = (grid['wdith'],grid['height'])
-
-        self.page['grids'].curves = self.page['grids'].height-self.page['grids'].labels
-
-        ratio = {}
-
-        if width_ratio is not None:
-            ratio['width'] = width_ratio
-        elif self.axes['ncols'] == 1:
-            ratio['width'] = None
-        elif self.axes['ncols'] == 2:
-            ratio['width'] = (1,10)
-        elif self.axes['ncols'] == 3:
-            ratio['width'] = (10,3,20),
-        elif self.axes['ncols'] == 4:
-            ratio['width'] = (10,3,10,10),
-        elif self.axes['ncols'] == 5:
-            ratio['width'] = (5,2,5,5,5),
-        elif self.axes['ncols'] == 6:
-            ratio['width'] = (2,1,2,2,2,2),
-        elif self.axes['ncols'] == 7:
-            ratio['width'] = (5,3,5,5,5,5,5)
-
-        if height_ratio is not None:
-            ratio['height'] = height_ratio
-        elif self.axes['legends'] is None:
-            ratio['height'] = None
-        elif self.axes['legends'] == 'top':
-            ratio['height'] = (self.page['grids'].labels,self.page['grids'].curves)
-        elif self.axes['legends'] == 'bottom':
-            ratio['height'] = (self.page['grids'].curves,self.page['grids'].labels)
-
-        self.page['grids'].ratio = ratio
-
-    @staticmethod
-    def get_a4grid(orientation):
-
-        if orientation=="portrait":
-            return {'height': 86, 'width': 66}
-        elif orientation=="landscape":
-            return {'height': 61, 'width': 90}
-        else:
-            raise(f'Page orientation={orientation} has not been defined!')
-
-    @staticmethod
-    def get_lettergrid(orientation):
-
-        if orientation=="portrait":
-            return {'height': 81, 'width': 66}
-        elif orientation=="landscape":
-            return {'height': 62, 'width': 90}
-        else:
-            raise(f'Page orientation={orientation} has not been defined!')
-
-    def set_pagedepths(self):
-
-        height_total = self.depths['height']
-
-        height_pages = self.page['grids'].curves
-
-        self.page['depths'].number = math.ceil(height_total/height_pages)
-
-        self.page['depths'].limits = []
-
-        for index in range(self.page['depths'].number):
-            self.page['depths'].limits.append([(index+1)*height_pages,index*height_pages])
-
-        self.page['depths'].limits[-1][0] = height_total
-
-    def view(self,depths,wspace=0.0,hspace=0.0):
-
-        top,bottom = depths.min(),depths.max()
+    def view(self,top,height=30,wspace=0.0,hspace=0.0):
 
         self.gspecs = gridspec.GridSpec(
             nrows = self.axes['nrows'],
             ncols = self.axes['ncols'],
-            width_ratios = (),
-            height_ratios = (),
+            width_ratios = self.grids['ratio'].width,
+            height_ratios = self.grids['ratio'].height,
             )
 
-        self.figure = pyplot.figure(
-            figsize = (width,height),
-            dpi = 100,
-            )
+        self.figure = pyplot.figure(figsize=self.grids['size'],dpi=100,)
 
         self.add_axes()
         self.add_curves()
         self.add_modules()
         self.add_perfs()
         self.add_casings()
-        self.add_pages()
 
         self.gspecs.tight_layout(self.figure)
 
@@ -1310,14 +1153,18 @@ class depthview(dirmaster):
 
         for index,axis in enumerate(self.figure.axes):
             if self.axes['legends'] is None:
-                axis.set_ylim((bottom,top))
+                axis.set_ylim((top+height,top))
             elif index%2==1:
-                axis.set_ylim((bottom,top))
+                axis.set_ylim((top+height,top))
 
         pyplot.show()
 
-    def save(self,filepath,wspace=0.0,hspace=0.0):
+    def save(self,filepath,depths=None,wspace=0.0,hspace=0.0):
         """It saves the depthview as a multipage pdf file."""
+
+        self.page = {}
+
+        self.set_page()
 
         filepath = self.get_extended(path=filepath,extension='.pdf')
         filepath = self.get_abspath(path=filepath,homeFlag=True)
@@ -1325,20 +1172,18 @@ class depthview(dirmaster):
         self.gspecs = gridspec.GridSpec(
             nrows = self.axes['nrows'],
             ncols = self.axes['ncols'],
-            width_ratios = self.page['grids'].ratio['width'],
-            height_ratios = self.page['grids'].ratio['height'],
+            width_ratios = self.grids['ratio'].width,
+            height_ratios = self.grids['ratio'].height,
             )
 
-        self.figure = pyplot.figure(
-            figsize = self.page['size'],
-            dpi = self.page['dpi'],
-            )
+        self.figure = pyplot.figure(figsize = self.page['size'],dpi = self.page['dpi'])
 
         self.add_axes()
         self.add_curves()
         self.add_modules()
         self.add_perfs()
         self.add_casings()
+
         self.add_pages()
 
         self.gspecs.tight_layout(self.figure)
@@ -1357,6 +1202,38 @@ class depthview(dirmaster):
 
                 pdf.savefig()
 
+    def set_page(self,fmt='A4',orientation='portrait',dpi=100):
+        """It sets the format of page for printing."""
+
+        self.page['fmt'] = fmt.lower()
+
+        self.page['orientation'] = orientation.lower()
+
+        size = getattr(self,f"get_{self.page['fmt']}size")(self.page['orientation'])
+
+        self.page['width'] = size['width']
+
+        self.page['height'] = size['height']
+
+        self.page['size'] = (size['width'],size['height'])
+
+        self.page['dpi'] = dpi
+
+        grid = getattr(self,f"get_{self.page['fmt']}_grid")(self.page['orientation'])
+
+        self.set_grids(label=4,width=None,height=None)
+        
+        height_total = self.depths['height']
+
+        height_pages = self.grids['curves']
+
+        self.page['depths'].number = math.ceil(height_total/height_pages)
+
+        self.page['depths'].limits = []
+
+        for index in range(self.page['depths'].number):
+            self.page['depths'].limits.append([(index+1)*height_pages,index*height_pages])
+
     def add_axes(self):
 
         for index in range(self.axes['ncols']):
@@ -1371,101 +1248,13 @@ class depthview(dirmaster):
                 curve_axis = self.figure.add_subplot(self.gspecs[0,index])
 
             if self.axes['legends'] is not None:
-                self.set_labelaxis(label_axis,self.axes['ncurves'])
+                self.set_axislabel(label_axis,self.axes['ncurves'])
 
             if index != self.axes['depth']:
-                self.set_curveyaxis(curve_axis,self.page['depths'].limits[0])
-                self.set_curvexaxis(curve_axis)
+                self.set_yaxiscurve(curve_axis,self.page['depths'].limits[0])
+                self.set_xaxiscurve(curve_axis)
             else:
-                self.set_depthaxis(curve_axis,self.page['depths'].limits[0])
-
-    @staticmethod
-    def set_depthaxis(axis,ylim,yticks,base=10,subs=1):
-
-        axis.set_ylim(ylim)
-        axis.set_xlim((0,1))
-
-        pyplot.setp(axis.get_xticklabels(),visible=False)
-        pyplot.setp(axis.get_xticklines(),visible=False)
-
-        axis.yaxis.set_minor_locator(MultipleLocator(subs))
-        axis.yaxis.set_major_locator(MultipleLocator(base))
-        
-        axis.tick_params(
-            axis="y",which="both",direction="in",right=True,pad=-40)
-
-        pyplot.setp(axis.get_yticklabels(),visible=False)
-
-        for ytick in yticks[2:-2]:
-
-            axis.text(0.5,ytick,ytick,
-                horizontalalignment='center',
-                verticalalignment='center',
-                backgroundcolor='white',
-                fontsize='small',
-                )
-
-    @staticmethod
-    def set_curveyaxis(axis,ylim,base=10,subs=1):
-
-        axis.set_ylim(ylim)
-
-        axis.yaxis.set_minor_locator(MultipleLocator(subs))
-        axis.yaxis.set_major_locator(MultipleLocator(base))
-
-        pyplot.setp(axis.get_yticklabels(),visible=False)
-        pyplot.setp(axis.get_yticklines(),visible=False)
-
-        axis.tick_params(axis="y",which="minor",left=False)
-
-        axis.grid(axis="y",which='minor',color='k',alpha=0.4)
-        axis.grid(axis="y",which='major',color='k',alpha=0.9)
-
-    @staticmethod
-    def set_curvexaxis(axis,cycles=2,subskip=0,scale='lin',subs=None):
-
-        if scale=="lin":
-            xlim = (0+subskip,10*cycles+subskip)
-        elif scale=="log":
-            xlim = ((subskip+1)*10**0,(subskip+1)*10**cycles)
-        else:
-            raise ValueError(f"{scale} has not been defined! options: {{lin,log}}")
-
-        axis.set_xlim(xlim)
-
-        axis.set_xscale(scale)
-
-        if scale=="lin":
-            subs = 1 if subs is None else subs
-            axis.xaxis.set_minor_locator(MultipleLocator(subs))
-            axis.xaxis.set_major_locator(MultipleLocator(10))
-        elif scale=="log":
-            subs = range(1,10) if subs is None else subs
-            axis.xaxis.set_minor_locator(LogLocator(base=10,subs=subs,numticks=12))
-            axis.xaxis.set_major_locator(LogLocator(base=10,numticks=12))
-        else:
-            raise ValueError(f"{scale} has not been defined! options: {{lin,log}}")
-
-        pyplot.setp(axis.get_xticklabels(),visible=False)
-        pyplot.setp(axis.get_xticklines(),visible=False)
-
-        axis.tick_params(axis="x",which="minor",bottom=False)
-
-        axis.grid(axis="x",which='minor',color='k',alpha=0.4)
-        axis.grid(axis="x",which='major',color='k',alpha=0.9)
-
-    @staticmethod
-    def set_labelaxis(axis,ncurves):
-
-        axis.set_xlim((0,1))
-
-        pyplot.setp(axis.get_xticklabels(),visible=False)
-        pyplot.setp(axis.get_xticklines(),visible=False)
-
-        axis.set_ylim((0,ncurves))
-
-        pyplot.setp(axis.get_yticklabels(),visible=False)
-        pyplot.setp(axis.get_yticklines(),visible=False)
+                self.set_axisdepth(curve_axis,self.page['depths'].limits[0])
 
     def add_curves(self):
 
@@ -1492,25 +1281,6 @@ class depthview(dirmaster):
 
             self.set_curvelabel(label_axis,curve,xlim,numlines)
 
-    @staticmethod
-    def set_curvelabel(axis,curve,xlim,numlines=0):
-
-        axis.plot((0,1),(numlines-0.6,numlines-0.6),
-            color=curve.color,linestyle=curve.style,linewidth=curve.width)
-
-        axis.text(0.5,numlines-0.5,f"{curve.head}",
-            horizontalalignment='center',
-            # verticalalignment='bottom',
-            fontsize='small',)
-
-        axis.text(0.5,numlines-0.9,f"[{curve.unit}]",
-            horizontalalignment='center',
-            # verticalalignment='bottom',
-            fontsize='small',)
-
-        axis.text(0.02,numlines-0.5,f'{xlim[0]:.5g}',horizontalalignment='left')
-        axis.text(0.98,numlines-0.5,f'{xlim[1]:.5g}',horizontalalignment='right')
-
     def add_modules(self):
 
         for module in self.modules:
@@ -1536,21 +1306,7 @@ class depthview(dirmaster):
 
             self.set_modulelabel(label_axis,module,len(lines))
 
-    @staticmethod
-    def set_modulelabel(axis,module,numlines=0):
-
-        rect = Rectangle((0,numlines),1,1,
-            fill=True,facecolor=module["fillcolor"],hatch=module["hatch"])
-
-        axis.add_patch(rect)
-
-        axis.text(0.5,numlines+0.5,module["head"],
-            horizontalalignment='center',
-            verticalalignment='center',
-            backgroundcolor='white',
-            fontsize='small',)
-
-    def add_perfs(self,*perfs):
+    def add_perfs(self):
 
         depth_axis = self.figure.axes[self.axis['depth']*2+1]
 
@@ -1584,6 +1340,245 @@ class depthview(dirmaster):
         """It includes casing set depths"""
 
         pass
+
+    @staticmethod
+    def set_linxaxis(curve,axislim,multp=None,vmin=None,vmax=None):
+
+        amin,amax = min(axislim),max(axislim)
+
+        if vmin is None:
+            vmin = curve['curve'].vals.min()
+        
+        if vmax is None:
+            vmax = curve['curve'].vals.max()
+
+        # print(f"{amin=},",f"{amax=}")
+        # print(f"given_{vmin=},",f"given_{vmax=}")
+
+        delta_axis = numpy.abs(amax-amin)
+        delta_vals = numpy.abs(vmax-vmin)
+
+        # print(f"{delta_vals=}")
+
+        delta_powr = -numpy.floor(numpy.log10(delta_vals))
+
+        # print(f"{delta_powr=}")
+
+        vmin = numpy.floor(vmin*10**delta_powr)/10**delta_powr
+
+        vmax_temp = numpy.ceil(vmax*10**delta_powr)/10**delta_powr
+
+        # print(f"{vmin=},",f"{vmax_temp=}")
+
+        if multp is None:
+
+            multp_temp = (vmax_temp-vmin)/(delta_axis)
+            multp_powr = -numpy.floor(numpy.log10(multp_temp))
+
+            # print(f"{multp_temp=},")
+
+            multp = numpy.ceil(multp_temp*10**multp_powr)/10**multp_powr
+
+            # print(f"{multp=},")
+        
+        axis_vals = amin+(curve['curve'].vals-vmin)/multp
+
+        vmax = delta_axis*multp+vmin
+        
+        # print(f"normalized_{vmin=},",f"normalized_{vmax=}")
+
+        curve['xaxis'] = axis_vals
+        curve['limit'] = (vmin,vmax)
+        curve['multp'] = multp
+
+    @staticmethod
+    def set_logxaxis(curve,axislim,multp=None,vmin=None):
+        
+        if vmin is None:
+            vmin = curve['curve'].vals.min()
+
+        if multp is None:
+            multp = numpy.ceil(numpy.log10(1/vmin))
+
+        axis_vals = curve['curve'].vals*10**multp
+
+        vmin = min(axislim)/10**multp
+        vmax = max(axislim)/10**multp
+
+        curve['xaxis'] = axis_vals
+        curve['limit'] = (vmin,vmax)
+        curve['multp'] = multp
+
+    @staticmethod
+    def get_pagesize(fmt="A4",orientation="portrait",unit="in"):
+
+        fmt = fmt.lower()
+
+        orientation = orientation.lower()
+
+        unit = unit.lower()[:2]
+
+        _page = {}
+
+        a4,letter = {},{}
+
+        if orientation == "portrait":
+            a4["cm"] = [21.0,29.7]
+            letter["in"] = [8.5,11.0]
+        elif orientation == "landscape":
+            a4["cm"] = [29.7,21.0]
+            letter["in"] = [11.0,8.5]
+        else
+            raise(f'Page orientation={orientation} has not been defined!')
+
+        a4["in"] = [size/2.54 for size in a4['cm']]
+        
+        letter["cm"] = [size*2.54 for size in letter['in']]
+
+        _page['a4'],_page['letter'] = a4,letter
+
+        return {'width': _page[fmt][unit][0], 'height': _page[fmt][unit][1]}
+
+    @staticmethod
+    def get_pagegrid(fmt="A4",orientation="portrait"):
+
+        fmt = fmt.lower()
+
+        orientation = orientation.lower()
+
+        _grid = {}
+
+        if orientation=="portrait":
+            a4,letter = [66,86],[66,81]
+        elif orientation=="landscape":
+            a4,letter = [90,61],[90,62]
+        else:
+            raise(f'Page orientation={orientation} has not been defined!')
+
+        _grid['a4'],_grid['letter'] = a4,letter
+
+        return {'width': _grid[fmt][0], 'height': _grid[fmt][1]}
+
+    @staticmethod
+    def set_axislabel(axis,ncurves):
+
+        axis.set_xlim((0,1))
+
+        pyplot.setp(axis.get_xticklabels(),visible=False)
+        pyplot.setp(axis.get_xticklines(),visible=False)
+
+        axis.set_ylim((0,ncurves))
+
+        pyplot.setp(axis.get_yticklabels(),visible=False)
+        pyplot.setp(axis.get_yticklines(),visible=False)
+
+    @staticmethod
+    def set_axisdepth(axis,ylim,yticks,base=10,subs=1):
+
+        axis.set_ylim(ylim)
+        axis.set_xlim((0,1))
+
+        pyplot.setp(axis.get_xticklabels(),visible=False)
+        pyplot.setp(axis.get_xticklines(),visible=False)
+
+        axis.yaxis.set_minor_locator(MultipleLocator(subs))
+        axis.yaxis.set_major_locator(MultipleLocator(base))
+        
+        axis.tick_params(
+            axis="y",which="both",direction="in",right=True,pad=-40)
+
+        pyplot.setp(axis.get_yticklabels(),visible=False)
+
+        for ytick in yticks[2:-2]:
+
+            axis.text(0.5,ytick,ytick,
+                horizontalalignment='center',
+                verticalalignment='center',
+                backgroundcolor='white',
+                fontsize='small',
+                )
+
+    @staticmethod
+    def set_yaxiscurve(axis,ylim,base=10,subs=1):
+
+        axis.set_ylim(ylim)
+
+        axis.yaxis.set_minor_locator(MultipleLocator(subs))
+        axis.yaxis.set_major_locator(MultipleLocator(base))
+
+        pyplot.setp(axis.get_yticklabels(),visible=False)
+        pyplot.setp(axis.get_yticklines(),visible=False)
+
+        axis.tick_params(axis="y",which="minor",left=False)
+
+        axis.grid(axis="y",which='minor',color='k',alpha=0.4)
+        axis.grid(axis="y",which='major',color='k',alpha=0.9)
+
+    @staticmethod
+    def set_xaxiscurve(axis,cycles=2,subskip=0,scale='lin',subs=None):
+
+        if scale=="lin":
+            xlim = (0+subskip,10*cycles+subskip)
+        elif scale=="log":
+            xlim = ((subskip+1)*10**0,(subskip+1)*10**cycles)
+        else:
+            raise ValueError(f"{scale} has not been defined! options: {{lin,log}}")
+
+        axis.set_xlim(xlim)
+
+        axis.set_xscale(scale)
+
+        if scale=="lin":
+            subs = 1 if subs is None else subs
+            axis.xaxis.set_minor_locator(MultipleLocator(subs))
+            axis.xaxis.set_major_locator(MultipleLocator(10))
+        elif scale=="log":
+            subs = range(1,10) if subs is None else subs
+            axis.xaxis.set_minor_locator(LogLocator(base=10,subs=subs,numticks=12))
+            axis.xaxis.set_major_locator(LogLocator(base=10,numticks=12))
+        else:
+            raise ValueError(f"{scale} has not been defined! options: {{lin,log}}")
+
+        pyplot.setp(axis.get_xticklabels(),visible=False)
+        pyplot.setp(axis.get_xticklines(),visible=False)
+
+        axis.tick_params(axis="x",which="minor",bottom=False)
+
+        axis.grid(axis="x",which='minor',color='k',alpha=0.4)
+        axis.grid(axis="x",which='major',color='k',alpha=0.9)
+
+    @staticmethod
+    def set_curvelabel(axis,curve,xlim,numlines=0):
+
+        axis.plot((0,1),(numlines-0.6,numlines-0.6),
+            color=curve.color,linestyle=curve.style,linewidth=curve.width)
+
+        axis.text(0.5,numlines-0.5,f"{curve.head}",
+            horizontalalignment='center',
+            # verticalalignment='bottom',
+            fontsize='small',)
+
+        axis.text(0.5,numlines-0.9,f"[{curve.unit}]",
+            horizontalalignment='center',
+            # verticalalignment='bottom',
+            fontsize='small',)
+
+        axis.text(0.02,numlines-0.5,f'{xlim[0]:.5g}',horizontalalignment='left')
+        axis.text(0.98,numlines-0.5,f'{xlim[1]:.5g}',horizontalalignment='right')
+
+    @staticmethod
+    def set_modulelabel(axis,module,numlines=0):
+
+        rect = Rectangle((0,numlines),1,1,
+            fill=True,facecolor=module["fillcolor"],hatch=module["hatch"])
+
+        axis.add_patch(rect)
+
+        axis.text(0.5,numlines+0.5,module["head"],
+            horizontalalignment='center',
+            verticalalignment='center',
+            backgroundcolor='white',
+            fontsize='small',)
 
 class batchview():
     """It creates correlation based on multiple las files from different wells."""
