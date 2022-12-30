@@ -161,7 +161,7 @@ class dirmaster():
         self.set_homedir(homedir)
 
         if filepath is None and filedir is None:
-            self.set_filedir(None)
+            self.set_filedir(filedir)
         elif filepath is None and filedir is not None:
             self.set_filedir(filedir)
         elif filepath is not None and filedir is None:
@@ -215,7 +215,7 @@ class dirmaster():
 
         super().__setattr__("filepath",path)
 
-    def set_extension(self,path=None,extension=None):
+    def get_extended(self,path=None,extension=None):
 
         if path is None:
             path = self.filepath
@@ -223,13 +223,15 @@ class dirmaster():
         if extension is None:
             extension = ""
 
+        dirname = os.path.dirname(path)
+
         basename = os.path.basename(path)
 
         rootname = os.path.splitext(basename)[0]
 
         basename = f"{rootname}{extension}"
 
-        return os.path.normpath(os.path.join(self.filedir,basename))
+        return os.path.normpath(os.path.join(dirname,basename))
 
     def get_abspath(self,path,homeFlag=False):
         """Returns absolute path for a given relative path."""
@@ -312,17 +314,25 @@ class dirmaster():
 
     @property
     def basename(self):
-
+        """
+        /home/jsmith/base.wiki --> base.wiki
+        /home/jsmith/          --> jsmith
+        /                      --> /
+        """
         return os.path.basename(self.filepath)
 
     @property
     def rootname(self):
-
+        """
+        /home/jsmith/base.wiki --> base 
+        """
         return os.path.splitext(self.basename)[0]
 
     @property
     def extension(self):
-
+        """
+        /home/jsmith/base.wiki --> .wiki 
+        """
         return os.path.splitext(self.filepath)[1]
 
 class dirview():

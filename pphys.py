@@ -430,21 +430,21 @@ def loadlas(filepath,**kwargs):
     nullfile = lasfile(filepath=filepath,**kwargs)
 
     # It reads LAS file and returns pphys.lasfile instance.
-    fullfile = lasworm(nullfile).item
+    fullfile = lasworm(nullfile).lasfile
 
     return fullfile
 
 class lasworm():
     """Reads a las file with all sections."""
 
-    def __init__(self,item):
+    def __init__(self,lasfile):
 
-        self.item = item
+        self.lasfile = lasfile
 
-        with open(self.item.filepath,"r",encoding="latin1") as lasmaster:
+        with open(self.lasfile.filepath,"r",encoding="latin1") as lasmaster:
             dataframe = self.text(lasmaster)
 
-        self.item.ascii = dataframe
+        self.lasfile.ascii = dataframe
 
     def seeksection(self,lasmaster,section=None):
 
@@ -598,9 +598,9 @@ class lasworm():
                 sectionhead = line[1:].split()[0].lower()
                 sectionbody = self._header(lasmaster,program)
 
-                self.item.sections.append(sectionhead)
+                self.lasfile.sections.append(sectionhead)
 
-                setattr(self.item,sectionhead,sectionbody)
+                setattr(self.lasfile,sectionhead,sectionbody)
 
                 lasmaster.seek(0)
 
@@ -679,7 +679,7 @@ class lasworm():
 
         types = self.headers(lasmaster)
 
-        value_null = float(self.item.well['NULL'].value)
+        value_null = float(self.lasfile.well['NULL'].value)
 
         dtypes = [numpy.dtype(type_) for type_ in types]
 
@@ -694,7 +694,7 @@ class lasworm():
         else:
             cols = numpy.loadtxt(lasmaster,comments="#",unpack=True,encoding="latin1",dtype='str')
 
-        iterator = zip(cols,self.item.curve.mnemonic,self.item.curve.unit,self.item.curve.description,dtypes)
+        iterator = zip(cols,self.lasfile.curve.mnemonic,self.lasfile.curve.unit,self.lasfile.curve.description,dtypes)
 
         running = []
 
@@ -919,7 +919,7 @@ class bulkmodel(header):
 
 class depthview(dirmaster):
 
-    def __init__(self,**kwargs):
+    def __init__(self,filepath,**kwargs):
 
         super().__init__(**kwargs)
 
@@ -938,7 +938,12 @@ class depthview(dirmaster):
         self.page['grids'] = grids()
         self.page['depths'] = depths()
 
-    def set_depths(self,top,bottom,base=10,subs=1,subskip=None,subskip_top=0,subskip_bottom=0):
+        self.lasfile = loadlas(filepath,**kwargs)
+
+        self.set_depths()
+        self.set_axes()
+
+    def set_depths(self,base=10,subs=1,subskip=None,subskip_top=0,subskip_bottom=0):
         """It sets the depth interval for which log data will be shown.
         
         top             : top of interval
@@ -951,21 +956,16 @@ class depthview(dirmaster):
 
         """
 
-        if top<0 or bottom<0:
-            return
-
-        if top>bottom:
-            top,bottom = bottom,top
+        top = self.lasfile.depths.min()
+        bottom = self.lasfile.depths.max()
 
         top = numpy.floor(top/base)*base
-
         bottom = top+numpy.ceil((bottom-top)/base)*base
 
         if subskip is not None:
             subskip_bottom,subskip_top = subskip,subskip
 
         top += subs*subskip_top
-
         bottom += subs*subskip_bottom
 
         self.depths['top'] = top
@@ -1281,20 +1281,21 @@ class depthview(dirmaster):
 
         self.page['depths'].limits[-1][0] = height_total
 
-    def savepdf(self,wspace=0.0,hspace=0.0):
-        """ALL MATPLOTLIB FUNCTIONS START FROM HERE!!"""
+    def view(self,depths,wspace=0.0,hspace=0.0):
 
-        self.set_extension(extension='.pdf')
+        top,bottom = depths.min(),depths.max()
 
         self.gspecs = gridspec.GridSpec(
-            nrows=self.axes['nrows'],
-            ncols=self.axes['ncols'],
-            width_ratios=self.page['grids'].ratio['width'],
-            height_ratios=self.page['grids'].ratio['height'])
+            nrows = self.axes['nrows'],
+            ncols = self.axes['ncols'],
+            width_ratios = (),
+            height_ratios = (),
+            )
 
         self.figure = pyplot.figure(
-            figsize=self.page['size'],
-            dpi=self.page['dpi'])
+            figsize = (width,height),
+            dpi = 100,
+            )
 
         self.add_axes()
         self.add_curves()
@@ -1307,7 +1308,44 @@ class depthview(dirmaster):
 
         self.gspecs.update(wspace=wspace,hspace=hspace)
 
-        with PdfPages(self.filepath) as pdf:
+        for index,axis in enumerate(self.figure.axes):
+            if self.axes['legends'] is None:
+                axis.set_ylim((bottom,top))
+            elif index%2==1:
+                axis.set_ylim((bottom,top))
+
+        pyplot.show()
+
+    def save(self,filepath,wspace=0.0,hspace=0.0):
+        """It saves the depthview as a multipage pdf file."""
+
+        filepath = self.get_extended(path=filepath,extension='.pdf')
+        filepath = self.get_abspath(path=filepath,homeFlag=True)
+
+        self.gspecs = gridspec.GridSpec(
+            nrows = self.axes['nrows'],
+            ncols = self.axes['ncols'],
+            width_ratios = self.page['grids'].ratio['width'],
+            height_ratios = self.page['grids'].ratio['height'],
+            )
+
+        self.figure = pyplot.figure(
+            figsize = self.page['size'],
+            dpi = self.page['dpi'],
+            )
+
+        self.add_axes()
+        self.add_curves()
+        self.add_modules()
+        self.add_perfs()
+        self.add_casings()
+        self.add_pages()
+
+        self.gspecs.tight_layout(self.figure)
+
+        self.gspecs.update(wspace=wspace,hspace=hspace)
+
+        with PdfPages(filepath) as pdf:
 
             for limit in self.pages['depths'].limits:
 
