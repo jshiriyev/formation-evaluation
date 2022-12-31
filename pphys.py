@@ -748,10 +748,9 @@ class lasbatch(dirmaster):
 
     def __init__(self,filepaths=None,**kwargs):
 
-        homedir = None if kwargs.get("homedir") is None else kwargs.pop("homedir")
-        filedir = None if kwargs.get("filedir") is None else kwargs.pop("filedir")
-
-        super().__init__(homedir=homedir,filedir=filedir)
+        super().__init__(
+            homedir = pop(kwargs,"homedir"),
+            filedir = pop(kwargs,"filedir"))
 
         self.frames = []
 
@@ -1196,16 +1195,6 @@ class depthview(dirmaster):
 
         self.casings.append(_casing)
 
-    def add_figure(self,**kwargs):
-
-        self.gspecs = gridspec.GridSpec(
-            nrows = self.axes['nrows'],
-            ncols = self.axes['ncols'],
-            width_ratios = self.grids['ratio'].width,
-            height_ratios = self.grids['ratio'].height)
-
-        self.figure = pyplot.figure(**kwargs)
-
     def view(self,top,wspace=0.0,hspace=0.0,height=30,**kwargs):
 
         if kwargs.get("figsize") is None:
@@ -1234,19 +1223,13 @@ class depthview(dirmaster):
     def set_page(self,**kwargs):
         """It sets the format of page for printing."""
 
-        fmt = pop(kwargs,"fmt","A4")
-
         depths = pop(kwargs,"depths")
-
-        orientation = pop(kwargs,"orientation","portrait")
-
-        dpi = pop(kwargs,"dpi",100)
 
         self.page = {}
 
-        self.page['fmt'] = fmt.lower()
+        self.page['fmt'] = pop(kwargs,"fmt","A4").lower()
 
-        self.page['orientation'] = orientation.lower()
+        self.page['orientation'] = pop(kwargs,"orientation","portrait").lower()
 
         size = self.get_pagesize(self.page['orientation'])
 
@@ -1256,7 +1239,7 @@ class depthview(dirmaster):
 
         self.page['size'] = (size['width'],size['height'])
 
-        self.page['dpi'] = dpi
+        self.page['dpi'] = pop(kwargs,"dpi",100)
 
         grids = self.get_pagegrid(self.page['orientation'])
 
@@ -1315,6 +1298,17 @@ class depthview(dirmaster):
 
                 pdf.savefig()
 
+    def add_figure(self,**kwargs):
+
+        self.figure = pyplot.figure(**kwargs)
+
+        self.gspecs = gridspec.GridSpec(
+            nrows = self.axes['nrows'],
+            ncols = self.axes['ncols'],
+            figure = self.figure,
+            width_ratios = self.grids['ratio'].width,
+            height_ratios = self.grids['ratio'].height)
+
     def add_axes(self):
 
         for index in range(self.axes['ncols']):
@@ -1357,9 +1351,12 @@ class depthview(dirmaster):
                 linestyle = curve.style,
                 linewidth = curve.width,)
 
-            curve.row = len(curve_axis.lines)
+            row = len(curve_axis.lines)
 
-            self.set_curvelabel(label_axis,curve)
+            if not hasattr(curve,"row"):
+                curve.row = row
+
+            self.set_labelcurve(label_axis,curve)
 
     def add_modules(self):
 
@@ -1386,7 +1383,7 @@ class depthview(dirmaster):
 
             module['row'] = len(lines)
 
-            self.set_modulelabel(label_axis,module)
+            self.set_labelmodule(label_axis,module)
 
     def add_perfs(self):
 
@@ -1626,7 +1623,7 @@ class depthview(dirmaster):
         axis.grid(axis="x",which='major',color='k',alpha=0.9)
 
     @staticmethod
-    def set_curvelabel(axis,curve):
+    def set_labelcurve(axis,curve):
 
         axis.plot((0,1),(curve.row-0.6,curve.row-0.6),
             color=curve.color,linestyle=curve.style,linewidth=curve.width)
@@ -1645,7 +1642,7 @@ class depthview(dirmaster):
         axis.text(0.98,curve.row-0.5,f"{curve.limit[1]:.5g}",horizontalalignment='right')
 
     @staticmethod
-    def set_modulelabel(axis,module):
+    def set_labelmodule(axis,module):
 
         rect = Rectangle((0,module['row']),1,1,
             fill=True,facecolor=module["fillcolor"],hatch=module["hatch"])
