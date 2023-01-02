@@ -8,15 +8,15 @@ from pphys import depthview
 
 dv = depthview("lasfile.las")
 
-dv.set_xaxis(0,cycles=3,subs=2)
-dv.set_xaxis(2,cycles=3,subs=2)
-dv.set_xaxis(3,cycles=3,subskip=0,scale='log')
-
 dv.set_curve(0,'VSH',vmin=0,vmax=1,width=0.5,color='red')
 dv.set_curve(2,'PHIE',vmin=0,vmax=0.6)
-dv.set_curve(2,'PHIT',vmin=0,vmax=0.6)
+dv.set_curve(2,'PHIT',vmin=0,vmax=0.6,style="dashed")
 dv.set_curve(3,'RL4')
-dv.set_curve(3,'RL8')
+dv.set_curve(3,'RL8',style="dashed")
+
+dv.set_xaxis(0,cycles=3,subs=2)
+dv.set_xaxis(2,cycles=2,subs=2)
+dv.set_xaxis(3,cycles=3,subskip=0,scale='log')
 
 """
 ~ASCII       VSH     PHIE     PHIT       RL       SP    NGL (23.     LL   GR (23.0    SW      RL4      RL8     GR (17.0  NGL       VHD    BVW      CBW

@@ -147,10 +147,6 @@ class correlation():
          ax = plt.gca()
          ax.set_aspect('equal')
 
-class dimensional_reduction():
-
-    pass
-
 if __name__ == "__main__":
 
     pass

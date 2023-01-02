@@ -3,9 +3,9 @@ import numpy as np
 from scipy.stats import norm
 
 if __name__ == "__main__":
-    import setup
+    import dirsetup
 
-class SpatProp(np.ndarray):
+class connectivity(np.ndarray):
 
     """It is a numpy array of shape (N,) with additional spatial attributes x,y,z"""
 
