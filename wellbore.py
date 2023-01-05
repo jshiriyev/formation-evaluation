@@ -1,3 +1,9 @@
+from dataclasses import dataclass
+
+import json
+
+import os
+
 from matplotlib import pyplot
 
 import numpy
@@ -5,11 +11,30 @@ import numpy
 if __name__ == "__main__":
     import dirsetup
 
-from core import frame
-from core import column
+from datum import frame
+from datum import column
 
 from textio import header
 from textio import dirmaster
+
+filedir = os.path.dirname(__file__)
+
+filepath = os.path.join(filedir,"wellbore.json")
+
+with open(filepath,"r") as jsonfile:
+    library = json.load(jsonfile)
+
+@dataclass
+class WellConfig:
+    
+    name: str = None
+    index: int = None
+    platform: str = None
+    field: str = None
+    xhead: float = 0.0
+    yhead: float = 0.0
+    datum: float = 0.0
+    status: str = "prospect"
 
 class schedule(dirmaster):
 
@@ -213,9 +238,16 @@ class schedworm():
 
 class slot():
 
-    def __init__(self):
+    def __init__(self,config:WellConfig):
 
-        pass
+        self.name = config.name
+        self.index = config.index
+        self.platform = config.platform
+        self.field = config.field
+        self.xhead = config.xhead
+        self.yhead = config.yhead
+        self.datum = config.datum
+        self.status = config.status
 
 class trajectory():
 
@@ -1557,8 +1589,6 @@ class stock():
 
         super().__init__(**kwargs)
 
-        self.number = number                # number of wells
-
         self.wnamefstr = "Well-{}" if wnamefstr is None else wnamefstr
 
     def set_names(self,*args,wnamefstr=None,sortFlag=False):
@@ -1961,11 +1991,16 @@ class stock():
 
 if __name__ == "__main__":
 
-    import unittest
+    # import unittest
 
-    from tests import textio_test
+    # from tests.wellbore import schedfile
 
-    unittest.main(textio_test)
+    # unittest.main(schedfile)
+
+    print(library["status"]["prospect"])
+
+    for key,value in library["status"].items():
+        print(f"{key}-{value['abbreviation']}")
 
     # import unittest
 
