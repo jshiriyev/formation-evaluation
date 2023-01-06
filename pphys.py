@@ -195,7 +195,14 @@ class lasfile(dirmaster):
         with open(filepath, mode='w') as filePathToWrite:
             lasmaster.write(filePathToWrite)
 
-    def nanplot(self,axis):
+    def nanplot(self,axis=None,highlight=None,rotation=90):
+        """Highlight needs to be added for highlighting certain intervals or maybe zooming.
+        Also numbers on the axis needs to be formatted, I do not need to see the prcision more than 1 for depth."""
+
+        show = True if axis is None else False
+
+        if axis is None:
+            axis = pyplot.figure().add_subplot()
 
         yvals = []
         zvals = []
@@ -233,14 +240,15 @@ class lasfile(dirmaster):
         axis.set_ylim((-1,self.ascii.shape[1]))
 
         axis.set_xticks(numpy.arange(qvals.size))
-        axis.set_xticklabels(depth[qvals],rotation=90)
+        axis.set_xticklabels(depth[qvals],rotation=rotation)
 
         axis.set_yticks(numpy.arange(self.ascii.shape[1]))
         axis.set_yticklabels(self.ascii.heads)
 
         axis.grid(True,which="both",axis='x')
 
-        return axis
+        if show:
+            pyplot.show()
 
     def trim(self,*args,strt=None,stop=None,curve=None):
         """It trims the data based on the strt and stop depths"""
@@ -616,6 +624,9 @@ class lasworm():
                 types = self._types(lasmaster)
                 break
 
+            if line.startswith("~O"):
+                continue
+
             if line.startswith("~"):
 
                 sectioncode = line[:2]
@@ -752,36 +763,51 @@ class lasbatch(dirmaster):
             homedir = pop(kwargs,"homedir"),
             filedir = pop(kwargs,"filedir"))
 
-        self.frames = []
+        self.files = []
 
-        self.load(filepaths,**kwargs)
+        self.loadall(filepaths,**kwargs)
 
-    def load(self,filepaths,**kwargs):
+    def loadall(self,filepaths,**kwargs):
 
         if filepaths is None:
             return
 
-        if not isinstance(filepaths,list) and not isinstance(filepaths,tuple):
+        if isinstance(filepaths,list):
+            filepaths = tuple(filepaths)
+
+        if not isinstance(filepaths,tuple):
             filepaths = (filepaths,)
 
         for filepath in filepaths:
+            self.load(filepath,**kwargs)
 
-            dataframe = loadlas(filepath,**kwargs)
+    def load(self,filepath,**kwargs):
 
-            self.frames.append(dataframe)
+        if filepath is None:
+            return
 
-            logging.info(f"Loaded {filepath} as expected.")
+        lasfile = loadlas(filepath,**kwargs)
+
+        self.files.append(lasfile)
+
+        print(f"Loaded {lasfile.filepath}")
+
+        # logging.info(f"Loaded {lasfile.filepath}")
+
+    def __getitem__(self,index):
+
+        return self.files[index]
 
     def wells(self,idframes=None):
 
         if idframes is None:
-            idframes = range(len(self.frames))
+            idframes = range(len(self.files))
         elif isinstance(idframes,int):
             idframes = (idframes,)
 
         for index in idframes:
 
-            dataframe = self.frames[index]
+            dataframe = self.files[index]
 
             print("\n\tWELL #{}".format(dataframe.well.get_row(mnemonic="WELL")["value"]))
 
@@ -795,13 +821,13 @@ class lasbatch(dirmaster):
     def curves(self,idframes=None,mnemonic_space=33,tab_space=8):
 
         if idframes is None:
-            idframes = range(len(self.frames))
+            idframes = range(len(self.files))
         elif isinstance(idframes,int):
             idframes = (idframes,)
 
         for index in idframes:
 
-            dataframe = self.frames[index]
+            dataframe = self.files[index]
 
             iterator = zip(dataframe.headers,dataframe.units,dataframe.details,dataframe.running)
 
@@ -830,15 +856,15 @@ class lasbatch(dirmaster):
         if isinstance(fileIDs,int):
 
             try:
-                depth = self.frames[fileIDs]["MD"]
+                depth = self.files[fileIDs]["MD"]
             except KeyError:
-                depth = self.frames[fileIDs]["DEPT"]
+                depth = self.files[fileIDs]["DEPT"]
 
-            xvals1 = self.frames[fileIDs][curveNames[0]]
+            xvals1 = self.files[fileIDs][curveNames[0]]
 
             for curveName in curveNames[1:]:
 
-                xvals2 = self.frames[fileIDs][curveName]
+                xvals2 = self.files[fileIDs][curveName]
 
                 xvals1[numpy.isnan(xvals1)] = xvals2[numpy.isnan(xvals1)]
 
@@ -855,11 +881,11 @@ class lasbatch(dirmaster):
             for (fileID,curveName) in zip(fileIDs,curveNames):
 
                 try:
-                    depth_loc = self.frames[fileID]["MD"]
+                    depth_loc = self.files[fileID]["MD"]
                 except KeyError:
-                    depth_loc = self.frames[fileID]["DEPT"]
+                    depth_loc = self.files[fileID]["DEPT"]
 
-                xvals_loc = self.frames[fileID][curveName]
+                xvals_loc = self.files[fileID][curveName]
 
                 depth_loc = depth_loc[~numpy.isnan(xvals_loc)]
                 xvals_loc = xvals_loc[~numpy.isnan(xvals_loc)]

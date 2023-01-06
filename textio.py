@@ -159,16 +159,9 @@ class dirmaster():
         """Initializes base directory class with home & file directories."""
 
         self.set_homedir(homedir)
+        self.set_filedir(filedir)
 
-        if filepath is None and filedir is None:
-            self.set_filedir(filedir)
-        elif filepath is None and filedir is not None:
-            self.set_filedir(filedir)
-        elif filepath is not None and filedir is None:
-            self.set_filedir(filepath)
-            self.set_filepath(filepath)
-        else:
-            self.set_filedir(filedir)
+        if filepath is not None:
             self.set_filepath(filepath)
 
     def set_homedir(self,path=None):
@@ -213,6 +206,7 @@ class dirmaster():
         if os.path.isdir(path):
             return
 
+        super().__setattr__("filedir",os.path.dirname(path))
         super().__setattr__("filepath",path)
 
     def get_extended(self,path=None,extension=None):
