@@ -99,11 +99,11 @@ class header():
         
         return header(**dict(zip(self.params,row)))
 
-    def __repr__(self,comment=None):
+    def __repr__(self,fstring=None,comment=None):
 
-        return self.__str__(comment)
+        return self.__str__(fstring=fstring,comment=comment)
 
-    def __str__(self,comment=None):
+    def __str__(self,fstring=None,comment=None,skip=False):
 
         if len(self)==1:
             return repr(tuple(self.fields))
@@ -111,9 +111,12 @@ class header():
         if comment is None:
             comment = ""
 
-        fstring = comment
-        
         underline = []
+
+        fstringFlag = True if fstring is None else False
+
+        if fstringFlag:
+            fstring = comment
 
         for param,field in zip(self.params,self.fields):
 
@@ -122,15 +125,21 @@ class header():
 
             count_ = max([len(value) for value in field_])
 
-            fstring += f"{{:<{count_}}}   "
+            if fstringFlag:
+                fstring += f"{{:<{count_}}}   "
             
-            underline.append("-"*count_)
+            if fstringFlag:
+                underline.append("-"*count_)
+            else:
+                underline.append("-"*len(param))
 
         fstring += "\n"
 
-        text = fstring.format(*[parm.capitalize() for parm in self.params])
-        
-        text += fstring.format(*underline)
+        text = ""
+
+        if not skip:
+            text += fstring.format(*[parm.capitalize() for parm in self.params])
+            text += fstring.format(*underline)
         
         for row in self:
             text += fstring.format(*row)

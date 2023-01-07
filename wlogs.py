@@ -25,10 +25,9 @@ if __name__ == "__main__":
 
 class sonic():
 
-    def __init__(self,values,depths=None):
+    def __init__(self,curve):
 
-        self.values = values
-        self.depths = depths
+        self.curve = curve
 
     def get_porosity(self):
 
@@ -38,8 +37,7 @@ class spotential():
 
     def __init__(self,curve,**kwargs):
 
-        self.values = curve.vals
-        self.depths = curve.depths
+        self.curve = curve
 
         self.set_temps(**kwargs)
 
@@ -67,7 +65,7 @@ class spotential():
 
             temps = self.tempsurf+self.tempgrad*self.depths/100
 
-        if self.depths.shape == temps.shape:
+        if self.curve.depths.shape == temps.shape:
             self.temps = temps
         else:
             raise("The shape does not match for depths and temps.")
@@ -78,19 +76,7 @@ class spotential():
 
         index = numpy.where(dummy_depth==dummy_depth.min())[0][0]
 
-        return self.temps[index]+self.tempgrad*(depth-self.depths[index])/100
-
-    def get_unknownthickness(self):
-
-        node_top = numpy.roll(self.depths,1)
-        node_bottom = numpy.roll(self.depths,-1)
-
-        thickness = (node_bottom-node_top)/2
-
-        thickness[0] = (self.depths[1]-self.depths[0])/2
-        thickness[-1] = (self.depths[-1]-self.depths[-2])/2
-
-        return numpy.sum(thickness[numpy.isnan(self.values)])
+        return self.temps[index]+self.tempgrad*(depth-self.curve.depths[index])/100
 
     def get_shalevolume(self,spsand=None,spshale=None):
 
@@ -114,7 +100,7 @@ class spotential():
 
     def get_netthickness(self,percent,**kwargs):
 
-        spcut = self.get_cut(percent,**kwargs)
+        grcut = self.get_cut(percent,**kwargs)
 
         node_top = numpy.roll(self.depths,1)
         node_bottom = numpy.roll(self.depths,-1)
@@ -124,7 +110,7 @@ class spotential():
         thickness[0] = (self.depths[1]-self.depths[0])/2
         thickness[-1] = (self.depths[-1]-self.depths[-2])/2
 
-        return numpy.sum(thickness[self.values<spcut])
+        return numpy.sum(thickness[self.values<grcut])
 
     def get_netgrossratio(self,percent,**kwargs):
 
@@ -160,11 +146,6 @@ class spotential():
 
     	return Rw
 
-    @property
-    def grossthickness(self):
-
-        return self.depths.max()-self.depths.min()
-
     @staticmethod
     def _restemp_conversion(res1,T1,T2):
 
@@ -172,10 +153,9 @@ class spotential():
 
 class laterolog():
 
-    def __init__(self,values,depths=None):
+    def __init__(self,curve):
 
-        self.values = values
-        self.depths = depths
+        self.curve = curve
 
     def get_porosity(self):
 
@@ -183,10 +163,9 @@ class laterolog():
 
 class induction():
 
-    def __init__(self,values,depths=None):
+    def __init__(self,curve):
 
-        self.values = values
-        self.depths = depths
+        self.curve = curve
 
     def get_porosity(self):
 
@@ -194,22 +173,9 @@ class induction():
 
 class gammaray():
 
-    def __init__(self,values,depths=None):
+    def __init__(self,curve):
 
-        self.values = values
-        self.depths = depths
-
-    def get_unknownthickness(self):
-
-        node_top = numpy.roll(self.depths,1)
-        node_bottom = numpy.roll(self.depths,-1)
-
-        thickness = (node_bottom-node_top)/2
-
-        thickness[0] = (self.depths[1]-self.depths[0])/2
-        thickness[-1] = (self.depths[-1]-self.depths[-2])/2
-
-        return numpy.sum(thickness[numpy.isnan(self.values)])
+        self.curve = curve
 
     def get_shaleindex(self,grmin=None,grmax=None):
 
@@ -279,10 +245,6 @@ class gammaray():
 
         pass
 
-    @property
-    def grossthickness(self):
-        return self.depths.max()-self.depths.min()
-
     @staticmethod
     def _larionov_oldrocks(index,volume=None):
         if volume is None:
@@ -320,10 +282,9 @@ class gammaray():
 
 class density():
 
-    def __init__(self,values,depths=None):
+    def __init__(self,curve):
 
-        self.values = values
-        self.depths = depths
+        self.curve = curve
 
     def get_porosity(self):
 
@@ -335,21 +296,77 @@ class density():
 
 class neutron():
 
-    def __init__(self,values,depths=None):
+    def __init__(self,curve):
 
-        self.values = values
-        self.depths = depths
+        self.curve = curve
 
-    def get_porosity(self):
+    def get_porosity(self,observer,*args,**kwargs):
 
-        pass
+        return getattr(self,f"_{observer}")(self.curve.vals,*args,**kwargs)
+
+    @staticmethod
+    def _gamma_capture(ngl,phi_clean,phi_shale,ngl_clean=None,ngl_shale=None,shale_volume=None):
+        """The porosity based on gamma detection:
+
+        ngl          :  neutron-gamma-logging values
+        
+        phi_clean    :  porosity in the clean formation
+        phi_shale    :  porosity in the adjacent shale
+
+        ngl_clean    :  NGL reading in the clean formation
+        ngl_shale    :  NGL reading in the adjacent shale
+
+        shale_volume :  it is required for the calculation of effective porosity,
+                        and it can be calculated from etiher GR or SP logs.
+        
+        """
+
+        porosity = {}
+
+        if ngl_clean is None:
+            ngl_clean = ngl.min()
+
+        if ngl_shale is None:
+            ngl_shale = ngl.max()
+
+        normalized = (ngl-ngl_clean)/(ngl_shale-ngl_clean)
+
+        normalized[normalized<=0] = 0
+        normalized[normalized>=1] = 1
+
+        porosity['total'] = phi_clean+(phi_shale-phi_clean)*normalized
+
+        if shale_volume is not None:
+            porosity['effective'] = porosity['total']-shale_volume*phi_shale
+
+        return porosity
+
+    @staticmethod
+    def _neutron_count(nnl,a,b):
+        """The porosity based on the neutron count is given by:
+        
+        nnl = a-b*log(phi)
+        
+        nnl :  neutron-neutron-logging values, the slow neutrons counted
+
+        a   :  empirical constants determined by appropriate calibration
+        b   :  empirical constants determined by appropriate calibration
+
+        phi :  porosity
+
+        """
+
+        porosity = {}
+
+        porosity['total'] = 10**((a-nnl)/b)
+
+        return porosity
 
 class nmrlog():
 
-    def __init__(self,values,depths=None):
+    def __init__(self,curve):
 
-        self.values = values
-        self.depths = depths
+        self.curve = curve
 
     def get_porosity(self):
 

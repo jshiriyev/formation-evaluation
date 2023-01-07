@@ -10,6 +10,8 @@ import logging
 import re
 import string
 
+from matplotlib import pyplot
+
 import numpy
 import pint
 
@@ -504,6 +506,28 @@ class column():
 
         return datacolumn
 
+    def normalize(self,vmin=None,vmax=None):
+        """It returns normalized values (in between 0 and 1) of float arrays.
+        If vmin is provided, everything below 0 will be reported as zero.
+        If vmax is provided, everything above 1 will be reported as one."""
+
+        datacolumn = copy.deepcopy(self)
+
+        if vmin is None:
+            vmin = datacolumn.min()
+
+        if vmax is None:
+            vmax = datacolumn.max()
+
+        datacolumn.vals = (datacolumn.vals-vmin)/(vmax-vmin)
+
+        datacolumn.vals[datacolumn.vals<=0] = 0
+        datacolumn.vals[datacolumn.vals>=1] = 1
+
+        datacolumn._valsunit()
+
+        return datacolumn
+
     def fromstring(self,dtype,regex=None):
 
         datacolumn = copy.deepcopy(self)
@@ -907,6 +931,11 @@ class column():
 
     def histogram(self,axis,logscale=False):
 
+        show = True if axis is None else False
+
+        if axis is None:
+            axis = pyplot.figure().add_subplot()
+
         yaxis = self.vals
 
         if logscale:
@@ -921,7 +950,8 @@ class column():
         axis.set_ylabel("Probability")
         axis.set_xlabel(xlabel)
 
-        return axis
+        if show:
+            pyplot.show()
 
     """GENERAL PROPERTIES"""
 

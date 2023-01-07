@@ -69,14 +69,9 @@ class lascurve(column):
             size = pop(kwargs,"size"),
             dtype = pop(kwargs,"dtype"))
 
-        if kwargs.get("color") is None:
-            kwargs["color"] = "black"
-
-        if kwargs.get("style") is None:
-            kwargs["style"] = "solid"
-
-        if kwargs.get("width") is None:
-            kwargs["width"] = 0.75
+        kwargs['color'] = pop(kwargs,"color","black")
+        kwargs['style'] = pop(kwargs,"style","solid")
+        kwargs['width'] = pop(kwargs,"width",0.75)
 
         self.set_style(**kwargs)
 
@@ -142,58 +137,32 @@ class lasfile(dirmaster):
             )
 
     def write(self,filepath):
+        """It will write a lasfile to the given filepath."""
 
-        import lasio
+        filepath = self.get_abspath(filepath,homeFlag=True)
 
-        """
-        filepath:       It will write a lasio.LASFile to the given filepath
+        fstringH = "{}.{}\t{}: {}"
+        fstringA = " ".join(["{}" for _ in range(self.ascii.shape[1])])
 
-        kwargs:         These are mnemonics, data, units, descriptions, values
-        """
+        fstringA += "\n"
 
-        lasmaster = lasio.LASFile()
+        vprint = numpy.vectorize(lambda *args: fstringA.format(*args))
 
-        lasmaster.well.DATE = datetime.datetime.today().strftime('%Y-%m-%d %H:%M:%S')
+        with open(filepath,'w') as outfile:
 
-        depthExistFlag = False
+            for section in self.sections:
 
-        for mnemonic in mnemonics:
-            if mnemonic=="MD" or mnemonic=="DEPT" or mnemonic=="DEPTH":
-                depthExistFlag = True
-                break
+                outfile.write(f"#{'='*66}\n")
+                outfile.write(f"~{section.capitalize()}\n")
 
-        if not depthExistFlag:
-            curve = lasio.CurveItem(
-                mnemonic="DEPT",
-                unit="",
-                value="",
-                descr="Depth index",
-                data=numpy.arange(data[0].size))
-            lasmaster.append_curve_item(curve)            
+                outfile.write(getattr(self,section).__str__(fstring=fstringH,skip=True))
 
-        for index,(mnemonic,datum) in enumerate(zip(mnemonics,data)):
+            outfile.write(f"#{'='*66}\n")
+            outfile.write(f"~{'ascii'.capitalize()}\n")
 
-            if units is not None:
-                unit = units[index]
-            else:
-                unit = ""
+            bodycols = vprint(*self.ascii.running).tolist()
 
-            if descriptions is not None:
-                description = descriptions[index]
-            else:
-                description = ""
-
-            if values is not None:
-                value = values[index]
-            else:
-                value = ""
-
-            curve = lasio.CurveItem(mnemonic=mnemonic,data=datum,unit=unit,descr=description,value=value)
-
-            lasmaster.append_curve_item(curve)
-
-        with open(filepath, mode='w') as filePathToWrite:
-            lasmaster.write(filePathToWrite)
+            outfile.write("".join(bodycols))
 
     def nanplot(self,axis=None,highlight=None,rotation=90):
         """Highlight needs to be added for highlighting certain intervals or maybe zooming.
