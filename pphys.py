@@ -53,7 +53,7 @@ def pop(kwargs,key,default=None):
     except KeyError:
         return default
 
-class lascurve(column):
+class LasCurve(column):
 
     def __init__(self,**kwargs):
 
@@ -124,13 +124,28 @@ class LasFile(dirmaster):
 
         self.sections.append("ascii")
 
-    def __getitem__(self,key):
+    def __setitem__(self,head,curve):
 
-        return lascurve(
-            vals = self.ascii[key].vals,
-            head = self.ascii[key].head,
-            unit = self.ascii[key].unit,
-            info = self.ascii[key].info,
+        if not numpy.all(self.depths==curve.depths):
+            raise "Depths does not match!"
+
+        self.ascii._setup(column(
+            vals = curve.vals,
+            head = head,
+            unit = curve.unit,
+            info = curve.info,
+            size = curve.size,
+            dtype = curve.dtype,
+            )
+        )
+
+    def __getitem__(self,head):
+
+        return LasCurve(
+            vals = self.ascii[head].vals,
+            head = self.ascii[head].head,
+            unit = self.ascii[head].unit,
+            info = self.ascii[head].info,
             depths = self.depths,
             )
 
@@ -368,11 +383,16 @@ class LasFile(dirmaster):
     @property
     def height(self):
 
-        depths = self.depths
+        top = self.depths.min()
+        bottom = self.depths.max()
 
-        total = depths.max()-depths.min()
+        total = bottom-top
 
-        return {'total': total,}
+        return {
+            'total' :   total,
+            'top'   :   top,
+            'bottom':   bottom,
+            'limit' :   (bottom,top)}
 
     @property
     def depths(self):
@@ -429,11 +449,11 @@ def loadlas(filepath,**kwargs):
     nullfile = LasFile(filepath=filepath,**kwargs)
 
     # It reads LAS file and returns pphys.LasFile instance.
-    fullfile = lasworm(nullfile).lasfile
+    fullfile = LasWorm(nullfile).lasfile
 
     return fullfile
 
-class lasworm():
+class LasWorm():
     """Reads a las file with all sections."""
 
     def __init__(self,lasfile):
@@ -722,7 +742,7 @@ class lasworm():
 
         return dataframe
 
-class lasbatch(dirmaster):
+class LasBatch(dirmaster):
 
     def __init__(self,filepaths=None,**kwargs):
 
@@ -864,7 +884,7 @@ class lasbatch(dirmaster):
 
             return depth,xvals
 
-class bulkmodel(header):
+class BulkModel(header):
 
     def __init__(self,**kwargs):
 
@@ -933,7 +953,7 @@ class bulkmodel(header):
 
         return axis
 
-class depthview(dirmaster):
+class DepthView(dirmaster):
 
     def __init__(self,lasfile,**kwargs):
 
@@ -989,13 +1009,13 @@ class depthview(dirmaster):
         self.depths['ticks'] = MultipleLocator(base).tick_values(top,bottom)
 
     def set_curve(self,col,curve,row=None,vmin=None,vmax=None,multp=None,**kwargs):
-        """It adds lascurve[head] to the axes[col]."""
+        """It adds LasCurve[head] to the axes[col]."""
 
         if isinstance(curve,str):
             curve = self.lasfile[curve]
             curve.set_style(**kwargs)
-        elif not isinstance(curve,lascurve):
-            curve = lascurve(curve,**kwargs)
+        elif not isinstance(curve,LasCurve):
+            curve = LasCurve(curve,**kwargs)
         else:
             curve.set_style(**kwargs)
         
@@ -1240,7 +1260,7 @@ class depthview(dirmaster):
             top += height_pages
 
     def save(self,filepath,wspace=0.0,hspace=0.0,**kwargs):
-        """It saves the depthview as a multipage pdf file."""
+        """It saves the DepthView as a multipage pdf file."""
 
         if len(self.axes)==0:
             self.set_axes()
@@ -1666,67 +1686,57 @@ class depthview(dirmaster):
 
         return nrows
 
-class batchview(dirmaster):
+class BatchView(dirmaster):
     """It creates correlation based on multiple las files from different wells."""
 
     def __init__(self):
 
         pass
 
-class workflow(dirmaster):
+class WorkFlow(dirmaster):
 
     def __init__(self,lasfile,**kwargs):
 
         super().__init__(homedir=pop(kwargs,"homedir"))
-
-        self.depths = {}
-        self.curves = {}
 
         if isinstance(lasfile,str):
             self.lasfile = loadlas(lasfile,**kwargs)
         elif isinstance(lasfile,LasFile):
             self.lasfile = lasfile
 
-        self.set_depths()
-
-    def set_depths(self):
-        """It sets the depth interval for which log data will be shown.
-        
-        top             : top of interval
-        bottom          : bottom of interval
-
-        """
-
-        top = self.lasfile.depths.min()
-        bottom = self.lasfile.depths.max()
-
-        self.depths['top'] = top
-        self.depths['bottom'] = bottom
-        self.depths['height'] = bottom-top
-        self.depths['limit'] = (bottom,top)
-
     def set_curve(self,curve,**kwargs):
 
         if curve is None:
             return
-        elif isinstance(curve,str):
-            curve = self.lasfile[curve]
-        elif not isinstance(curve,lascurve):
-            curve = lascurve(curve,**kwargs)
+        elif not isinstance(curve,LasCurve):
+            curve = LasCurve(curve,**kwargs)
 
-        self.curves[curve.head] = curve
+        self.lasfile[curve.head] = curve
 
     def set_temps(self,**kwargs):
 
-        self.curves['temps'] = self.temperature(self.lasfile.depths,**kwargs)
+        T = self.temperature(**kwargs)
+
+        if maximum is None and surface is None:
+            surface,maximum = 60,60+gradient*depthmax/100
+        elif maximum is None and surface is not None:
+            maximum = surface+gradient*depthmax/100
+        elif maximum is not None and surface is None:
+            surface = maximum-gradient*depthmax/100
+        else:
+            gradient = (maximum-surface)/depthmax*100
+
+        self.lasfile['temps'] = self.temperature(self.lasfile.depths,**kwargs)
 
     def get_temp(self,depth):
 
-        dummy_depth = numpy.abs(self.depths-depth)
+        dummy_depth = numpy.abs(self.lasfile.depths-depth)
 
         index = numpy.where(dummy_depth==dummy_depth.min())[0][0]
 
-        return self.temps[index]+self.tempgrad*(depth-self.curve.depths[index])/100
+        temps = self.lasfile['temps']
+
+        return temps[index]+self.gradient*(depth-self.curve.depths[index])/100
 
     def __getitem__(self,head):
 
@@ -1786,22 +1796,36 @@ class workflow(dirmaster):
         pyplot.show()
 
     @staticmethod
-    def temperature(depths,tempmax=None,tempsurf=None,tempgrad=1.75,system="field"):
-        """Worldwide average geothermal gradients changes from 24 to 41°C/km (1.3-2.2°F/100 ft),
-        with extremes outside this range."""
+    def temperature(system="field",surface=None,gradient=None):
+        """Returns temperature parameters for field and international units.
+        
+        system      : Unit system for temperature parameters, field and international
 
-        depthmax = max(depths)
+        surface     : The average temperature of the sea surface is about 20° C (68° F),
+                      but it ranges from more than 30° C (86° F) in warm tropical regions
+                      to less than 0°C at high latitudes.
 
-        if tempmax is None and tempsurf is None:
-            tempsurf,tempmax = 60,60+tempgrad*depthmax/100
-        elif tempmax is None and tempsurf is not None:
-            tempmax = tempsurf+tempgrad*depthmax/100
-        elif tempmax is not None and tempsurf is None:
-            tempsurf = tempmax-tempgrad*depthmax/100
-        else:
-            tempgrad = (tempmax-tempsurf)/depthmax*100
+        gradient    : Worldwide average geothermal gradients changes from
+                      24 to 41°C/1000 m (1.3-2.2°F/100 ft), with extremes
+                      outside this range.
 
-        return tempsurf+tempgrad+depths/100
+        """
+
+        temperature = {}
+
+        temperature['system'] = system
+
+        if system == "international":
+            gradient = 0.0305 if gradient is None else gradient
+            surface = 20 if surface is None else surface
+        elif system == "field":
+            gradient = 0.0165 if gradient is None else gradient
+            surface = 68 if surface is None else surface
+
+        temperature['surface'] = surface
+        temperature['gradient'] = gradient
+
+        return temperature
 
     @staticmethod
     def archie(m=2,a=1,Rw=0.01,n=2):
@@ -1819,57 +1843,66 @@ class workflow(dirmaster):
 
 class sonic():
 
+    def __init__(self,deltaTcomp,deltaTshear):
+
+        self.dtcomp = dtcomp
+        self.dtshear = dtshear
+
     def porosity(self):
 
         pass
 
 class spotential():
 
-    def shalevolume(values,spsand=None,spshale=None):
+    def __init__(self,curve):
+
+        self.curve = curve
+
+    def shalevolume(self,spsand=None,spshale=None):
 
         if spsand is None:
-            spsand = numpy.nanmin(values)
+            spsand = numpy.nanmin(self.curve.vals)
 
         if spshale is None:
-            spshale = numpy.nanmax(values)
+            spshale = numpy.nanmax(self.curve.vals)
 
-        return (values-spsand)/(spshale-spsand)
+        return (self.curve.vals-spsand)/(spshale-spsand)
 
-    def cut(values,percent,spsand=None,spshale=None):
+    def cut(self,percent,spsand=None,spshale=None):
 
         if spsand is None:
-            spsand = numpy.nanmin(values)
+            spsand = numpy.nanmin(self.curve.vals)
 
         if spshale is None:
-            spshale = numpy.nanmax(values)
+            spshale = numpy.nanmax(self.curve.vals)
 
         return (percent/100.)*(spshale-spsand)+spsand
 
-    def netthickness(depths,values,percent,**kwargs):
+    def netthickness(self,percent,**kwargs):
 
         spcut = spotential.cut(percent,**kwargs)
 
-        node_top = numpy.roll(depths,1)
-        node_bottom = numpy.roll(depths,-1)
+        node_top = numpy.roll(self.curve.depths,1)
+        node_bottom = numpy.roll(self.curve.depths,-1)
 
         thickness = (node_bottom-node_top)/2
 
-        thickness[0] = (depths[1]-depths[0])/2
-        thickness[-1] = (depths[-1]-depths[-2])/2
+        thickness[0] = (self.curve.depths[1]-self.curve.depths[0])/2
+        thickness[-1] = (self.curve.depths[-1]-self.curve.depths[-2])/2
 
-        return numpy.sum(thickness[values<spcut])
+        return numpy.sum(thickness[self.curve.vals<spcut])
 
-    def netgrossratio(depths,*args,**kwargs):
+    def netgrossratio(self,**kwargs):
 
-        height = max(depths)-min(depths)
+        height = max(self.curve.depths)-min(self.curve.depths)
 
-        return spotential.netthickness(depths,*args,**kwargs)/height
+        return spotential.netthickness(**kwargs)/height
 
-    def get_formwaterres(method='bateman_and_konen',**kwargs):
+    def formwaterres(self,method='bateman_and_konen',**kwargs):
 
         return getattr(spotential,f"{method}")(**kwargs)
 
-    def bateman_and_konen(SSP,resmf,resmf_temp,temperature):
+    def bateman_and_konen(self,SSP,resmf,resmf_temp,temperature):
 
         resmf_75F = spotential.restemp_conversion(resmf,resmf_temp,75)
 
@@ -1889,15 +1922,19 @@ class spotential():
 
         return spotential.restemp_conversion(resw_75F,75,temperature)
 
-    def silva_and_bassiouni():
+    def silva_and_bassiouni(self):
 
         return Rw
 
-    def restemp_conversion(res1,T1,T2):
+    def restemp_conversion(self,res1,T1,T2):
 
         return res1*(T1+6.77)/(T2+6.77)
 
 class laterolog():
+
+    def __init__(self,microres):
+
+        self.microres = microres
 
     def porosity(self):
 
@@ -1905,11 +1942,23 @@ class laterolog():
 
 class induction():
 
+    def __init__(self):
+
+        pass
+
     def porosity(self):
 
         pass
 
 class gammaray():
+
+    def __init__(self,total,potassium,thorium,uranium):
+
+        self.total = total
+
+        self.potassium = potassium
+        self.thorium = thorium
+        self.uranium = utanium
 
     def shaleindex(values,grmin=None,grmax=None):
 
@@ -2013,22 +2062,33 @@ class gammaray():
 
 class density():
 
+    def __init__(self,compton,photoe):
+
+        self.compton = compton
+        self.photoe = photoe
+
     def porosity():
 
         pass
 
 class neutron():
 
-    def porosity(curve,observer,*args,**kwargs):
+    def __init__(self,neutron=None,gamma=None):
+        """Tool configuration and initialization of output signals"""
+
+        self.neutron = neutron
+        self.gamma = gamma
+
+    def porosity(self,observer,*args,**kwargs):
 
         if observer.lower() == "gamma":
-            func = getattr(neutron,"_gamma_capture")
+            func = getattr(self,"_gamma_capture")
         elif observer.lower() == "neutron":
-            func = getattr(neutron,"_neutron_count")
+            func = getattr(self,"_neutron_count")
 
         return func(curve,*args,**kwargs)
 
-    def gamma_capture(curve,phi_clean,phi_shale,ngl_clean=None,ngl_shale=None,shale_volume=None):
+    def _gamma_capture(self,phi_clean,phi_shale,ngl_clean=None,ngl_shale=None,shale_volume=None):
         """The porosity based on gamma detection:
 
         curve        :  neutron-gamma-logging curve
@@ -2047,12 +2107,12 @@ class neutron():
         porosity = {}
 
         if ngl_clean is None:
-            ngl_clean = curve.min()
+            ngl_clean = self.gamma.min()
 
         if ngl_shale is None:
-            ngl_shale = curve.max()
+            ngl_shale = self.gamma.max()
 
-        normalized = (curve.vals-ngl_clean)/(ngl_shale-ngl_clean)
+        normalized = (self.gamma.vals-ngl_clean)/(ngl_shale-ngl_clean)
 
         normalized[normalized<=0] = 0
         normalized[normalized>=1] = 1
@@ -2064,8 +2124,7 @@ class neutron():
 
         return porosity
 
-    @staticmethod
-    def neutron_count(curve,a,b):
+    def _neutron_count(self,a,b):
         """The porosity based on the neutron count is given by:
         
         nnl = a-b*log(phi)
@@ -2087,6 +2146,11 @@ class neutron():
 
 class nmrlog():
 
+    def __init__(self):
+        """Tool configuration and output signal initialization."""
+
+        pass
+
     def porosity():
 
         pass
@@ -2096,8 +2160,6 @@ class nmrlog():
 class denneu():
 
     def __init__(self,rhof=1.0,phiNf=1.0,NTool="CNL",**kwargs):
-
-        super().__init__(**kwargs)
 
         self.rhof = rhof
         self.phiNf = phiNf
@@ -2256,13 +2318,11 @@ class sonden():
 
     def __init__(self,**kwargs):
 
-        super().__init__(**kwargs)
+        pass
 
 class sonneu():
 
     def __init__(self,DT_FLUID=189,PHI_NF=1,**kwargs):
-
-        super().__init__(**kwargs)
 
         self.DT_FLUID = DT_FLUID
         self.PHI_NF = PHI_NF
@@ -2373,8 +2433,6 @@ class sonneu():
 class mnplot():
 
     def __init__(self,DTf=189,rhof=1.0,phiNf=1.0,NTool="SNP",**kwargs):
-
-        super().__init__(**kwargs)
 
         self.DTf = DTf
         self.rhof = rhof
@@ -2559,15 +2617,15 @@ class mnplot():
 
 class midplot():
 
-    def __init__(self,**kwargs):
+    def __init__(self):
 
-        super().__init__(**kwargs)
+        pass
 
 class rhoumaa():
 
-    def __init__(self,**kwargs):
+    def __init__(self):
 
-        super().__init__(**kwargs)
+        pass
 
 # SATURATION MODELING
 
@@ -2869,7 +2927,7 @@ class hingle():
 
 if __name__ == "__main__":
 
-    bm = bulkmodel(sandstone=1)
+    bm = BulkModel(sandstone=1)
 
     for key in bm.library.keys():
         print(key)
