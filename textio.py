@@ -25,8 +25,8 @@ class header():
     def __init__(self,**kwargs):
         """parameters should be predefined, all entries must be string."""
 
-        if len(kwargs)==0:
-            raise ValueError("At least one field is required.")
+        # if len(kwargs)==0:
+        #     raise ValueError("At least one field is required.")
 
         params = []
         fields = []
@@ -44,7 +44,7 @@ class header():
             fields.append(field)
             fsizes.append(len(field))
 
-        if len(set(fsizes))!=1:
+        if len(set(fsizes))>1:
             raise ValueError("The lengths of field are not equal!")
 
         super().__setattr__("params",params)
@@ -168,6 +168,7 @@ class dirmaster():
         """Initializes base directory class with home & file directories."""
 
         self.set_homedir(homedir)
+
         self.set_filedir(filedir)
 
         if filepath is not None:
@@ -191,10 +192,10 @@ class dirmaster():
         """Sets the file directory to get inputs."""
 
         if path is None:
-            path = self.homedir
+            path = os.getcwd()
 
         if not os.path.isabs(path):
-            path = self.get_abspath(path,homeFlag=True)
+            path = os.path.normpath(os.path.join(os.getcwd(),path))
 
         if not os.path.isdir(path):
             path = os.path.dirname(path)

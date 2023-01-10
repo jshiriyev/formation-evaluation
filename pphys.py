@@ -11,6 +11,8 @@ from matplotlib import gridspec
 from matplotlib import pyplot
 from matplotlib import transforms
 
+from matplotlib.backend_bases import MouseButton
+
 from matplotlib.backends.backend_pdf import PdfPages
 
 from matplotlib.patches import Rectangle
@@ -25,8 +27,6 @@ from matplotlib.ticker import NullLocator
 from matplotlib.ticker import ScalarFormatter
 
 import numpy
-
-from PIL import ImageTk, Image
 
 if __name__ == "__main__":
     import dirsetup
@@ -54,10 +54,11 @@ def pop(kwargs,key,default=None):
         return default
 
 class LasCurve(column):
+    """The major difference between Column and LasCurve is the depth attribute
+    of LasCurve."""
 
     def __init__(self,**kwargs):
-
-        self.depths = kwargs.pop("depths")
+        """Initialization of LasCurve."""
 
         super().__init__(
             vals = pop(kwargs,"vals"),
@@ -67,13 +68,23 @@ class LasCurve(column):
             size = pop(kwargs,"size"),
             dtype = pop(kwargs,"dtype"))
 
-        kwargs['color'] = pop(kwargs,"color","black")
-        kwargs['style'] = pop(kwargs,"style","solid")
-        kwargs['width'] = pop(kwargs,"width",0.75)
+        depth = kwargs.pop("depth")
 
-        self.set_style(**kwargs)
+        if not isinstance(depth,column):
+            depth = column(
+                vals = depth,
+                head = "DEPT",
+                unit = pop(kwargs,"dunit","m"),
+                info = "")
 
-    def set_style(self,**kwargs):
+        self.depth = depth
+
+        if self.depth.size != self.vals.size:
+            raise f"depth.size and vals.size does not match!"
+
+        self.setattrs(**kwargs)
+
+    def setattrs(self,**kwargs):
 
         for key,value in kwargs.items():
             setattr(self,key,value)
@@ -81,19 +92,19 @@ class LasCurve(column):
     @property
     def height(self):
 
-        depths = self.depths
+        depth = self.depth
 
-        total = depths.max()-depths.min()
+        total = depth.max()-depth.min()
 
-        node_head = numpy.roll(depths,1)
-        node_foot = numpy.roll(depths,-1)
+        node_head = numpy.roll(depth,1)
+        node_foot = numpy.roll(depth,-1)
 
         thickness = (node_foot-node_head)/2
 
-        thickness[ 0] = (depths[ 1]-depths[ 0])/2
-        thickness[-1] = (depths[-1]-depths[-2])/2
+        thickness[ 0] = (depth[ 1]-depth[ 0])/2
+        thickness[-1] = (depth[-1]-depth[-2])/2
 
-        null = numpy.sum(thickness[self.isnone()])
+        null = numpy.sum(thickness[self.isnone])
 
         return {'total': total, 'null': null, 'valid': total-null,}
     
@@ -106,6 +117,9 @@ class LasFile(dirmaster):
         self.sections = []
 
     def add_section(self,key,mnemonic,unit,value,description):
+
+        if key in self.sections:
+            raise f"LasFile has the section with the title {key}."
 
         setattr(self,key,
             header(
@@ -120,13 +134,37 @@ class LasFile(dirmaster):
 
     def add_ascii(self,*args,**kwargs):
 
+        if "ascii" in self.sections:
+            raise f"LasFile has the section with the title 'ascii'."
+
         self.ascii = frame(*args,**kwargs)
+
+        head,unit,vals,info = [],[],[],[]
+
+        for column in self.ascii.running:
+            head.append(column.head)
+            unit.append(column.unit)
+            vals.append('')
+            info.append(column.info)
+
+        self.add_section('curve',head,unit,vals,info)
 
         self.sections.append("ascii")
 
+    def add_curve(self,**kwargs):
+
+        depth = pop(kwargs,"depth",self.depth)
+
+        curve = LasCurve(depth=depth,**kwargs)
+
+        self[curve.head] = curve
+
     def __setitem__(self,head,curve):
 
-        if not numpy.all(self.depths==curve.depths):
+        if not isinstance(curve,LasCurve):
+            raise "curve is not pphys.LasCurve type!"
+
+        if not numpy.all(self.depth==curve.depth):
             raise "Depths does not match!"
 
         self.ascii._setup(column(
@@ -139,6 +177,8 @@ class LasFile(dirmaster):
             )
         )
 
+        self.curve.extend((head,curve.unit,"",curve.info))
+
     def __getitem__(self,head):
 
         return LasCurve(
@@ -146,7 +186,7 @@ class LasFile(dirmaster):
             head = self.ascii[head].head,
             unit = self.ascii[head].unit,
             info = self.ascii[head].info,
-            depths = self.depths,
+            depth = self.depth,
             )
 
     def write(self,filepath):
@@ -233,7 +273,7 @@ class LasFile(dirmaster):
             pyplot.show()
 
     def trim(self,*args,strt=None,stop=None,curve=None):
-        """It trims the data based on the strt and stop depths"""
+        """It trims the data based on the strt and stop depth."""
 
         if len(args)==0:
             pass
@@ -252,129 +292,130 @@ class LasFile(dirmaster):
         if strt is None and stop is None:
             return
         elif strt is None and stop is not None:
-            conds = self.depths<=stop
+            conds = self.depth<=stop
         elif strt is not None and stop is None:
-            conds = self.depths>=strt
+            conds = self.depth>=strt
         else:
-            conds = numpy.logical_and(self.depths>=strt,self.depths<=stop)
+            conds = numpy.logical_and(self.depth>=strt,self.depth<=stop)
 
         if curve is not None:
             return self[curve][conds]
 
         self.ascii = self.ascii[conds]
 
-        self.well.fields[2][self.well.mnemonic.index('STRT')] = str(self.depths[0])
-        self.well.fields[2][self.well.mnemonic.index('STOP')] = str(self.depths[-1])
+        self.well.fields[2][self.well.mnemonic.index('STRT')] = str(self.depth[0].vals[0])
+        self.well.fields[2][self.well.mnemonic.index('STOP')] = str(self.depth[-1].vals[0])
 
-    def resample(self,depths):
-        """Resamples the frame data based on given depths:
+    def resample(self,depth):
+        """Resamples the frame data based on given depth:
 
-        depths :   The depth values where new curve data will be calculated;
+        depth :   The depth values where new curve data will be calculated;
         """
 
-        depths_current = self.ascii.running[0].vals
+        depth_current = self.ascii.running[0].vals
 
-        if not LasFile.isvalid(depths):
-            raise ValueError("There are none values in depths.")
+        if not LasFile.isvalid(depth):
+            raise ValueError("There are none values in depth.")
 
-        if not LasFile.issorted(depths):
-            depths = numpy.sort(depths)
+        if not LasFile.issorted(depth):
+            depth = numpy.sort(depth)
 
-        outers_above = depths<depths_current.min()
-        outers_below = depths>depths_current.max()
+        outers_above = depth<depth_current.min()
+        outers_below = depth>depth_current.max()
 
         inners = numpy.logical_and(~outers_above,~outers_below)
 
-        depths_inners = depths[inners]
+        depth_inners = depth[inners]
 
-        lowers = numpy.empty(depths_inners.shape,dtype=int)
-        uppers = numpy.empty(depths_inners.shape,dtype=int)
+        lowers = numpy.empty(depth_inners.shape,dtype=int)
+        uppers = numpy.empty(depth_inners.shape,dtype=int)
 
         lower,upper = 0,0
 
-        for index,depth in enumerate(depths_inners):
+        for index,depth in enumerate(depth_inners):
 
-            while depth>depths_current[lower]:
+            while depth>depth_current[lower]:
                 lower += 1
 
-            while depth>depths_current[upper]:
+            while depth>depth_current[upper]:
                 upper += 1
 
             lowers[index] = lower-1
             uppers[index] = upper
 
-        delta_depths = depths_inners-depths_current[lowers]
+        delta_depth = depth_inners-depth_current[lowers]
 
-        delta_depths_current = depths_current[uppers]-depths_current[lowers]
+        delta_depth_current = depth_current[uppers]-depth_current[lowers]
 
-        grads = delta_depths/delta_depths_current
+        grads = delta_depth/delta_depth_current
 
         for index,_column in enumerate(self.ascii.running):
 
             if index==0:
-                self.ascii.running[index].vals = depths
+                self.ascii.running[index].vals = depth
                 continue
 
             delta_values = _column.vals[uppers]-_column.vals[lowers]
 
-            self.ascii.running[index].vals = numpy.empty(depths.shape,dtype=float)
+            self.ascii.running[index].vals = numpy.empty(depth.shape,dtype=float)
 
             self.ascii.running[index].vals[outers_above] = numpy.nan
             self.ascii.running[index].vals[inners] = _column.vals[lowers]+grads*(delta_values)
             self.ascii.running[index].vals[outers_below] = numpy.nan
 
     @staticmethod
-    def resample_curve(depths,curve):
-        """Resamples the curve.vals based on given depths, and returns curve:
+    def resample_curve(depth,curve):
+        """Resamples the curve.vals based on given depth, and returns curve:
 
-        depths      :   The depths where new curve values will be calculated;
+        depth       :   The depth where new curve values will be calculated;
         curve       :   The curve object to be resampled
 
         """
 
-        if not LasFile.isvalid(depths):
-            raise ValueError("There are none values in depths.")
+        if not LasFile.isvalid(depth):
+            raise ValueError("There are none values in depth.")
 
-        if not LasFile.issorted(depths):
-            depths = numpy.sort(depths)
+        if not LasFile.issorted(depth):
+            depth = numpy.sort(depth)
 
-        outers_above = depths<curve.depths.min()
-        outers_below = depths>curve.depths.max()
+        outers_above = depth<curve.depth.min()
+        outers_below = depth>curve.depth.max()
 
         inners = numpy.logical_and(~outers_above,~outers_below)
 
-        depths_inners = depths[inners]
+        depth_inners = depth[inners]
 
-        lowers = numpy.empty(depths_inners.shape,dtype=int)
-        uppers = numpy.empty(depths_inners.shape,dtype=int)
+        lowers = numpy.empty(depth_inners.shape,dtype=int)
+        uppers = numpy.empty(depth_inners.shape,dtype=int)
 
         lower,upper = 0,0
 
-        for index,depth in enumerate(depths_inners):
+        for index,depth in enumerate(depth_inners):
 
-            while depth>curve.depths[lower]:
+            while depth>curve.depth[lower]:
                 lower += 1
 
-            while depth>curve.depths[upper]:
+            while depth>curve.depth[upper]:
                 upper += 1
 
             lowers[index] = lower-1
             uppers[index] = upper
 
-        delta_depths = depths_inners-curve.depths[lowers]
+        delta_depth = depth_inners-curve.depth[lowers]
 
-        delta_depths_current = curve.depths[uppers]-curve.depths[lowers]
+        delta_depth_current = curve.depth[uppers]-curve.depth[lowers]
+
         delta_values_current = curve.vals[uppers]-curve.vals[lowers]
 
-        grads = delta_depths/delta_depths_current
+        grads = delta_depth/delta_depth_current
 
-        values = numpy.empty(depths.shape,dtype=float)
+        values = numpy.empty(depth.shape,dtype=float)
 
         values[outers_above] = numpy.nan
         values[inners] = curve.vals[lowers]+grads*(delta_values_current)
         values[outers_below] = numpy.nan
 
-        curve.depths = depths
+        curve.depth = depth
 
         curve.vals = values
 
@@ -383,8 +424,8 @@ class LasFile(dirmaster):
     @property
     def height(self):
 
-        top = self.depths.min()
-        bottom = self.depths.max()
+        top = self.depth.min()
+        bottom = self.depth.max()
 
         total = bottom-top
 
@@ -395,14 +436,14 @@ class LasFile(dirmaster):
             'limit' :   (bottom,top)}
 
     @property
-    def depths(self):
+    def depth(self):
 
-        return self.ascii.running[0].vals
+        return self.ascii.running[0]
 
     @property
     def isdepthvalid(self):
         
-        return LasFile.isvalid(self.depths)
+        return LasFile.isvalid(self.depth.vals)
 
     @staticmethod
     def isvalid(vals):
@@ -412,7 +453,7 @@ class LasFile(dirmaster):
     @property
     def isdepthpositive(self):
 
-        return LasFile.ispositive(self.depths)
+        return LasFile.ispositive(self.depth.vals)
 
     @staticmethod
     def ispositive(vals):
@@ -422,16 +463,17 @@ class LasFile(dirmaster):
     @property
     def isdepthsorted(self):
 
-        return LasFile.issorted(self.depths)
+        return LasFile.issorted(self.depth.vals)
 
     @staticmethod
     def issorted(vals):
 
         return numpy.all(vals[:-1]<vals[1:])
 
-def loadlas(filepath,**kwargs):
+def loadlas(*args,**kwargs):
     """
-    Returns an instance of pphys.LasFile for the given filepath.
+    Returns an instance of pphys.LasFile. If a filepath is specified, the instance
+    represents the file.
     
     Arguments:
         filepath {str} -- path to the given LAS file
@@ -444,6 +486,11 @@ def loadlas(filepath,**kwargs):
         pphys.LasFile -- an instance of pphys.LasFile filled with LAS file text.
 
     """
+
+    if len(args)==1:
+        filepath = args[0]
+    elif len(args)>1:
+        raise "The function does not take more than one positional argument."
 
     # It creates an empty pphys.LasFile instance.
     nullfile = LasFile(filepath=filepath,**kwargs)
@@ -669,9 +716,11 @@ class LasWorm():
 
             description.append(description_.strip())
 
-        section = header(mnemonic=mnemonic,unit=unit,value=value,description=description)
-
-        return section
+        return header(
+            mnemonic = mnemonic,
+            unit = unit,
+            value = value,
+            description = description,)
 
     def types(self,lasmaster):
 
@@ -967,6 +1016,8 @@ class DepthView(dirmaster):
         self.perfs = []
         self.casings = []
 
+        if lasfile is None:
+            self.lasfile = LasFile(**kwargs)
         if isinstance(lasfile,str):
             self.lasfile = loadlas(lasfile,**kwargs)
         elif isinstance(lasfile,LasFile):
@@ -987,8 +1038,8 @@ class DepthView(dirmaster):
 
         """
 
-        top = self.lasfile.depths.min()
-        bottom = self.lasfile.depths.max()
+        top = self.lasfile.depth.min()
+        bottom = self.lasfile.depth.max()
 
         top = numpy.floor(top/base)*base
         bottom = top+numpy.ceil((bottom-top)/base)*base
@@ -1011,13 +1062,17 @@ class DepthView(dirmaster):
     def set_curve(self,col,curve,row=None,vmin=None,vmax=None,multp=None,**kwargs):
         """It adds LasCurve[head] to the axes[col]."""
 
+        kwargs['color'] = pop(kwargs,"color","black")
+        kwargs['style'] = pop(kwargs,"style","solid")
+        kwargs['width'] = pop(kwargs,"width",0.75)
+
         if isinstance(curve,str):
             curve = self.lasfile[curve]
-            curve.set_style(**kwargs)
+            curve.setattrs(**kwargs)
         elif not isinstance(curve,LasCurve):
-            curve = LasCurve(curve,**kwargs)
+            curve = LasCurve(vals=curve,**kwargs)
         else:
-            curve.set_style(**kwargs)
+            curve.setattrs(**kwargs)
         
         curve.col = col
         curve.row = row
@@ -1154,9 +1209,12 @@ class DepthView(dirmaster):
         self.modules.append(_module)
 
     def set_perf(self,depth,col=None,**kwargs):
-        """It adds perforation depths to the depth axis."""
+        """It adds perforation depth to the depth axis."""
 
         _perf = {}
+
+        if len(self.axes)==0:
+            self.set_axes()
 
         if col is None:
             col = self.axes['depthloc']
@@ -1171,9 +1229,12 @@ class DepthView(dirmaster):
         self.perfs.append(_perf)
 
     def set_casing(self,depth,col=None,**kwargs):
-        """It adds casing depths to the depth axis."""
+        """It adds casing depth to the depth axis."""
 
         _casing = {}
+
+        if len(self.axes)==0:
+            self.set_axes()
 
         if col is None:
             col = self.axes['depthloc']
@@ -1348,7 +1409,7 @@ class DepthView(dirmaster):
 
             getattr(self,f"set_{xaxis['scale'][:3]}xaxis")(curve,xaxis)
 
-            curve_axis.plot(curve.xaxis,curve.depths,
+            curve_axis.plot(curve.xaxis,curve.depth,
                 color = curve.color,
                 linestyle = curve.style,
                 linewidth = curve.width,)
@@ -1362,10 +1423,13 @@ class DepthView(dirmaster):
 
     def add_modules(self):
 
+        label_axes = self.figure.axes[self.axes['label_indices']]
+        curve_axes = self.figure.axes[self.axes['curve_indices']]
+
         for module in self.modules:
 
-            curve_axis = self.figure.axes[module['index']*2+1]
-            label_axis = self.figure.axes[module['index']*2]
+            label_axis = label_axes[module['col']]
+            curve_axis = curve_axes[module['col']]
 
             xlim = curve_axis.get_xlim()
 
@@ -1381,13 +1445,14 @@ class DepthView(dirmaster):
             else:
                 x2 = lines[module['right']].get_xdata()
 
-            curve_axis.fill_betweenx(yvals,xvals,x2=x2,facecolor=module["fillcolor"],hatch=module["hatch"])
+            curve_axis.fill_betweenx(yvals,xvals,x2=x2,facecolor=module['module']['fillcolor'],hatch=module['module']["hatch"])
 
             module['row'] = len(lines)
 
             self.set_labelmodule(label_axis,module)
 
     def add_perfs(self):
+        """It includes perforated depth."""
 
         curve_axes = self.figure.axes[self.axes['curve_indices']]
 
@@ -1420,7 +1485,7 @@ class DepthView(dirmaster):
                 markerfacecolor='black')
 
     def add_casings(self):
-        """It includes casing set depths"""
+        """It includes casing set depth."""
 
         pass
 
@@ -1647,11 +1712,11 @@ class DepthView(dirmaster):
     def set_labelmodule(axis,module):
 
         rect = Rectangle((0,module['row']),1,1,
-            fill=True,facecolor=module["fillcolor"],hatch=module["hatch"])
+            fill=True,facecolor=module['module']['fillcolor'],hatch=module['module']['hatch'])
 
         axis.add_patch(rect)
 
-        axis.text(0.5,module['row']+0.5,module["head"],
+        axis.text(0.5,module['row']+0.5,module['module']['detail'],
             horizontalalignment='center',
             verticalalignment='center',
             backgroundcolor='white',
@@ -1693,67 +1758,105 @@ class BatchView(dirmaster):
 
         pass
 
-class WorkFlow(dirmaster):
+class WorkFlow():
 
-    def __init__(self,lasfile,**kwargs):
+    def __init__(self,lasfile=None,**kwargs):
 
-        super().__init__(homedir=pop(kwargs,"homedir"))
-
-        if isinstance(lasfile,str):
+        if lasfile is None:
+            self.lasfile = LasFile(**kwargs)
+        elif isinstance(lasfile,str):
             self.lasfile = loadlas(lasfile,**kwargs)
         elif isinstance(lasfile,LasFile):
             self.lasfile = lasfile
 
-    def set_curve(self,curve,**kwargs):
+    def set_temps(self,unit="field",Tsurf=None,Tsurfdepth=0,Tgrad=None,Tmax=None,Tmaxdepth=None):
+        """
+        It will calculate the temperature based on the linear equation
+        if it is not measured for every depth.
+        
+        unit         : unit system to be used for the calculation, field or international
+        Tsurf        : temperature at the surface, °F or °C
+        Tsurfdepth   : Tsurface depth where we know the temperature, ft or meters
+        Tmax         : temperature at maximum depth, °F or °C
+        Tmaxdepth    : maximum depth where we know the temperature, ft or meters
+        Tgrad        : temperature gradient, °F/ft or °C/m
 
-        if curve is None:
-            return
-        elif not isinstance(curve,LasCurve):
-            curve = LasCurve(curve,**kwargs)
+        """
 
-        self.lasfile[curve.head] = curve
+        if Tmax is not None: #it should mean that Tmaxdepth is not None too
 
-    def set_temps(self,**kwargs):
+            if Tsurf is None: #it should mean that Tgrad is not None
+                Tsurf = Tmax-Tgrad*(Tmaxdepth-Tsurfdepth)
+            if Tgrad is None: #it should mean that Tsurf is not None
+                Tgrad = (Tmax-Tsurf)/(Tmaxdepth-Tsurfdepth)
 
-        T = self.temperature(**kwargs)
+        temp = self.temperature(unit=unit,Tsurf=Tsurf,Tgrad=Tgrad)
 
-        if maximum is None and surface is None:
-            surface,maximum = 60,60+gradient*depthmax/100
-        elif maximum is None and surface is not None:
-            maximum = surface+gradient*depthmax/100
-        elif maximum is not None and surface is None:
-            surface = maximum-gradient*depthmax/100
-        else:
-            gradient = (maximum-surface)/depthmax*100
+        Tsurf = temp['Tsurf']
+        Tgrad = temp['Tgrad']
 
-        self.lasfile['temps'] = self.temperature(self.lasfile.depths,**kwargs)
+        depth = self.lasfile.depth
 
-    def get_temp(self,depth):
+        if unit == "field":
+            cdepth = depth.convert('ft')
+        elif unit == "international":
+            cdepth = depth.convert('m')
 
-        dummy_depth = numpy.abs(self.lasfile.depths-depth)
+        Temp = Tsurf+Tgrad*(cdepth.vals-Tsurfdepth)
 
-        index = numpy.where(dummy_depth==dummy_depth.min())[0][0]
+        if unit == "field":
+            Tunit = "degF"
+        elif unit == "international":
+            Tunit = "degC"
 
-        temps = self.lasfile['temps']
+        info = f"Linear temperature with {unit} units, {Tsurf=}, {Tsurfdepth=}, {Tgrad=}."
 
-        return temps[index]+self.gradient*(depth-self.curve.depths[index])/100
+        self.add_curve(vals=Temp,head='TEMP',unit=Tunit,info=info,depth=depth)
+
+        temp['Tsurfdepth'] = Tsurfdepth
+        
+        self.temp = temp
+
+    def get_temp(self,point):
+
+        temps = self.lasfile['TEMP']
+
+        depth = self.lasfile.depth
+
+        indices = numpy.argpartition(numpy.abs(depth-point),2)[:2]
+
+        Dtop,Dbottom = depth[indices]
+        Ttop,Tbottom = temps[indices]
+
+        temp = Ttop+(Tbottom-Ttop)*(point-Dtop)/(Dbottom-Dtop)
+
+        return temp
+
+    def __getattr__(self,key):
+
+        return getattr(self.lasfile,key)
+
+    def __setitem__(self,head,curve):
+
+        self.lasfile[head] = curve
 
     def __getitem__(self,head):
 
-        return self.curves[head]
+        return self.lasfile[head]
 
-    def __call__(self,*args,method=None):
+    def __call__(self,method=None,**kwargs):
+        """It is calling the interpretation method for the specified curve(s)."""
 
         curves = {}
 
-        for head in args:
-            curves['head'] = self['head']
+        for key,head in kwargs.items():
+            curves[key] = self[head]
 
         if method is None:
             return
         elif method.lower() == "sonic":
             return sonic(**curves)
-        elif method.lower() == "spontaneous-potential":
+        elif method.lower() == "spotential":
             return spotential(**curves)
         elif method.lower() == "laterolog":
             return laterolog(**curves)
@@ -1765,8 +1868,8 @@ class WorkFlow(dirmaster):
             return density(**curves)
         elif method.lower() == "neutron":
             return neutron(**curves)
-        elif method.lower() == "nmrlog":
-            return nmrlog(**curves)
+        elif method.lower() == "nmr":
+            return nmr(**curves)
         elif method.lower() == "density-neutron":
             return denneu(**curves)
         elif method.lower() == "sonic-density":
@@ -1784,48 +1887,38 @@ class WorkFlow(dirmaster):
         elif method.lower() == "hingle":
             return hingle(**curves)
 
-    def set_axis(self,axis=None):
-
-        if axis is None:
-            figure,axis = pyplot.subplots(nrows=1,ncols=1)
-
-        self.axis = axis
-
-    def view(self):
-
-        pyplot.show()
-
     @staticmethod
-    def temperature(system="field",surface=None,gradient=None):
+    def temperature(unit="field",Tsurf=None,Tgrad=None):
         """Returns temperature parameters for field and international units.
         
-        system      : Unit system for temperature parameters, field and international
+        unit    : Unit unit for temperature parameters, field and international
 
-        surface     : The average temperature of the sea surface is about 20° C (68° F),
-                      but it ranges from more than 30° C (86° F) in warm tropical regions
-                      to less than 0°C at high latitudes.
+        Tsurf   : The average temperature of the sea Tsurf is about 20°C (68°F),
+                  but it ranges from more than 30°C (86°F) in warm tropical regions
+                  to less than 0°C at high latitudes. Input must be [°C] or [°F],
+                  respectively.
 
-        gradient    : Worldwide average geothermal gradients changes from
-                      24 to 41°C/1000 m (1.3-2.2°F/100 ft), with extremes
-                      outside this range.
+        Tgrad   : Worldwide average geothermal Tgrads changes from 0.024 to 0.041°C/m
+                  (0.013-0.022°F/ft), with extremes outside this range. Input must be
+                  [°C/m] or [°F/ft], respectively.
 
         """
 
-        temperature = {}
+        temp = {}
 
-        temperature['system'] = system
+        temp['unit'] = unit
 
-        if system == "international":
-            gradient = 0.0305 if gradient is None else gradient
-            surface = 20 if surface is None else surface
-        elif system == "field":
-            gradient = 0.0165 if gradient is None else gradient
-            surface = 68 if surface is None else surface
+        if unit == "international":
+            Tgrad = 0.024 if Tgrad is None else Tgrad   # degC/m
+            Tsurf = 20 if Tsurf is None else Tsurf      # degC
+        elif unit == "field":
+            Tgrad = 0.013 if Tgrad is None else Tgrad   # degF/ft
+            Tsurf = 68 if Tsurf is None else Tsurf      # degF
 
-        temperature['surface'] = surface
-        temperature['gradient'] = gradient
+        temp['Tsurf'] = Tsurf
+        temp['Tgrad'] = Tgrad
 
-        return temperature
+        return temp
 
     @staticmethod
     def archie(m=2,a=1,Rw=0.01,n=2):
@@ -1854,55 +1947,60 @@ class sonic():
 
 class spotential():
 
-    def __init__(self,curve):
+    def __init__(self,curve=None):
+        """Initialization of output signals."""
 
         self.curve = curve
+
+    def config(self,**kwargs):
+        """Setting tool configuration."""
+
+        pass
 
     def shalevolume(self,spsand=None,spshale=None):
 
         if spsand is None:
-            spsand = numpy.nanmin(self.curve.vals)
+            spsand = self.curve.min()
 
         if spshale is None:
-            spshale = numpy.nanmax(self.curve.vals)
+            spshale = self.curve.max()
 
         return (self.curve.vals-spsand)/(spshale-spsand)
 
     def cut(self,percent,spsand=None,spshale=None):
 
         if spsand is None:
-            spsand = numpy.nanmin(self.curve.vals)
+            spsand = self.curve.min()
 
         if spshale is None:
-            spshale = numpy.nanmax(self.curve.vals)
+            spshale = self.curve.max()
 
         return (percent/100.)*(spshale-spsand)+spsand
 
     def netthickness(self,percent,**kwargs):
 
-        spcut = spotential.cut(percent,**kwargs)
+        spcut = self.cut(percent,**kwargs)
 
-        node_top = numpy.roll(self.curve.depths,1)
-        node_bottom = numpy.roll(self.curve.depths,-1)
+        node_top = numpy.roll(self.curve.depth,1)
+        node_bottom = numpy.roll(self.curve.depth,-1)
 
         thickness = (node_bottom-node_top)/2
 
-        thickness[0] = (self.curve.depths[1]-self.curve.depths[0])/2
-        thickness[-1] = (self.curve.depths[-1]-self.curve.depths[-2])/2
+        thickness[0] = (self.curve.depth[1]-self.curve.depth[0])/2
+        thickness[-1] = (self.curve.depth[-1]-self.curve.depth[-2])/2
 
         return numpy.sum(thickness[self.curve.vals<spcut])
 
     def netgrossratio(self,**kwargs):
 
-        height = max(self.curve.depths)-min(self.curve.depths)
-
-        return spotential.netthickness(**kwargs)/height
+        return self.netthickness(**kwargs)/self.curve.height['total']
 
     def formwaterres(self,method='bateman_and_konen',**kwargs):
 
         return getattr(spotential,f"{method}")(**kwargs)
 
-    def bateman_and_konen(self,SSP,resmf,resmf_temp,temperature):
+    @staticmethod
+    def bateman_and_konen(SSP,resmf,resmf_temp,temperature):
 
         resmf_75F = spotential.restemp_conversion(resmf,resmf_temp,75)
 
@@ -1922,11 +2020,13 @@ class spotential():
 
         return spotential.restemp_conversion(resw_75F,75,temperature)
 
+    @staticmethod
     def silva_and_bassiouni(self):
 
         return Rw
 
-    def restemp_conversion(self,res1,T1,T2):
+    @staticmethod
+    def restemp_conversion(res1,T1,T2):
 
         return res1*(T1+6.77)/(T2+6.77)
 
@@ -1952,13 +2052,22 @@ class induction():
 
 class gammaray():
 
-    def __init__(self,total,potassium,thorium,uranium):
+    def __init__(self,total,potassium=None,thorium=None,uranium=None):
 
         self.total = total
 
-        self.potassium = potassium
-        self.thorium = thorium
-        self.uranium = utanium
+        if potassium is not None:
+            self.potassium = potassium
+
+        if thorium is not None:
+            self.thorium = thorium
+
+        if uranium is not None:
+            self.uranium = utanium
+
+    def config(self):
+
+        pass
 
     def shaleindex(values,grmin=None,grmax=None):
 
@@ -2006,29 +2115,36 @@ class gammaray():
 
         return index*(grmax-grmin)+grmin
 
-    def netthickness(depths,values,percent,**kwargs):
+    def netthickness(depth,values,percent,**kwargs):
 
         grcut = gammaray.get_cut(percent,**kwargs)
 
-        node_top = numpy.roll(depths,1)
-        node_bottom = numpy.roll(depths,-1)
+        node_top = numpy.roll(depth,1)
+        node_bottom = numpy.roll(depth,-1)
 
         thickness = (node_bottom-node_top)/2
 
-        thickness[0] = (depths[1]-depths[0])/2
-        thickness[-1] = (depths[-1]-depths[-2])/2
+        thickness[0] = (depth[1]-depth[0])/2
+        thickness[-1] = (depth[-1]-depth[-2])/2
 
         return numpy.sum(thickness[values<grcut])
 
-    def get_netgrossratio(depths,*args,**kwargs):
+    def netgrossratio(depth,*args,**kwargs):
 
-        height = max(depths)-min(depths)
+        height = max(depth)-min(depth)
 
-        return gammaray.netthickness(depths,*args,**kwargs)/height
+        return gammaray.netthickness(depth,*args,**kwargs)/height
 
-    def spectral(axis):
+    def set_axis(self,axis=None):
 
-        pass
+        if axis is None:
+            figure,axis = pyplot.subplots(nrows=1,ncols=1)
+
+        self.axis = axis
+
+    def show(self):
+
+        pyplot.show()
 
     def larionov_oldrocks(index,volume=None):
         if volume is None:
@@ -2073,25 +2189,27 @@ class density():
 
 class neutron():
 
-    def __init__(self,neutron=None,gamma=None):
-        """Tool configuration and initialization of output signals"""
+    def __init__(self,curve=None):
+        """Initialization of output signals."""
 
-        self.neutron = neutron
-        self.gamma = gamma
+        self.curve = curve
 
-    def porosity(self,observer,*args,**kwargs):
+    def config(self,observer):
+        """Setting tool configuration."""
 
-        if observer.lower() == "gamma":
+        self.observer = observer  # gamma capture rate or neutron count
+
+    def porosity(self,*args,**kwargs):
+
+        if self.observer.lower() == "gamma":
             func = getattr(self,"_gamma_capture")
-        elif observer.lower() == "neutron":
+        elif self.observer.lower() == "neutron":
             func = getattr(self,"_neutron_count")
 
-        return func(curve,*args,**kwargs)
+        return func(*args,**kwargs)
 
     def _gamma_capture(self,phi_clean,phi_shale,ngl_clean=None,ngl_shale=None,shale_volume=None):
         """The porosity based on gamma detection:
-
-        curve        :  neutron-gamma-logging curve
         
         phi_clean    :  porosity in the clean formation
         phi_shale    :  porosity in the adjacent shale
@@ -2104,25 +2222,23 @@ class neutron():
         
         """
 
-        porosity = {}
-
         if ngl_clean is None:
-            ngl_clean = self.gamma.min()
+            ngl_clean = self.curve.min()
 
         if ngl_shale is None:
-            ngl_shale = self.gamma.max()
+            ngl_shale = self.curve.max()
 
-        normalized = (self.gamma.vals-ngl_clean)/(ngl_shale-ngl_clean)
+        normalized = (self.curve.vals-ngl_clean)/(ngl_shale-ngl_clean)
 
         normalized[normalized<=0] = 0
         normalized[normalized>=1] = 1
 
-        porosity['total'] = phi_clean+(phi_shale-phi_clean)*normalized
+        total = phi_clean+(phi_shale-phi_clean)*normalized
 
-        if shale_volume is not None:
-            porosity['effective'] = porosity['total']-shale_volume*phi_shale
-
-        return porosity
+        if shale_volume is None:
+            return total
+        else:
+            return total,total-shale_volume*phi_shale
 
     def _neutron_count(self,a,b):
         """The porosity based on the neutron count is given by:
@@ -2140,11 +2256,11 @@ class neutron():
 
         porosity = {}
 
-        porosity['total'] = 10**((a-curve.vals)/b)
+        total = 10**((a-curve.vals)/b)
 
-        return porosity
+        return total
 
-class nmrlog():
+class nmr():
 
     def __init__(self):
         """Tool configuration and output signal initialization."""
@@ -2631,29 +2747,43 @@ class rhoumaa():
 
 class pickett():
 
-    def __init__(self,porosity,resistivity,slope=None,intercept=None,**kwargs):
-        """Plots porosity vs. resistivity graph assiting in water saturation calculation.
+    def __init__(self,porosity,resistivity):
+        """Initialization of Pickett (porosity vs. resistivity) cross-plot
+        that assists in water saturation calculation.
 
         porosity        : las curve for porosity (y-axis).
         resistivity     : las curve for resistivity (x-axis).
+
+        """
+
+        self.porosity = porosity
+
+        self.resistivity = resistivity
+
+    def config(self,slope=None,intercept=None,**kwargs):
+        """Configures the cross-plot settings
 
         slope           : slope of 100% water saturation line, negative of cementation exponent.
         intercept       : intercept of 100% water saturation line, multiplication of
                           tortuosity exponent and formation water resistivity.
         
         **kwargs        : archie parameters, keys are 'm', 'a', 'Rw' and 'n'. 
-
         """
 
-        super().__init__(**kwargs)
+        archie = {}
+
+        for key,value in kwargs.items():
+            archie[key] = value
+
+        self.archie = archie
 
         if slope is None:
-            slope = -self.archie['m']
+            slope = -1/self.archie['m']
 
         self.slope = slope
 
         if intercept is None:
-            intercept = numpy.log10(self.archie['a']*self.archie['Rw'])
+            intercept = numpy.log10(self.archie['a']*self.archie['Rw'])/self.archie['m']
 
         self.intercept = intercept
 
@@ -2667,7 +2797,7 @@ class pickett():
         xaxis = self.resistivity.vals
         yaxis = self.porosity.vals
 
-        self.axis.scatter(xaxis,yaxis.T,s=2,c="k")
+        self.axis.scatter(xaxis,yaxis,s=2,c="k")
 
         self.axis.set_xscale('log')
         self.axis.set_yscale('log')
@@ -2678,15 +2808,15 @@ class pickett():
         self.xlim = numpy.floor(numpy.log10(xlim))+numpy.array([0,1])
         self.ylim = numpy.floor(numpy.log10(ylim))+numpy.array([0,1])
 
-        self.axis.set_xlabel("x-axis")
-        self.axis.set_ylabel("y-axis")
+        self.axis.set_xlabel(f"Resistivity [{self.resistivity.unit}]")
+        self.axis.set_ylabel(f"Porosity [{self.porosity.unit}]")
 
         self.axis.set_xlim(10**self.xlim)
         self.axis.set_ylim(10**self.ylim)
 
         fstring = 'x={:1.3f} y={:1.3f} m={:1.3f} b={:1.3f}'
 
-        self.axis.format_coord = lambda x,y: fstring.format(x,y,-self.slope,self.intercept)
+        self.axis.format_coord = lambda x,y: fstring.format(x,y,-1/self.slope,self.intercept)
 
         self.lines = []
 
@@ -2713,9 +2843,15 @@ class pickett():
 
         X = 10**self.xlim
 
-        for saturation in saturations:
+        n = self.archie['n']
 
-            Y = 10**(base-self.archie['n']*numpy.log10(saturation/100))
+        m = -1/self.slope
+
+        for Sw in saturations:
+
+            Sw = Sw/100
+
+            Y = 10**(base-n/m*numpy.log10(Sw))
 
             line, = self.axis.plot(X,Y,linewidth=linewidth,color="blue",alpha=alpha)
 
@@ -2786,144 +2922,38 @@ class pickett():
 
     def saturation(self):
 
-        resporm = self.resistivity.vals*numpy.power(self.porosity.vals,-self.slope)
+        m = -1/self.slope
 
-        saturation = numpy.power(10**self.intercept/resporm,1/self.archie['n'])
+        aRw = 10**(m*self.intercept)
 
-        saturation[saturation>1] = 1
+        n = self.archie['n']
 
-        return saturation
+        Rt = self.resistivity.vals
 
-class PickettCrossPlot(): #Will BE DEPRECIATED
+        phi = self.porosity.vals
 
-    def __init__(
-        self,
-        resLine,
-        phiLine,
-        returnSwFlag=False,
-        showDiffSwFlag=True,
-        m=2,
-        n=2,
-        a=0.62,
-        Rw=0.1,
-        xmin=None,
-        xmax=None,
-        ymin=None,
-        ymax=None,
-        GRconds=None,
-        ):
+        Sw = (aRw/Rt/phi**m)**(1/n)
 
-        if returnSwFlag:
+        Sw[Sw>1] = 1
 
-            xvalsR = self.frames[resLine[0]].columns(resLine[1])
-            xvalsP = self.frames[phiLine[0]].columns(phiLine[1])
-
-            Sw_calculated = ((a*Rw)/(xvalsR*xvalsP**m))**(1/n)
-
-            Sw_calculated[Sw_calculated>1] = 1
-
-            return Sw_calculated
-
-        else:
-
-            self.fig_pcp,self.axis_pcp = pyplot.subplots()
-
-            xaxis_min = 1
-            xaxis_max = 100
-
-            yaxis_min = 0.1
-            yaxis_max = 1
-
-            for depth in self.depths:
-
-                xaxis = self.get_interval(*depth[1:],idframes=resLine[0],curveID=resLine[1])[0]
-                yaxis = self.get_interval(*depth[1:],idframes=phiLine[0],curveID=phiLine[1])[0]
-
-                xaxis_min = min((xaxis_min,xaxis.min()))
-                xaxis_max = max((xaxis_max,xaxis.max()))
-
-                yaxis_min = min((yaxis_min,yaxis.min()))
-                yaxis_max = max((yaxis_max,yaxis.max()))
-
-                if GRconds is not None:
-                    self.axis_pcp.scatter(xaxis[GRconds],yaxis[GRconds],s=1,label="{} clean".format(depth[0]))
-                    self.axis_pcp.scatter(xaxis[~GRconds],yaxis[~GRconds],s=1,label="{} shaly".format(depth[0]))
-                else:
-                    self.axis_pcp.scatter(xaxis,yaxis,s=1,label=depth[0])
-
-            self.axis_pcp.legend(scatterpoints=10)
-
-            indexR = self.frames[resLine[0]].headers.index(resLine[1])
-            indexP = self.frames[phiLine[0]].headers.index(phiLine[1])
-
-            mnemR = self.frames[resLine[0]].headers[indexR]
-            unitR = self.frames[resLine[0]].units[indexR]
-
-            mnemP = self.frames[phiLine[0]].headers[indexP]
-            unitP = self.frames[phiLine[0]].units[indexP]
-
-            xaxis_min = xmin if xmin is not None else xaxis_min
-            xaxis_max = xmax if xmax is not None else xaxis_max
-
-            yaxis_min = ymin if ymin is not None else yaxis_min
-            yaxis_max = ymax if ymax is not None else yaxis_max
-
-            resexpmin = numpy.floor(numpy.log10(xaxis_min))
-            resexpmax = numpy.ceil(numpy.log10(xaxis_max))
-
-            if showDiffSwFlag:
-
-                resSw = numpy.logspace(resexpmin,resexpmax,100)
-
-                Sw75,Sw50,Sw25 = 0.75,0.50,0.25
-
-                philine_atSw100 = (a*Rw/resSw)**(1/m)
-
-                philine_atSw075 = philine_atSw100*Sw75**(-n/m)
-                philine_atSw050 = philine_atSw100*Sw50**(-n/m)
-                philine_atSw025 = philine_atSw100*Sw25**(-n/m)
-
-                self.axis_pcp.plot(resSw,philine_atSw100,c="black",linewidth=1)#,label="100% Sw")
-                self.axis_pcp.plot(resSw,philine_atSw075,c="blue",linewidth=1)#,label="75% Sw")
-                self.axis_pcp.plot(resSw,philine_atSw050,c="blue",linewidth=1)#,label="50% Sw")
-                self.axis_pcp.plot(resSw,philine_atSw025,c="blue",linewidth=1)#,label="25% Sw")
-
-            phiexpmin = numpy.floor(numpy.log10(yaxis_min))
-            phiexpmax = numpy.ceil(numpy.log10(yaxis_max))
-
-            xticks = 10**numpy.arange(resexpmin,resexpmax+1/2)
-            yticks = 10**numpy.arange(phiexpmin,phiexpmax+1/2)
-
-            self.axis_pcp.set_xscale('log')
-            self.axis_pcp.set_yscale('log')
-
-            self.axis_pcp.set_xlim([xticks.min(),xticks.max()])
-            self.axis_pcp.set_xticks(xticks)
-
-            self.axis_pcp.set_ylim([yticks.min(),yticks.max()])
-            self.axis_pcp.set_yticks(yticks)
-
-            self.axis_pcp.xaxis.set_major_formatter(LogFormatter())
-            self.axis_pcp.yaxis.set_major_formatter(LogFormatter())
-
-            for tic in self.axis_pcp.xaxis.get_minor_ticks():
-                tic.label1.set_visible(False)
-                tic.tick1line.set_visible(False)
-
-            for tic in self.axis_pcp.yaxis.get_minor_ticks():
-                tic.label1.set_visible(False)
-                tic.tick1line.set_visible(False)
-
-            self.axis_pcp.set_xlabel("{} {}".format(mnemR,unitR))
-            self.axis_pcp.set_ylabel("{} {}".format(mnemP,unitP))
-
-            self.axis_pcp.grid(True,which="both",axis='both')
+        return Sw
 
 class hingle():
 
     def __init__(self,**kwargs):
 
         super().__init__(**kwargs)
+
+    def set_axis(self,axis=None):
+
+        if axis is None:
+            figure,axis = pyplot.subplots(nrows=1,ncols=1)
+
+        self.axis = axis
+
+    def show(self):
+
+        pyplot.show()
 
 if __name__ == "__main__":
 

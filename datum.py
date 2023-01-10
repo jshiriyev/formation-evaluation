@@ -499,8 +499,8 @@ class column():
         if self.dtype.type is not numpy.dtype('float').type:
             datacolumn = datacolumn.astype('float')
         else:
-            unrg = pint.UnitRegistry()
-            unrg.Quantity(datacolumn.vals,datacolumn.unit).ito(unit)
+            ureg = pint.UnitRegistry()
+            ureg.Quantity(datacolumn.vals,datacolumn.unit).ito(unit)
 
         datacolumn.unit = unit
 
@@ -1176,7 +1176,7 @@ class frame():
 
         for arg in args:
 
-            if type(arg) is not column:
+            if not isinstance(arg,column):
                 raise TypeError(f"Argument/s need/s to be column type only!")
 
             if self.shape[1]!=0 and self.shape[0]!=arg.size:
