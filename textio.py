@@ -793,6 +793,42 @@ class xlbatch(dirmaster):
 
         return framemerged
 
+class _alphabet():
+
+    aze_cyril_lower = [
+        "а","б","ҹ","ч","д","е","я","ф","ҝ","ғ","һ","х","ы","и","ж","к",
+        "г","л","м","н","о","ю","п","р","с","ш","т","у","ц","в","й","з"]
+
+    aze_latin_lower = [
+        "a","b","c","ç","d","e","ə","f","g","ğ","h","x","ı","i","j","k",
+        "q","l","m","n","o","ö","p","r","s","ş","t","u","ü","v","y","z"]
+
+    aze_cyril_upper = [
+        "А","Б","Ҹ","Ч","Д","Е","Я","Ф","Ҝ","Ғ","Һ","Х","Ы","И","Ж","К",
+        "Г","Л","М","Н","О","Ю","П","Р","С","Ш","Т","У","Ц","В","Й","З"]
+
+    aze_latin_upper = [
+        "A","B","C","Ç","D","E","Ə","F","G","Ğ","H","X","I","İ","J","K",
+        "Q","L","M","N","O","Ö","P","R","S","Ş","T","U","Ü","V","Y","Z"]
+
+    def __init__(self,text):
+
+        self.text = text
+
+    def convert(self,language="aze",from_="cyril",to="latin"):
+
+        from_lower = getattr(self,f"{language}_{from_}_lower")
+        from_upper = getattr(self,f"{language}_{from_}_upper")
+
+        to_lower = getattr(self,f"{language}_{to}_lower")
+        to_upper = getattr(self,f"{language}_{to}_upper")
+
+        for from_letter,to_letter in zip(from_lower,to_lower):
+            self.text.replace(from_letter,to_letter)
+
+        for from_letter,to_letter in zip(from_upper,to_upper):
+            self.text.replace(from_letter,to_letter)
+
 if __name__ == "__main__":
 
     import unittest

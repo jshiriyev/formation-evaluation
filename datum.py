@@ -104,23 +104,18 @@ class nones():
 class array():
     """It is one dimensional numpy.ndarray with modified methods."""
 
-    def __init__(self,**kwargs):
+    def __init__(self,vals):
 
-        if len(kwargs)!=1:
-            raise "One optional argument is accepted!"
-
-        head,vals = kwargs.popitem()
-
-        self.head = head
-
-        self._setvals(vals)
-
-    def _setvals(self,vals):
-
-        if type(vals).__module__=="numpy":
+        if vals is None:
+            onedimarray = numpy.array([numpy.nan])
+        elif type(vals).__module__=="numpy":
             onedimarray = vals.flatten()
         elif isinstance(vals,str):
             onedimarray = numpy.array([vals])
+        elif isinstance(vals,datetime.datetime):
+            onedimarray = numpy.array([vals]).astype('datetime64[s]')
+        elif isinstance(vals,datetime.date):
+            onedimarray = numpy.array([vals]).astype('datetime64[D]')
         elif hasattr(vals,"__iter__"):
             onedimarray = numpy.array(list(vals))
         else:
@@ -128,13 +123,73 @@ class array():
 
         super().__setattr__("vals",onedimarray)
 
+    def _setsize(self,size):
+        """returns numpy array with specified shape"""
+
+        if self.size==0:
+            return numpy_array
+
+        repeat_count = int(numpy.ceil(size/numpy_array.size))
+
+        numpy_array = numpy.tile(numpy_array,repeat_count)[:size]
+
+        return numpy_array
+
+    def _astype(self,dtype=None):
+        """returns numpy array with specified dtype"""
+
+        if self.dtype.type is numpy.object_:
+
+            numpy_array_temp = self.vals[self.vals!=None]
+
+            if numpy_array_temp.size==0:
+                dtype = numpy.dtype('float64')
+            elif isinstance(numpy_array_temp[0],int):
+                dtype = numpy.dtype('float64')
+            elif isinstance(numpy_array_temp[0],str):
+                dtype = numpy.dtype('str_')
+            elif isinstance(numpy_array_temp[0],datetime.datetime):
+                dtype = numpy.dtype('datetime64[s]')
+            elif isinstance(numpy_array_temp[0],datetime.date):
+                dtype = numpy.dtype('datetime64[D]')
+            else:
+                dtype = numpy.array([numpy_array_temp[0]]).dtype
+
+        try:
+            numpy_array = numpy_array.astype(dtype)
+        except ValueError:
+            numpy_array = numpy_array.astype('str_')
+
+        return numpy_array
+
+    def __setattr__(self,key,value):
+
+        super().__setattr__(key,value)
+
     def __getattr__(self,key):
 
         return getattr(self.vals,key)
 
+    def __setitem__(self,key,value):
+
+        self.value[key] = value
+
     def __getitem__(self,key):
 
         return self.vals[key]
+
+    def __repr__(self):
+
+        return repr(self.vals)
+
+    def __str__(self):
+
+        return str(self.vals)
+
+def linspace():
+    """It is a special function that takes input and returns linearly spaced data for
+    integers, floats, string, datetime"""
+    pass
 
 class column():# MUST BE RENAMED TO DataColumn AND INITIALIZATION MUST BE SIMPLIFIED TO: head=vals
     """It is a numpy array of shape (N,) with additional attributes of head, unit and info."""
@@ -2389,81 +2444,13 @@ class _key2column():
                 array_date.append(date)
             return numpy.array(array_date,dtype=dtype)
 
-class _alphabet():
-
-    aze_cyril_lower = [
-        "а","б","ҹ","ч","д","е","я","ф","ҝ","ғ","һ","х","ы","и","ж","к",
-        "г","л","м","н","о","ю","п","р","с","ш","т","у","ц","в","й","з"]
-
-    aze_latin_lower = [
-        "a","b","c","ç","d","e","ə","f","g","ğ","h","x","ı","i","j","k",
-        "q","l","m","n","o","ö","p","r","s","ş","t","u","ü","v","y","z"]
-
-    aze_cyril_upper = [
-        "А","Б","Ҹ","Ч","Д","Е","Я","Ф","Ҝ","Ғ","Һ","Х","Ы","И","Ж","К",
-        "Г","Л","М","Н","О","Ю","П","Р","С","Ш","Т","У","Ц","В","Й","З"]
-
-    aze_latin_upper = [
-        "A","B","C","Ç","D","E","Ə","F","G","Ğ","H","X","I","İ","J","K",
-        "Q","L","M","N","O","Ö","P","R","S","Ş","T","U","Ü","V","Y","Z"]
-
-    def __init__(self,text):
-
-        self.text = text
-
-    def convert(self,language="aze",from_="cyril",to="latin"):
-
-        from_lower = getattr(self,f"{language}_{from_}_lower")
-        from_upper = getattr(self,f"{language}_{from_}_upper")
-
-        to_lower = getattr(self,f"{language}_{to}_lower")
-        to_upper = getattr(self,f"{language}_{to}_upper")
-
-        for from_letter,to_letter in zip(from_lower,to_lower):
-            self.text.replace(from_letter,to_letter)
-
-        for from_letter,to_letter in zip(from_upper,to_upper):
-            self.text.replace(from_letter,to_letter)
-
 if __name__ == "__main__":
 
     import unittest
 
-    from tests.datum import nones
-    from tests.datum import array
-    from tests.datum import column
-    from tests.datum import frame
+    # from tests.datum import nones as test
+    from tests.datum import array as test
+    # from tests.datum import column as test
+    # from tests.datum import frame as test
 
-    unittest.main(nones)
-    unittest.main(array)
-    unittest.main(column)
-    unittest.main(frame)
-
-    """
-    For numpy.datetime64, the issue with following deltatime units
-    has been solved by considering self.vals:
-
-    Y: year,
-    M: month,
-    
-    For numpy.datetime64, following deltatime units
-    have no inherent issue:
-
-    W: week,
-    D: day,
-    h: hour,
-    m: minute,
-    s: second,
-    
-    For numpy.datetime64, also include:
-
-    ms: millisecond,
-    us: microsecond,
-    ns: nanosecond,
-
-    For numpy.datetime64, do not include:
-
-    ps: picosecond,
-    fs: femtosecond,
-    as: attosecond,
-    """
+    unittest.main(test)
