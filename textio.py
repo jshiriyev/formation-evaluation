@@ -23,13 +23,21 @@ class header():
     """It is a table of params, columns are fields."""
 
     def __init__(self,**kwargs):
-        """parameters should be predefined, all entries must be string."""
+        """Parameters should be predefined, all entries must be string.
+        
+        kwarg example is {param:field}
+
+        param   : name of the parameter
+        field   : string or list of strings
+        
+        """
 
         # if len(kwargs)==0:
         #     raise ValueError("At least one field is required.")
 
         params = []
         fields = []
+
         fsizes = []
 
         for param,field in kwargs.items():

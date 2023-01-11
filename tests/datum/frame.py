@@ -10,7 +10,7 @@ import pint
 if __name__ == "__main__":
     import dirsetup
 
-from core import frame
+from datum import frame
 
 class TestFrame(unittest.TestCase):
 

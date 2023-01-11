@@ -10,8 +10,8 @@ import pint
 if __name__ == "__main__":
     import dirsetup
 
-from core import any2column
-from core import key2column
+from datum import any2column
+from datum import key2column
 
 class TestArray(unittest.TestCase):
 

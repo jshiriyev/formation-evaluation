@@ -10,9 +10,9 @@ import pint
 if __name__ == "__main__":
     import dirsetup
 
-from core import column
+from datum import column
 
-from core import key2column
+from datum import key2column
         
 class TestColumn(unittest.TestCase):
 

@@ -10,7 +10,7 @@ import pint
 if __name__ == "__main__":
     import dirsetup
 
-from core import nones
+from datum import nones
 
 class TestNones(unittest.TestCase):
 

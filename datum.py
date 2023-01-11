@@ -29,6 +29,13 @@ from cypy.vectorpy import datetime_addyears
 from cypy.vectorpy import datetime_addmonths
 from cypy.vectorpy import datetime_adddelta
 
+def pop(kwargs,key,default=None):
+
+    try:
+        return kwargs.pop(key)
+    except KeyError:
+        return default
+
 class nones():
     """Base class to manage none values for int, float, str, datetime64."""
 
@@ -94,7 +101,33 @@ class nones():
 
         return nones_dict
 
-class column():
+class array(numpy.ndarray):
+
+    def __init__(self,**kwargs):
+
+        if len(kwargs)!=1:
+            raise "One optional argument is accepted!"
+
+        head,vals = kwargs.popitem()
+
+        self.head = head
+
+        self._setvals(vals)
+
+    def _setvals(self,vals):
+
+        if type(vals).__module__=="numpy":
+            onedimarray = vals.flatten()
+        elif isinstance(vals,str):
+            onedimarray = numpy.array([vals])
+        elif hasattr(vals,"__iter__"):
+            onedimarray = numpy.array(list(vals))
+        else:
+            onedimarray = numpy.array([vals])
+
+        super().__setattr__("vals",onedimarray)
+
+class column():# MUST BE RENAMED TO DataColumn AND INITIALIZATION MUST BE SIMPLIFIED TO: head=vals
     """It is a numpy array of shape (N,) with additional attributes of head, unit and info."""
 
     """INITIALIZATION"""
@@ -116,6 +149,7 @@ class column():
         super().__setattr__("vals",array1d(vals,size))
 
         self._astype(dtype)
+
         self._valshead(head)
         self._valsunit(unit)
         self._valsinfo(info)
@@ -1158,7 +1192,7 @@ class column():
 
         return day_arr
 
-class frame():
+class frame(): # MUST BE RENAMED TO DataBundle 
     """It stores equal-size one-dimensional numpy arrays in a list."""
 
     """INITIALIZATION"""
@@ -1523,7 +1557,7 @@ class frame():
 
         return [datacolumn.info for datacolumn in self.running]
 
-class scape():
+class scape(): # MUST BE RENAMED TO DataScape
 
     def __init__(self,**kwargs):
 
@@ -1855,64 +1889,74 @@ class scape():
 
         self.root.destroy()
 
-def array1d(arg,size=None):
+def array1d(argument,size=None):
+    """
+    All of this will go to inside of array
+    """
 
-    if type(arg).__module__=="numpy":
-        dataarray = arg.flatten()
-    elif type(arg) is str:
-        dataarray = numpy.array([arg])
-    elif hasattr(arg,"__iter__"):
-        dataarray = numpy.array(list(arg))
+    array = to_numpy(argument)
+    array = to_dtype(array)
+    array = to_size(array,size)
+
+def to_numpy(argument):
+    """returns numpy array"""
+
+    if type(argument).__module__=="numpy":
+        oneDarray = argument.flatten()
+    elif isinstance(argument,str):
+        oneDarray = numpy.array([argument])
+    elif hasattr(argument,"__iter__"):
+        oneDarray = numpy.array(list(argument))
     else:
-        dataarray = numpy.array([arg])
+        oneDarray = numpy.array([argument])
 
-    if dataarray.dtype.type is numpy.object_:
-        array_temp = dataarray[dataarray!=None]
+    return oneDarray
 
-        if array_temp.size==0:
-            datatype = numpy.dtype('float64')
-        elif isinstance(array_temp[0],int):
-            datatype = numpy.dtype('float64')
-        elif isinstance(array_temp[0],str):
-            datatype = numpy.dtype('str_')
-        elif isinstance(array_temp[0],datetime.datetime):
-            datatype = numpy.dtype('datetime64[s]')
-        elif isinstance(array_temp[0],datetime.date):
-            datatype = numpy.dtype('datetime64[D]')
+def to_dtype(numpy_array,dtype=None):
+    """returns numpy array with specified dtype"""
+
+    if numpy_array.dtype.type is numpy.object_:
+
+        numpy_array_temp = numpy_array[numpy_array!=None]
+
+        if numpy_array_temp.size==0:
+            dtype = numpy.dtype('float64')
+        elif isinstance(numpy_array_temp[0],int):
+            dtype = numpy.dtype('float64')
+        elif isinstance(numpy_array_temp[0],str):
+            dtype = numpy.dtype('str_')
+        elif isinstance(numpy_array_temp[0],datetime.datetime):
+            dtype = numpy.dtype('datetime64[s]')
+        elif isinstance(numpy_array_temp[0],datetime.date):
+            dtype = numpy.dtype('datetime64[D]')
         else:
-            datatype = numpy.array([array_temp[0]]).dtype
+            dtype = numpy.array([numpy_array_temp[0]]).dtype
 
-        try:
-            dataarray = dataarray.astype(datatype)
-        except ValueError:
-            dataarray = dataarray.astype('str_')
+    try:
+        numpy_array = numpy_array.astype(dtype)
+    except ValueError:
+        numpy_array = numpy_array.astype('str_')
 
-    if size is None or dataarray.size==0:
-        return dataarray
+    return numpy_array
 
-    repeat_count = int(numpy.ceil(size/dataarray.size))
+def to_size(numpy_array,size=None):
+    """returns numpy array with specified shape"""
 
-    dataarray = numpy.tile(dataarray,repeat_count)[:size]
+    if size is None or numpy_array.size==0:
+        return numpy_array
 
-    return dataarray
+    repeat_count = int(numpy.ceil(size/numpy_array.size))
 
-def any2column(*args,**kwargs):
+    numpy_array = numpy.tile(numpy_array,repeat_count)[:size]
+
+    return numpy_array
+
+def any2column(*args,**kwargs): # THIS CAN GO TO ARRAY
     """Sets the vals of column."""
 
-    try:
-        head = kwargs.pop('head')
-    except KeyError:
-        head = None
-
-    try:
-        unit = kwargs.pop('unit')
-    except KeyError:
-        unit = None
-
-    try:
-        info = kwargs.pop('info')
-    except KeyError:
-        info = None
+    head = pop(kwargs,'head')
+    unit = pop(kwargs,'unit')
+    info = pop(kwargs,'info')
 
     dtype = kwargs.get('dtype')
 
@@ -1936,14 +1980,12 @@ def any2column(*args,**kwargs):
 
     return column(dataarray,head=head,unit=unit,info=info,dtype=dtype)
 
-def key2column(*args,**kwargs):
+def key2column(*args,**kwargs): # IT IS KIND OF SIMILAR TO LINSPACE FOR ALL DTYPES
     """Generating column by defining dtype and sending the keywords for array creating methods."""
 
-    head = kwargs.get('head')
-    unit = kwargs.get('unit')
-    info = kwargs.get('info')
-
-    [kwargs.pop(item) for item in ('head','unit','info') if kwargs.get(item) is not None]
+    head = pop(kwargs,'head')
+    unit = pop(kwargs,'unit')
+    info = pop(kwargs,'info')
 
     dtype = kwargs.get('dtype')
 
@@ -2090,21 +2132,21 @@ class _key2column():
 
         if arg is None:
             return
-        elif type(arg) is int:
+        elif isinstance(arg,int):
             return numpy.dtype(type(arg))
-        elif type(arg) is float:
+        elif isinstance(arg,float):
             return numpy.dtype(type(arg))
-        elif type(arg) is str:
+        elif isinstance(arg,str):
             arg = _key2column.todatetime(arg)
             if arg is None:
                 return numpy.str_(arg).dtype
             else:
                 return numpy.dtype('datetime64[s]')
-        elif type(arg) is datetime.datetime:
+        elif isinstance(arg,datetime.datetime):
             return numpy.dtype('datetime64[s]')
-        elif type(arg) is datetime.date:
+        elif isinstance(arg,datetime.date):
             return numpy.dtype('datetime64[D]')
-        elif type(arg) is numpy.datetime64:
+        elif isinstance(arg,numpy.datetime64):
             return arg.dtype
         else:
             return
@@ -2376,9 +2418,15 @@ if __name__ == "__main__":
 
     import unittest
 
-    from tests import core_test
+    from tests.datum import nones
+    from tests.datum import array
+    from tests.datum import column
+    from tests.datum import frame
 
-    unittest.main(core_test)
+    unittest.main(nones)
+    unittest.main(array)
+    unittest.main(column)
+    unittest.main(frame)
 
     """
     For numpy.datetime64, the issue with following deltatime units
