@@ -101,7 +101,8 @@ class nones():
 
         return nones_dict
 
-class array(numpy.ndarray):
+class array():
+    """It is one dimensional numpy.ndarray with modified methods."""
 
     def __init__(self,**kwargs):
 
@@ -126,6 +127,14 @@ class array(numpy.ndarray):
             onedimarray = numpy.array([vals])
 
         super().__setattr__("vals",onedimarray)
+
+    def __getattr__(self,key):
+
+        return getattr(self.vals,key)
+
+    def __getitem__(self,key):
+
+        return self.vals[key]
 
 class column():# MUST BE RENAMED TO DataColumn AND INITIALIZATION MUST BE SIMPLIFIED TO: head=vals
     """It is a numpy array of shape (N,) with additional attributes of head, unit and info."""
@@ -1897,6 +1906,8 @@ def array1d(argument,size=None):
     array = to_numpy(argument)
     array = to_dtype(array)
     array = to_size(array,size)
+
+    return array
 
 def to_numpy(argument):
     """returns numpy array"""
