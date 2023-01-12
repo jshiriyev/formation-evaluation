@@ -135,6 +135,44 @@ class TestFlatten(unittest.TestCase):
         numpy.testing.assert_array_equal(x,y)
         self.assertEqual(x.dtype,numpy.dtype('int'))
 
+    def test_dictionary(self):
+
+        dictionary = {}
+
+        dictionary['name'] = 'John'
+        dictionary['last'] = 'Smith'
+
+        x = flatten(dictionary)
+        y = numpy.array(['name','last'])
+
+        numpy.testing.assert_array_equal(x,y)
+        self.assertEqual(x.dtype.type,numpy.dtype('str').type)
+
+    def test_dictionary_in_dictionary(self):
+
+        dictionary = {}
+
+        dictionary['name'] = 'John'
+        dictionary['last'] = 'Smith'
+        dictionary['numbers'] = {'first':[1,2,3],'second':[4,5,6]}
+
+        x = flatten(dictionary)
+        y = numpy.array(['name','last','numbers'])
+
+        numpy.testing.assert_array_equal(x,y)
+        self.assertEqual(x.dtype.type,numpy.dtype('str').type)
+
+    def test_mixed_data_types(self):
+        pass
+        # x = flatten([1,2.,'cavid',datetime.datetime.today()])
+
+        # print(x)
+
+        # y = numpy.array(['name','last','numbers'])
+
+        # numpy.testing.assert_array_equal(x,y)
+        # self.assertEqual(x.dtype.type,numpy.dtype('str').type)
+
 if __name__ == "__main__":
 
     unittest.main()
