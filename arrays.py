@@ -39,17 +39,13 @@ def flatten(vals):
     elif isinstance(vals,datetime.date):
         _array = numpy.array([vals]).astype('datetime64[D]')
     elif hasattr(vals,"__iter__"):
-        _array = numpy.array(list(vals))
+        _array = [flatten(val) for val in list(vals)]
+        if len(_array) == 0:
+            _array = numpy.array(_array)
+        else:
+            _array = numpy.concatenate(_array)
     else:
         _array = numpy.array([vals])
-
-    """
-    It will fail:
-
-    a = ((1,2,3),(23,4))
-
-    flatten(a)
-    """
 
     return _array
 
@@ -363,7 +359,7 @@ class _arange():
 
     #start stop size
 
-    def __init__(self,*args,**kwargs)
+    def __init__(self,*args,**kwargs):
 
         head = pop(kwargs,'head')
         unit = pop(kwargs,'unit')
@@ -472,83 +468,85 @@ class _arange():
 
     def datetimes(*args,start=None,stop="today",step=1,size=None,dtype=None,step_unit='M'):
 
-    kwargs = setargs(*args,**kwargs)
+        kwargs = setargs(*args,**kwargs)
 
-    if dtype is None:
-        dtype = numpy.dtype(f"datetime64[s]")
-    elif isinstance(dtype,str):
-        dtype = numpy.dtype(dtype)
+        if dtype is None:
+            dtype = numpy.dtype(f"datetime64[s]")
+        elif isinstance(dtype,str):
+            dtype = numpy.dtype(dtype)
 
-    start = _key2column.todatetime(start)
-    stop = _key2column.todatetime(stop)
+        start = _key2column.todatetime(start)
+        stop = _key2column.todatetime(stop)
 
-    def datetime_adddays(dtcurr,delta):
-        return dtcurr+relativedelta.relativedelta(days=delta)
+        def datetime_adddays(dtcurr,delta):
+            return dtcurr+relativedelta.relativedelta(days=delta)
 
-    def datetime_addhours(dtcurr,delta):
-        return dtcurr+relativedelta.relativedelta(hours=delta)
+        def datetime_addhours(dtcurr,delta):
+            return dtcurr+relativedelta.relativedelta(hours=delta)
 
-    def datetime_addminutes(dtcurr,delta):
-        return dtcurr+relativedelta.relativedelta(minutes=delta)
+        def datetime_addminutes(dtcurr,delta):
+            return dtcurr+relativedelta.relativedelta(minutes=delta)
 
-    def datetime_addseconds(dtcurr,delta):
-        return dtcurr+relativedelta.relativedelta(seconds=delta)
-    
-    if step_unit == "Y":
-        func = datetime_addyears
-    elif step_unit == "M":
-        func = datetime_addmonths
-    elif step_unit == "D":
-        func = datetime_adddays
-    elif step_unit == "h":
-        func = datetime_addhours
-    elif step_unit == "m":
-        func = datetime_addminutes
-    elif step_unit == "s":
-        func = datetime_addseconds
-    else:
-        raise ValueError("step_unit can be anything from 'Y','M','D','h','m' or 's'.")
-
-    if size is None:
-        if start is None:
-            raise ValueError("start value must be provided!")
-        date = copy.deepcopy(start)
-        array_date = []
-        while date<stop:
-            array_date.append(date)
-            date = func(date,step)
-        return numpy.array(array_date,dtype=dtype)
-    elif start is None:
-        date = copy.deepcopy(stop)
-        array_date = []
-        for index in range(size):
-            date = func(date,-index*step)
-            array_date.append(date)
-        return numpy.flip(numpy.array(array_date,dtype=dtype))
-    else:
-        delta_na = stop-start
-        delta_us = (delta_na.days*86_400+delta_na.seconds)*1000_000+delta_na.microseconds
-
-        deltas = numpy.linspace(0,delta_us,size)
-
-        date = copy.deepcopy(start)
+        def datetime_addseconds(dtcurr,delta):
+            return dtcurr+relativedelta.relativedelta(seconds=delta)
         
-        array_date = []
-        for delta_us in deltas:
-            date += relativedelta.relativedelta(microseconds=delta_us)
-            array_date.append(date)
-        return numpy.array(array_date,dtype=dtype)
+        if step_unit == "Y":
+            func = datetime_addyears
+        elif step_unit == "M":
+            func = datetime_addmonths
+        elif step_unit == "D":
+            func = datetime_adddays
+        elif step_unit == "h":
+            func = datetime_addhours
+        elif step_unit == "m":
+            func = datetime_addminutes
+        elif step_unit == "s":
+            func = datetime_addseconds
+        else:
+            raise ValueError("step_unit can be anything from 'Y','M','D','h','m' or 's'.")
+
+        if size is None:
+            if start is None:
+                raise ValueError("start value must be provided!")
+            date = copy.deepcopy(start)
+            array_date = []
+            while date<stop:
+                array_date.append(date)
+                date = func(date,step)
+            return numpy.array(array_date,dtype=dtype)
+        elif start is None:
+            date = copy.deepcopy(stop)
+            array_date = []
+            for index in range(size):
+                date = func(date,-index*step)
+                array_date.append(date)
+            return numpy.flip(numpy.array(array_date,dtype=dtype))
+        else:
+            delta_na = stop-start
+            delta_us = (delta_na.days*86_400+delta_na.seconds)*1000_000+delta_na.microseconds
+
+            deltas = numpy.linspace(0,delta_us,size)
+
+            date = copy.deepcopy(start)
+            
+            array_date = []
+            for delta_us in deltas:
+                date += relativedelta.relativedelta(microseconds=delta_us)
+                array_date.append(date)
+            return numpy.array(array_date,dtype=dtype)
 
 if __name__ == "__main__":
 
-    import unittest
+    pass
+
+    # import unittest
 
     # from tests.datum import nones as test
-    from tests.datum import array as test
+    # from tests.datum import array as test
     # from tests.datum import column as test
     # from tests.datum import frame as test
 
-    unittest.main(test)
+    # unittest.main(test)
 
     """
     For numpy.datetime64, the issue with following deltatime units
