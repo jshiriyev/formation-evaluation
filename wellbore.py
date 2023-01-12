@@ -124,7 +124,7 @@ class schedule(dirmaster):
                         wfile.write("\n")
                     wfile.write("/\n\n")
 
-def loadsched(self):
+def loadsched():
 
     pass
 

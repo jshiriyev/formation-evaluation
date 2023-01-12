@@ -7,7 +7,7 @@ if __name__ == "__main__":
 
 from interfaces.items import Wells
 
-class TestWells(unittest.TestCase):
+class TestWellSlot(unittest.TestCase):
 
     def geometry(self):
         pass
@@ -17,7 +17,7 @@ class TestWells(unittest.TestCase):
 
     def multiphase(self):
         pass
-                       
+
 if __name__ == "__main__":
 
     unittest.main()
