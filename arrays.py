@@ -26,6 +26,21 @@ from cypy.vectorpy import datetime_addyears
 from cypy.vectorpy import datetime_addmonths
 from cypy.vectorpy import datetime_adddelta
 
+def _flatten(vals,_list=None):
+
+    _list = [] if _list is None else _list
+
+    if type(vals).__module__=="numpy":
+        _list.extend(vals.flatten().tolist())
+    elif isinstance(vals,str):
+        _list.append(vals)
+    elif hasattr(vals,"__iter__"):
+        [_flatten(val,_list) for val in list(vals)]
+    else:
+        _list.append(vals)
+
+    return _list
+
 def flatten(vals):
 
     if vals is None:

@@ -8,6 +8,7 @@ if __name__ == "__main__":
     import dirsetup
 
 from arrays import flatten
+from arrays import _flatten
 
 class TestFlatten(unittest.TestCase):
 
@@ -163,8 +164,12 @@ class TestFlatten(unittest.TestCase):
         self.assertEqual(x.dtype.type,numpy.dtype('str').type)
 
     def test_mixed_data_types(self):
-        pass
-        # x = flatten([1,2.,'cavid',datetime.datetime.today()])
+
+        var = [1,2.,'cavid',datetime.datetime.today()]
+
+        # x = flatten(var)
+
+        # print(_flatten(var))
 
         # print(x)
 
