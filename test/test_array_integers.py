@@ -25,7 +25,8 @@ class TestArray(unittest.TestCase):
 
         print(type(b))
 
-        print(b.isnone) # This should be corrected
+        print(b.isnone)
+        print(type(b.isnone)) # This should be corrected
 
         print(b.none)
 
