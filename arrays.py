@@ -62,51 +62,6 @@ def array(vals):
     else:
         _array = numpy.array([vals])
 
-    return _array
-
-def arange(*args,**kwargs):
-    """Generating column by defining dtype and sending the keywords for array creating methods."""
-    """It is a special function that takes input and returns linearly spaced data for
-    integers, floats, string, datetime"""
-
-    #start stop size
-
-    head = pop(kwargs,'head')
-    unit = pop(kwargs,'unit')
-    info = pop(kwargs,'info')
-
-    dtype = kwargs.get('dtype')
-
-    if dtype is None:
-        dtype = _key2column.get_dtype(args)
-    elif isinstance(dtype,str):
-        dtype = numpy.dtype(dtype)
-
-    if dtype.type is numpy.dtype('int').type:    
-        _array = arrinteger(*args,**kwargs)
-    elif dtype.type is numpy.dtype('float').type:
-        _array = arrfloat(*args,**kwargs)
-    elif dtype.type is numpy.dtype('str').type:
-        _array = arrstring(*args,**kwargs)
-    elif dtype.type is numpy.dtype('datetime64').type:
-        _array = arrdatetime(*args,**kwargs)
-    else:
-        raise ValueError(f"dtype.type is not int, float, str or datetime64, given {dtype.type=}")
-
-    return _array
-
-def repeat(*args,**kwargs):
-
-    pass
-
-class special(): # HOW TO MAKE THIS CLASS TO BEHAVE EXACTLY LIKE NUMPY ARRAY
-    """It is one dimensional numpy.ndarray with modified methods."""
-
-    def __init__(self,vals,none=None):
-
-        onedimarray = ndarray(vals)
-
-        super().__setattr__("vals",onedimarray)
 
         # # arg in vals, the first one
         # if arg is None:
@@ -130,29 +85,121 @@ class special(): # HOW TO MAKE THIS CLASS TO BEHAVE EXACTLY LIKE NUMPY ARRAY
         # else:
         #     return
 
-    def _settype(self,vals):
+    return _array
 
-        _vals = flatten(vals)
+def arange(*args,**kwargs):
+    """Generating column by defining dtype and sending the keywords for array creating methods."""
+    """It is a special function that takes input and returns linearly spaced data for
+    integers, floats, string, datetime"""
 
-        for val in _vals:
-            if val is None:
-                pass
+    #start stop size
 
-        return arg.dtype
+    if len(args)==0:
+        pass
+    elif len(args)==1:
+        kwargs['stop'], = args
+    elif len(args)==2:
+        kwargs['start'],kwargs['stop'] = args
+    elif len(args)==3:
+        kwargs['start'],kwargs['stop'],kwargs['size'] = args
+    elif len(args)==4:
+        kwargs['start'],kwargs['stop'],kwargs['size'],kwargs['dtype'] = args
+    else:
+        raise TypeError("Arguments are too many!")
 
-    def _setsize(self,size):
-        """returns numpy array with specified shape"""
+    dtype = kwargs.get('dtype')
 
-        if self.size==0:
-            return numpy_array
+    if dtype is None:
+        dtype = _key2column.get_dtype(args)
+    elif isinstance(dtype,str):
+        dtype = numpy.dtype(dtype)
 
-        repeat_count = int(numpy.ceil(size/numpy_array.size))
+    if dtype.type is numpy.dtype('int').type:    
+        _array = arrinteger(*args,**kwargs)
+    elif dtype.type is numpy.dtype('float').type:
+        _array = arrfloat(*args,**kwargs)
+    elif dtype.type is numpy.dtype('str').type:
+        _array = arrstring(*args,**kwargs)
+    elif dtype.type is numpy.dtype('datetime64').type:
+        _array = arrdatetime(*args,**kwargs)
+    else:
+        raise ValueError(f"dtype.type is not int, float, str or datetime64, given {dtype.type=}")
 
-        numpy_array = numpy.tile(numpy_array,repeat_count)[:size]
+    return _array
 
-        return numpy_array
+def repeat(times,size=None):
 
-    def _astype(self,dtype=None):
+    pass
+
+def iterator(*args,size=None):
+
+    arrs = [array1d(arg) for arg in args]
+
+    if size is None:
+        size = len(max(arrs,key=len))
+
+    for index,_array in enumerate(arrs):
+        repeat_count = int(numpy.ceil(size/_array.size))
+        arrs[index] = numpy.tile(_array,repeat_count)[:size]
+
+    return zip(*arrs)
+    
+class integers(numpy.ndarray):
+    """It is one dimensional numpy.ndarray that includes not an integer."""
+
+    def __new__(cls,iterable,none=None):
+
+        if none is None:
+            none = -99_999
+        elif not isinstance(none,int):
+            raise TypeError("none must be integer type!")
+
+        iterable = integers._iterable(iterable,none)
+
+        obj = numpy.asarray(iterable).view(cls)
+
+        obj.none = none
+
+        return obj
+
+    def __array_finalize__(self,obj):
+
+        if obj is None: return
+
+        self.none = getattr(obj,'none',-99_999)
+
+    @property
+    def isint(self):
+        """It return boolean array True for integer and False for none."""
+        return self!=self.none
+    
+    @property
+    def isnone(self):
+        """It return boolean array True for none and False for integer."""
+        return self==self.none
+
+    @staticmethod
+    def _iterable(iterable,none):
+
+        none = int(none)
+
+        iterable_new = []
+
+        for value in flatten(iterable):
+
+            try:
+                value = float(value)
+            except TypeError:
+                value = none
+            except ValueError:
+                value = none
+
+            iterable_new.append(int(value))
+
+        return iterable_new
+
+    @staticmethod
+    def _astype(dtype=None):
         """returns numpy array with specified dtype"""
 
         if self.dtype.type is numpy.object_:
@@ -179,42 +226,44 @@ class special(): # HOW TO MAKE THIS CLASS TO BEHAVE EXACTLY LIKE NUMPY ARRAY
 
         return numpy_array
 
-    def __setattr__(self,key,value):
+    @staticmethod
+    def _arange(start,stop,step,size=None,dtype=None):
 
-        super().__setattr__(key,value)
+        if len(args)==0:
+            return
+        elif len(args)==1:
+            _array = array1d(args[0],size)
 
-    def __getattr__(self,key):
+        if dtype is None:
+            return _array
+        else:
+            return _array.astype(dtype)
 
-        return getattr(self.vals,key)
+    @staticmethod
+    def _repeat(size):
+        """returns numpy array with specified shape"""
 
-    def __setitem__(self,key,value):
+        if self.size==0:
+            return numpy_array
 
-        self.value[key] = value
+        repeat_count = int(numpy.ceil(size/numpy_array.size))
 
-    def __getitem__(self,key):
+        numpy_array = numpy.tile(numpy_array,repeat_count)[:size]
 
-        return self.vals[key]
+        return numpy_array
 
-    def __repr__(self):
+class floats(numpy.ndarray): # HOW TO BEHAVE LIKE NUMPY ARRAY WHILE CORRECTLY FUNCTIONING WITH DIFFERET NAN
 
-        return repr(self.vals)
+    def __init__(self,vals,none=None):
 
-    def __str__(self):
+        if none is None:
+            self._none = float('nan')
+        elif isinstance(none,float):
+            self._none = none
+        else:
+            raise TypeError("none must be float type!")
 
-        return str(self.vals)
-
-    def toiterator(*args,size=None):
-
-        arrs = [array1d(arg) for arg in args]
-
-        if size is None:
-            size = len(max(arrs,key=len))
-
-        for index,_array in enumerate(arrs):
-            repeat_count = int(numpy.ceil(size/_array.size))
-            arrs[index] = numpy.tile(_array,repeat_count)[:size]
-
-        return zip(*arrs)
+        self._setvals(vals)
 
     @property
     def isnone(self):
@@ -246,108 +295,7 @@ class special(): # HOW TO MAKE THIS CLASS TO BEHAVE EXACTLY LIKE NUMPY ARRAY
                         if val==self.nones.datetime64:
                             bool_arr[index] = True
 
-        elif self.dtype.type is numpy.dtype("int").type:
-            bool_arr = self.vals==self.nones.int
-
-        elif self.dtype.type is numpy.dtype("float").type:
-            bool_arr = numpy.isnan(self.vals)
-            if not numpy.isnan(self.nones.float):
-                bool_arr = numpy.logical_or(bool_arr,self.vals==self.nones.float)
-
-        elif self.dtype.type is numpy.dtype("str").type:
-            bool_arr = self.vals == self.nones.str
-
-        elif self.dtype.type is numpy.dtype("datetime64").type:
-            bool_arr = numpy.isnat(self.vals)
-            if not numpy.isnat(self.nones.datetime64):
-                bool_arr = numpy.logical_or(bool_arr,self.vals==self.nones.datetime64)
-
-        else:
-            raise TypeError(f"Unidentified problem with column dtype={self.vals.dtype.type}")
-
-        return bool_arr
-
-    @property
-    def vals(self):
-
-        return self._vals
-
-    @property
-    def none(self):
-
-        return self._none
-
-    def _set_arange_kwargs(*args,**kwargs):
-
-        if len(args)==0:
-            pass
-        elif len(args)==1:
-            kwargs['stop'], = args
-        elif len(args)==2:
-            kwargs['start'],kwargs['stop'] = args
-        elif len(args)==3:
-            kwargs['start'],kwargs['stop'],kwargs['size'] = args
-        elif len(args)==4:
-            kwargs['start'],kwargs['stop'],kwargs['size'],kwargs['dtype'] = args
-        else:
-            raise TypeError("Arguments are too many!")
-
-        return kwargs
-    
-class integers(special): # HOW TO BEHAVE LIKE NUMPY ARRAY WHILE CORRECTLY BEHAVING WITH NAI
-
-    def __init__(self,vals,none=None):
-
-        if none is None:
-            self._none = -99_999
-        elif isinstance(none,int):
-            self._none = none
-        else:
-            raise TypeError("none must be integer type!")
-
-        self._setvals(vals)
-
-    def _setvals(self,vals):
-
-        _vals = []
-
-        for _val in flatten(vals):
-
-            try:
-                val = int(float(_val))
-            except ValueError:
-                val = self._none
-
-            _vals.append(val)
-
-        self._vals = _vals
-
-    def _arange_integers(*args,size=None,dtype=None):
-
-        if len(args)==0:
-            return
-        elif len(args)==1:
-            _array = array1d(args[0],size)
-
-        if dtype is None:
-            return _array
-        else:
-            return _array.astype(dtype)
-
-class floats(special): # HOW TO BEHAVE LIKE NUMPY ARRAY WHILE CORRECTLY FUNCTIONING WITH DIFFERET NAN
-
-    def __init__(self,vals,none=None):
-
-        if none is None:
-            self._none = float('nan')
-        elif isinstance(none,float):
-            self._none = none
-        else:
-            raise TypeError("none must be float type!")
-
-        self._setvals(vals)
-
-    def _setvals(self,vals):
+    def _iterable(self,vals):
 
         _vals = []
 
@@ -362,7 +310,7 @@ class floats(special): # HOW TO BEHAVE LIKE NUMPY ARRAY WHILE CORRECTLY FUNCTION
 
         self._vals = _vals
 
-    def _arange_float(*args,size=None,dtype=None):
+    def _arange(*args,size=None,dtype=None):
 
         if len(args)==0:
             return
@@ -374,7 +322,7 @@ class floats(special): # HOW TO BEHAVE LIKE NUMPY ARRAY WHILE CORRECTLY FUNCTION
         else:
             return _array.astype(dtype)
 
-class strings(special): # HOW TO ADD SOME FUNCTIONALITY TO STRING ARRAY
+class strings(numpy.ndarray): # HOW TO ADD SOME FUNCTIONALITY TO STRING ARRAY
 
     def __init__(self,vals,none=None):
 
@@ -387,7 +335,7 @@ class strings(special): # HOW TO ADD SOME FUNCTIONALITY TO STRING ARRAY
 
         self._setvals(vals)
 
-    def _setvals(self,vals):
+    def _iterable(self,vals):
 
         _vals = []
 
@@ -483,7 +431,35 @@ class strings(special): # HOW TO ADD SOME FUNCTIONALITY TO STRING ARRAY
         else:
             return _array.astype(dtype)
 
-class datetimes(special): # HOW TO ADD SOME FUNCTIONALITY TO NUMPY DATETIME64 ARRAY
+class datetimes(numpy.ndarray): # HOW TO ADD SOME FUNCTIONALITY TO NUMPY DATETIME64 ARRAY
+    """
+    For numpy.datetime64, the issue with following deltatime units
+    has been solved by considering self.vals:
+
+    Y: year,
+    M: month,
+    
+    For numpy.datetime64, following deltatime units
+    have no inherent issue:
+
+    W: week,
+    D: day,
+    h: hour,
+    m: minute,
+    s: second,
+    
+    For numpy.datetime64, also include:
+
+    ms: millisecond,
+    us: microsecond,
+    ns: nanosecond,
+
+    For numpy.datetime64, do not include:
+
+    ps: picosecond,
+    fs: femtosecond,
+    as: attosecond,
+    """
 
     def __init__(self,none=None):
 
@@ -497,10 +473,6 @@ class datetimes(special): # HOW TO ADD SOME FUNCTIONALITY TO NUMPY DATETIME64 AR
             raise TypeError("none must be datetime type!")
 
         self._none = numpy.datetime64('NaT') if none is None else none
-
-    @property
-    def none(self):
-        return self._none
 
     def todatetime(variable):
 
@@ -630,42 +602,16 @@ class datetimes(special): # HOW TO ADD SOME FUNCTIONALITY TO NUMPY DATETIME64 AR
 
 if __name__ == "__main__":
 
-    pass
+    import unittest
 
-    # import unittest
+    from test import test_array_flatten as test
+    # from test import test_array_array as test
+    # from test import test_array_arange as test
+    # from test import test_array_repeat as test
+    # from test import test_array_iterator as test
+    # from test import test_array_integers as test
+    # from test import test_array_floats as test
+    # from test import test_array_strings as test
+    # from test import test_array_datetimes as test
 
-    # from tests.datum import nones as test
-    # from tests.datum import array as test
-    # from tests.datum import column as test
-    # from tests.datum import frame as test
-
-    # unittest.main(test)
-
-    """
-    For numpy.datetime64, the issue with following deltatime units
-    has been solved by considering self.vals:
-
-    Y: year,
-    M: month,
-    
-    For numpy.datetime64, following deltatime units
-    have no inherent issue:
-
-    W: week,
-    D: day,
-    h: hour,
-    m: minute,
-    s: second,
-    
-    For numpy.datetime64, also include:
-
-    ms: millisecond,
-    us: microsecond,
-    ns: nanosecond,
-
-    For numpy.datetime64, do not include:
-
-    ps: picosecond,
-    fs: femtosecond,
-    as: attosecond,
-    """
+    unittest.main(test)

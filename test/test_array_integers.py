@@ -1,94 +1,102 @@
-import datetime
-
-from dateutil import relativedelta
-
 import unittest
 
 import numpy
-import pint
 
 if __name__ == "__main__":
     import dirsetup
 
-from datum import array
-from datum import any2column
-from datum import key2column
+from arrays import integers
 
 class TestArray(unittest.TestCase):
 
     def test_integer(self):
 
-        a = array(5)
-        # print(a,a.dtype,a.head,)
+        a = integers(["5","None"],none=-100)
 
-    def test_float_number(self):
+        print(a.none)
 
-        b = array(5.)
-        # print(b,b.dtype,b.head)
+        print(a)
 
-    def test_string_number(self):
+        print(a.isnone)
 
-        c = array('5')
-        # print(c,c.dtype,c.head)
+        print(a+1) # This should be corrected
 
-    def test_string_characters(self):
+        b = a+1
 
-        d = array('cavid')
-        # print(d,d.dtype,d.head)
+        print(type(b))
 
-    def test_string_datetime(self):
+        print(b.isnone) # This should be corrected
 
-        e = array('2022-02-28')
-        # print(e,e.dtype,e.head)
+        print(b.none)
 
-    def test_datetime_datetime(self):
+    # def test_float_number(self):
 
-        f = array(datetime.datetime.today())
-        # print(f,f.dtype,f.head)
+    #     b = array(5.)
+    #     # print(b,b.dtype,b.head)
 
-    def test_datetime_date(self):
+    # def test_string_number(self):
 
-        g = array(datetime.date.today())
-        # print(g,g.dtype,g.head)
+    #     c = array('5')
+    #     # print(c,c.dtype,c.head)
 
-    def test_none(self):
+    # def test_string_characters(self):
 
-        h = array(None)
-        # print(h,h.dtype,h.head,h.shape,h.size)
+    #     d = array('cavid')
+    #     # print(d,d.dtype,d.head)
 
-    def test_empty_list(self):
+    # def test_string_datetime(self):
 
-        i = array([])
-        # print(i,i.dtype,i.head,i.shape,i.size)
+    #     e = array('2022-02-28')
+    #     # print(e,e.dtype,e.head)
 
-    def test_init(self):
+    # def test_datetime_datetime(self):
 
-        arr_ = key2column(5)
-        numpy.testing.assert_array_equal(arr_,numpy.arange(5))
+    #     f = array(datetime.datetime.today())
+    #     # print(f,f.dtype,f.head)
 
-        arr_ = key2column(5.)
-        numpy.testing.assert_array_equal(arr_,numpy.arange(5,dtype='float64'))
+    # def test_datetime_date(self):
 
-        arr_ = key2column('E')
-        numpy.testing.assert_array_equal(arr_,numpy.array(['A','B','C','D','E']))
+    #     g = array(datetime.date.today())
+    #     # print(g,g.dtype,g.head)
 
-        arr_ = key2column('2022-05-01','2022-07-29',dtype='datetime64[s]')
+    # def test_none(self):
 
-        arr_true = numpy.array([
-            datetime.date(2022,5,1),
-            datetime.date(2022,6,1),
-            datetime.date(2022,7,1)],
-            dtype='datetime64[s]')
+    #     h = array(None)
+    #     # print(h,h.dtype,h.head,h.shape,h.size)
 
-        # numpy.testing.assert_array_equal(arr_,arr_true)
+    # def test_empty_list(self):
 
-        arr_ = any2column(('Python','NumPy','Great!'),dtype='str')
-        arr2 = any2column(('Python','NumPy','Great!'))
+    #     i = array([])
+    #     # print(i,i.dtype,i.head,i.shape,i.size)
 
-        numpy.testing.assert_array_equal(
-            arr_.vals,numpy.array(['Python','NumPy','Great!']))
+    # def test_init(self):
 
-        numpy.testing.assert_array_equal(arr_.vals,arr2.vals)
+    #     arr_ = key2column(5)
+    #     numpy.testing.assert_array_equal(arr_,numpy.arange(5))
+
+    #     arr_ = key2column(5.)
+    #     numpy.testing.assert_array_equal(arr_,numpy.arange(5,dtype='float64'))
+
+    #     arr_ = key2column('E')
+    #     numpy.testing.assert_array_equal(arr_,numpy.array(['A','B','C','D','E']))
+
+    #     arr_ = key2column('2022-05-01','2022-07-29',dtype='datetime64[s]')
+
+    #     arr_true = numpy.array([
+    #         datetime.date(2022,5,1),
+    #         datetime.date(2022,6,1),
+    #         datetime.date(2022,7,1)],
+    #         dtype='datetime64[s]')
+
+    #     # numpy.testing.assert_array_equal(arr_,arr_true)
+
+    #     arr_ = any2column(('Python','NumPy','Great!'),dtype='str')
+    #     arr2 = any2column(('Python','NumPy','Great!'))
+
+    #     numpy.testing.assert_array_equal(
+    #         arr_.vals,numpy.array(['Python','NumPy','Great!']))
+
+    #     numpy.testing.assert_array_equal(arr_.vals,arr2.vals)
 
 if __name__ == "__main__":
 
