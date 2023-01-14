@@ -1,3 +1,5 @@
+import datetime
+
 import unittest
 
 import numpy
@@ -9,95 +11,96 @@ from arrays import integers
 
 class TestArray(unittest.TestCase):
 
-    def test_integer(self):
+    def test_init_string(self):
 
-        a = integers(["5","None"],none=-100)
+        x = integers(["5","None"])
+        y = numpy.array([5,-99_999],dtype=int)
+        z = numpy.array([False,True],dtype=bool)
 
-        print(a.none)
+        self.assertEqual(x.none,-99_999)
 
-        print(a)
+        numpy.testing.assert_array_equal(x,y)
+        numpy.testing.assert_array_equal(x.isnone,z)
 
-        print(a.isnone)
+    def test_init_float(self):
 
-        print(a+1) # This should be corrected
+        x = integers(5.)
+        y = numpy.array([5],dtype=int)
+        
+        numpy.testing.assert_array_equal(x,y)
 
-        b = a+1
+    def test_init_string_number(self):
 
-        print(type(b))
+        x = integers('5')
+        y = numpy.array([5],dtype=int)
 
-        print(b.isnone)
-        print(type(b.isnone)) # This should be corrected
+        numpy.testing.assert_array_equal(x,y)
 
-        print(b.none)
+    def test_init_string_characters(self):
 
-    # def test_float_number(self):
+        x = integers('cavid')
+        y = numpy.array([-99_999],dtype=int)
 
-    #     b = array(5.)
-    #     # print(b,b.dtype,b.head)
+        numpy.testing.assert_array_equal(x,y)
 
-    # def test_string_number(self):
+    def test_init_datetime_datetime(self):
 
-    #     c = array('5')
-    #     # print(c,c.dtype,c.head)
+        x = integers(datetime.datetime.today())
+        y = numpy.array([-99_999],dtype=int)
 
-    # def test_string_characters(self):
+        numpy.testing.assert_array_equal(x,y)
 
-    #     d = array('cavid')
-    #     # print(d,d.dtype,d.head)
+    def test_init_datetime_date(self):
 
-    # def test_string_datetime(self):
+        x = integers(datetime.date.today())
+        y = numpy.array([-99_999],dtype=int)
 
-    #     e = array('2022-02-28')
-    #     # print(e,e.dtype,e.head)
+        numpy.testing.assert_array_equal(x,y)
 
-    # def test_datetime_datetime(self):
+    def test_init_empty_list(self):
 
-    #     f = array(datetime.datetime.today())
-    #     # print(f,f.dtype,f.head)
+        x = integers([])
+        y = numpy.array([],dtype=int)
 
-    # def test_datetime_date(self):
+        numpy.testing.assert_array_equal(x,y)
 
-    #     g = array(datetime.date.today())
-    #     # print(g,g.dtype,g.head)
+    def test_slicing(self):
 
-    # def test_none(self):
+        x = integers([5,-99_999],none=-99_999)
 
-    #     h = array(None)
-    #     # print(h,h.dtype,h.head,h.shape,h.size)
+        y = x[1:]
+        z = numpy.array([-99_999])
 
-    # def test_empty_list(self):
+        self.assertEqual(type(y),integers)
 
-    #     i = array([])
-    #     # print(i,i.dtype,i.head,i.shape,i.size)
+        self.assertEqual(y.none,-99_999)
 
-    # def test_init(self):
+        numpy.testing.assert_array_equal(y,z)
 
-    #     arr_ = key2column(5)
-    #     numpy.testing.assert_array_equal(arr_,numpy.arange(5))
+    def test_add_non_iterable(self):
 
-    #     arr_ = key2column(5.)
-    #     numpy.testing.assert_array_equal(arr_,numpy.arange(5,dtype='float64'))
+        x = integers([5,None],none=-100)
+        y = x+1
+        q = x+None
+        b = numpy.array([-100,-100])
 
-    #     arr_ = key2column('E')
-    #     numpy.testing.assert_array_equal(arr_,numpy.array(['A','B','C','D','E']))
+        z = numpy.array([False,True])
 
-    #     arr_ = key2column('2022-05-01','2022-07-29',dtype='datetime64[s]')
+        self.assertEqual(type(y),integers)
 
-    #     arr_true = numpy.array([
-    #         datetime.date(2022,5,1),
-    #         datetime.date(2022,6,1),
-    #         datetime.date(2022,7,1)],
-    #         dtype='datetime64[s]')
+        numpy.testing.assert_array_equal(y.isnone,z)
+        numpy.testing.assert_array_equal(q,b)
 
-    #     # numpy.testing.assert_array_equal(arr_,arr_true)
+        self.assertEqual(type(y.isnone),numpy.ndarray)
+        self.assertEqual(y.none,-100)
 
-    #     arr_ = any2column(('Python','NumPy','Great!'),dtype='str')
-    #     arr2 = any2column(('Python','NumPy','Great!'))
+    def test_add_iterable(self):
 
-    #     numpy.testing.assert_array_equal(
-    #         arr_.vals,numpy.array(['Python','NumPy','Great!']))
+        x = integers([5,None],none=-100)
 
-    #     numpy.testing.assert_array_equal(arr_.vals,arr2.vals)
+        e = x+numpy.array([5,7])
+
+        self.assertEqual(type(e),integers)
 
 if __name__ == "__main__":
 

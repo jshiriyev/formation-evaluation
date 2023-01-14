@@ -145,20 +145,18 @@ def iterator(*args,size=None):
     return zip(*arrs)
     
 class integers(numpy.ndarray):
-    """It is one dimensional numpy.ndarray that includes not an integer."""
+    """It is a flat subclass of numpy.ndarray that
+    includes not-an-integer (none) entries."""
 
-    def __new__(cls,iterable,none=None):
+    def __new__(cls,variable,none=None):
 
-        if none is None:
-            none = -99_999
-        elif not isinstance(none,int):
-            raise TypeError("none must be integer type!")
+        none = -99_999 if none is None else none
 
-        iterable = integers._iterable(iterable,none)
+        iterable = integers._iterable(variable,none)
 
         obj = numpy.asarray(iterable).view(cls)
 
-        obj.none = none
+        obj.none = int(none)
 
         return obj
 
@@ -168,24 +166,50 @@ class integers(numpy.ndarray):
 
         self.none = getattr(obj,'none',-99_999)
 
+    def __add__(self,other):
+
+        none = getattr(other,'none',self.none)
+
+        other = integers(other,none)
+
+        subclass = copy.deepcopy(self)
+
+        lhs_valid = numpy.logical_and(self.isvalid,other.isvalid)
+        rhs_valid = other.isvalid if other.size==1 else lhs_valid
+
+        subclass[lhs_valid] += other[rhs_valid]
+
+        subclass[~lhs_valid] = self.none
+
+        return subclass
+
+    def shift(self,delta):
+
+        pass
+
     @property
-    def isint(self):
+    def isvalid(self):
         """It return boolean array True for integer and False for none."""
-        return self!=self.none
+        return numpy.asarray(self!=self.none)
     
     @property
     def isnone(self):
         """It return boolean array True for none and False for integer."""
-        return self==self.none
+        return numpy.asarray(self==self.none)
+
+    @property
+    def issorted(self):
+
+        return
 
     @staticmethod
-    def _iterable(iterable,none):
+    def _iterable(variable,none):
 
         none = int(none)
 
-        iterable_new = []
+        iterable = []
 
-        for value in flatten(iterable):
+        for value in flatten(variable):
 
             try:
                 value = float(value)
@@ -194,12 +218,12 @@ class integers(numpy.ndarray):
             except ValueError:
                 value = none
 
-            iterable_new.append(int(value))
+            iterable.append(int(value))
 
-        return iterable_new
+        return iterable
 
     @staticmethod
-    def _astype(dtype=None):
+    def _astype(dtype):
         """returns numpy array with specified dtype"""
 
         if self.dtype.type is numpy.object_:
@@ -227,7 +251,7 @@ class integers(numpy.ndarray):
         return numpy_array
 
     @staticmethod
-    def _arange(start,stop,step,size=None,dtype=None):
+    def _arange(start=None,stop=None,step=None,size=None):
 
         if len(args)==0:
             return
@@ -240,7 +264,7 @@ class integers(numpy.ndarray):
             return _array.astype(dtype)
 
     @staticmethod
-    def _repeat(size):
+    def _repeat(size,method=None):
         """returns numpy array with specified shape"""
 
         if self.size==0:
@@ -264,6 +288,28 @@ class floats(numpy.ndarray): # HOW TO BEHAVE LIKE NUMPY ARRAY WHILE CORRECTLY FU
             raise TypeError("none must be float type!")
 
         self._setvals(vals)
+
+    def normalize(self,vmin=None,vmax=None):
+        """It returns normalized values (in between 0 and 1) of float arrays.
+        If vmin is provided, everything below 0 will be reported as zero.
+        If vmax is provided, everything above 1 will be reported as one."""
+
+        datacolumn = copy.deepcopy(self)
+
+        if vmin is None:
+            vmin = datacolumn.min()
+
+        if vmax is None:
+            vmax = datacolumn.max()
+
+        datacolumn.vals = (datacolumn.vals-vmin)/(vmax-vmin)
+
+        datacolumn.vals[datacolumn.vals<=0] = 0
+        datacolumn.vals[datacolumn.vals>=1] = 1
+
+        datacolumn._valsunit()
+
+        return datacolumn
 
     @property
     def isnone(self):
@@ -492,6 +538,22 @@ class datetimes(numpy.ndarray): # HOW TO ADD SOME FUNCTIONALITY TO NUMPY DATETIM
         elif isinstance(datetime_variable,datetime.date):
             return datetime.datetime.combine(datetime_variable,datetime.datetime.min.time())
 
+    def add(self,delta,unit='month'):
+
+        pass
+
+    def shift(self):
+
+        pass
+
+    def toeom(self):
+
+        pass
+
+    def tobom(self):
+
+        pass
+
     def _arange(*args,start=None,stop="today",step=1,size=None,dtype=None,step_unit='M'):
 
         kwargs = setargs(*args,**kwargs)
@@ -600,16 +662,46 @@ class datetimes(numpy.ndarray): # HOW TO ADD SOME FUNCTIONALITY TO NUMPY DATETIM
                 array_date = [parser.parse(dt) for dt in _array]
                 return numpy.array(array_date,dtype=dtype)
 
+    @property
+    def year(self):
+        
+        return
+
+    @property
+    def month(self):
+
+        return
+
+    @property
+    def monthrange(self):
+
+        return
+
+    @property
+    def nextmonthrange(self):
+        
+        return
+    
+    @property
+    def prevmonthrange(self):
+        
+        return
+
+    @property
+    def day(self):
+        
+        return
+
 if __name__ == "__main__":
 
     import unittest
 
-    from test import test_array_flatten as test
+    # from test import test_array_flatten as test
     # from test import test_array_array as test
     # from test import test_array_arange as test
     # from test import test_array_repeat as test
     # from test import test_array_iterator as test
-    # from test import test_array_integers as test
+    from test import test_array_integers as test
     # from test import test_array_floats as test
     # from test import test_array_strings as test
     # from test import test_array_datetimes as test
