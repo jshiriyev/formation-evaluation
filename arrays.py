@@ -154,9 +154,9 @@ class integers(numpy.ndarray):
 
         iterable = integers._iterable(variable,none)
 
-        obj = numpy.asarray(iterable).view(cls)
+        obj = numpy.asarray(iterable,dtype='int32').view(cls)
 
-        obj.none = int(none)
+        obj._none = int(none)
 
         return obj
 
@@ -164,38 +164,130 @@ class integers(numpy.ndarray):
 
         if obj is None: return
 
-        self.none = getattr(obj,'none',-99_999)
+        self._none = getattr(obj,'_none',-99_999)
+
+    def __lt__(self,other):
+
+        pass
+
+    def __le__(self,other):
+
+        pass
+
+    def __eq__(self,other):
+
+        return numpy.equal(self,other)
+
+    def __ne__(self,other):
+
+        return numpy.not_equal(self,other)
+
+    def __gt__(self,other):
+
+        pass
+
+    def __ge__(self,other):
+
+        pass
 
     def __add__(self,other):
 
-        none = getattr(other,'none',self.none)
+        subcls = copy.deepcopy(self)
 
-        other = integers(other,none)
+        if not isinstance(other,integers):
+            other = integers(other,self.none)
 
-        subclass = copy.deepcopy(self)
+        lhs = numpy.logical_and(self.isvalid,other.isvalid)
+        rhs = other.isvalid if other.size == 1 else lhs
 
-        lhs_valid = numpy.logical_and(self.isvalid,other.isvalid)
-        rhs_valid = other.isvalid if other.size==1 else lhs_valid
+        subcls[ lhs] = numpy.add(subcls[lhs],other[rhs])
+        subcls[~lhs] = self.none
 
-        subclass[lhs_valid] += other[rhs_valid]
+        return subcls
 
-        subclass[~lhs_valid] = self.none
+    __radd__ = __add__
+    __iadd__ = __add__
 
-        return subclass
+    def __sub__(self,other):
 
-    def shift(self,delta):
+        pass
+
+    __rsub__ = __sub__
+    __isub__ = __sub__
+
+    def __mul__(self,other):
+
+        pass
+
+    __rmul__ = __mul__
+    __imul__ = __mul__
+
+    def __truediv__(self,other):
+
+        pass
+
+    __rtruediv__ = __truediv__
+    __itruediv__ = __truediv__
+
+    def __floordiv__(self,other):
+
+        pass
+
+    __rfloordiv__ = __floordiv__
+    __ifloordiv__ = __floordiv__
+
+    def __mod__(self,other):
+
+        pass
+
+    __rmod__ = __mod__
+    __imod__ = __mod__
+
+    def __pow__(self,other):
+
+        pass
+
+    __rpow__ = __pow__
+    __ipow__ = __pow__
+
+    def __neg__(self):
+
+        pass
+
+    def __pos__(self):
+
+        pass
+
+    def __abs__(self):
+
+        pass
+
+    # def __bool__(self):
+
+    #     return self.isvalid
+
+    def astype(self):
+
+        pass
+
+    def shift(self,onluqlar):
 
         pass
 
     @property
+    def none(self):
+
+        return self._none
+
+    @property
     def isvalid(self):
         """It return boolean array True for integer and False for none."""
-        return numpy.asarray(self!=self.none)
+        return numpy.not_equal(self,self.none)
     
     @property
     def isnone(self):
-        """It return boolean array True for none and False for integer."""
-        return numpy.asarray(self==self.none)
+        """It return numpy bool array, True for none and False for integer."""
+        return numpy.equal(self,self.none)
 
     @property
     def issorted(self):
@@ -217,38 +309,15 @@ class integers(numpy.ndarray):
                 value = none
             except ValueError:
                 value = none
+            else:
+                value = int(value)
 
-            iterable.append(int(value))
+            if value == none:
+                iterable.append(none)
+            else:
+                iterable.append(value)
 
         return iterable
-
-    @staticmethod
-    def _astype(dtype):
-        """returns numpy array with specified dtype"""
-
-        if self.dtype.type is numpy.object_:
-
-            numpy_array_temp = self.vals[self.vals!=None]
-
-            if numpy_array_temp.size==0:
-                dtype = numpy.dtype('float64')
-            elif isinstance(numpy_array_temp[0],int):
-                dtype = numpy.dtype('float64')
-            elif isinstance(numpy_array_temp[0],str):
-                dtype = numpy.dtype('str_')
-            elif isinstance(numpy_array_temp[0],datetime.datetime):
-                dtype = numpy.dtype('datetime64[s]')
-            elif isinstance(numpy_array_temp[0],datetime.date):
-                dtype = numpy.dtype('datetime64[D]')
-            else:
-                dtype = numpy.array([numpy_array_temp[0]]).dtype
-
-        try:
-            numpy_array = numpy_array.astype(dtype)
-        except ValueError:
-            numpy_array = numpy_array.astype('str_')
-
-        return numpy_array
 
     @staticmethod
     def _arange(start=None,stop=None,step=None,size=None):
@@ -273,6 +342,34 @@ class integers(numpy.ndarray):
         repeat_count = int(numpy.ceil(size/numpy_array.size))
 
         numpy_array = numpy.tile(numpy_array,repeat_count)[:size]
+
+        return numpy_array
+
+    @staticmethod   
+    def _astype(dtype):
+        """returns numpy array with specified dtype"""
+
+        if self.dtype.type is numpy.object_:
+
+            numpy_array_temp = self.vals[self.vals!=None]
+
+            if numpy_array_temp.size==0:
+                dtype = numpy.dtype('float64')
+            elif isinstance(numpy_array_temp[0],int):
+                dtype = numpy.dtype('float64')
+            elif isinstance(numpy_array_temp[0],str):
+                dtype = numpy.dtype('str_')
+            elif isinstance(numpy_array_temp[0],datetime.datetime):
+                dtype = numpy.dtype('datetime64[s]')
+            elif isinstance(numpy_array_temp[0],datetime.date):
+                dtype = numpy.dtype('datetime64[D]')
+            else:
+                dtype = numpy.array([numpy_array_temp[0]]).dtype
+
+        try:
+            numpy_array = numpy_array.astype(dtype)
+        except ValueError:
+            numpy_array = numpy_array.astype('str_')
 
         return numpy_array
 

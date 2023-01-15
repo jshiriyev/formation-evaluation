@@ -11,6 +11,21 @@ from arrays import integers
 
 class TestArray(unittest.TestCase):
 
+    def test_init_none_integer(self):
+
+        x = integers([-99_999,5])
+
+        y = numpy.array([False,True],dtype=bool)
+
+        numpy.testing.assert_array_equal(x.isvalid,y)
+
+    def test_init_float(self):
+
+        x = integers(5.)
+        y = numpy.array([5],dtype=int)
+        
+        numpy.testing.assert_array_equal(x,y)
+
     def test_init_string(self):
 
         x = integers(["5","None"])
@@ -21,13 +36,6 @@ class TestArray(unittest.TestCase):
 
         numpy.testing.assert_array_equal(x,y)
         numpy.testing.assert_array_equal(x.isnone,z)
-
-    def test_init_float(self):
-
-        x = integers(5.)
-        y = numpy.array([5],dtype=int)
-        
-        numpy.testing.assert_array_equal(x,y)
 
     def test_init_string_number(self):
 
@@ -93,6 +101,26 @@ class TestArray(unittest.TestCase):
 
         self.assertEqual(type(y.isnone),numpy.ndarray)
         self.assertEqual(y.none,-100)
+
+    def test_add_non_iterable_right_hand_side(self):
+
+        x = integers([-99_999,5])
+
+        y = numpy.array([3,7])
+        z = numpy.array([5])
+
+        numpy.testing.assert_array_equal(x+5,5+x)
+        numpy.testing.assert_array_equal(x+y,y+x)
+        numpy.testing.assert_array_equal(x+z,z+x)
+
+    def test_add_non_iterable_inplace(self):
+
+        x = integers([-100,5],none=-100)
+        x += 1
+
+        y = numpy.array([-100,6])
+
+        numpy.testing.assert_array_equal(x,y)
 
     def test_add_iterable(self):
 
