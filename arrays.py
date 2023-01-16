@@ -166,29 +166,58 @@ class integers(numpy.ndarray):
 
         self._none = getattr(obj,'_none',-99_999)
 
-    def __lt__(self,other):
+    # def __array_ufunc__(self,ufunc,method,*inputs,out=None,**kwargs):
 
-        pass
+    #     args = []
+    #     in_no = []
+    #     for i, input_ in enumerate(inputs):
+    #         if isinstance(input_,integers):
+    #             in_no.append(i)
+    #             args.append(input_.view(numpy.ndarray))
+    #         else:
+    #             args.append(input_)
 
-    def __le__(self,other):
+    #     inputs = list(inputs)
 
-        pass
+    #     outputs = out
+    #     out_no = []
+    #     if outputs:
+    #         out_args = []
+    #         for j, output in enumerate(outputs):
+    #             if isinstance(output,integers):
+    #                 out_no.append(j)
+    #                 out_args.append(output.view(numpy.ndarray))
+    #             else:
+    #                 out_args.append(output)
+    #         kwargs['out'] = tuple(out_args)
+    #     else:
+    #         outputs = (None,) * ufunc.nout
+
+    #     where = numpy.not_equal(self.view(numpy.ndarray),self.none)
+
+    #     if len(in_no) == 2:
+    #         if not isinstance(inputs[1],integers):
+    #             inputs[1] = integers(inputs[1],self.none)
+
+    #         where2 = numpy.not_equal(inputs[1].view(numpy.ndarray),inputs[1].none)
+
+    #         where = numpy.logical_and(where,where2)
+
+    #         print(where)
+            
+    #     results = super().__array_ufunc__(ufunc,method,*args,out=out,where=where,**kwargs)
+
+    #     results[~where] = self.none
+
+    #     return results.view(integers)
 
     def __eq__(self,other):
 
-        return numpy.equal(self,other)
+        return numpy.equal(self,other).view(numpy.ndarray)
 
     def __ne__(self,other):
 
-        return numpy.not_equal(self,other)
-
-    def __gt__(self,other):
-
-        pass
-
-    def __ge__(self,other):
-
-        pass
+        return numpy.not_equal(self,other).view(numpy.ndarray)
 
     def __add__(self,other):
 
@@ -208,64 +237,6 @@ class integers(numpy.ndarray):
     __radd__ = __add__
     __iadd__ = __add__
 
-    def __sub__(self,other):
-
-        pass
-
-    __rsub__ = __sub__
-    __isub__ = __sub__
-
-    def __mul__(self,other):
-
-        pass
-
-    __rmul__ = __mul__
-    __imul__ = __mul__
-
-    def __truediv__(self,other):
-
-        pass
-
-    __rtruediv__ = __truediv__
-    __itruediv__ = __truediv__
-
-    def __floordiv__(self,other):
-
-        pass
-
-    __rfloordiv__ = __floordiv__
-    __ifloordiv__ = __floordiv__
-
-    def __mod__(self,other):
-
-        pass
-
-    __rmod__ = __mod__
-    __imod__ = __mod__
-
-    def __pow__(self,other):
-
-        pass
-
-    __rpow__ = __pow__
-    __ipow__ = __pow__
-
-    def __neg__(self):
-
-        pass
-
-    def __pos__(self):
-
-        pass
-
-    def __abs__(self):
-
-        pass
-
-    # def __bool__(self):
-
-    #     return self.isvalid
-
     def astype(self):
 
         pass
@@ -282,12 +253,12 @@ class integers(numpy.ndarray):
     @property
     def isvalid(self):
         """It return boolean array True for integer and False for none."""
-        return numpy.not_equal(self,self.none)
+        return numpy.not_equal(self,self.none).view(numpy.ndarray)
     
     @property
     def isnone(self):
         """It return numpy bool array, True for none and False for integer."""
-        return numpy.equal(self,self.none)
+        return numpy.equal(self,self.none).view(numpy.ndarray)
 
     @property
     def issorted(self):
