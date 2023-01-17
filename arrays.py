@@ -146,17 +146,17 @@ def iterator(*args,size=None):
     
 class integers(numpy.ndarray):
     """It is a flat subclass of numpy.ndarray that
-    includes not-an-integer (none) entries."""
+    includes not-an-integer (null) entries."""
 
-    def __new__(cls,variable,none=None):
+    def __new__(cls,variable,null=None):
 
-        none = -99_999 if none is None else none
+        null = -99_999 if null is None else null
 
-        iterable = integers._iterable(variable,none)
+        iterable = integers._iterable(variable,null)
 
         obj = numpy.asarray(iterable,dtype='int32').view(cls)
 
-        obj._none = int(none)
+        obj._null = int(null)
 
         return obj
 
@@ -164,78 +164,71 @@ class integers(numpy.ndarray):
 
         if obj is None: return
 
-        self._none = getattr(obj,'_none',-99_999)
+        self._null = getattr(obj,'_null',-99_999)
 
-    # def __array_ufunc__(self,ufunc,method,*inputs,out=None,**kwargs):
+    def __array_ufunc__(self,ufunc,method,*args,out=None,**kwargs):
 
-    #     args = []
-    #     in_no = []
-    #     for i, input_ in enumerate(inputs):
-    #         if isinstance(input_,integers):
-    #             in_no.append(i)
-    #             args.append(input_.view(numpy.ndarray))
-    #         else:
-    #             args.append(input_)
+        sargs = [] # positional arguments of parent __array_ufunc__
+        idcls = [] # index of integers (cls) type inputs
 
-    #     inputs = list(inputs)
+        for index,arg in enumerate(args):
+            if isinstance(arg,integers):
+                idcls.append(index)
+                sargs.append(arg.view(numpy.ndarray))
+            elif arg is None:
+                idcls.append(index)
+                sargs.append(integers(arg,null=self.null).view(numpy.ndarray))
+            else:
+                sargs.append(integers(arg,null=self.null).view(numpy.ndarray))
 
-    #     outputs = out
-    #     out_no = []
-    #     if outputs:
-    #         out_args = []
-    #         for j, output in enumerate(outputs):
-    #             if isinstance(output,integers):
-    #                 out_no.append(j)
-    #                 out_args.append(output.view(numpy.ndarray))
-    #             else:
-    #                 out_args.append(output)
-    #         kwargs['out'] = tuple(out_args)
-    #     else:
-    #         outputs = (None,) * ufunc.nout
+        if out:
+            outputs = []
+            for output in out:
+                if isinstance(output,integers):
+                    outputs.append(output.view(numpy.ndarray))
+                else:
+                    outputs.append(output)
 
-    #     where = numpy.not_equal(self.view(numpy.ndarray),self.none)
+            kwargs['out'] = tuple(outputs)
 
-    #     if len(in_no) == 2:
-    #         if not isinstance(inputs[1],integers):
-    #             inputs[1] = integers(inputs[1],self.none)
+        valids = numpy.not_equal(sargs[0],self.null)
 
-    #         where2 = numpy.not_equal(inputs[1].view(numpy.ndarray),inputs[1].none)
+        for index,sarg in enumerate(sargs[1:],start=1):
 
-    #         where = numpy.logical_and(where,where2)
+            if index in idcls:
 
-    #         print(where)
+                try:
+                    null = args[index].null
+                except AttributeError:
+                    null = self.null
+
+                rights = numpy.not_equal(sargs[index],null)
             
-    #     results = super().__array_ufunc__(ufunc,method,*args,out=out,where=where,**kwargs)
+                valids = numpy.logical_and(valids,rights)
+            
+        temp = super().__array_ufunc__(ufunc,method,*sargs,**kwargs)
 
-    #     results[~where] = self.none
+        if temp.dtype.type is numpy.int_:
+            temp[~valids] = self.null
+            temp = integers(temp,null=self.null)
+        elif temp.dtype.type is numpy.float_:
+            temp[~valids] = numpy.nan
+        elif temp.dtype.type is numpy.bool_:
+            temp[~valids] = False
 
-    #     return results.view(integers)
+        return temp
 
-    def __eq__(self,other):
+    def __repr__(self):
 
-        return numpy.equal(self,other).view(numpy.ndarray)
+        nprepr = super().__repr__()
 
-    def __ne__(self,other):
+        return nprepr.replace(str(self.null),'null')
 
-        return numpy.not_equal(self,other).view(numpy.ndarray)
+    def __str__(self):
 
-    def __add__(self,other):
-
-        subcls = copy.deepcopy(self)
-
-        if not isinstance(other,integers):
-            other = integers(other,self.none)
-
-        lhs = numpy.logical_and(self.isvalid,other.isvalid)
-        rhs = other.isvalid if other.size == 1 else lhs
-
-        subcls[ lhs] = numpy.add(subcls[lhs],other[rhs])
-        subcls[~lhs] = self.none
-
-        return subcls
-
-    __radd__ = __add__
-    __iadd__ = __add__
+        npstr = super().__str__()
+        
+        return npstr.replace(str(self.null),'null')
 
     def astype(self):
 
@@ -246,19 +239,19 @@ class integers(numpy.ndarray):
         pass
 
     @property
-    def none(self):
+    def null(self):
 
-        return self._none
+        return self._null
 
     @property
     def isvalid(self):
-        """It return boolean array True for integer and False for none."""
-        return numpy.not_equal(self,self.none).view(numpy.ndarray)
+        """It return boolean array True for integer and False for null."""
+        return numpy.not_equal(self.view(numpy.ndarray),self.null)
     
     @property
-    def isnone(self):
-        """It return numpy bool array, True for none and False for integer."""
-        return numpy.equal(self,self.none).view(numpy.ndarray)
+    def isnull(self):
+        """It return numpy bool array, True for null and False for integer."""
+        return numpy.equal(self.view(numpy.ndarray),self.null)
 
     @property
     def issorted(self):
@@ -266,9 +259,9 @@ class integers(numpy.ndarray):
         return
 
     @staticmethod
-    def _iterable(variable,none):
+    def _iterable(variable,null):
 
-        none = int(none)
+        null = int(null)
 
         iterable = []
 
@@ -277,14 +270,14 @@ class integers(numpy.ndarray):
             try:
                 value = float(value)
             except TypeError:
-                value = none
+                value = null
             except ValueError:
-                value = none
+                value = null
             else:
                 value = int(value)
 
-            if value == none:
-                iterable.append(none)
+            if value == null:
+                iterable.append(null)
             else:
                 iterable.append(value)
 
