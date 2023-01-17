@@ -2074,7 +2074,6 @@ class spotential():
     def depth(self):
 
         return self.SP.depth
-    
 
 class laterolog():
 
