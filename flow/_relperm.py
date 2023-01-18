@@ -5,12 +5,7 @@ import numpy as np
 if __name__ == "__main__":
     import dirsetup
 
-class darcy_relation():
-
-    pass
-
-class relative_permeability():
-
+class relperm():
     """
 
     This Model Provides IMBIBITION Relative Permeability MODELS for a system provided.

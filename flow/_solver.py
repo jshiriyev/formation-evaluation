@@ -1,3 +1,5 @@
+"""This is going to be all about finite difference!"""
+
 from scipy.sparse import csr_matrix as csr
 from scipy.sparse import csc_matrix as csc
 from scipy.sparse import hstack

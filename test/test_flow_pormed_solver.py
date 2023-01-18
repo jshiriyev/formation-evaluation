@@ -103,12 +103,6 @@ class TestFiniteDifference(unittest.TestCase):
     def SS(self):
 
         pass
-
-class TestGreenSolution(unittest.TestCase):
-
-    def planesource(self):
-
-        pass
                        
 if __name__ == "__main__":
 

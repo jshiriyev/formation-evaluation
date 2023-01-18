@@ -8,7 +8,7 @@ from scipy.sparse import csr_matrix as csr
 if __name__ == "__main__":
     import dirsetup
 
-class singlephase():
+class OnePhaseLinear():
 
     """
     cartesian_1D_laplace
@@ -108,7 +108,7 @@ class singlephase():
 
         self.pressure = PL+(PU-PL)*((self.x/L).reshape((1,-1))+2/np.pi*sum_)
 
-class multicomponent():
+class OnePhaseLinearMultiComponent():
 
     def obj(XX,v,L):
 
@@ -134,8 +134,8 @@ class multicomponent():
         else:
             term3 = np.exp(v*L/DL)
             return 1/2*(term1+term2*term3)
-        
-class multiphase():
+
+class TwoPhaseLinear():
     
     """
     based on Buckley-Leverett solution

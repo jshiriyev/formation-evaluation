@@ -588,11 +588,9 @@ class water():
 
         pass
 
-class multiphase():
-
-    def __init__(self):
-
-        pass
+# I may need constitutive models to describe the relationship
+# between shear stress and strain rate
+# Newtonian and non newtonian fluids
 
 if __name__ == "__main__":
 
