@@ -3,6 +3,9 @@ import sys
 
 import numpy as np
 
+if __name__ == '__main__':
+    import _setup
+
 class item():
 
     def __init__(self,observed_points,observed_values):

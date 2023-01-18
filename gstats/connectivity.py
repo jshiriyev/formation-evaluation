@@ -3,9 +3,9 @@ import numpy as np
 from scipy.stats import norm
 
 if __name__ == "__main__":
-    import dirsetup
+    import _setup
 
-class connectivity(np.ndarray):
+class variogram(np.ndarray):
 
     """It is a numpy array of shape (N,) with additional spatial attributes x,y,z"""
 
@@ -59,7 +59,7 @@ class connectivity(np.ndarray):
 
         self.angle = np.arctan2(self.dy,self.dx)
 
-    def set_experimentalVariogram(self,lag=None,lagtol=None,lagmax=None,
+    def set_experimental(self,lag=None,lagtol=None,lagmax=None,
         azimuth=None,azimuthtol=None,bandwidth=None,returnFlag=False):
 
         """
@@ -129,7 +129,7 @@ class connectivity(np.ndarray):
         if returnFlag:
             return self.bins_experimental,self.experimental
 
-    def draw_search_box(self,origin_x=0,origin_y=0):
+    def set_searchbox(self,origin_x=0,origin_y=0):
 
         """Nomenclature-BEGINNING"""
         ## alpha  : azimuth_tol at bandwidth dominated section
@@ -201,7 +201,7 @@ class connectivity(np.ndarray):
 
             plt.plot(origin_x+hmin_x,origin_y+hmin_y,'r')
 
-    def set_theoreticalVariogram(self,vbins=None,vtype='spherical',vsill=None,vrange=None,vnugget=0,**kwars):
+    def set_theoretical(self,vbins=None,vtype='spherical',vsill=None,vrange=None,vnugget=0,**kwars):
 
         if vbins is None:
             if hasattr(self,"bins_experimental"):

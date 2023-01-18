@@ -6,7 +6,7 @@ import numpy as np
 from scipy.stats import norm
 
 if __name__ == "__main__":
-    import dirsetup
+    import _setup
 
 from geomodel.connectivity import SpatProp
 

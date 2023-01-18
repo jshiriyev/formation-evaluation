@@ -1,6 +1,6 @@
-clear; close all; clc
+import _setup
 
-addpath('C:\Users\js68897\repos\greensfrac')
+addpath(r'C:\\Users\\js68897\\repos\\greensfrac')
 
 res = resControl(pwd,'SI');
 frac = fracControl(pwd,'SI');
@@ -11,7 +11,7 @@ Gsol = green.plane(frac.center,frac,time.tau-time.deltaTime/2,res);
 
 sol = solver(res,frac,well,time,Gsol);
 
-% vtkwrite('results\green.vtk',res,frac,well,time,sol);
+% vtkwrite(r'results\\green.vtk',res,frac,well,time,sol);
 
 geometry(res,frac,well);
 % flowrateBH(sol,time);

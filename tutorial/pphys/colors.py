@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 
-import dirsetup
+import _setup
 
 from pphys import colors
 

@@ -5,8 +5,7 @@ import numpy as np
 
 from PIL import Image
 
-if __name__ == "__main__":
-    import setup
+import _setup
 
 from flow.pormed.conrelation import relative_permeability
 

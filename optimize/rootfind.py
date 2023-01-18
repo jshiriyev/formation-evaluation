@@ -1,5 +1,5 @@
 if __name__ == "__main__":
-    import dirsetup
+    import _setup
 
 def secant(obj_func,x_0,x_1,*args):
     x0 = x_0

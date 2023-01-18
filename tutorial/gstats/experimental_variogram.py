@@ -1,7 +1,6 @@
 import numpy as np
 
-if __name__ == "__main__":
-    import setup
+import _setup
 
 from geomodel.connectivity import SpatProp
 

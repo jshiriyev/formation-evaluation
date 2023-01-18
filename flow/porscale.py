@@ -3,6 +3,9 @@ import numpy as np
 
 from scipy import optimize
 
+if __name__ == '__main__':
+    import _setup
+
 class single_phase():
 
     pass

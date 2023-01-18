@@ -1,5 +1,7 @@
 import matplotlib.pyplot as plt
 
+import _setup
+
 mu = 0.72   # cp
 
 kx = 0.1    # md

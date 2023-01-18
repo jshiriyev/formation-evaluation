@@ -15,6 +15,8 @@ from scipy.special import yvp as bessel_yvp
 
 from scipy.optimize import root_scalar
 
+import _setup
+
 def toarray(x):
 
     if isinstance(x,int) or isinstance(x,float):

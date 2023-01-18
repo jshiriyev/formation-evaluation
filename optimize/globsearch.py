@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 if __name__ == "__main__":
-    import dirsetup
+    import _setup
 
 class annealing():
 

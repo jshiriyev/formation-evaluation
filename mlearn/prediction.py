@@ -8,6 +8,9 @@ import numpy as np
 
 from scipy.stats import norm
 
+if __name__ == '__main__':
+    import _setup
+
 """
 univariate classes uses a single property data item with optional
 spatial information and includes following ananlysis:

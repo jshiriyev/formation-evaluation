@@ -7,6 +7,9 @@ from scipy.optimize import Bounds
 import matplotlib.pyplot as plt
 """tank flow through noozle"""
 
+if __name__ == '__main__':
+    import _setup
+
 def compressible(P2,P1,v1,k,Cd,A):
 
     Pr = P2/P1

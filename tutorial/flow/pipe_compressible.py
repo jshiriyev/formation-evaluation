@@ -3,8 +3,7 @@ import numpy as np
 from scipy.optimize import minimize
 from scipy.optimize import minimize_scalar
 
-if __name__ == "__main__":
-    import setup
+import _setup
 
 from fluidflow.pipes.cylindrical import single_phase
 

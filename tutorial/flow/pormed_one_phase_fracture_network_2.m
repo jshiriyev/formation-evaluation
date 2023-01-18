@@ -1,6 +1,6 @@
-clear; close all; clc
+import _setup
 
-addpath('C:\Users\js68897\repos\greensfrac')
+addpath(r'C:\\Users\\js68897\\repos\\greensfrac')
 
 res = resControl(pwd,'SI');
 frac = fracControl(pwd,'SI');

@@ -24,6 +24,8 @@ from scipy.sparse.linalg import splu
 import matplotlib.pyplot as plt
 import numpy as np
 
+import _setup
+
 Nx = 5
 Ny = 5
 

@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 
 import tkinter
 
-import dirsetup
+import _setup
 
 from pphys import loadlas
 

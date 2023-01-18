@@ -9,7 +9,7 @@ import re
 import numpy
 
 if __name__ == "__main__":
-    import dirsetup
+    import _setup
 
 def _strtype(string:str):
 

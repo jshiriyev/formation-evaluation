@@ -4,8 +4,7 @@ import numpy as np
 
 import pint
 
-if __name__ == "__main__":
-    import setup
+import _setup
 
 from fluidflow.pormed.radial import transient
 from fluidflow.pormed.radial import pseudosteady

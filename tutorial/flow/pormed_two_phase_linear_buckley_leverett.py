@@ -2,8 +2,7 @@ import unittest
 
 import numpy as np
 
-if __name__ == "__main__":
-    import setup
+import _setup
 
 from flow.pormed.linear import singlephase
 from flow.pormed.linear import multicomponent

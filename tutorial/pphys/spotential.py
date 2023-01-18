@@ -1,6 +1,6 @@
 import numpy
 
-import dirsetup
+import _setup
 
 from wlogs import spotential
 

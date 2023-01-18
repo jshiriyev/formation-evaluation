@@ -1,5 +1,4 @@
-if __name__ == "__main__":
-    import setup
+import _setup
 
 """ Class Exercise 2 """
 
