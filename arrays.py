@@ -208,12 +208,14 @@ class integers(numpy.ndarray):
             
         temp = super().__array_ufunc__(ufunc,method,*sargs,**kwargs)
 
-        if temp.dtype.type is numpy.int_:
+        if temp.size == 0:
+            temp = integers(temp,null=self.null)
+        elif isinstance(temp[0].tolist(),int):
             temp[~valids] = self.null
             temp = integers(temp,null=self.null)
-        elif temp.dtype.type is numpy.float_:
+        elif isinstance(temp[0].tolist(),float):
             temp[~valids] = numpy.nan
-        elif temp.dtype.type is numpy.bool_:
+        elif isinstance(temp[0].tolist(),bool):
             temp[~valids] = False
 
         return temp
