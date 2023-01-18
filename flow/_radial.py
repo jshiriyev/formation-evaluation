@@ -16,20 +16,20 @@ from scipy.special import yvp as bessel_yvp
 from scipy.optimize import root_scalar
 
 if __name__ == "__main__":
-    import setup
+    import _setup
 
-from petepy.items import Fluids
+import fluids
 
-from petepy.items import PorRock
-from petepy.items import Wells
+# from items import pormed
+# from items import Wells
 
 class OnePhaseRadial():
     """The solution based on the paper published by Everdingen et al."""
 
     def __init__(self,rr,tt,RR,num_of_terms=2):
 
-        self.rr = toarray(rr)
-        self.tt = toarray(tt)
+        self.rr = np.array(rr).flatten()
+        self.tt = np.array(tt).flatten()
 
         self.RR = RR
 
@@ -62,7 +62,7 @@ class OnePhaseRadial():
         it outputs its value at limit.
         """
 
-        beta = toarray(beta)
+        beta = np.array(beta).flatten()
 
         res = np.empty(beta.shape)
 

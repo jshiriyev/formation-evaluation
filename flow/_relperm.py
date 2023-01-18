@@ -5,7 +5,7 @@ import numpy as np
 if __name__ == "__main__":
     import dirsetup
 
-class relperm():
+class RelPerm():
     """
 
     This Model Provides IMBIBITION Relative Permeability MODELS for a system provided.

@@ -207,50 +207,50 @@ class theta3():
 
                 yield 1/2*s2
 
-    @staticmethod
-    def assembly(str1,obs,src,tau,res,str2):
+    # @staticmethod
+    # def assembly(str1,obs,src,tau,res,str2):
         
-        if strcmpi(str1,'x'):
-            Tloc = 'Xcoord';
-            Tdim = 'xLength';
-            Teta = 'xDiffusivity';
-        elif strcmpi(str1,'y'):
-            Tloc = 'Ycoord';
-            Tdim = 'yLength';
-            Teta = 'yDiffusivity';
-        elif strcmpi(str1,'z'):
-            Tloc = 'Zcoord';
-            Tdim = 'zLength';
-            Teta = 'zDiffusivity';
+    #     if strcmpi(str1,'x'):
+    #         Tloc = 'Xcoord';
+    #         Tdim = 'xLength';
+    #         Teta = 'xDiffusivity';
+    #     elif strcmpi(str1,'y'):
+    #         Tloc = 'Ycoord';
+    #         Tdim = 'yLength';
+    #         Teta = 'yDiffusivity';
+    #     elif strcmpi(str1,'z'):
+    #         Tloc = 'Zcoord';
+    #         Tdim = 'zLength';
+    #         Teta = 'zDiffusivity';
         
-        [~,Ncol] = size(src.(Tloc));
+    #     [~,Ncol] = size(src.(Tloc));
         
-        if Ncol == 1:
-            src.(Tloc) = src.(Tloc).transpose()
-        elseif Ncol > 1:
-            src.(Tloc) = permute(src.(Tloc),[3,2,1]);
-        end
+    #     if Ncol == 1:
+    #         src.(Tloc) = src.(Tloc).transpose()
+    #     elseif Ncol > 1:
+    #         src.(Tloc) = permute(src.(Tloc),[3,2,1]);
+    #     end
         
-        X.p = (obs.(Tloc)+src.(Tloc))/(2*res.(Tdim));
-        X.m = (obs.(Tloc)-src.(Tloc))/(2*res.(Tdim));
+    #     X.p = (obs.(Tloc)+src.(Tloc))/(2*res.(Tdim));
+    #     X.m = (obs.(Tloc)-src.(Tloc))/(2*res.(Tdim));
         
-        T = permute((res.(Teta)*tau)/(res.(Tdim)^2),[3 2 1]);
+    #     T = permute((res.(Teta)*tau)/(res.(Tdim)^2),[3 2 1]);
         
-        switch nargin
-            case 5
-                varargout{1} = X;
-                varargout{2} = T;
-            case 6
-                if strcmp(str2,'')
-                    H.p = green.ellipticTheta(X.p,T);
-                    H.m = green.ellipticTheta(X.m,T);
-                elseif strcmp(str2,'integral')
-                    H.p = green.ellipticTheta(X.p,T,'integral');
-                    H.m = green.ellipticTheta(X.m,T,'integral');
-                end
-                varargout{1} = H;
+    #     switch nargin
+    #         case 5
+    #             varargout{1} = X;
+    #             varargout{2} = T;
+    #         case 6
+    #             if strcmp(str2,'')
+    #                 H.p = green.ellipticTheta(X.p,T);
+    #                 H.m = green.ellipticTheta(X.m,T);
+    #             elseif strcmp(str2,'integral')
+    #                 H.p = green.ellipticTheta(X.p,T,'integral');
+    #                 H.m = green.ellipticTheta(X.m,T,'integral');
+    #             end
+    #             varargout{1} = H;
 
-        return [varargout]
+    #     return [varargout]
 
 class OnePhasePointSource():
     """
@@ -303,19 +303,19 @@ class OnePhasePointSource():
         self.y = np.full(self.numobs,self.b/2,dtype=np.float64)
         self.z = np.full(self.numobs,self.d,dtype=np.float64)
 
-    @staticmethod
-    def point(obs,src,tau,res):
+    # @staticmethod
+    # def point(obs,src,tau,res):
 
-        cons = 1/(8*res.porosity*res.totCompressibility*...
-            res.xLength*res.yLength*res.zLength);
+    #     cons = 1/(8*res.porosity*res.totCompressibility*...
+    #         res.xLength*res.yLength*res.zLength);
                 
-        Hx = green.thetaAssembly('x',obs,src,tau,res,'');
-        Hy = green.thetaAssembly('y',obs,src,tau,res,'');
-        Hz = green.thetaAssembly('z',obs,src,tau,res,'');
+    #     Hx = green.thetaAssembly('x',obs,src,tau,res,'');
+    #     Hy = green.thetaAssembly('y',obs,src,tau,res,'');
+    #     Hz = green.thetaAssembly('z',obs,src,tau,res,'');
         
-        array = cons*(Hx.p+Hx.m).*(Hy.p+Hy.m).*(Hz.p+Hz.m);
+    #     array = cons*(Hx.p+Hx.m).*(Hy.p+Hy.m).*(Hz.p+Hz.m);
 
-        return array
+    #     return array
 
 class OnePhaseLineSource():
 
@@ -394,71 +394,71 @@ class OnePhasePlaneSource():
 
         pass
 
-    @staticmethod
-    def plane(obs,src,tau,res,str):
+    # @staticmethod
+    # def plane(obs,src,tau,res,str):
             
-        cons = 1/(4*res.porosity*res.totCompressibility*...
-                    res.xLength*res.yLength);
+    #     cons = 1/(4*res.porosity*res.totCompressibility*...
+    #                 res.xLength*res.yLength);
         
-        switch nargin
+    #     switch nargin
             
-            case 5
+    #         case 5
             
-            if strcmp(str,'xz'):
+    #         if strcmp(str,'xz'):
 
-                cons = cons*(2*res.xLength);
+    #             cons = cons*(2*res.xLength);
                 
-                H1x = green.thetaAssembly('x',obs,src.point1,tau,res,'integral');
-                H2x = green.thetaAssembly('x',obs,src.point2,tau,res,'integral');
-                H1y = green.thetaAssembly('y',obs,src.point1,tau,res,'');
-                H1z = green.thetaAssembly('z',obs,src.point1,tau,res,'integral');
+    #             H1x = green.thetaAssembly('x',obs,src.point1,tau,res,'integral');
+    #             H2x = green.thetaAssembly('x',obs,src.point2,tau,res,'integral');
+    #             H1y = green.thetaAssembly('y',obs,src.point1,tau,res,'');
+    #             H1z = green.thetaAssembly('z',obs,src.point1,tau,res,'integral');
                 
-                array = cons*(H2x.p-H2x.m-H1x.p+H1x.m).*(H1y.p+H1y.m).*(H1z.p-H1z.m);
+    #             array = cons*(H2x.p-H2x.m-H1x.p+H1x.m).*(H1y.p+H1y.m).*(H1z.p-H1z.m);
                 
-                disp('Green loading... 100% is complete')
+    #             disp('Green loading... 100% is complete')
 
-            elif strcmp(str,'yz'):
+    #         elif strcmp(str,'yz'):
 
-                cons = cons*(2*res.yLength);
+    #             cons = cons*(2*res.yLength);
                 
-                H1x = green.thetaAssembly('x',obs,src.point1,tau,res,'');
-                H1y = green.thetaAssembly('y',obs,src.point1,tau,res,'integral');
-                H2y = green.thetaAssembly('y',obs,src.point2,tau,res,'integral');
-                H1z = green.thetaAssembly('z',obs,src.point1,tau,res,'integral');
+    #             H1x = green.thetaAssembly('x',obs,src.point1,tau,res,'');
+    #             H1y = green.thetaAssembly('y',obs,src.point1,tau,res,'integral');
+    #             H2y = green.thetaAssembly('y',obs,src.point2,tau,res,'integral');
+    #             H1z = green.thetaAssembly('z',obs,src.point1,tau,res,'integral');
                 
-                array = cons*(H1x.p+H1x.m).*(H2y.p-H2y.m-H1y.p+H1y.m).*(H1z.p-H1z.m);
+    #             array = cons*(H1x.p+H1x.m).*(H2y.p-H2y.m-H1y.p+H1y.m).*(H1z.p-H1z.m);
                 
-                disp('Green loading... 100% is complete')
+    #             disp('Green loading... 100% is complete')
             
-            case 4
+    #         case 4
                 
-            N = 20;
+    #         N = 20;
             
-            dl = src.Length.*linspace(0,1,N);
-            ds = (dl(:,2:end)-dl(:,1:end-1))/2;
+    #         dl = src.Length.*linspace(0,1,N);
+    #         ds = (dl(:,2:end)-dl(:,1:end-1))/2;
 
-            var.Xcoord = src.point1.Xcoord+src.signX.*dl.*cos(src.azimuth);
-            var.Ycoord = src.point1.Ycoord+src.signY.*dl.*sin(src.azimuth);
-            var.Zcoord = res.zLength;
+    #         var.Xcoord = src.point1.Xcoord+src.signX.*dl.*cos(src.azimuth);
+    #         var.Ycoord = src.point1.Ycoord+src.signY.*dl.*sin(src.azimuth);
+    #         var.Zcoord = res.zLength;
             
-            [Xx,Tx] = green.thetaAssembly('x',obs,var,tau,res);
-            [Xy,Ty] = green.thetaAssembly('y',obs,var,tau,res);
+    #         [Xx,Tx] = green.thetaAssembly('x',obs,var,tau,res);
+    #         [Xy,Ty] = green.thetaAssembly('y',obs,var,tau,res);
             
-            Hz = green.thetaAssembly('z',obs,var,tau,res,'integral');
+    #         Hz = green.thetaAssembly('z',obs,var,tau,res,'integral');
             
-            for i in range(1,src.numAfrac+1):
+    #         for i in range(1,src.numAfrac+1):
 
-                Hx.p = green.ellipticTheta(Xx.p(:,:,i),Tx);
-                Hx.m = green.ellipticTheta(Xx.m(:,:,i),Tx);
+    #             Hx.p = green.ellipticTheta(Xx.p(:,:,i),Tx);
+    #             Hx.m = green.ellipticTheta(Xx.m(:,:,i),Tx);
 
-                Hy.p = green.ellipticTheta(Xy.p(:,:,i),Ty);
-                Hy.m = green.ellipticTheta(Xy.m(:,:,i),Ty);
+    #             Hy.p = green.ellipticTheta(Xy.p(:,:,i),Ty);
+    #             Hy.m = green.ellipticTheta(Xy.m(:,:,i),Ty);
 
-                line = cons*(Hx.p+Hx.m).*(Hy.p+Hy.m).*(Hz.p-Hz.m);
+    #             line = cons*(Hx.p+Hx.m).*(Hy.p+Hy.m).*(Hz.p-Hz.m);
 
-                array(:,i,:) = sum(ds(i,:).*(line(:,2:end,:)+line(:,1:end-1,:)),2);
+    #             array(:,i,:) = sum(ds(i,:).*(line(:,2:end,:)+line(:,1:end-1,:)),2);
 
-                disp(['Green loading... ',num2str(i/src.numAfrac*100),'% is complete'])
+    #             disp(['Green loading... ',num2str(i/src.numAfrac*100),'% is complete'])
 
 class OnePhaseVolumeSource():
 
@@ -466,20 +466,20 @@ class OnePhaseVolumeSource():
 
         pass
 
-    @staticmethod
-    def volume(obs,tau,res): #-> array
+    # @staticmethod
+    # def volume(obs,tau,res): #-> array
             
-        src.Xcoord = res.xLength;
-        src.Ycoord = res.yLength;
-        src.Zcoord = res.zLength;
+    #     src.Xcoord = res.xLength;
+    #     src.Ycoord = res.yLength;
+    #     src.Zcoord = res.zLength;
         
-        Hx = green.thetaAssembly('x',obs,src,tau,res,'integral');
-        Hy = green.thetaAssembly('y',obs,src,tau,res,'integral');
-        Hz = green.thetaAssembly('z',obs,src,tau,res,'integral');
+    #     Hx = green.thetaAssembly('x',obs,src,tau,res,'integral');
+    #     Hy = green.thetaAssembly('y',obs,src,tau,res,'integral');
+    #     Hz = green.thetaAssembly('z',obs,src,tau,res,'integral');
         
-        array = (Hx.p-Hx.m).*(Hy.p-Hy.m).*(Hz.p-Hz.m)
+    #     array = (Hx.p-Hx.m).*(Hy.p-Hy.m).*(Hz.p-Hz.m)
 
-        return array
+    #     return array
 
 class OnePhaseFractureNetwork():
 
@@ -491,102 +491,102 @@ class OnePhaseFractureNetwork():
         self.pressure = None
         self.fracflux = None
     
-    @staticmethod
-    def solver(res,frac,well,time,Gplane)
+    # @staticmethod
+    # def solver(res,frac,well,time,Gplane)
             
-        # for now only constant fracture properties is modeled
+    #     # for now only constant fracture properties is modeled
         
-        # T = frac.permeability.*frac.areatofracture/...
-        #      res.oilViscosity/res.oilFVF./frac.Length;
+    #     # T = frac.permeability.*frac.areatofracture/...
+    #     #      res.oilViscosity/res.oilFVF./frac.Length;
 
-        req = 0.14*sqrt(frac.Length(well.wellID).^2+res.zLength^2);
+    #     req = 0.14*sqrt(frac.Length(well.wellID).^2+res.zLength^2);
         
-        J = 2*pi*frac.width(well.wellID).*frac.permeability(well.wellID)./...
-                (res.oilViscosity*res.oilFVF.*log(req/well.radius));
+    #     J = 2*pi*frac.width(well.wellID).*frac.permeability(well.wellID)./...
+    #             (res.oilViscosity*res.oilFVF.*log(req/well.radius));
             
-        if ~isempty(well.consPressure)
-            Q = J.*well.consPressure;
-            Jmat = sparse(well.wellID,well.wellID,J,frac.numAfrac,frac.numAfrac);
-        elif ~isempty(well.consFlowrate)
-            Q = -well.consFlowrate;
-            Jmat = sparse(frac.numAfrac,frac.numAfrac);
+    #     if ~isempty(well.consPressure)
+    #         Q = J.*well.consPressure;
+    #         Jmat = sparse(well.wellID,well.wellID,J,frac.numAfrac,frac.numAfrac);
+    #     elif ~isempty(well.consFlowrate)
+    #         Q = -well.consFlowrate;
+    #         Jmat = sparse(frac.numAfrac,frac.numAfrac);
             
-        Qvec = sparse(frac.numAfrac,1);
-        Qvec(well.wellID) = Qvec(well.wellID)+Q;
+    #     Qvec = sparse(frac.numAfrac,1);
+    #     Qvec(well.wellID) = Qvec(well.wellID)+Q;
         
-        Tmat = solver.transmissibility(res,frac);
+    #     Tmat = solver.transmissibility(res,frac);
 
-        obj.pressure = zeros(frac.numAfrac,time.numTimeStep);
-        obj.fracflux = zeros(frac.numAfrac,time.numTimeStep);
+    #     obj.pressure = zeros(frac.numAfrac,time.numTimeStep);
+    #     obj.fracflux = zeros(frac.numAfrac,time.numTimeStep);
         
-        Af = diag(frac.areatoreservoir);
+    #     Af = diag(frac.areatoreservoir);
         
-        for N in range(1,time.numTimeStep+1):
+    #     for N in range(1,time.numTimeStep+1):
             
-            Amat = (Tmat+Jmat)*Gplane(:,:,1)*time.deltaTime+Af/N;
+    #         Amat = (Tmat+Jmat)*Gplane(:,:,1)*time.deltaTime+Af/N;
             
-            green = solver.convolution(Gplane,obj.fracflux,2,N)*time.deltaTime;
-            fluxx = sum(obj.fracflux(:,1:N-1),2);
+    #         green = solver.convolution(Gplane,obj.fracflux,2,N)*time.deltaTime;
+    #         fluxx = sum(obj.fracflux(:,1:N-1),2);
         
-            bvec = (Tmat+Jmat)*(res.initPressure-green)-Af/N*fluxx-Qvec
+    #         bvec = (Tmat+Jmat)*(res.initPressure-green)-Af/N*fluxx-Qvec
 
-            obj.fracflux(:,N) = Amat/bvec # it is a inverse(Amat)*b
-           #obj.pressure(:,N+1) = (Tmat+Jmat)\(Af*obj.fracflux(:,N+1)+Qvec);
-            obj.pressure(:,N) = res.initPressure-Gplane(:,:,1)*obj.fracflux(:,N)*time.deltaTime-green;
+    #         obj.fracflux(:,N) = Amat/bvec # it is a inverse(Amat)*b
+    #        #obj.pressure(:,N+1) = (Tmat+Jmat)\(Af*obj.fracflux(:,N+1)+Qvec);
+    #         obj.pressure(:,N) = res.initPressure-Gplane(:,:,1)*obj.fracflux(:,N)*time.deltaTime-green;
             
-            disp(['Time iteration... ',num2str(N/time.numTimeStep*100),'% is complete'])
+    #         disp(['Time iteration... ',num2str(N/time.numTimeStep*100),'% is complete'])
         
-        if ~isempty(well.consPressure)
-            obj.wellpressure = zeros(1,time.numTimeStep)+well.consPressure;
-            obj.wellflowrate = -Q+J.*obj.pressure(well.wellID,:);
-        elif ~isempty(well.consFlowrate)
-            obj.wellpressure = obj.pressure(well.wellID,:)+Q./J;
-            obj.wellflowrate = zeros(1,time.numTimeStep)-Q;
+    #     if ~isempty(well.consPressure)
+    #         obj.wellpressure = zeros(1,time.numTimeStep)+well.consPressure;
+    #         obj.wellflowrate = -Q+J.*obj.pressure(well.wellID,:);
+    #     elif ~isempty(well.consFlowrate)
+    #         obj.wellpressure = obj.pressure(well.wellID,:)+Q./J;
+    #         obj.wellflowrate = zeros(1,time.numTimeStep)-Q;
     
-    @staticmethod
-    def transmissibility(res,frac)
+    # @staticmethod
+    # def transmissibility(res,frac):
             
-        # construction of transmissibility matrix
+    #     # construction of transmissibility matrix
         
-        Tmat = zeros(frac.numAfrac,frac.numAfrac);
+    #     Tmat = zeros(frac.numAfrac,frac.numAfrac);
         
-        for host in range(1,frac.numAfrac+1):
+    #     for host in range(1,frac.numAfrac+1):
             
-            [neighbor,~] = find(sum(permute(frac.map,[1,3,2])==frac.map(host,:),3));
+    #         [neighbor,~] = find(sum(permute(frac.map,[1,3,2])==frac.map(host,:),3));
 
-            neighbor(neighbor==host)=[];
+    #         neighbor(neighbor==host)=[];
 
-            if length(neighbor)~=length(unique(neighbor))
-                error('there is an error in the fracture map')
-            end
+    #         if length(neighbor)~=length(unique(neighbor))
+    #             error('there is an error in the fracture map')
+    #         end
             
-            deltax = (frac.Length(host)+frac.Length(neighbor))/2;
+    #         deltax = (frac.Length(host)+frac.Length(neighbor))/2;
             
-            perm = deltax./(frac.Length(host)/frac.permeability(host)/2+...
-                frac.Length(neighbor)./frac.permeability(neighbor)/2);
+    #         perm = deltax./(frac.Length(host)/frac.permeability(host)/2+...
+    #             frac.Length(neighbor)./frac.permeability(neighbor)/2);
             
-            trans = perm.*frac.areatofracture(host)/...
-                    res.oilViscosity/res.oilFVF./deltax;
+    #         trans = perm.*frac.areatofracture(host)/...
+    #                 res.oilViscosity/res.oilFVF./deltax;
 
-            Tmat(host,host) = sum(trans);
-            Tmat(host,neighbor) = -trans;
+    #         Tmat(host,host) = sum(trans);
+    #         Tmat(host,neighbor) = -trans;
     
-    @staticmethod
-    def convolution(matrix,vector,timeidx1,timeidx2)
+    # @staticmethod
+    # def convolution(matrix,vector,timeidx1,timeidx2):
 
-        switch nargin
-            case 2
-                timeidx1 = 1;
-                timeidx2 = size(vector,2);
-        end
+    #     switch nargin
+    #         case 2
+    #             timeidx1 = 1;
+    #             timeidx2 = size(vector,2);
+    #     end
         
-        n1 = timeidx1:timeidx2;
-        n2 = timeidx2-n1+1;
+    #     n1 = timeidx1:timeidx2;
+    #     n2 = timeidx2-n1+1;
         
-        G = matrix(:,:,n1);
-        Q = permute(vector(:,n2),[3,1,2]);
+    #     G = matrix(:,:,n1);
+    #     Q = permute(vector(:,n2),[3,1,2]);
         
-        array = sum(sum(G.*Q,2),3);
+    #     array = sum(sum(G.*Q,2),3);
 
 if __name__ == "__main__":
 

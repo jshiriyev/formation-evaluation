@@ -9,12 +9,12 @@ from scipy.sparse.linalg import spsolve as sps
 if __name__ == "__main__":
     import dirsetup
 
-from petepy.items import Fluids
+import fluids
 
-from petepy.items import PorRock
-from petepy.items import Wells
+# from borepy.items import PorRock
+# from borepy.items import Wells
 
-from fluidflow.pormed.conrelation import relative_permeability
+from flow.pormed import RelPerm
 
 class OnePhase():
     
