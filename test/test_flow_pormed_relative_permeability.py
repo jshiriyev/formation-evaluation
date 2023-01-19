@@ -5,7 +5,7 @@ import numpy as np
 if __name__ == "__main__":
     import dirsetup
 
-from flow.pormed.conrelation import relative_permeability
+from flow.pormed import RelPerm
 
 class TestRelativePermeability(unittest.TestCase):
     
@@ -20,7 +20,7 @@ class TestRelativePermeability(unittest.TestCase):
 
         Sw = np.array([0.25,0.3,0.4,0.5,0.6,0.65])
         
-        RP = relative_permeability(Sorow=0.35,Swc=0.25,krowc=0.85,krwor=0.4,no=0.9,nw=1.5)
+        RP = RelPerm(Sorow=0.35,Swc=0.25,krowc=0.85,krwor=0.4,no=0.9,nw=1.5)
 
         RP.krw,RP.kro = RP.water_oil(Sw)
 
@@ -41,7 +41,7 @@ class TestRelativePermeability(unittest.TestCase):
 
         Sg = np.array([0.05,0.1,0.2,0.3,0.4,0.52])
 
-        RP = relative_permeability(Sorgo=0.23,Swc=0.25,Sgc=0.05,krogc=0.6,krglc=0.95,no=1.2,ng=0.6)
+        RP = RelPerm(Sorgo=0.23,Swc=0.25,Sgc=0.05,krogc=0.6,krglc=0.95,no=1.2,ng=0.6)
 
         RP.krg,RP.kro = RP.gas_oil(Sg)
 

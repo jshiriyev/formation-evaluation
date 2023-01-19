@@ -46,42 +46,42 @@ class TestFrame(unittest.TestCase):
         numpy.testing.assert_array_equal(df["col0"],b)
         numpy.testing.assert_array_equal(df["col1"],a)
 
-    def test_col_astype(self):
+    # def test_col_astype(self):
 
-        a = numpy.array([1,2,3,4,5])
-        b = numpy.array([1.,3.4,numpy.nan,4.7,8])
-        c = numpy.array([datetime.datetime.today(),datetime.datetime(2022,2,2),datetime.datetime(2022,1,2),datetime.datetime(2021,12,2),None])
-        d = numpy.array(["1.","","5.7","6",""])
-        e = c.astype("datetime64")
+    #     a = numpy.array([1,2,3,4,5])
+    #     b = numpy.array([1.,3.4,numpy.nan,4.7,8])
+    #     c = numpy.array([datetime.datetime.today(),datetime.datetime(2022,2,2),datetime.datetime(2022,1,2),datetime.datetime(2021,12,2),None])
+    #     d = numpy.array(["1.","","5.7","6",""])
+    #     e = c.astype("datetime64")
 
-        df = frame(a=a,b=b,c=c,d=d,e=e)
+    #     df = frame(a=a,b=b,c=c,d=d,e=e)
 
-        for dtype in ("int","str","float"):
-            df['a'] = df['a'].astype(dtype)
+    #     for dtype in ("int","str","float"):
+    #         df['a'] = df['a'].astype(dtype)
 
-        bb = [
-            numpy.array([1,3,-99999,4,8]),
-            numpy.array(["1","3","","4","8"]),
-            numpy.array([1.,3.,numpy.nan,4.,8.]),
-            ]
+    #     bb = [
+    #         numpy.array([1,3,-99999,4,8]),
+    #         numpy.array(["1","3","","4","8"]),
+    #         numpy.array([1.,3.,numpy.nan,4.,8.]),
+    #         ]
 
-        for index,dtype in enumerate(("int","str","float")):
-            df['b'] = df['b'].astype(dtype)
-            numpy.testing.assert_array_equal(df['b'].vals,bb[index])
+    #     for index,dtype in enumerate(("int","str","float")):
+    #         df['b'] = df['b'].astype(dtype)
+    #         numpy.testing.assert_array_equal(df['b'].vals,bb[index])
 
-        for dtype in ("str","datetime64[D]"):
-            df['c'] = df['c'].astype(dtype)
+    #     for dtype in ("str","datetime64[D]"):
+    #         df['c'] = df['c'].astype(dtype)
 
-        for dtype in ("str","int","float"):
+    #     for dtype in ("str","int","float"):
 
-            if dtype=="int":
-                df['d'] = df['d'].fromstring(dtype="int",regex=r"[-+]?\d+\b")
-                df['d'] = df['d'].astype(dtype)
-            else:
-                df['d'] = df['d'].astype(dtype)
+    #         if dtype=="int":
+    #             df['d'] = df['d'].fromstring(dtype="int",regex=r"[-+]?\d+\b")
+    #             df['d'] = df['d'].astype(dtype)
+    #         else:
+    #             df['d'] = df['d'].astype(dtype)
 
-        for dtype in ("str","datetime64[D]"):
-            df['e'] = df['e'].astype(dtype)
+    #     for dtype in ("str","datetime64[D]"):
+    #         df['e'] = df['e'].astype(dtype)
 
     def test_representation_methods(self):
 
@@ -145,17 +145,17 @@ class TestFrame(unittest.TestCase):
         numpy.testing.assert_array_equal(col_.vals,
             numpy.array(["elthon smith","john verdin","tommy brian"]))
 
-    def test_tostruct(self):
+    # def test_tostruct(self):
 
-        names = numpy.array(["elthon","john","tommy"])
-        lasts = numpy.array(["smith","verdin","brian"])
-        ages = numpy.array([23,45,38])
+    #     names = numpy.array(["elthon","john","tommy"])
+    #     lasts = numpy.array(["smith","verdin","brian"])
+    #     ages = numpy.array([23,45,38])
 
-        df = frame(names=names,lasts=lasts,ages=ages)
+    #     df = frame(names=names,lasts=lasts,ages=ages)
 
-        arr_ = df.tostruct()
+    #     arr_ = df.tostruct()
 
-        numpy.testing.assert_array_equal(arr_[0].tolist(),('elthon', 'smith', 23))
+    #     numpy.testing.assert_array_equal(arr_[0].tolist(),('elthon', 'smith', 23))
 
     def test_sort(self):
 

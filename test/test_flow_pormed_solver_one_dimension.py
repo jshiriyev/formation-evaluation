@@ -3,9 +3,9 @@ import unittest
 import numpy as np
 
 if __name__ == "__main__":
-    import setup
+    import dirsetup
 
-from flow.pormed import computational
+from flow import _solver
 
 """POISSON for now"""
 

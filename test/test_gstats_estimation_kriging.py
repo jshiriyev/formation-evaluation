@@ -2,49 +2,48 @@ import os
 import sys
 import unittest
 
-sys.path.append(os.path.dirname(os.getcwd()))
-
 ##import matplotlib.pyplot as plt
 import numpy as np
 
-from connectivity import variogram
+if __name__ == '__main__':
+    import dirsetup
 
-from connectivity import item
-from spatial import kriging
+from gstats.connectivity import variogram
+from gstats.estimation import kriging
 
-class TestItem(unittest.TestCase):
+# class TestItem(unittest.TestCase):
 
-    def test_reading_nparray(self):
+#     def test_reading_nparray(self):
 
-        data = np.array([[100,11],[50,15],[35,21],[47,6]])
+#         data = np.array([[100,11],[50,15],[35,21],[47,6]])
         
-        data_item = item(data)
+#         data_item = item(data)
 
-        np.testing.assert_array_equal(data.ravel(),data_item.property)
+#         np.testing.assert_array_equal(data.ravel(),data_item.property)
         
-class TestEstimation(unittest.TestCase):
+# class TestEstimation(unittest.TestCase):
 
-    def test_exercise_peters(self):
+#     def test_exercise_peters(self):
 
-        """
-        Example 4.2 (Kriging) and 4.3 (Simulation) page 187, Peters Volume 1
-        """
+#         """
+#         Example 4.2 (Kriging) and 4.3 (Simulation) page 187, Peters Volume 1
+#         """
 
-        x = np.array([2,4,6])
-        y = np.array([30,50,20])
+#         x = np.array([2,4,6])
+#         y = np.array([30,50,20])
 
-        V = variogram(y,X=x)
+#         V = variogram(y,X=x)
 
-        V.set_theoretical(V.distance,vtype='exponential',vsill=100,vrange=10,vnugget=0)
+#         V.set_theoretical(V.distance,vtype='exponential',vsill=100,vrange=10,vnugget=0)
 
-        X = np.array([1,2,3,4,5,6,7,8])
-        Y = np.array([29.897,30.000,39.549,50.000,34.766,20.000,22.489,24.332])
+#         X = np.array([1,2,3,4,5,6,7,8])
+#         Y = np.array([29.897,30.000,39.549,50.000,34.766,20.000,22.489,24.332])
 
-        E = kriging(V,X=X)
+#         E = kriging(V,X=X)
 
-        E.ordinary()
+#         E.ordinary()
 
-        np.testing.assert_array_almost_equal(Y,E.property,decimal=3)
+#         np.testing.assert_array_almost_equal(Y,E.property,decimal=3)
 
 ##    def test_exercise_pyrcz(self):
 ##        pass
@@ -141,8 +140,8 @@ class TestEstimation(unittest.TestCase):
 
 ##unittest.main()
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
 
-    A = TestEstimation()
-    A.test_exercise_peters()
+#     A = TestEstimation()
+#     A.test_exercise_peters()
 

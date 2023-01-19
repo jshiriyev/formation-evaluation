@@ -5,17 +5,17 @@ import numpy as np
 if __name__ == "__main__":
     import dirsetup
 
-from interfaces.items import Pipes
+from flow.pormed import OnePhaseLineSource
 
-class TestPipes(unittest.TestCase):
+class TestComplexFlow(unittest.TestCase):
 
-    def geometry(self):
+    def point_source(self):
         pass
-
-    def singlephase(self):
+    
+    def line_source(self):
         pass
-
-    def multiphase(self):
+    
+    def plane_source(self):
         pass
                        
 if __name__ == "__main__":

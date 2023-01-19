@@ -138,14 +138,14 @@ class correlation():
         zmin = np.min((fA.min(),fB.min()))
         zmax = np.max((fA.max(),fB.max()))
 
-         plt.plot(np.array([zmin,zmax]),np.array([zmin,zmax]),'--',c='k')
-         plt.scatter(fA,fB,c='r')
+        plt.plot(np.array([zmin,zmax]),np.array([zmin,zmax]),'--',c='k')
+        plt.scatter(fA,fB,c='r')
 
-         plt.xlabel('A',fontsize=14)
-         plt.ylabel('B',fontsize=14)
+        plt.xlabel('A',fontsize=14)
+        plt.ylabel('B',fontsize=14)
 
-         ax = plt.gca()
-         ax.set_aspect('equal')
+        ax = plt.gca()
+        ax.set_aspect('equal')
 
 if __name__ == "__main__":
 

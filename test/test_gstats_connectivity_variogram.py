@@ -1,20 +1,23 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from bhospy.statistics.connectivity import variogram
+if __name__ == '__main__':
+	import dirsetup
 
-well = np.loadtxt("BHOS_REM_well",skiprows=1)
+from gstats.connectivity import variogram
 
-V = variogram(well[:,1],Z=well[:,0])
+# well = np.loadtxt("BHOS_REM_well",skiprows=1)
 
-V.set_experimental(lagmax=35)
+# V = variogram(well[:,1],Z=well[:,0])
 
-V.set_theoretical(np.linspace(0,50),vsill=18,vrange=25)
+# V.set_experimental(lagmax=35)
 
-plt.scatter(V.bins_experimental,V.experimental,c='r')
-plt.plot(V.bins_theoretical,V.theoretical,'k')
+# V.set_theoretical(np.linspace(0,50),vsill=18,vrange=25)
 
-plt.xlabel("lag distance")
-plt.ylabel("semi-variance")
+# plt.scatter(V.bins_experimental,V.experimental,c='r')
+# plt.plot(V.bins_theoretical,V.theoretical,'k')
 
-plt.show()
+# plt.xlabel("lag distance")
+# plt.ylabel("semi-variance")
+
+# plt.show()

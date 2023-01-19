@@ -5,7 +5,7 @@ import numpy as np
 if __name__ == "__main__":
     import dirsetup
 
-from stream.items import get_PorRock
+from mesh import rectangle
 
 class TestSimpleFormation(unittest.TestCase):
 

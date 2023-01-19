@@ -13,20 +13,20 @@ import numpy as np
 ##from bhos.geostat import item
 ##from bhos.univariate import heterogeneity
 ##from bhos.univariate import uncertainty
-from univariate import variogram
-from univariate import spatial_estimation
+# from univariate import variogram
+# from univariate import spatial_estimation
 
-with open('reservoir_pyrcz.csv') as csvfile:
+# with open('reservoir_pyrcz.csv') as csvfile:
     
-    intext = list(csv.reader(csvfile))
+#     intext = list(csv.reader(csvfile))
     
-    header = intext[0]
-    values = np.array(intext[1:]).T.astype('float64')
+#     header = intext[0]
+#     values = np.array(intext[1:]).T.astype('float64')
 
-data = {header[3]: values[3], #porosity
-        header[4]: values[4]} #permeability
+# data = {header[3]: values[3], #porosity
+#         header[4]: values[4]} #permeability
 
-V = variogram(values[3],X=values[0],Y=values[1])
+# V = variogram(values[3],X=values[0],Y=values[1])
 
 ##plt.figure(1)
 
@@ -42,10 +42,10 @@ V = variogram(values[3],X=values[0],Y=values[1])
 
 ##V.draw_search_box(origin_x=0,origin_y=0)
 
-V.set_experimental(25,3000,azimuth=45,azimuthtol=22.5,bandwidth=200)
+# V.set_experimental(25,3000,azimuth=45,azimuthtol=22.5,bandwidth=200)
 
-plt.plot(V.bins,V.experimental,'.')
-plt.show()
+# plt.plot(V.bins,V.experimental,'.')
+# plt.show()
 
 ##V.type = 'spherical'
 ##V.nugget = 0

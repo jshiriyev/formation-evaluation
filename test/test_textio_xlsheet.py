@@ -4,7 +4,7 @@ if __name__ == "__main__":
     import dirsetup
 
 from textio import xlsheet
-from textio import loadxl
+from textio import loadxlsheet
 from textio import xlbatch
 
 class TestXlSheet(unittest.TestCase):

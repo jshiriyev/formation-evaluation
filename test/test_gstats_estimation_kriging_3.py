@@ -2,63 +2,65 @@ import numpy as np
 
 import matplotlib.pyplot as plt
 
-from geostatistics.setpy import setup
-from geostatistics.kriging import kriging
+if __name__ == '__main__':
+	import dirsetup
 
-class observation: pass
-class estimation: pass
+from gstats.estimation import kriging
 
-sheets = {"num_cols": 4,"dataTypes": "col"}
+# class observation: pass
+# class estimation: pass
 
-setup('observation.csv',sheets,observation)
+# sheets = {"num_cols": 4,"dataTypes": "col"}
 
-plt.figure(1)
+# setup('observation.csv',sheets,observation)
 
-plt.scatter(observation.X,observation.Y,s=20,c=observation.F,alpha=0.5)
-plt.colorbar()
+# plt.figure(1)
 
-plt.title('Porosity Map');
-plt.xlabel('x-axis')
-plt.ylabel('y-axis')
+# plt.scatter(observation.X,observation.Y,s=20,c=observation.F,alpha=0.5)
+# plt.colorbar()
 
-plt.show()
+# plt.title('Porosity Map');
+# plt.xlabel('x-axis')
+# plt.ylabel('y-axis')
 
-xmin = 0;
-xmax = 4000;
+# plt.show()
 
-ymin = 0;
-ymax = 4000;
+# xmin = 0;
+# xmax = 4000;
 
-Nx = 200;
-Ny = 200;
+# ymin = 0;
+# ymax = 4000;
 
-Xlin = np.linspace(xmin,xmax,Nx+1).T
-Ylin = np.linspace(ymin,ymax,Ny+1).T
+# Nx = 200;
+# Ny = 200;
 
-[Xmesh,Ymesh] = np.meshgrid(Xlin,Ylin)
+# Xlin = np.linspace(xmin,xmax,Nx+1).T
+# Ylin = np.linspace(ymin,ymax,Ny+1).T
 
-observation.type = 'spherical'
-observation.nugget = 0
-observation.sill = 0.001
-observation.range = 500
+# [Xmesh,Ymesh] = np.meshgrid(Xlin,Ylin)
 
-estimation.X = Xmesh.flatten()
-estimation.Y = Ymesh.flatten()
-estimation.Z = np.ones_like(estimation.X)
+# observation.type = 'spherical'
+# observation.nugget = 0
+# observation.sill = 0.001
+# observation.range = 500
 
-estimation.mean = observation.F.mean()
+# estimation.X = Xmesh.flatten()
+# estimation.Y = Ymesh.flatten()
+# estimation.Z = np.ones_like(estimation.X)
 
-estimation = kriging(observation).simple(estimation)
+# estimation.mean = observation.F.mean()
 
-##Zmesh = griddata((X,Y),Z,(Xmesh,Ymesh),method='linear');
-##
-plt.figure(2)
+# estimation = kriging(observation).simple(estimation)
 
-plt.contourf(Xmesh,Ymesh,estimation.F_variance.reshape(201,201));
-plt.colorbar()
+# ##Zmesh = griddata((X,Y),Z,(Xmesh,Ymesh),method='linear');
+# ##
+# plt.figure(2)
 
-plt.title('Porosity Map');
-plt.xlabel('x-axis')
-plt.ylabel('y-axis')
+# plt.contourf(Xmesh,Ymesh,estimation.F_variance.reshape(201,201));
+# plt.colorbar()
 
-plt.show()
+# plt.title('Porosity Map');
+# plt.xlabel('x-axis')
+# plt.ylabel('y-axis')
+
+# plt.show()

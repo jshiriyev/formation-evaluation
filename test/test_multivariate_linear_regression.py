@@ -2,13 +2,13 @@ import numpy as np
 
 import matplotlib.pyplot as plt
 
-data = np.loadtxt("assignment2.txt",skiprows=1)
+# data = np.loadtxt("assignment2.txt",skiprows=1)
 
-p = data[:,0]
-k = data[:,1]
-F = data[:,2]
+# p = data[:,0]
+# k = data[:,1]
+# F = data[:,2]
 
-x = findslope(p,np.log(k))
+# x = findslope(p,np.log(k))
 
 ##plt.hist(x[1,:])
 ##plt.xlabel('slope',fontsize=14)

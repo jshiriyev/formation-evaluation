@@ -10,20 +10,20 @@ import pint
 if __name__ == "__main__":
     import dirsetup
 
-from textio import dirmaster
+from textio import dirmaster as Browser
 
 class TestDirMaster(unittest.TestCase):
 
     def test_init(self):
 
-        db = dirmaster()
+        db = Browser()
 
         db.homedir
         db.filedir
 
     def test_set_homedir(self):
 
-        db = dirmaster()
+        db = Browser()
 
         db.set_homedir(__file__)
 
@@ -31,7 +31,7 @@ class TestDirMaster(unittest.TestCase):
 
     def test_set_filedir(self):
 
-        db = dirmaster()
+        db = Browser()
 
         db.set_filedir(__file__)
 
@@ -39,15 +39,15 @@ class TestDirMaster(unittest.TestCase):
 
     def test_get_abspath(self):
 
-        dirmaster().get_abspath(__file__)
+        Browser().get_abspath(__file__)
 
     def test_get_dirpath(self):
 
-        dirmaster().get_dirpath(__file__)
+        Browser().get_dirpath(__file__)
 
     def test_get_fnames(self):
 
-        db = dirmaster()
+        db = Browser()
 
         db.get_fnames(__file__,returnAbsFlag=True)
 

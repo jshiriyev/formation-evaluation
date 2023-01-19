@@ -12,9 +12,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 if __name__ == "__main__":
-    import dirsetup
+    import _setup
 
-from interfaces.items import Rectangle
+from mesh import rectangle
 
 class Poisson():
 
@@ -41,15 +41,15 @@ class Poisson():
 
 if __name__ == "__main__":
 
-    rec = Rectangle()
+    rec = rectangle()
 
-    rec.set_size((1,1))
+    # rec.set_size((1,1))
 
-    rec.grid((3,2))
+    # rec.grid((3,2))
 
-    Nx = 5
-    Ny = 5
+    # Nx = 5
+    # Ny = 5
 
-    dx = 1./Nx
-    dy = 1./Ny
+    # dx = 1./Nx
+    # dy = 1./Ny
 

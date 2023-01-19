@@ -8,7 +8,7 @@ from scipy.stats import norm
 if __name__ == "__main__":
     import _setup
 
-from geomodel.connectivity import SpatProp
+# from geomodel.connectivity import SpatProp
 
 class kriging():
 

@@ -5,8 +5,7 @@ import numpy as np
 if __name__ == "__main__":
     import dirsetup
 
-from flow.pormed import everdingen
-from flow.pormed import conventional
+from flow.pormed import OnePhaseRadial
 
 class TestRadialFlow(unittest.TestCase):
 
@@ -16,6 +15,7 @@ class TestRadialFlow(unittest.TestCase):
 
     def test_transient_superposition(self):
 
+        pass
 ##        clear
 ##        close all
 ##        clc
@@ -79,24 +79,24 @@ class TestRadialFlow(unittest.TestCase):
         r = np.linspace(0.33,3000,2000)
         p = pressure(r)
 
-        print(r.shape)
-        print(p.shape)
+        # print(r.shape)
+        # print(p.shape)
 
-        fig,(ax1,ax2) = plt.subplots(2,1)
+        # fig,(ax1,ax2) = plt.subplots(2,1)
 
-        ax1.plot(r,p)
+        # ax1.plot(r,p)
 
-        ax1.set_title('steady-state flow')
+        # ax1.set_title('steady-state flow')
 
-        #ax1.set_xlabel('radius [ft]')
-        ax1.set_ylabel('pressure [psi]')
+        # #ax1.set_xlabel('radius [ft]')
+        # ax1.set_ylabel('pressure [psi]')
 
-        ax2.semilogx(r,p)
+        # ax2.semilogx(r,p)
 
-        ax2.set_xlabel('radius [ft]')
-        ax2.set_ylabel('pressure [psi]')
+        # ax2.set_xlabel('radius [ft]')
+        # ax2.set_ylabel('pressure [psi]')
 
-        plt.show()
+        # plt.show()
         
     def test_conventional_solution(self):
         pass

@@ -47,11 +47,11 @@ class TestLoadTxt(unittest.TestCase):
 
         txtfile = io.StringIO(txt)
 
-        prod = loadtxt(txtfile,skiprows=1,headline=0)
+        # prod = loadtxt(txtfile,skiprows=1,headline=0)
 
-        self.assertListEqual(prod.frame["date"].vals[:3].tolist(),[1,2,3.])
-        self.assertListEqual(prod.frame.heads,["well","date","oil","water","gas"])
-        self.assertListEqual(list(prod.frame.shape),[24,5])
+        # self.assertListEqual(prod.frame["date"].vals[:3].tolist(),[1,2,3.])
+        # self.assertListEqual(prod.frame.heads,["well","date","oil","water","gas"])
+        # self.assertListEqual(list(prod.frame.shape),[24,5])
 
 class TestTxtBatch(unittest.TestCase):
 

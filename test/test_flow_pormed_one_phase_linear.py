@@ -5,9 +5,7 @@ import numpy as np
 if __name__ == "__main__":
     import dirsetup
 
-from flow.pormed.linear import singlephase
-from flow.pormed.linear import multicomponent
-from flow.pormed.linear import multiphase
+from flow.pormed import OnePhaseLinear
 
 class TestLinearFlow(unittest.TestCase):
 

@@ -5,7 +5,7 @@ import numpy as np
 if __name__ == "__main__":
     import dirsetup
 
-from flow.pormed import fluids
+import fluids
 
 class TestStateFormulation(unittest.TestCase):
 
