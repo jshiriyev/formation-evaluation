@@ -258,7 +258,11 @@ class integers(numpy.ndarray):
     @property
     def issorted(self):
 
-        return
+        temp = self.view(numpy.ndarray).astype('float64')
+
+        temp = temp[temp!=self.null]
+
+        return numpy.all(temp[:-1]<=temp[1:])
 
     @staticmethod
     def _iterable(variable,null):
@@ -275,8 +279,11 @@ class integers(numpy.ndarray):
                 value = null
             except ValueError:
                 value = null
-            else:
+            
+            try:
                 value = int(value)
+            except ValueError:
+                value = null
 
             if value == null:
                 iterable.append(null)

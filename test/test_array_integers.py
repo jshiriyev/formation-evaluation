@@ -7,26 +7,122 @@ import numpy
 if __name__ == "__main__":
     import dirsetup
 
+"""
+assertEqual(a,b)                a==b
+assertNotEqual(a,b)             a != b
+assertTrue(x)                   bool(x) is True
+assertFalse(x)                  bool(x) is False
+assertIs(a,b)                   a is b
+assertIs(a,b)                   a is b
+assertIsNot(a, b)               a is not b
+assertIsNone(x)                 x is None
+assertIsNotNone(x)              x is not None
+assertIn(a, b)                  a in b
+assertNotIn(a, b)               a not in b
+assertIsInstance(a, b)          isinstance(a, b)
+assertNotIsInstance(a, b)       not isinstance(a, b)
+"""
+
 from arrays import integers
 
 class TestArray(unittest.TestCase):
 
-    def test_init_null_integer(self):
+    def test_init_bool(self):
 
-        x = integers([-99_999,5])
+        x = integers(True)
 
-        y = numpy.array([False,True],dtype=bool)
+        self.assertEqual(x[0],1)
 
-        numpy.testing.assert_array_equal(x.isvalid,y)
+        self.assertIsInstance(x,integers)
+
+    def test_init_int(self):
+
+        x = integers(int(5))
+
+        self.assertIsInstance(x,integers)
 
     def test_init_float(self):
 
-        x = integers(5.)
+        x = integers(5.7)
         y = numpy.array([5],dtype=int)
         
         numpy.testing.assert_array_equal(x.tolist(),y)
 
-    def test_init_string(self):
+        self.assertIsInstance(x,integers)
+
+    def test_init_float_nan(self):
+
+        x = integers(float('nan'))
+
+        self.assertIsInstance(x,integers)
+
+    def test_init_str_int(self):
+
+        x = integers('5')
+        y = numpy.array([5],dtype=int)
+
+        numpy.testing.assert_array_equal(x.tolist(),y.tolist())
+
+        self.assertIsInstance(x,integers)
+
+    def test_init_str_float(self):
+
+        x = integers('5.6')
+
+        self.assertIsInstance(x,integers)
+
+    def test_init_str_characters(self):
+
+        x = integers('john')
+        y = numpy.array([-99_999],dtype=int)
+
+        numpy.testing.assert_array_equal(x.tolist(),y.tolist())
+
+        self.assertIsInstance(x,integers)
+
+    def test_init_datetime_datetime(self):
+
+        x = integers(datetime.datetime.today())
+        y = numpy.array([-99_999],dtype=int)
+
+        numpy.testing.assert_array_equal(x.tolist(),y.tolist())
+
+        self.assertIsInstance(x,integers)
+
+    def test_init_datetime_date(self):
+
+        x = integers(datetime.date.today())
+        y = numpy.array([-99_999],dtype=int)
+
+        numpy.testing.assert_array_equal(x.tolist(),y.tolist())
+
+        self.assertIsInstance(x,integers)
+
+    def test_init_list_empty(self):
+
+        x = integers([])
+        y = numpy.array([],dtype=int)
+
+        numpy.testing.assert_array_equal(x.tolist(),y.tolist())
+
+        self.assertIsInstance(x,integers)
+
+    def test_init_list_int_none(self):
+
+        x = integers([5,None],null=-100)
+
+        self.assertIsInstance(x,integers)
+
+    def test_init_list_int_null(self):
+
+        x = integers([-99_999,5])
+        y = numpy.array([False,True],dtype=bool)
+
+        numpy.testing.assert_array_equal(x.isvalid,y)
+
+        self.assertIsInstance(x,integers)
+
+    def test_init_list_str_null(self):
 
         x = integers(["5","None"])
         y = numpy.array([5,-99_999],dtype=int)
@@ -37,40 +133,25 @@ class TestArray(unittest.TestCase):
         numpy.testing.assert_array_equal(x.tolist(),y.tolist())
         numpy.testing.assert_array_equal(x.isnull,z)
 
-    def test_init_string_number(self):
+        self.assertIsInstance(x,integers)
 
-        x = integers('5')
-        y = numpy.array([5],dtype=int)
+    def test_init_numpy_ndarray_bool(self):
 
-        numpy.testing.assert_array_equal(x.tolist(),y.tolist())
+        x = integers(numpy.array([True,False]))
 
-    def test_init_string_characters(self):
+        self.assertIsInstance(x,integers)
 
-        x = integers('cavid')
-        y = numpy.array([-99_999],dtype=int)
+    def test_init_numpy_ndarray_int(self):
 
-        numpy.testing.assert_array_equal(x.tolist(),y.tolist())
+        x = integers(numpy.array([1,2,3],dtype='int32'))
 
-    def test_init_datetime_datetime(self):
+        self.assertIsInstance(x,integers)
 
-        x = integers(datetime.datetime.today())
-        y = numpy.array([-99_999],dtype=int)
+    def test_init_numpy_ndarray_float_nan(self):
 
-        numpy.testing.assert_array_equal(x.tolist(),y.tolist())
+        x = integers(numpy.array([1.5,2.7,3,numpy.nan]))
 
-    def test_init_datetime_date(self):
-
-        x = integers(datetime.date.today())
-        y = numpy.array([-99_999],dtype=int)
-
-        numpy.testing.assert_array_equal(x.tolist(),y.tolist())
-
-    def test_init_empty_list(self):
-
-        x = integers([])
-        y = numpy.array([],dtype=int)
-
-        numpy.testing.assert_array_equal(x.tolist(),y.tolist())
+        self.assertIsInstance(x,integers)
 
     def test_slicing(self):
 
@@ -84,6 +165,8 @@ class TestArray(unittest.TestCase):
         self.assertEqual(y.null,-99_999)
 
         numpy.testing.assert_array_equal(y.tolist(),z.tolist())
+
+        self.assertIsInstance(x,integers)
 
     def test_add_non_iterable(self):
 
@@ -102,6 +185,8 @@ class TestArray(unittest.TestCase):
         self.assertEqual(type(y.isnull),numpy.ndarray)
         self.assertEqual(y.null,-100)
 
+        self.assertIsInstance(x,integers)
+
     def test_add_non_iterable_right_hand_side(self):
 
         x = integers([-99_999,5])
@@ -113,6 +198,8 @@ class TestArray(unittest.TestCase):
         numpy.testing.assert_array_equal((x+y).tolist(),(y+x).tolist())
         numpy.testing.assert_array_equal((x+z).tolist(),(z+x).tolist())
 
+        self.assertIsInstance(x,integers)
+
     def test_add_non_iterable_inplace(self):
 
         x = integers([-100,5],null=-100)
@@ -120,6 +207,8 @@ class TestArray(unittest.TestCase):
         y = numpy.array([-100,6])
 
         numpy.testing.assert_array_equal(x.tolist(),y.tolist())
+
+        self.assertIsInstance(x,integers)
 
     def test_add_iterable(self):
 
@@ -134,6 +223,8 @@ class TestArray(unittest.TestCase):
         numpy.testing.assert_array_equal(q.tolist(),t.tolist())
 
         self.assertEqual(type(y),integers)
+
+        self.assertIsInstance(x,integers)
 
 if __name__ == "__main__":
 
