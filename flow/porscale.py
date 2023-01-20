@@ -6,6 +6,8 @@ from scipy import optimize
 if __name__ == '__main__':
     import _setup
 
+"""Network modeling concepts available on Heriot Watt book"""
+
 class single_phase():
 
     pass

@@ -1953,17 +1953,6 @@ class WorkFlow():
 
 # TOOL INTERPRETATION
 
-class sonic():
-
-    def __init__(self,deltaTcomp,deltaTshear):
-
-        self.dtcomp = dtcomp
-        self.dtshear = dtshear
-
-    def porosity(self):
-
-        pass
-
 class spotential():
 
     def __init__(self,SP=None,TEMP=None):
@@ -2090,6 +2079,17 @@ class induction():
     def __init__(self):
 
         pass
+
+    def porosity(self):
+
+        pass
+
+class sonic():
+
+    def __init__(self,deltaTcomp,deltaTshear):
+
+        self.dtcomp = dtcomp
+        self.dtshear = dtshear
 
     def porosity(self):
 
