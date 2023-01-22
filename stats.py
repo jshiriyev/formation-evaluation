@@ -18,6 +18,12 @@ spatial information and includes following analysis:
     
 """
 
+"""
+1. Heterogeneity Measures
+2. Correlation Analysis
+3. Hypothesis Testing
+"""
+
 class heterogeneity():
 
     """
@@ -146,6 +152,12 @@ class correlation():
 
         ax = plt.gca()
         ax.set_aspect('equal')
+
+class hypothesis():
+
+    def __init__(self):
+
+        pass
 
 if __name__ == "__main__":
 
