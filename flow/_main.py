@@ -195,6 +195,12 @@ class RelPerm():
         kro = (kroow*krogo)/(self.krowc)*beta**n
 
         return kro,krw,krg
+
+class CapPres():
+
+    def __init__(self):
+
+        pass
     
 if __name__ == "__main__":
 

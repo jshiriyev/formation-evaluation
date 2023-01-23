@@ -1,7 +1,8 @@
 if __name__ == '__main__':
 	import _setup
 
-from flow._relperm import RelPerm
+from flow._main import RelPerm
+from flow._main import CapPres
 
 from flow._linear import OnePhaseLinear
 from flow._linear import OnePhaseLinearMultiComponent

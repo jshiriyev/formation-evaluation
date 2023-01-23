@@ -14,7 +14,14 @@ import fluids
 # from borepy.items import PorRock
 # from borepy.items import Wells
 
-from flow.pormed import RelPerm
+from flow._main import RelPerm
+from flow._main import CapPres
+
+class initialize():
+
+    def __init__(self):
+
+        pass
 
 class OnePhase():
     

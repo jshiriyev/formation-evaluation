@@ -1,7 +1,164 @@
-import numpy as np
+from matplotlib import pyplot
+
+import numpy
 
 if __name__ == "__main__":
     import dirsetup
+
+class RectGrid():
+
+    def __init__(self,number):
+        """It initializes grids:
+
+        number: must be a tuple or list (number of x grids, number of y grids)"""
+
+        super().__setattr__('number',number)
+
+        super().__setattr__('count',numpy.prod(self.number))
+
+        super().__setattr__('cmap',self._cmap())
+
+        hasxmin = ~(self.cmap[:,0]==self.cmap[:,1])
+        hasxmax = ~(self.cmap[:,0]==self.cmap[:,2])
+
+        hasymin = ~(self.cmap[:,0]==self.cmap[:,3])
+        hasymax = ~(self.cmap[:,0]==self.cmap[:,4])
+
+        super().__setattr__('hasxmin',hasxmin)
+        super().__setattr__('hasxmax',hasxmax)
+        super().__setattr__('hasymin',hasymin)
+        super().__setattr__('hasymax',hasymax)
+
+    def _cmap(self):
+
+        cmap = numpy.zeros((self.count,4),dtype='int32')
+
+        cmap = numpy.arange(self.count)
+        
+        cmap = numpy.tile(cmap,(5,1)).T
+
+        # cmap[cmap.reshape(-1,self.xnumber)[:,1:].ravel(),1] -= 1
+        # cmap[cmap.reshape(-1,self.xnumber)[:,:-1].ravel(),2] += 1
+
+        # cmap[cmap.reshape(1,-1)[:,self.xnumber:],3] -= self.xnumber
+        # cmap[cmap.reshape(1,-1)[:,:-self.xnumber],4] += self.xnumber
+
+        return cmap
+
+    def set_delta(self,xdelta,ydelta,zdelta):
+
+        delta = numpy.zeros((self.count,3),dtype='float64')
+
+        xdelta = numpy.array(xdelta).flatten()
+        ydelta = numpy.array(ydelta).flatten()
+
+        if xdelta.size == 1:
+            delta[:,0] = xdelta
+        elif xdelta.size == self.xnumber:
+            delta[:,0] = numpy.tile(xdelta,self.ynumber)
+        else:
+            raise ValueError
+
+        if ydelta.size == 1:
+            delta[:,1] = ydelta
+        elif ydelta.size == self.xnumber:
+            delta[:,1] = ydelta.repeat(self.xnumber)
+        else:
+            raise ValueError
+
+        delta[:,2] = zdelta
+        
+        super().__setattr__('delta',delta)
+
+    def set_center(self,xcenter,ycenter,zcenter):
+
+        center = numpy.zeros((self.count,3),dtype='float64')
+
+        xcenter = numpy.array(xcenter).flatten()
+        ycenter = numpy.array(ycenter).flatten()
+
+        if xcenter.size==1:
+            center[:,0] = xcenter
+        elif xcenter.size==self.xnumber:
+            center[:,0] = numpy.tile(xcenter,self.ynumber)
+        else:
+            raise ValueError("xcenter")
+
+        if ycenter.size==1:
+            center[:,1] = ycenter
+        elif ycenter.size == self.ynumber:
+            center[:,1] = ycenter.repeat(self.xnumber)
+        else:
+            raise ValueError("ycenter")
+
+        center[:,2] = zcenter
+
+        super().__setattr__('center',center)
+
+    def set_area(self):
+
+        area = numpy.zeros((self.count,3))
+
+        area[:,0] = self.zdelta*self.ydelta
+        area[:,1] = self.xdelta*self.zdelta
+        area[:,2] = self.ydelta*self.xdelta
+
+        super().__setattr__('area',area)
+
+    def set_volume(self):
+
+        volume = numpy.prod(self.delta,axis=1)
+
+        super().__setattr__('volume',volume)
+
+    def __setattr__(self,key,value):
+
+        raise AttributeError(f'RectGrid does not have attribute {key}')
+
+    @property
+    def xnumber(self):
+
+        return self.number[0]
+
+    @property
+    def ynumber(self):
+
+        return self.number[1]
+
+    @property
+    def znumber(self):
+
+        return 1
+    
+    @property
+    def xcenter(self):
+
+        return self.center[:,0]
+
+    @property
+    def ycenter(self):
+
+        return self.center[:,1]
+
+    @property
+    def zcenter(self):
+
+        return self.center[:,2]
+
+    @property
+    def xdelta(self):
+
+        return self.delta[:,0]
+
+    @property
+    def ydelta(self):
+
+        return self.delta[:,1]
+
+    @property
+    def zdelta(self):
+
+        return self.delta[:,2]
 
 class line():
 
@@ -55,143 +212,169 @@ class line():
         axis.set_zlabel("z-axis")
         axis.invert_zaxis()
 
+class triangle():
+
+    def __init__(self):
+
+        pass
+
 class rectangle():
+    """It is a 2D object in 3D space."""
 
-    # it is a 2D object in 3D space
+    def __init__(self,length=1,width=1,height=1,center=None):
+        """Initialization of rectangle in 3D domain.
+        If center is not defined, left-bottom vertex will be assigned to (0,0) point."""
 
-    def __init__(self,lengths=None,thickness=1,**kwargs):
+        self._length = length
+        self._width = width
+        self._height = height
 
-        super().__init__(**kwargs)
+        if center is None:
+            center = (length/2,width/2)
 
-        if lengths is not None:
-            self.set_lengths(lengths)
+        self._center = numpy.array(center)
 
-        self.set_thickness(thickness)
+        self._vertices()
 
-        self.gridFlag = False
+    def _vertices(self):
 
-    def set_lengths(self,lengths):
+        vertices = numpy.zeros((4,2),dtype='float64')
 
-        self.lengths = lengths
-        self.aspect = lengths[0]/lengths[1]
+        vertices[0,:] = self.center+(-self.length/2,-self.width/2)
+        vertices[1,:] = self.center+(-self.length/2,+self.width/2)
+        vertices[2,:] = self.center+(+self.length/2,+self.width/2)
+        vertices[3,:] = self.center+(+self.length/2,-self.width/2)
 
-        self.set_rectangle()
+        self.vertices = vertices
 
-    def set_area(self,area,aspect=1):
-        
-        self.area = area
+        self.indices = numpy.array((0,1,2,3,0),dtype='int32')
 
-        length1 = np.sqrt(self.area*aspect)
-        length2 = length1/aspect
+    def set_grid(self,number,**kwargs):
 
-        self.set_lengths(lengths=(length1,length2))
+        self.grid = RectGrid(number)
 
-    def set_thickness(self,thickness):
+        xcenter = kwargs.get('xcenter')
+        ycenter = kwargs.get('ycenter')
+        zcenter = kwargs.get('zcenter')
 
-        self.thickness = thickness
+        xdelta = kwargs.get('xdelta')
+        ydelta = kwargs.get('ydelta')
+        zdelta = kwargs.get('zdelta')
 
-        if hasattr(self,"lengths"):
-            self.set_rectangle()
+        if xdelta is None:
+            xdelta = self.length/self.grid.xnumber
 
-    def set_rectangle(self):
+        if ydelta is None:
+            ydelta = self.width/self.grid.ynumber
 
-        self.edge_vertices = np.zeros((4,2))
+        if zdelta is None:
+            zdelta = self.height
 
-        self.edge_vertices[0,:] = (0,0)
-        self.edge_vertices[1,:] = (self.lengths[0],0)
-        self.edge_vertices[2,:] = (self.lengths[0],self.lengths[1])
-        self.edge_vertices[3,:] = (0,self.lengths[1])
+        self.grid.set_delta(xdelta,ydelta,zdelta)
 
-        indices = np.empty((4,2),dtype=int)
+        if xcenter is None:
+            xvalues = numpy.linspace(self.xpoint0,self.xpoint3,number[0],endpoint=False)
+            xcenter = xvalues+self.grid.xdelta[:number[0]]/2
 
-        indices[:,0] = (0,1,2,3)
-        indices[:,1] = (1,2,3,0)
-        
-        x_aspects = self.edge_vertices[:,0][indices]
-        y_aspects = self.edge_vertices[:,1][indices]
+        if ycenter is None:
+            yvalues = numpy.linspace(self.ypoint0,self.ypoint1,number[1],endpoint=False)
+            ycenter = yvalues+self.grid.ydelta[::number[0]]/2
 
-        self.boundaries = []
+        if zcenter is None:
+            zcenter = self.height/2
 
-        for x_aspect,y_aspect in zip(x_aspects,y_aspects):
-            self.boundaries.append(np.array([x_aspect,y_aspect]))
+        self.grid.set_center(xcenter,ycenter,zcenter)
 
-    def set_grids(self,grid_num):
+        self.grid.set_area()
+        self.grid.set_volume()
 
-        # grid_num must be a tuple or list with length equal to 2
-        
-        self.grid_num = grid_num
+    def plot(self,axis=None,showVertices=True,showBounds=True,showEdges=False,showCenters=True):
 
-        self.grid_numtot = np.prod(self.grid_num)
+        show = True if axis is None else False
 
-        idx = np.arange(self.grid_numtot)
-        
-        self.grid_indices = np.tile(idx,(7,1)).T
-
-        self.grid_indices[idx.reshape(-1,self.grid_num[0])[:,1:].ravel(),1] -= 1
-        self.grid_indices[idx.reshape(-1,self.grid_num[0])[:,:-1].ravel(),2] += 1
-        self.grid_indices[idx.reshape(1,-1)[:,self.grid_num[0]:],3] -= self.grid_num[0]
-        self.grid_indices[idx.reshape(1,-1)[:,:-self.grid_num[0]],4] += self.grid_num[0]
-        self.grid_indices[idx.reshape(1,-1)[1:,:],5] -= self.grid_num[0]*self.grid_num[1]
-        self.grid_indices[idx.reshape(1,-1)[:-1,:],6] += self.grid_num[0]*self.grid_num[1]
-
-        self.grid_hasxmin = ~(self.grid_indices[:,0]==self.grid_indices[:,1])
-        self.grid_hasxmax = ~(self.grid_indices[:,0]==self.grid_indices[:,2])
-        self.grid_hasymin = ~(self.grid_indices[:,0]==self.grid_indices[:,3])
-        self.grid_hasymax = ~(self.grid_indices[:,0]==self.grid_indices[:,4])
-        self.grid_haszmin = ~(self.grid_indices[:,0]==self.grid_indices[:,5])
-        self.grid_haszmax = ~(self.grid_indices[:,0]==self.grid_indices[:,6])
-
-        self.grid_xnodes = np.linspace(0,self.lengths[0],self.grid_num[0]+1)
-        self.grid_ynodes = np.linspace(0,self.lengths[1],self.grid_num[1]+1)
-        self.grid_znodes = np.linspace(-self.thickness/2,self.thickness/2,2)
-        
-        xsize = self.grid_xnodes[1:]-self.grid_xnodes[:-1]
-        ysize = self.grid_ynodes[1:]-self.grid_ynodes[:-1]
-        zsize = self.grid_znodes[1:]-self.grid_znodes[:-1]
-        
-        self.grid_sizes = np.zeros((self.grid_numtot,3))
-        self.grid_sizes[:,0] = np.tile(xsize,self.grid_num[1])
-        self.grid_sizes[:,1] = ysize.repeat(self.grid_num[0])
-        self.grid_sizes[:,2] = zsize.repeat(self.grid_num[0]*self.grid_num[1])
-
-        self.grid_areas = np.zeros((self.grid_numtot,3))
-        self.grid_areas[:,0] = self.grid_sizes[:,1]*self.thickness
-        self.grid_areas[:,1] = self.grid_sizes[:,0]*self.thickness
-        self.grid_areas[:,2] = self.grid_sizes[:,0]*self.grid_sizes[:,1]
-
-        self.grid_volumes = np.prod(self.grid_sizes,axis=1)
-
-        xcenter = self.grid_xnodes[:-1]+xsize/2
-        ycenter = self.grid_ynodes[:-1]+ysize/2
-        zcenter = self.grid_znodes[:-1]+zsize/2
-        
-        self.grid_centers = np.zeros((self.grid_numtot,3))
-        self.grid_centers[:,0] = np.tile(xcenter,self.grid_num[1])
-        self.grid_centers[:,1] = ycenter.repeat(self.grid_num[0])
-        self.grid_centers[:,2] = zcenter.repeat(self.grid_num[0]*self.grid_num[1])
-
-        self.gridFlag = True     # it is a crucial property to know whether the geometry is gridded or not
-
-    def plot(self,axis,showVertices=True,showBounds=True,showGridEdges=True,showGridCenters=True):
+        if axis is None:
+            axis = pyplot.figure().add_subplot()
 
         if showVertices:
-            axis.scatter(*self.edge_vertices.T)
+            axis.scatter(*self.vertices.T)
 
         if showBounds:
-            for line in self.boundaries:
-                axis.plot(*line,color='grey')
+            axis.plot(*self.vertices[self.indices].T,color='grey')
 
-        if showGridEdges:
+        if showEdges:
             for node in self.grid_xnodes[1:-1]:
                 axis.vlines(x=node,ymin=0,ymax=self.lengths[1],linestyle="--")
             for node in self.grid_ynodes[1:-1]:
                 axis.hlines(y=node,xmin=0,xmax=self.lengths[0],linestyle="--")
 
-        if showGridCenters:
-            axis.scatter(*self.grid_centers.T[:2,:])
+        if showCenters:
+            axis.scatter(*self.grid.center.T[:2,:])
 
-        axis.set_box_aspect(self.lengths[1]/self.lengths[0])
+        axis.set_box_aspect(self.width/self.length)
 
+        if show:
+            pyplot.show()
+
+    @property
+    def length(self):
+
+        return self._length
+    
+    @property
+    def width(self):
+        
+        return self._width
+
+    @property
+    def height(self):
+
+        return self._height
+
+    @property
+    def center(self):
+
+        return self._center
+
+    @property
+    def xpoint0(self):
+
+        return self.vertices[0,0]
+
+    @property
+    def ypoint0(self):
+
+        return self.vertices[0,1]
+
+    @property
+    def xpoint1(self):
+
+        return self.vertices[1,0]
+
+    @property
+    def ypoint1(self):
+
+        return self.vertices[1,1]
+
+    @property
+    def xpoint2(self):
+
+        return self.vertices[2,0]
+
+    @property
+    def ypoint2(self):
+
+        return self.vertices[2,1]
+
+    @property
+    def xpoint3(self):
+
+        return self.vertices[3,0]
+
+    @property
+    def ypoint3(self):
+
+        return self.vertices[3,1]
+    
 class ellipse():
 
     # This class is supposed to create 2-D surface in 3-D domain
