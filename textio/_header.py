@@ -84,7 +84,7 @@ class Header():
             if row[0].lower()==key.lower():
                 break
         
-        return header(**dict(zip(self.params,row)))
+        return Header(**dict(zip(self.params,row)))
 
     def __repr__(self,fstring=None,comment=None):
 

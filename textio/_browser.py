@@ -1,3 +1,5 @@
+import os
+
 class Browser():
     """Base directory class to manage files in the input & output directories."""
 
