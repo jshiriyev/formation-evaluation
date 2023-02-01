@@ -5,9 +5,8 @@ import unittest
 import numpy
 
 if __name__ == "__main__":
-    import _setup
-
-from arrays import flatten
+    
+    from borepy.scomp.arrays import flatten
 
 class TestFlatten(unittest.TestCase):
 
@@ -16,6 +15,7 @@ class TestFlatten(unittest.TestCase):
         x = flatten(5)
         y = [5]
 
+        self.assertIsInstance(x,list)
         self.assertListEqual(x,y)
         self.assertEqual(type(x[0]),int)
 
@@ -24,6 +24,7 @@ class TestFlatten(unittest.TestCase):
         x = flatten(5.)
         y = [5.]
 
+        self.assertIsInstance(x,list)
         self.assertListEqual(x,y)
         self.assertEqual(type(x[0]),float)
 
@@ -32,6 +33,7 @@ class TestFlatten(unittest.TestCase):
         x = flatten('5')
         y = ['5']
 
+        self.assertIsInstance(x,list)
         self.assertListEqual(x,y)
         self.assertEqual(type(x[0]),str)
 
@@ -40,6 +42,7 @@ class TestFlatten(unittest.TestCase):
         x = flatten('cavid')
         y = ['cavid']
 
+        self.assertIsInstance(x,list)
         self.assertListEqual(x,y)
         self.assertEqual(type(x[0]),str)
 
@@ -48,6 +51,7 @@ class TestFlatten(unittest.TestCase):
         x = flatten('2022-02-28')
         y = ['2022-02-28']
 
+        self.assertIsInstance(x,list)
         self.assertListEqual(x,y)
         self.assertEqual(type(x[0]),str)
 
@@ -58,6 +62,7 @@ class TestFlatten(unittest.TestCase):
         x = flatten(time)
         y = [time]
 
+        self.assertIsInstance(x,list)
         self.assertListEqual(x,y)
         self.assertEqual(type(x[0]),datetime.datetime)
 
@@ -68,6 +73,7 @@ class TestFlatten(unittest.TestCase):
         x = flatten(time)
         y = [time]
 
+        self.assertIsInstance(x,list)
         self.assertListEqual(x,y)
         self.assertEqual(type(x[0]),datetime.date)
 
@@ -76,6 +82,7 @@ class TestFlatten(unittest.TestCase):
         x = flatten(None)
         y = [None]
 
+        self.assertIsInstance(x,list)
         self.assertListEqual(x,y)
         self.assertEqual(x[0],None)
 
@@ -84,6 +91,7 @@ class TestFlatten(unittest.TestCase):
         x = flatten([])
         y = []
 
+        self.assertIsInstance(x,list)
         self.assertListEqual(x,y)
 
     def test_flat_list(self):
@@ -91,6 +99,7 @@ class TestFlatten(unittest.TestCase):
         x = flatten([5,6])
         y = [5,6]
 
+        self.assertIsInstance(x,list)
         self.assertListEqual(x,y)
         self.assertEqual(type(x[0]),int)
         self.assertEqual(type(x[1]),int)
@@ -100,6 +109,7 @@ class TestFlatten(unittest.TestCase):
         x = flatten((5,6))
         y = [5,6]
 
+        self.assertIsInstance(x,list)
         self.assertListEqual(x,y)
         self.assertEqual(type(x[0]),int)
         self.assertEqual(type(x[1]),int)
@@ -109,6 +119,7 @@ class TestFlatten(unittest.TestCase):
         x = flatten({5,7})
         y = [5,7]
 
+        self.assertIsInstance(x,list)
         self.assertListEqual(x,y)
         self.assertEqual(type(x[0]),int)
         self.assertEqual(type(x[1]),int)
@@ -118,6 +129,7 @@ class TestFlatten(unittest.TestCase):
         x = flatten(numpy.array([5]))
         y = [5]
 
+        self.assertIsInstance(x,list)
         self.assertListEqual(x,y)
         self.assertEqual(type(x[0]),int)
 
@@ -126,6 +138,7 @@ class TestFlatten(unittest.TestCase):
         x = flatten(((1,2,3),(23,4)))
         y = [1,2,3,23,4]
 
+        self.assertIsInstance(x,list)
         self.assertListEqual(x,y)
         self.assertEqual(type(x[0]),int)
 
@@ -134,6 +147,7 @@ class TestFlatten(unittest.TestCase):
         x = flatten(((1,2,3,(2,5,6)),(23,4)))
         y = [1,2,3,2,5,6,23,4]
 
+        self.assertIsInstance(x,list)
         self.assertListEqual(x,y)
         self.assertEqual(type(x[0]),int)
 
@@ -147,6 +161,7 @@ class TestFlatten(unittest.TestCase):
         x = flatten(dictionary)
         y = ['name','last']
 
+        self.assertIsInstance(x,list)
         self.assertListEqual(x,y)
         self.assertEqual(type(x[0]),str)
 
@@ -161,6 +176,7 @@ class TestFlatten(unittest.TestCase):
         x = flatten(dictionary)
         y = ['name','last','numbers']
 
+        self.assertIsInstance(x,list)
         self.assertListEqual(x,y)
         self.assertEqual(type(x[0]),str)
 
@@ -171,8 +187,8 @@ class TestFlatten(unittest.TestCase):
         x = flatten(var)
         y = [1,2.,'cavid',datetime.datetime.today()]
 
+        self.assertIsInstance(x,list)
         self.assertListEqual(x,y)
-        # self.assertEqual(x.dtype.type,numpy.dtype('str').type)
 
     def test_object_type_numpy_array(self):
 
@@ -183,6 +199,7 @@ class TestFlatten(unittest.TestCase):
         y = flatten(varb)
         z = [1,2,3,4,5]
 
+        self.assertIsInstance(x,list)
         self.assertListEqual(x,z)
         self.assertListEqual(y,z)
 
