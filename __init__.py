@@ -1,5 +1,8 @@
 from . import scomp
 
+from .scomp import arrays
+from .scomp import datum
+
 from . import textio
 
 from . import gmodel
