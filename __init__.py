@@ -1,6 +1,6 @@
 from . import scomp
 
-from .scomp import arrays
+from .scomp import array
 from .scomp import datum
 
 from . import textio

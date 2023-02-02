@@ -6,7 +6,7 @@ import numpy
 
 if __name__ == "__main__":
     
-    from borepy.scomp.arrays import ints
+    from borepy.scomp.array import ints
 
 class TestIntArray(unittest.TestCase):
 
@@ -163,7 +163,7 @@ class TestIntArray(unittest.TestCase):
         self.assertEqual(type(y),ints)
 
         numpy.testing.assert_array_equal(y.isnull,z)
-        numpy.testing.assert_array_equal(q.tolist(),b.tolist())
+        numpy.testing.assert_array_equal(q.view(numpy.ndarray),b)
 
         self.assertEqual(type(y.isnull),numpy.ndarray)
         self.assertEqual(y.null,-100)
@@ -208,6 +208,126 @@ class TestIntArray(unittest.TestCase):
         self.assertEqual(type(y),ints)
 
         self.assertIsInstance(x,ints)
+
+    def test_ceil(self):
+
+        x = ints([11,2,None],null=-22_222)
+
+        y = x.ceil(1)
+        z = x.ceil(2)
+        w = x.ceil(3)
+
+        yy = numpy.array([20,10,-22_222])
+        zz = numpy.array([100,100,-22_222])
+        ww = numpy.array([1000,1000,-22_222])
+
+        numpy.testing.assert_array_equal(y.view(numpy.ndarray),yy)
+        numpy.testing.assert_array_equal(z.view(numpy.ndarray),zz)
+        numpy.testing.assert_array_equal(w.view(numpy.ndarray),ww)
+
+    def test_floor(self):
+
+        x = ints([11,2,None])
+
+        y = x.floor(1)
+        z = x.floor(2)
+        w = x.floor(3)
+
+        yy = numpy.array([10,0,-99_999])
+        zz = numpy.array([0,0,-99_999])
+        ww = numpy.array([0,0,-99_999])
+
+        numpy.testing.assert_array_equal(y.view(numpy.ndarray),yy)
+        numpy.testing.assert_array_equal(z.view(numpy.ndarray),zz)
+        numpy.testing.assert_array_equal(w.view(numpy.ndarray),ww)
+
+    def test_static_arange(self):
+
+        x = ints._arange(0,10,step=5)
+
+        xx = numpy.array([0,5,10])
+
+        numpy.testing.assert_array_equal(x.view(numpy.ndarray),xx)
+
+        y = ints._arange(0,10,size=3)
+
+        yy = numpy.array([0,5,10])
+
+        numpy.testing.assert_array_equal(y.view(numpy.ndarray),yy)
+        
+    def test_static_repeat(self):
+
+        x = ints._repeat([1,2,3,4,5,None],size=7)
+        
+        y = numpy.array([1,2,3,4,5,-99_999,1])
+
+        numpy.testing.assert_array_equal(x.view(numpy.ndarray),y)
+
+    def test_astype_float(self):
+
+        x = ints([1,2,3,4,None,-222,99],null=-222)
+
+        y = x.astype(float)
+
+        yy = numpy.array([1,2,3,4,numpy.nan,numpy.nan,99])
+
+        numpy.testing.assert_array_equal(y.view(numpy.ndarray),yy)
+
+    def test_astype_str(self):
+
+        x = ints._repeat([1,2,3,4,5,None],size=7)
+
+        y = x.astype("str")
+        
+        yy = numpy.array(["1","2","3","4","5","-99999","1"])
+
+        numpy.testing.assert_array_equal(y.view(numpy.ndarray),yy)
+
+    def test_property_issorted(self):
+
+        x = ints._repeat([1,2,3,4,5,None],size=7)
+
+        self.assertEqual(x.issorted,False)
+
+        y = ints._repeat([1,2,3,4,5,None],size=6)
+
+        self.assertEqual(y.issorted,True)
+
+    def test_comparison_operators(self):
+
+        x = ints([1,2,3,4,None,-222,99],null=-222)
+
+        y = x==1
+
+        yy = numpy.array([True,False,False,False,False,False,False])
+
+        z = x!=1
+
+        zz = numpy.array([False,True,True,True,True,True,True])
+
+        numpy.testing.assert_array_equal(y,yy)
+        numpy.testing.assert_array_equal(z,zz)
+
+    def test_numpy_sum(self):
+
+        x = ints([1,2,3,4,None,-222,9],null=-222)
+
+        self.assertEqual(numpy.sum(x),19)
+        self.assertEqual(x.min(),1)
+        self.assertEqual(x.max(),9)
+
+    def test_numpy_argmin(self):
+
+        x = ints([1,2,3,-222,None],null=-222)
+
+        self.assertEqual(x[:2].null,-222)
+        self.assertEqual(x.argmin(),0)
+
+    def test_numpy_argmax(self):
+
+        x = ints([1,2,3,-222,None],null=-222)
+        
+        self.assertEqual(x.argmax(),2)
 
 if __name__ == "__main__":
 

@@ -1,4 +1,4 @@
-from borepy.scomp.arrays._curve import Curve
+from borepy.scomp.array._curve import Curve
 
 def pop(kwargs,key,default=None):
 
