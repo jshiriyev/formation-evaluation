@@ -324,10 +324,16 @@ class TestIntArray(unittest.TestCase):
         self.assertEqual(x.argmin(),0)
 
     def test_numpy_argmax(self):
-
+        
         x = ints([1,2,3,-222,None],null=-222)
         
         self.assertEqual(x.argmax(),2)
+
+    def test_resolved_dtypes(self):
+
+        x = ints([1,2,3,4,None,7])
+        print("I was here")
+        print(x.cumsum())
 
 if __name__ == "__main__":
 

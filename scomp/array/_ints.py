@@ -4,6 +4,8 @@ import numpy
 
 from ._flatten import flatten
 
+# mean, variance, introduce N-1 division in variance
+
 class ints(numpy.ndarray):
     """It is a flat subclass of numpy.ndarray that includes null entries.
     If null is not defined or is None, -99_999 is set as sentinel value."""
@@ -26,10 +28,59 @@ class ints(numpy.ndarray):
 
         self._null = getattr(obj,'_null',-99_999)
 
+    def _resolved_args_(self,ufunc,method,*args):
+
+        superargs = []
+
+        return superargs
+
+    def _resolved_dtypes_(self,ufunc,method,*args):
+
+        dtypes = []
+
+        reduction = False
+
+        if method != '__call__':
+
+            dtypes.append(None)
+
+            reduction = True
+
+        for index,arg in enumerate(args):
+
+            if arg is None:
+                dtypes.append(int)
+
+            elif type(arg).__module__ == numpy.__name__:
+                dtypes.append(arg.dtype)
+
+            elif isinstance(arg,numpy.ndarray):
+                dtypes.append(arg.dtype)
+
+            elif isinstance(arg,str):
+                dtypes.append(str)
+
+            elif hasattr(arg,"__iter__"):
+                values = numpy.array(arg)
+                dtypes.append(values.dtype)
+
+            else:
+                dtypes.append(type(arg))
+
+        for _ in range(len(dtypes),ufunc.nargs):
+
+            dtypes.append(None)
+
+        rdtypes = ufunc.resolve_dtypes(tuple(dtypes),reduction=reduction)
+
+        return rdtypes
+
     def __array_ufunc__(self,ufunc,method,*args,out=None,**kwargs):
 
         classtype = [] # index of ints type inputs
         superargs = [] # positional arguments for parent class
+
+        dtypes = self._resolved_dtypes_(ufunc,method,*args)
 
         for index,arg in enumerate(args):
 
@@ -37,7 +88,7 @@ class ints(numpy.ndarray):
                 classtype.append(index)
                 if ufunc in comparison_operators:
                     superargs.append(arg.astype(float))
-                elif method=='reduce':
+                elif method in ('reduce','reduceat'):
                     superargs.append(arg.view(numpy.ndarray)[arg.isvalid])
                 else:
                     superargs.append(arg.view(numpy.ndarray))
