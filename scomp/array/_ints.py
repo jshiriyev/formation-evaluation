@@ -4,8 +4,6 @@ import numpy
 
 from ._flatten import flatten
 
-# mean, variance, introduce N-1 division in variance
-
 class ints(numpy.ndarray):
     """It is a flat subclass of numpy.ndarray that includes null entries.
     If null is not defined or is None, -99_999 is set as sentinel value."""
@@ -27,12 +25,6 @@ class ints(numpy.ndarray):
         if obj is None: return
 
         self._null = getattr(obj,'_null',-99_999)
-
-    def _resolved_args_(self,ufunc,method,*args):
-
-        superargs = []
-
-        return superargs
 
     def _resolved_dtypes_(self,ufunc,method,*args):
 
@@ -80,29 +72,27 @@ class ints(numpy.ndarray):
         classtype = [] # index of ints type inputs
         superargs = [] # positional arguments for parent class
 
-        dtypes = self._resolved_dtypes_(ufunc,method,*args)
+        # dtypes = self._resolved_dtypes_(ufunc,method,*args)
 
         for index,arg in enumerate(args):
 
             if isinstance(arg,ints):
                 classtype.append(index)
+
+                sarg = arg.view(numpy.ndarray).copy()
+
                 if ufunc in comparison_operators:
-                    superargs.append(arg.astype(float))
+                    superargs.append(sarg.astype(float))
+                elif method=="accumulate":
+                    sarg[arg.isnull] = ufunc.identity
+                    superargs.append(sarg)
                 elif method in ('reduce','reduceat'):
-                    superargs.append(arg.view(numpy.ndarray)[arg.isvalid])
+                    superargs.append(sarg[arg.isvalid])
                 else:
                     superargs.append(arg.view(numpy.ndarray))
-            elif arg is None:
-                classtype.append(index)
-                if ufunc in comparison_operators:
-                    superargs.append(ints(arg,null=self.null).astype(float))
-                else:
-                    superargs.append(ints(arg,null=self.null).view(numpy.ndarray))
             else:
-                if ufunc in comparison_operators:
-                    superargs.append(ints(arg,null=self.null).astype(float))
-                else:
-                    superargs.append(ints(arg,null=self.null).view(numpy.ndarray))
+
+                superargs.append(numpy.array(arg).flatten())
 
         if out is not None:
             outputs = []
@@ -182,9 +172,31 @@ class ints(numpy.ndarray):
 
         return variable
 
+    def mean(self):
+        """Returns sample mean."""
+
+        variable = self.view(numpy.ndarray).copy()
+
+        variable = variable[self.isvalid]
+
+        return numpy.mean(variable)
+
+    def var(self):
+        """Returns sample variance."""
+
+        variable = self.view(numpy.ndarray).copy()
+
+        variable = variable[self.isvalid]
+
+        N = variable.size
+
+        S = numpy.sum(variable)
+
+        return numpy.sum((variable-S/N)**2)/(N-1)
+
     def argmin(self):
 
-        variable = self.view(numpy.ndarray)
+        variable = self.view(numpy.ndarray).copy()
 
         variable[self.isnull] = variable.max()+1
 
@@ -192,7 +204,7 @@ class ints(numpy.ndarray):
 
     def argmax(self):
 
-        variable = self.view(numpy.ndarray)
+        variable = self.view(numpy.ndarray).copy()
 
         variable[self.isnull] = variable.min()-1
 

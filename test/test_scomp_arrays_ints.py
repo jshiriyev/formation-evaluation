@@ -155,7 +155,7 @@ class TestIntArray(unittest.TestCase):
 
         x = ints([5,None],null=-100)
         y = x+1
-        q = x+None
+        q = x+ints(None)
         b = numpy.array([-100,-100])
 
         z = numpy.array([False,True])
@@ -329,11 +329,39 @@ class TestIntArray(unittest.TestCase):
         
         self.assertEqual(x.argmax(),2)
 
-    def test_resolved_dtypes(self):
+    def test_numpy_cumsum(self):
 
         x = ints([1,2,3,4,None,7])
-        print("I was here")
-        print(x.cumsum())
+
+        xx = x.cumsum()
+        yy = numpy.array([1,3,6,10,10,17])
+
+        self.assertIsInstance(xx,ints)
+
+        numpy.testing.assert_array_equal(xx.view(numpy.ndarray),yy)
+
+    def test_numpy_cumprod(self):
+
+        x = ints([1,2,3,4,None,7])
+
+        xx = x.cumprod()
+        yy = numpy.array([1,2,6,24,24,168])
+
+        self.assertIsInstance(xx,ints)
+
+        numpy.testing.assert_array_equal(xx.view(numpy.ndarray),yy)
+
+    def test_mean(self):
+
+        x = ints([1,2,3,4,None,6])
+
+        self.assertEqual(x.mean(),3.2)
+
+    def test_var(self):
+
+        x = ints([1,2,3,4,None,6])
+
+        self.assertEqual(x.var(),3.7)
 
 if __name__ == "__main__":
 
