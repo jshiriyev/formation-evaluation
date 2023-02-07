@@ -13,23 +13,3 @@ class WorkFlow():
     def __init__(self):
 
         pass
-
-# DATA INTERPRETATION
-
-class allocate():
-
-    def __init__(self):
-
-        pass
-
-class buildup():
-
-    def __init__(self):
-
-        pass
-
-class drawdown():
-
-    def __init__(self):
-
-        pass

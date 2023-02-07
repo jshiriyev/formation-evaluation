@@ -10,6 +10,8 @@ from ._radial import OnePhaseRadialSteady
 from ._radial import OnePhaseRadialTransient
 from ._radial import OnePhaseRadialPseudoSteady
 
+from ._radial import OnePhaseRadialWellPressure
+
 from ._green import OnePhaseLineSource
 from ._green import OnePhasePlaneSource
 from ._green import OnePhaseFractureNetwork

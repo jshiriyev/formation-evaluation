@@ -154,6 +154,21 @@ class ints(numpy.ndarray):
 
         return re.sub(r"\s+"," ",child)
 
+    def __setitem__(self,key,value):
+
+        vals = ints(value,null=self.null)
+
+        super().__setitem__(key,vals)
+
+    def __getitem__(self,key):
+
+        vals = super().__getitem__(key)
+
+        if isinstance(key,int):
+            return ints(vals,null=self.null)
+        else:
+            return vals
+
     def astype(self,dtype):
 
         if dtype is int:

@@ -363,6 +363,15 @@ class TestIntArray(unittest.TestCase):
 
         self.assertEqual(x.var(),3.7)
 
+    def test_get_item(self):
+
+        x = ints([1,2,3,4,None,6])
+
+        xx = x[4]+1
+        yy = ints([None])
+        
+        numpy.testing.assert_array_equal(xx.view(numpy.ndarray),yy.view(numpy.ndarray))
+
 if __name__ == "__main__":
 
     unittest.main()

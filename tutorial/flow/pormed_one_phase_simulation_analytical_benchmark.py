@@ -6,10 +6,10 @@ import pint
 
 import _setup
 
-from fluidflow.pormed.radial import transient
-from fluidflow.pormed.radial import pseudosteady
+from flow.PorMed import OnePhaseRadialTransient as transient
+from flow.PorMed import OnePhaseRadialPseudoSteady as pseudosteady
 
-from fluidflow.pormed.numerical import singlephase
+from flow.PorMed import OnePhase as singlephase
 
 ## INPUT
 
