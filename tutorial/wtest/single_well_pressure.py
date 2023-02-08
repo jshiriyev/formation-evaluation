@@ -1,27 +1,20 @@
 import numpy as np
 
+from borepy.wtest import reservoir,well,fluid
 from borepy.wtest import pressure
 
-k = 200
+res = reservoir(permeability=200,porosity=0.15,thickness=30)
 
-phi = 0.15
+oil = fluid(viscosity=1.5,formation_volume_factor=1.2)
 
-mu = 1.5
+prod = well(rate=800,time=16,radius=0.25,skin=0)
 
-ct = 25e-6
+P = pressure(res,oil,prod)
 
-h = 30
+P.set_compressibility(total=25e-6)
 
-rw = 0.25
+P.initialize(scale='log')
 
-fvf = 1.2
+P.set_boundary(area=200)
 
-rate = 800
-
-time = np.logspace(-5,1.2)
-
-P = pressure(k,phi,mu,ct,h,rw,rate,time,fvf=fvf)
-
-P.set_boundary(area=40)
-
-P.view()
+P.view(scale="linear")

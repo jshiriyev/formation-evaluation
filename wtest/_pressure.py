@@ -5,73 +5,85 @@ import numpy
 from scipy.special import expi
 
 class pressure():
-    """Calculates well bottomhole pressure in field units for the given constant
-    flow rate production at transient state, single phase flow.
+    """Calculates well bottomhole pressure in field units for the given
+    constant flow rate oil production, single phase flow.
     """
 
-    def __init__(self,k,phi,mu,ct,h,rw,rate,time,fvf=1,skin=0):
-        """
-        k       : permeability in mD
-        phi     : porosity
-        mu      : viscosity in cp
-        ct      : total compressibility in 1/psi
-        h       : formation thickness, ft
-        rw      : wellbore radius, ft
-        rate    : constant flow rate, STB/day
-        time    : time array when to calculate bottom hole pressure, days
-        fvf     : formation volume factor, bbl/STB
-        skin    : skin factor, dimensionless
+    def __init__(self,res,oil,well):
+        """Initializes reservoir, oil and well properties."""
+        
+        self.k = res.permeability
+        self.phi = res.porosity
+        self.h = res.thickness
+        self.cr = res.compressibility
 
-        """
+        self.muo = oil.viscosity
+        self.co = oil.compressibility
+        self.Bo = oil.formation_volume_factor
 
-        self.k = k
-        self.phi = phi
-        self.mu = mu
+        self.qo = well.rate
+        self.tp = well.time
+        self.rw = well.radius
+        self.skin = well.skin
 
-        self.ct = ct
+    def set_irreducible(self,water,saturation):
+        """Sets the irreducible water saturation amount and water properties."""
 
-        self.h = h
-        self.rw = rw
+        self.muw = water.viscosity
+        self.cw = water.compressibility
+        self.Bw = water.formation_volume_factor
 
-        self.rate = rate
-        self.time = time
+        self.Swirr = saturation
 
-        self.fvf = fvf
+    def set_compressibility(self,total=None):
+        """Sets the total compressibility. If None,
+        it will try to calculate it from rock and fluid compressibilities."""
 
-        self.skin = skin
+        if total is not None:
+            self.ct = total
+            return
 
-        self._initialize()
+        self.cr = 0 if self.cr is None else self.cr
 
-    def _initialize(self):
+        if hasattr(self,"Swirr"):
+            if self.Swirr>0:
+                self.cf = (1-self.Swirr)*self.co+self.Swirr*self.cw
+            else:
+                self.cf = self.co
+
+        if hasattr(self,"cf"):
+            if self.cf is None:
+                self.cf = self.co
+        else:
+            self.cf = self.co
+
+        self.ct = self.cr+self.cf
+
+    def initialize(self,time=None,size=50,scale='linear'):
         """It calculates delta bottom hole flowing pressure for constant
-        flow rate production."""
+        flow rate production at transient state, exponential integral solution.
+        """
 
-        self._eta = self.k/(self.phi*self.mu*self.ct)
+        if time is not None:
+            self.time = time[time>=self.twell]
 
-        self._flowterm = -141.2*(self.rate*self.mu*self.fvf)/(self.k*self.h)
+        else:
 
-        self._delta = numpy.zeros(self.time.shape)
+            if scale == "linear":
+                self.time = numpy.linspace(self.twell,self.tp,size)
+            elif scale == "log":
+                self.time = numpy.logspace(*numpy.log10([self.twell,self.tp]),size)
 
-        self._twell = 15802*self.rw**2/self.eta
+            self._scale = scale
 
-        self._delta[self.time<=self.twell] = numpy.nan
+        Ei = expi(-39.5*(self.rw**2)/(self.eta*self.time))
 
-        self._transient()
-
-    def _transient(self):
-
-        transient_cond = self.time>self.twell
-
-        transient_time = self.time[transient_cond]
-
-        Ei = expi(-39.5*(self.rw**2)/(self.eta*transient_time))
-
-        delta = -self.flowterm*(1/2*Ei-self.skin)
-
-        self.delta[transient_cond] = delta
+        self._delta = -self.flowterm*(1/2*Ei-self.skin)
 
     def set_boundary(self,radius=None,area=None):
-        """Sets the radius of outer circular boundary, ft.
+        """Sets the radius of outer circular boundary, ft and calculates
+        pseudo steady state solution correcting pressure for boundary effects.
+        
         If area is not None, the radius is calculated from area [acre].
         """
 
@@ -79,12 +91,6 @@ class pressure():
             radius = numpy.sqrt(area*43560/numpy.pi)
 
         self._radius = radius
-
-        self._tbound = 39.5*self.radius**2/self.eta
-
-        self._pseudo()
-
-    def _pseudo(self):
 
         pseudo_cond = self.time>=self.tbound
 
@@ -96,9 +102,9 @@ class pressure():
 
         delta = -self.flowterm*(term_time+term_boundary+3/4-self.skin)
 
-        self.delta[pseudo_cond] = delta
+        self._delta[pseudo_cond] = delta
 
-    def view(self,axis=None,initial=None):
+    def view(self,axis=None,initial=None,scale=None):
 
         showFlag = True if axis is None else False
 
@@ -112,7 +118,13 @@ class pressure():
 
         axis.plot(self.time,yaxis)
 
-        axis.set_xscale("log")
+        if scale is None:
+            try:
+                scale = self._scale
+            except AttributeError:
+                scale = "linear"
+
+        axis.set_xscale(scale)
 
         if initial is None:
             axis.invert_yaxis()
@@ -126,12 +138,12 @@ class pressure():
     @property
     def eta(self):
 
-        return self._eta
+        return self.k/(self.phi*self.muo*self.ct)
 
     @property
     def flowterm(self):
 
-        return self._flowterm
+        return -141.2*(self.qo*self.Bo*self.muo)/(self.k*self.h)
 
     @property
     def radius(self):
@@ -146,12 +158,12 @@ class pressure():
     @property
     def twell(self):
 
-        return self._twell
+        return 15802*self.rw**2/self.eta
 
     @property
     def tbound(self):
 
-        return self._tbound
+        return 39.5*self.radius**2/self.eta
     
     
     
