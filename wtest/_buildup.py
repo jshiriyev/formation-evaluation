@@ -13,40 +13,40 @@ class buildup():
 
     def __init__(self,_well):
 
-        self._pwell = well(radius=_well.radius,skin=_well.skin)
-        self._iwell = well(radius=_well.radius,skin=_well.skin)
+        self._prodwell = well(radius=_well.radius,skin=_well.skin)
+        self._injwell = well(radius=_well.radius,skin=_well.skin)
 
         self.rates = numpy.array(_well.rate)
         self.times = numpy.array(_well.time)
 
-        self.Nprod = numpy.sum(self.rates*self.times)
+        self.totalprod = numpy.sum(self.rates*self.times)
 
-        nzrates = self.rates[self.rates!=0]
-        nztimes = self.times[self.rates!=0]
+        non_zero_rate_rates = self.rates[self.rates!=0]
+        non_zero_rate_times = self.times[self.rates!=0]
 
-        index = numpy.argmax(nztimes/numpy.sum(nztimes))
+        most_freq_rate_index = numpy.argmax(non_zero_rate_times/numpy.sum(non_zero_rate_times))
 
-        self.qprod = nzrates[index]
+        self.qprod = non_zero_rate_rates[most_freq_rate_index]
 
-        self.tprod = self.Nprod/self.qprod
+        self.tprod = self.totalprod/self.qprod
 
-        index = numpy.nonzero(self.times)[0][-1]
+        last_prod_index = numpy.nonzero(self.times)[0][-1]
 
-        self.tshut = numpy.sum(self.times[index:])
+        self.tshut = numpy.sum(self.times[last_prod_index:])
 
-        self.ttime = self.tprod+self.tshut
+        self.ttotal = self.tprod+self.tshut
 
-        self._pwell.rate = self.qprod
-        self._pwell.time = self.ttime
+        self._prodwell.rate = self.qprod
+        self._prodwell.time = self.ttotal
 
-        self._iwell.rate = -self.qprod
-        self._iwell.time = self.tshut
+        self._injwell.rate = -self.qprod
+        self._injwell.time = self.tshut
 
     def set_parameters(self,res,oil):
 
-        self._pprod = pressure(res,oil,self._pwell)
+        self._pprod = pressure(res,oil,self._prodwell)
 
-        self._pinj = pressure(res,oil,self._iwell)
+        self._pinj = pressure(res,oil,self._injwell)
 
     def set_irreducible(self,water,saturation):
 
@@ -54,7 +54,7 @@ class buildup():
 
         self._pinj.set_irreducible(water,saturation)
 
-    def set_compressibility(self,total):
+    def set_compressibility(self,total=None):
 
         self._pprod.set_compressibility(total)
 
@@ -62,27 +62,21 @@ class buildup():
 
     def initialize(self,scale="linear",size=50):
 
-        twellp = self._pprod.twell
-        twelli = self._pinj.twell
+        twellprod = self._pprod.twell
+        twellinj = self._pinj.twell
 
         if scale=="linear":
-            tprods = numpy.linspace(twellp,self.tprod,size)
-            tshuts = numpy.linspace(twelli,self.tshut,size)
+            tprods = numpy.linspace(twellprod,self.tprod,size)
+            tshuts = numpy.linspace(twellinj,self.tshut,size)
         elif scale=="log":
-            tprods = numpy.logspace(*numpy.log10([twellp,self.tprod]),size)
-            tshuts = numpy.logspace(*numpy.log10([twelli,self.tshut]),size)
+            tprods = numpy.logspace(*numpy.log10([twellprod,self.tprod]),size)
+            tshuts = numpy.logspace(*numpy.log10([twellinj,self.tshut]),size)
 
-        ctimes = numpy.append(tprods,self.tprod+tshuts)
+        ttotals = numpy.append(tprods,self.tprod+tshuts)
 
-        self._pprod.initialize(time=ctimes)
+        self._pprod.initialize(time=ttotals)
 
         self._pinj.initialize(time=tshuts)
-
-    def set_boundary(self,radius=None,area=None):
-
-        self._pprod.set_boundary(radius=radius,area=area)
-
-        self._pinj.set_boundary(radius=radius,area=area)
 
     def view(self,axis=None):
 
