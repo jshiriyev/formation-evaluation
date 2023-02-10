@@ -22,6 +22,9 @@ from ._wellsurvey import Survey
 from ._welldiagram import Diagram
 from ._wellstock import Stock
 from ._formation import Formation
+
+from ._formation import TopView #must be depreciated later
+
 from ._faultsystem import FaultSystem
 from ._fracturenetwork import FractureNetwork
 from ._reservoir import Reservoir

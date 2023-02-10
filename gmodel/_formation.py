@@ -1,3 +1,26 @@
+import lasio
+
+from matplotlib import colors as mcolors
+from matplotlib import gridspec
+from matplotlib import pyplot
+from matplotlib import transforms
+
+from matplotlib.backends.backend_pdf import PdfPages
+
+from matplotlib.patches import Polygon
+from matplotlib.patches import Rectangle
+
+from matplotlib.ticker import AutoMinorLocator
+from matplotlib.ticker import LogFormatter
+from matplotlib.ticker import LogFormatterExponent
+from matplotlib.ticker import LogFormatterMathtext
+from matplotlib.ticker import LogLocator
+from matplotlib.ticker import MultipleLocator
+from matplotlib.ticker import NullLocator
+from matplotlib.ticker import ScalarFormatter
+
+import numpy
+
 from ._items import Zone
 
 from ._zonesurface import Surface
@@ -87,3 +110,58 @@ class Formation():
     def tops(self):
 
         return self._tops
+
+def TopView(dictionary,axis=None,colors=None,hatches=None):
+
+    show = True if axis is None else False
+
+    if axis is None:
+        axis = pyplot.figure().add_subplot()
+
+    formations,tops = [],[]
+
+    for key,value in dictionary.items():
+
+        formations.append(key)
+        
+        tops.append(value)
+
+    tops = numpy.array(tops)
+
+    depths = (tops[1:]+tops[:-1])/2
+
+    axis.hlines(y=tops,xmin=0,xmax=1,color='k')
+
+    axis.invert_yaxis()
+
+    for depth,formation in zip(depths,formations[:-1]):
+        axis.annotate(formation,(0.5,depth),
+                      horizontalalignment='center',
+                      verticalalignment='center',
+                      backgroundcolor='white',)
+
+    for index,_ in enumerate(depths):
+
+        x0 = (0,1)
+        
+        y1 = tops[index]
+
+        y2 = tops[index+1]
+
+        if colors is not None:
+            color = colors[index]
+        else:
+            color = None
+
+        if hatches is not None:
+            hatch = hatches[index]
+        else:
+            hatch = None
+
+        axis.fill_between(x0,y1,y2=y2,facecolor=color,hatch=hatch)
+
+    pyplot.setp(axis.get_xticklabels(),visible=False)
+    pyplot.setp(axis.get_xticklines(),visible=False)
+
+    if show:
+        pyplot.show()
