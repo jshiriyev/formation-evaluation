@@ -2,7 +2,6 @@
 *.csv
 *.db
 *.inc
-*.txt
 *.xlsx
 
 # Documentation
