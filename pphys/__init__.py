@@ -13,12 +13,17 @@ from ._lasbatch import LasBatch
 from ._bulkmodel import BulkModel
 
 from ._depthview import DepthView
-from ._depthview import DepthViewLasio #must be depreciated later once I have fully ready las file reader
+from ._depthview import DepthViewLasio #must be depreciated later once I fully prepare las file reader
 
-from ._nanview import NanView #must be merged to lasfile later once I have fully ready las file reader
+from ._nanview import NanView #must be merged to lasfile later once I fully prepare las file reader
 
 from ._batchview import BatchView
-from ._workflow import WorkFlow
+
+from ._batchsummary import WellSummary
+
+from .wlogs import algorithms
+
+# from ._workflow import WorkFlow
 
 def pop(kwargs,key,default=None):
 

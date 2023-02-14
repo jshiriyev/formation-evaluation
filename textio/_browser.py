@@ -78,7 +78,7 @@ class Browser():
 
     def get_abspath(self,path,homeFlag=False):
         """Returns absolute path for a given relative path."""
-
+        
         if os.path.isabs(path):
             return path
         elif homeFlag:

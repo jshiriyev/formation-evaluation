@@ -18,7 +18,18 @@ from matplotlib.ticker import MultipleLocator
 from matplotlib.ticker import NullLocator
 from matplotlib.ticker import ScalarFormatter
 
+import numpy
+
 from borepy.textio._browser import Browser
+
+from ._gradient import gradient_fill
+
+def pop(kwargs,key,default=None):
+
+    try:
+        return kwargs.pop(key)
+    except KeyError:
+        return default
 
 class DepthView(Browser):
 
