@@ -1237,7 +1237,8 @@ class DepthViewLasio():
 
             curve_axis.fill_betweenx(yvals,xvals,x2=x2,where=where,facecolor=module['module']['fillcolor'],hatch=module['module']["hatch"])
 
-            module['row'] = len(lines)
+            if module.get('row') is None:
+                module['row'] = len(lines)
 
             self.set_labelmodule(label_axis,module)
 
@@ -1521,7 +1522,7 @@ class DepthViewLasio():
             fill=True,facecolor=module['module']['fillcolor'],hatch=module['module']['hatch'])
 
         axis.add_patch(rect)
-
+        
         axis.text(0.5,module['row']+0.5,module['module']['detail'],
             horizontalalignment='center',
             verticalalignment='center',

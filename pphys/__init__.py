@@ -21,9 +21,7 @@ from ._batchview import BatchView
 
 from ._batchsummary import WellSummary
 
-from .wlogs import algorithms
-
-# from ._workflow import WorkFlow
+from . import wlogs
 
 def pop(kwargs,key,default=None):
 
