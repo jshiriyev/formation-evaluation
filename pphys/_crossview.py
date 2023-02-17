@@ -20,7 +20,7 @@ from matplotlib.ticker import ScalarFormatter
 
 from borepy.textio._browser import Browser
 
-class BatchView(Browser):
+class CrossView(Browser):
     """It creates correlation based on multiple las files from different wells."""
 
     def __init__(self):

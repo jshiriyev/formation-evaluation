@@ -10,6 +10,8 @@ from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.patches import Polygon
 from matplotlib.patches import Rectangle
 
+from matplotlib.table import table as Table
+
 from matplotlib.ticker import AutoMinorLocator
 from matplotlib.ticker import FormatStrFormatter
 from matplotlib.ticker import LogFormatter
@@ -22,7 +24,16 @@ from matplotlib.ticker import ScalarFormatter
 
 import numpy
 
-class NanView():
+from borepy.textio._browser import Browser
+
+def pop(kwargs,key,default=None):
+
+    try:
+        return kwargs.pop(key)
+    except KeyError:
+        return default
+
+class NanView(Browser):
 
     def __init__(self,lasfile,zonedepths=None,zonenames=None,ignorenansteps=None):
 
@@ -218,3 +229,144 @@ class NanView():
         pyplot.tight_layout()
 
         pyplot.show()
+
+class TableView(Browser):
+
+    def __init__(self,lasfile,zones=None,**kwargs):
+
+        super().__init__(homedir=pop(kwargs,"homedir"))
+
+        self.lasfile = lasfile
+
+        self.zones = zones
+
+        self._wellName = self._name()
+
+        self._cellText = self._text(kwargs.get("fstring"))
+
+    def _name(self):
+
+        return self.lasfile.well['WELL'].value
+
+    def _text(self,fstring=None):
+
+        if fstring is None:
+            fstring = "{}"
+
+        rows = []
+
+        for curve in self.lasfile.curves:
+
+            row = []
+
+            top,bottom = self._edge_nans(curve.data)
+
+            row.append(fstring.format(self.lasfile[0][top]))
+
+            row.append(fstring.format(self.lasfile[0][bottom]))
+
+            row.append(curve.descr)
+
+            rows.append(row)
+
+        return rows
+
+    def _edge_nans(self,array):
+
+        isnotnan = ~numpy.isnan(array)
+
+        Tindex = numpy.argmax(isnotnan)
+
+        Bindex = array.size-numpy.argmax(numpy.flip(isnotnan))-1
+
+        return Tindex,Bindex
+
+    def save(self,filepath=None,fstring=None):
+
+        self.figure = pyplot.figure()
+
+        self.gspecs = gridspec.GridSpec(
+            nrows=1,ncols=1,
+            figure=self.figure,
+            ) #height_ratios=[25,1]
+
+        # self.figure.set_figwidth(5*ncols)
+        # self.figure.set_figheight(26)
+
+        table = self.figure.add_subplot(self.gspecs[0])
+
+        self._table(table,fstring)
+
+        # axis_title = self.figure.add_subplot(self.gspecs[1,index])
+
+        # self._caption(self.filepaths[index],axis_title)
+
+        # self.gspecs.tight_layout(self.figure)
+
+        # self.gspecs.update(wspace=0,hspace=0)
+
+        # self.figure.suptitle(f"Well-{self._name()} Log Summary")
+
+        pyplot.show()
+
+        # if filepath is None:
+        #     self.figure.savefig(f"Well-{self._name()}_Log_Summary.png")
+        # else:
+        #     self.figure.savefig(filepath)
+
+    def _table(self,axis,fstring=None):
+
+        axis.set_xlim((0,1))
+
+        axis.set_axis_off()
+
+        axis.get_xaxis().set_visible(False)
+        axis.get_yaxis().set_visible(False)
+
+        axis.axis('tight')
+        axis.axis('off')
+
+        table = Table(axis,
+            cellText = self._cellText,
+            cellLoc = "left",
+            rowLabels = self.lasfile.keys(),
+            rowLoc = "right",
+            colLabels = ("Top","Bottom","Description"),
+            colLoc = "left",
+            colColours = pyplot.cm.BuPu(numpy.full(3,0.1)),
+            colWidths = (0.1,0.1,0.8),
+            bbox = [0,0,1,1])
+
+        axis.add_table(table)
+
+        self.table = table
+
+        # table.auto_set_column_width(col=(1,1))
+
+        # self._align_column(col=2,align="left")
+
+        # table.scale(1,1)
+
+    def _caption(self,filename,axis):
+
+        axis.set_xlim((0,1))
+        axis.set_ylim((0,1))
+
+        axis.get_xaxis().set_visible(False)
+        axis.get_yaxis().set_visible(False)
+
+        axis.set_axis_off()
+
+        axis.text(0.5,0.5,filename,
+            horizontalalignment='center',
+            verticalalignment='center',
+            transform=axis.transAxes)
+
+    def _align_column(self,col,align="left"):
+
+        cells = [key for key in self.table._cells if key[1] == col]
+        
+        for cell in cells:
+            self.table._cells[cell]._loc = align
+
+        
