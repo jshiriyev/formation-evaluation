@@ -1,4 +1,3 @@
-
 def bisection(obj_func,xL,xU,*args,Nmax=50,tol=1e-3):
 
     fL = obj_func(xL,*args)
