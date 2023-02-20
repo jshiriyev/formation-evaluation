@@ -1,1 +1,1 @@
-from ._linear import linear
+from ._linear import Linear

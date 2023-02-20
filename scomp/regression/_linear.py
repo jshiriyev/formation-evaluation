@@ -1,35 +1,79 @@
-class _linear(item):
+import numpy
 
-    def __init__(self,observed_points,observed_values):
+from scipy import stats
 
-        super(regression,self).__init__(observed_points,observed_values)
+class Linear():
 
-    def linear_train(self):
+    def __init__(self,xvals,yvals):
 
-        N = self.xobs.shape[0]
+        self.xvals = xvals
+        self.yvals = yvals
 
-        O = np.ones((N,1))
-        X = self.xvalues.reshape(N,-1)
-        Y = self.yvalues.reshape(N,-1)
+    def train(self):
 
-        G = np.concatenate((O,X),axis=1)
+        xavg = self.xvals.mean()
+        yavg = self.yvals.mean()
 
-        A = np.dot(G.transpose(),G)
-        b = np.dot(G.transpose(),Y)
+        self.Sxx = numpy.sum((self.xvals-xavg)**2)
+        self.Syy = numpy.sum((self.yvals-yavg)**2)
+        self.Sxy = numpy.sum((self.xvals-xavg)*(self.yvals-yavg))
 
-        x = np.linalg.solve(A,b)
+        self.b1 = self.Sxy/self.Sxx
+        self.b0 = yavg-self.b1*xavg
 
-        self.slope = x[0]
-        self.yintercept = x[1]
+        self.SSE = self.Syy-self.b1*self.Sxy
 
-    def ridge(self):
-        
-        pass
+        self.N = self.xvals.size
 
-    def estimate(self,estimated_points):
-        
-        self.Xest = estimated_points
+        self.s2 = self.SSE/(self.N-2)
 
-        Yest = self.intercept+self.slope*self.Xest
+        self.s = numpy.sqrt(self.s2)
 
-        return Yest
+        self.R2 = 1-self.SSE/self.Syy
+
+    def b0ci(self,alpha):
+
+        talpha2 = stats.t.ppf(alpha/2,df=self.N-2)
+
+        temp = numpy.sum(self.xvals**2)/(self.N*self.Sxx)
+
+        lower = self.b0+talpha2*self.s*temp**(1/2)
+        upper = self.b0-talpha2*self.s*temp**(1/2)
+
+        return lower,upper
+
+    def b1ci(self,alpha):
+
+        talpha2 = stats.t.ppf(alpha/2,df=self.N-2)
+
+        lower = self.b1+talpha2*self.s/self.Sxx**(1/2)
+        upper = self.b1-talpha2*self.s/self.Sxx**(1/2)
+
+        return lower,upper
+
+    def b0test(self,beta):
+
+        temp = numpy.sum(self.xvals**2)/(self.N*self.Sxx)
+
+        tscore = (self.b0-beta)/(self.s*temp**(1/2))
+
+        print(tscore)
+
+        alpha = stats.t.cdf(tscore,self.N-2)
+
+        return alpha
+
+    def b1test(self,beta):
+
+        tscore = (self.b1-beta)/self.s*self.Sxx**(1/2)
+
+        print(tscore)
+
+        alpha = stats.t.cdf(tscore,self.N-2)
+
+        return alpha
+
+    def estimate(self,points):
+
+        return self.b0+self.b1*numpy.array(points)
+
