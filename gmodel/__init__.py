@@ -20,6 +20,7 @@ from ._items import Segment
 
 from ._wellsurvey import Survey
 from ._welldiagram import Diagram
+from ._wellbrief import WellBrief
 from ._wellstock import Stock
 from ._formation import Formation
 

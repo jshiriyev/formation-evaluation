@@ -1,3 +1,5 @@
+import re
+
 import lasio
 
 from matplotlib import colors as mcolors
@@ -10,7 +12,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.patches import Polygon
 from matplotlib.patches import Rectangle
 
-from matplotlib.table import table as Table
+# from matplotlib.table import table as Table
 
 from matplotlib.ticker import AutoMinorLocator
 from matplotlib.ticker import FormatStrFormatter
@@ -232,23 +234,13 @@ class NanView(Browser):
 
 class TableView(Browser):
 
-    def __init__(self,lasfile,zones=None,**kwargs):
+    def __init__(self,lasfile,**kwargs):
 
-        super().__init__(homedir=pop(kwargs,"homedir"))
+        super().__init__(**kwargs)
 
         self.lasfile = lasfile
 
-        self.zones = zones
-
-        self._wellName = self._name()
-
-        self._cellText = self._text(kwargs.get("fstring"))
-
-    def _name(self):
-
-        return self.lasfile.well['WELL'].value
-
-    def _text(self,fstring=None):
+    def set_rows(self,fstring=None):
 
         if fstring is None:
             fstring = "{}"
@@ -259,7 +251,7 @@ class TableView(Browser):
 
             row = []
 
-            top,bottom = self._edge_nans(curve.data)
+            top,bottom = self.get_limits(curve.data)
 
             row.append(fstring.format(self.lasfile[0][top]))
 
@@ -269,85 +261,21 @@ class TableView(Browser):
 
             rows.append(row)
 
-        return rows
+        self.rows = rows
 
-    def _edge_nans(self,array):
+    def set_axis(self,axis=None,caption=False):
 
-        isnotnan = ~numpy.isnan(array)
+        self.show = True if axis is None else False
 
-        Tindex = numpy.argmax(isnotnan)
+        if axis is None:
 
-        Bindex = array.size-numpy.argmax(numpy.flip(isnotnan))-1
+            self.figure = pyplot.figure()
 
-        return Tindex,Bindex
+            axis = self.figure.add_subplot()
 
-    def save(self,filepath=None,fstring=None):
+        self.axis = axis
 
-        self.figure = pyplot.figure()
-
-        self.gspecs = gridspec.GridSpec(
-            nrows=1,ncols=1,
-            figure=self.figure,
-            ) #height_ratios=[25,1]
-
-        # self.figure.set_figwidth(5*ncols)
-        # self.figure.set_figheight(26)
-
-        table = self.figure.add_subplot(self.gspecs[0])
-
-        self._table(table,fstring)
-
-        # axis_title = self.figure.add_subplot(self.gspecs[1,index])
-
-        # self._caption(self.filepaths[index],axis_title)
-
-        # self.gspecs.tight_layout(self.figure)
-
-        # self.gspecs.update(wspace=0,hspace=0)
-
-        # self.figure.suptitle(f"Well-{self._name()} Log Summary")
-
-        pyplot.show()
-
-        # if filepath is None:
-        #     self.figure.savefig(f"Well-{self._name()}_Log_Summary.png")
-        # else:
-        #     self.figure.savefig(filepath)
-
-    def _table(self,axis,fstring=None):
-
-        axis.set_xlim((0,1))
-
-        axis.set_axis_off()
-
-        axis.get_xaxis().set_visible(False)
-        axis.get_yaxis().set_visible(False)
-
-        axis.axis('tight')
-        axis.axis('off')
-
-        table = Table(axis,
-            cellText = self._cellText,
-            cellLoc = "left",
-            rowLabels = self.lasfile.keys(),
-            rowLoc = "right",
-            colLabels = ("Top","Bottom","Description"),
-            colLoc = "left",
-            colColours = pyplot.cm.BuPu(numpy.full(3,0.1)),
-            colWidths = (0.1,0.1,0.8),
-            bbox = [0,0,1,1])
-
-        axis.add_table(table)
-
-        self.table = table
-
-        # table.auto_set_column_width(col=(1,1))
-
-        # self._align_column(col=2,align="left")
-
-        # table.scale(1,1)
-
-    def _caption(self,filename,axis):
+    def set_caption(self,axis,filename):
 
         axis.set_xlim((0,1))
         axis.set_ylim((0,1))
@@ -362,11 +290,184 @@ class TableView(Browser):
             verticalalignment='center',
             transform=axis.transAxes)
 
-    def _align_column(self,col,align="left"):
+    def set_size(self,numlinechar=None):
 
-        cells = [key for key in self.table._cells if key[1] == col]
-        
-        for cell in cells:
-            self.table._cells[cell]._loc = align
+        nrows = 0
 
+        ncols = 10
+
+        xticks = [0,1,2,3,ncols]
+        yticks = [nrows]
+
+        for row in reversed(self.rows):
+
+            row[2],subrows = self.set_descr(row[2],numlinechar)
+
+            nrows += subrows
+
+            yticks.append(nrows)
+
+        else:
+            nrows += 2
+            
+            yticks.append(nrows)
+
+        self.axis.set_xlim((0,ncols))
+        self.axis.set_ylim((0,nrows))
+
+        self.axis.set_axis_off()
+
+        self.nrows = nrows
+        self.ncols = ncols
+
+        self.xticks = xticks
+        self.yticks = yticks
+
+    def set_descr(self,descr,numlinechar=None):
+
+        descr = re.sub(' +',' ',descr)
+        descr = re.sub('\n',' ',descr)
+
+        descr = descr.strip()
+
+        if numlinechar is None:
+            return descr,1
+
+        subrows_temp = len(descr)//numlinechar+1
+
+        for index in range(1,subrows_temp):
+            space_index = descr.find(" ",numlinechar*index,numlinechar*(index+1))
+
+            if space_index!=-1:
+
+                descr = list(descr)
+                descr[space_index] = '\n'
+                descr = "".join(descr)
+
+        subrows = descr.count("\n")+1
+
+        return descr,subrows
+    
+    def set_table(self):
+
+        heads = list(reversed(self.lasfile.keys()))
+
+        for index,row in enumerate(reversed(self.rows)):
+
+            ysize = self.yticks[index+1]-self.yticks[index]
+
+            self.axis.annotate(
+                xy=(0.95,self.yticks[index]+ysize/2),
+                text=heads[index],
+                ha='right',va='center'
+            )
+            self.axis.annotate(
+                xy=(1.5,self.yticks[index]+ysize/2),
+                text=row[0],
+                ha='center',va='center'
+            )
+            self.axis.annotate(
+                xy=(2.5,self.yticks[index]+ysize/2),
+                text=row[1],
+                ha='center',va='center'
+            )
+            self.axis.annotate(
+                xy=(3.05,self.yticks[index]+ysize/2),
+                text=row[2],
+                ha='left',va='center'
+            )
+
+    def set_header(self):
+
+        self.axis.annotate(
+            xy=(0.95,self.nrows-1),
+            text='Curves',
+            weight='bold',
+            ha='right',va='center'
+        )
+        self.axis.annotate(
+            xy=(1.5,self.nrows-1),
+            text='Top',
+            weight='bold',
+            ha='center',va='center'
+        )
+        self.axis.annotate(
+            xy=(2.5,self.nrows-1),
+            text='Bottom',
+            weight='bold',
+            ha='center',va='center'
+        )
+        self.axis.annotate(
+            xy=(3.05,self.nrows-1),
+            text='Description',
+            weight='bold',
+            ha='left',va='center'
+        )
+
+    def set_lines(self):
+
+        self.axis.plot(self.axis.get_xlim(),
+            [self.nrows,self.nrows],lw=1.5,color='black',marker='',zorder=4)
         
+        self.axis.plot(self.axis.get_xlim(),
+            [0,0],lw=1.5,color='black',marker='',zorder=4)
+
+        for index in self.yticks[1:-1]:
+            self.axis.plot(self.axis.get_xlim(),
+                [index,index],lw=1.15,color='gray',ls=':',zorder=3,marker='')
+
+    def view(self,**kwargs):
+
+        self.set_rows(fstring=pop(kwargs,"fstring"))
+        self.set_axis(axis=pop(kwargs,"axis"))
+
+        # self.set_caption()
+
+        self.set_size(numlinechar=pop(kwargs,"numlinechar",40))
+        self.set_table()
+        self.set_header()
+        self.set_lines()
+
+        pyplot.tight_layout()
+
+        if self.show:
+            pyplot.show()
+
+    def save(self,filepath,sizemult=0.4,**kwargs):
+
+        self.set_rows(fstring=pop(kwargs,"fstring"))
+        self.set_axis()
+
+        # self.set_caption()
+
+        self.set_size(numlinechar=pop(kwargs,"numlinechar",40))
+        self.set_table()
+        self.set_header()
+        self.set_lines()
+
+        self.figure.set_figwidth(sizemult*2*self.ncols)
+
+        self.figure.set_figheight(sizemult*self.nrows)
+
+        pyplot.tight_layout()
+
+        self.figure.savefig(filepath)
+
+        pyplot.close()
+
+    @staticmethod
+    def get_limits(array):
+
+        isnotnan = ~numpy.isnan(array)
+
+        index_top = numpy.argmax(isnotnan)
+
+        index_bottom = array.size-numpy.argmax(numpy.flip(isnotnan))-1
+
+        return index_top,index_bottom
+
+    @property
+    def wellname(self):
+
+        return self.lasfile.well['WELL'].value
+    
