@@ -1,4 +1,4 @@
-from borepy.textio._header import Header
+from borepy.scomp.datum._header import Header
 
 class BulkModel(Header):
 

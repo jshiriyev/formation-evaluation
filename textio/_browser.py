@@ -155,6 +155,42 @@ class Browser():
                 else:
                     return [filename for filename in filenames if filename.startswith(prefix) and filename.endswith(extension)]
 
+    def find_files(self,path=None,prefix=None,extension=None,recursive=True,_list=None):
+
+        if path is None:
+            path = self.homedir
+
+        if _list is None:
+            _list = []
+
+        fnames = os.listdir(path)
+
+        for fname in fnames:
+
+            fpath = os.path.join(path,fname)
+
+            if os.path.isdir(fpath):
+                _list = self.find_files(path=fpath,prefix=prefix,extension=extension,recursive=True,_list=_list)
+            else:
+                if self.doesmatch(fname,prefix=prefix,extension=extension):
+                    _list.append(fpath)
+
+        return _list
+
+    def doesmatch(self,fname,prefix=None,extension=None):
+
+        flag = True
+
+        fname_lower = fname.lower()
+
+        if prefix is not None:
+            flag = flag and fname_lower.startswith(prefix.lower())
+
+        if extension is not None:
+            flag = flag and fname_lower.endswith(extension.lower())
+
+        return flag
+
     @property
     def basename(self):
         """

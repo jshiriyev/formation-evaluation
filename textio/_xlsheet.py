@@ -11,7 +11,6 @@ import re
 import numpy
 import openpyxl
 
-from ._header import Header
 from ._browser import Browser
 
 class XlSheet(Browser):

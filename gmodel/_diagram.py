@@ -1,4 +1,4 @@
-from ._wellsurvey import Survey
+from ._survey import Survey
 
 class Diagram(Survey):
     """It is a well diagram"""

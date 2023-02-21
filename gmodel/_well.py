@@ -5,7 +5,7 @@ import numpy
 from ._items import Slot
 from ._items import Zone
 
-class WellBrief(Slot):
+class Well(Slot):
 
 	def __init__(self,*args,**kwargs):
 
@@ -74,7 +74,7 @@ class WellBrief(Slot):
 
 		mnemonics,harvest = self.get_lasharvest()
 
-		image = self.axis.imshow(harvest,cmap="Greens")
+		image = self.axis.imshow(harvest,cmap="Greens",vmin=0,vmax=200)
 
 		# Show all ticks and label them with the respective list entries
 		self.axis.set_xticks(numpy.arange(len(zones)),labels=zones)
