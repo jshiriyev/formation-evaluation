@@ -1,4 +1,4 @@
-# Table 1, Probability and Statistics for Engineers and Scientists
+# Table 11.1: Probability and Statistics for Engineers and Scientists
 # Walpole Myers Myers Ye Ninth Edition, page 447
 Solids Reduction 	Oxygen Demand Reduction
 3	5

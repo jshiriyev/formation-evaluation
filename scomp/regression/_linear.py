@@ -2,78 +2,152 @@ import numpy
 
 from scipy import stats
 
-class Linear():
+class LinearSimple():
+    """Simple Linear Regression Model"""
 
-    def __init__(self,xvals,yvals):
+    def __init__(self,yvals,xvals):
 
-        self.xvals = xvals
         self.yvals = yvals
+        self.xvals = xvals
 
     def train(self):
 
-        xavg = self.xvals.mean()
-        yavg = self.yvals.mean()
+        self.xmean = self.xvals.mean()
+        self.ymean = self.yvals.mean()
 
-        self.Sxx = numpy.sum((self.xvals-xavg)**2)
-        self.Syy = numpy.sum((self.yvals-yavg)**2)
-        self.Sxy = numpy.sum((self.xvals-xavg)*(self.yvals-yavg))
+        xdiff = self.xvals-self.xmean
+        ydiff = self.yvals-self.ymean
 
+        self.Sxx = numpy.sum(xdiff*xdiff)
+        self.Syy = numpy.sum(ydiff*ydiff)
+        self.Sxy = numpy.sum(xdiff*ydiff)
+
+        # b1 is the estimate of the beta1 (beta1 is true model slope)
         self.b1 = self.Sxy/self.Sxx
-        self.b0 = yavg-self.b1*xavg
 
+        # b0 is the estimate of the beta0 (beta0 is true model intercept)
+        self.b0 = self.ymean-self.b1*self.xmean
+
+        # sum of squares of the errors
         self.SSE = self.Syy-self.b1*self.Sxy
 
-        self.N = self.xvals.size
+        # number of trained data
+        self.size = self.xvals.size
 
-        self.s2 = self.SSE/(self.N-2)
+        # s2 is an unbiased estimate of sigma2 (sigma2 is error variance in the true model)
+        self.s2 = self.SSE/(self.size-2)
 
-        self.s = numpy.sqrt(self.s2)
-
+        # coefficient of determination
         self.R2 = 1-self.SSE/self.Syy
 
-    def b0ci(self,alpha):
+    def beta0confint(self,alpha=0.05):
+        """It will report 100*(1-alpha)% confidence interval for the beta0, true model intercept."""
 
-        talpha2 = stats.t.ppf(alpha/2,df=self.N-2)
+        talpha = -stats.t.ppf(alpha/2,df=self.size-2)
 
-        temp = numpy.sum(self.xvals**2)/(self.N*self.Sxx)
+        upper = self.s2*numpy.sum(self.xvals**2)
+        lower = self.size*self.Sxx
 
-        lower = self.b0+talpha2*self.s*temp**(1/2)
-        upper = self.b0-talpha2*self.s*temp**(1/2)
+        temp = talpha*(upper/lower)**(1/2)
 
-        return lower,upper
+        return self.b0-temp,self.b0+temp
 
-    def b1ci(self,alpha):
+    def beta1confint(self,alpha=0.05):
+        """It will report 100*(1-alpha)% confidence interval for the beta1, true model slope."""
 
-        talpha2 = stats.t.ppf(alpha/2,df=self.N-2)
+        talpha = -stats.t.ppf(alpha/2,df=self.size-2)
 
-        lower = self.b1+talpha2*self.s/self.Sxx**(1/2)
-        upper = self.b1-talpha2*self.s/self.Sxx**(1/2)
+        temp = talpha*(self.s2/self.Sxx)**(1/2)
 
-        return lower,upper
+        return self.b1-temp,self.b1+temp
 
-    def b0test(self,beta):
+    def beta0test(self,beta00):
+        """It returns the alpha value for tested beta00."""
 
-        temp = numpy.sum(self.xvals**2)/(self.N*self.Sxx)
+        upper = self.s2*numpy.sum(self.xvals**2)
+        lower = self.size*self.Sxx
 
-        tscore = (self.b0-beta)/(self.s*temp**(1/2))
+        tscore = abs(self.b0-beta00)/((upper/lower)**(1/2))
+        # print(f"{tscore = }")
 
-        print(tscore)
+        return stats.t.cdf(-tscore,self.size-2)
 
-        alpha = stats.t.cdf(tscore,self.N-2)
+    def beta1test(self,beta10):
+        """It returns the alpha value for tested beta10."""
 
-        return alpha
+        tscore = abs(self.b1-beta10)/(self.s2/self.Sxx)**(1/2)
+        # print(f"{tscore = }")
 
-    def b1test(self,beta):
-
-        tscore = (self.b1-beta)/self.s*self.Sxx**(1/2)
-
-        print(tscore)
-
-        alpha = stats.t.cdf(tscore,self.N-2)
-
-        return alpha
+        return stats.t.cdf(-tscore,self.size-2)
 
     def estimate(self,points):
 
         return self.b0+self.b1*numpy.array(points)
 
+    def meanconfint(self,points,alpha=0.05):
+        """It will report 100*(1-alpha)% confidence interval for the mean value of true model."""
+
+        y0 = self.estimate(points)
+
+        talpha = -stats.t.ppf(alpha/2,df=self.size-2)
+
+        temp = 1/self.size+(points-self.xmean)**2/self.Sxx
+
+        temp = talpha*(self.s2*temp)**(1/2)
+
+        return y0-temp,y0+temp
+
+    def predict(self,points,alpha=0.05):
+
+        y0 = self.estimate(points)
+
+        talpha = -stats.t.ppf(alpha/2,df=self.size-2)
+
+        temp = 1+1/self.size+(points-self.xmean)**2/self.Sxx
+
+        temp = talpha*(self.s2*temp)**(1/2)
+
+        return y0-temp,y0+temp
+
+class LinearMultiple():
+
+    def __init__(self,yvals,*args):
+
+        self.yvals = numpy.array(yvals)
+        self.xvals = [numpy.array(xk) for xk in args]
+
+    def train(self):
+
+        self.size = self.yvals.size
+
+        Nmat = len(self.xvals)+1
+
+        Amat = numpy.zeros((Nmat,Nmat))
+        Zmat = numpy.zeros((Nmat))
+
+        for i in range(Nmat):
+
+            xi = 1 if i==0 else self.xvals[i-1]
+
+            for j in range(Nmat):
+
+                xj = 1 if j==0 else self.xvals[j-1]
+
+                Amat[i,j] = numpy.sum(xi*xj)
+
+            Zmat[i] = numpy.sum(xi*self.yvals)
+
+        Amat[0,0] = self.size
+
+        self.bs = numpy.linalg.solve(Amat,Zmat)
+
+        for index,b in enumerate(self.bs):
+
+            setattr(self,f"b{index}",b)
+
+
+class Stepwise():
+
+    def __init__(self):
+
+        pass
