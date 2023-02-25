@@ -4,9 +4,6 @@ import time
 
 from scipy import optimize
 
-if __name__ == "__main__":
-    import setup
-
 from optimize.rootfind import newton
 from optimize.rootfind import secant
 
