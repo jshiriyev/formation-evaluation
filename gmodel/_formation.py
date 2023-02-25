@@ -23,7 +23,7 @@ import numpy
 
 from ._items import Zone
 
-from ._zonesurface import Surface
+from ._surface import Surface
 
 class Formation():
     """It is a collection of surfaces"""
@@ -111,7 +111,7 @@ class Formation():
 
         return self._tops
 
-def TopView(dictionary,axis=None,colors=None,hatches=None):
+def TopsView(dictionary,axis=None,colors=None,hatches=None):
 
     show = True if axis is None else False
 

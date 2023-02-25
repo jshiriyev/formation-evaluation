@@ -5,17 +5,16 @@ BorePy contains a set of modules used in integrated formation evaluation and res
 SComp \# scientific computing
 
 - arrays: Special, Curve, Bundle
-- datum: BST, Spatial
-- stats: Heterogeneity, Correlation, Hypothesis, Data Analysis WorkFLow
-- optimize: RootFind, Univariate, Multivariate
-- regression: Linear, 
+- datum: Binary, Header, Raster
+- regression: Linear, Correlation
+- mlearn: 
+- optimize: Root Find, Scalar (Univariate), Local (Multivariate), Global
 - integrate: Gauss
+- interpolate: 
 - mesh: line, rectangle, ellipse, cuboid, cylinder, sphere
-- gstats: variogram, kriging simple and ordinary, sequential gaussian simulation
 
 TextIO \# Text Input and Output
 
-- Header
 - Browser
 - TxtFile
 - XlSheet
@@ -24,12 +23,16 @@ TextIO \# Text Input and Output
 GeoModel \# Elements of GeoModel:
 
 - Items: Slot, Zone, Fault, Fracture, Segment
-- Survey
-- Diagram
-- Stock
-- Surface
-- Formation
-- Reservoir
+- Survey: 
+- Diagram: 
+- Stock: 
+- Surface:
+- Fractures: 
+- Faults: 
+- Formation: 
+- Reservoir: 
+- Mbal:
+- Gstats: heterogeneity, variogram, kriging, simulation
 
 Agenda \# Well Agenda
 
@@ -44,10 +47,11 @@ PetroPhysics \#
 
 - LasCurve
 - LasFile
+- LasBrief
 - LasBatch
 - BulkModel
 - DepthView
-- BatchView
+- CrossView
 - WorkFlow
 
 WellTest \#

@@ -1,4 +1,3 @@
-from ._header import Header
 from ._browser import Browser
 from ._txtfile import TxtFile
 from ._xlsheet import XlSheet

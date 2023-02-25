@@ -1,6 +1,4 @@
-import _setup
-
-from gmodel import Formation
+from borepy.gmodel import Formation
 
 zc = Formation()
 

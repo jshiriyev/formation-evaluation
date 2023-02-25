@@ -1,6 +1,6 @@
 from ._items import Fracture
 
-class FractureNetwork():
+class Fractures():
     """It is a collection of fractures."""
     def __init__(self):
 

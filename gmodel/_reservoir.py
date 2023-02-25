@@ -1,7 +1,7 @@
 from ._items import Segment
-from ._faultsystem import FaultSystem
-from ._fracturenetwork import FractureNetwork
-from ._wellstock import Stock
+from ._faults import Faults
+from ._fracnet import Fractures
+from ._stock import Stock
 
 class Reservoir():
     """It is a geometry to grid and assign petrophysical properties.

@@ -34,7 +34,6 @@ class Fracture:
     field: str = None
     length: float = None
     aperture: float = None
-    permeability: float = None
 
     # % The fracture segment is defined as a plane joining two node points
     # % (point1 and point2). The heigth of fracture plane is taken the same

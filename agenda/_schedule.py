@@ -2,7 +2,7 @@ import numpy
 
 from borepy.textio._browser import Browser
 
-from borepy.gmodel._wellstock import Stock
+from borepy.gmodel._stock import Stock
 
 class Schedule(Browser):
 
