@@ -1,29 +1,48 @@
-def bisection(obj_func,xL,xU,*args,Nmax=50,tol=1e-3):
+class bisection():
 
-    fL = obj_func(xL,*args)
-    fU = obj_func(xU,*args)
+    def __init__(self,func,lower,upper,tol=1e-5,args=None):
 
-    if fL*fU>0:
-        print("Interval boundaries has not been selected correctly")
-        return
+        self.lower = lower
+        self.upper = upper
 
-    for i in range(Nmax):
+        self.tol = tol
 
-        x = (xL+xU)/2
+        if args is None:
+            args = []
 
-        f = obj_func(x,*args)
+        self._iterate(func,args)
 
-        if abs(f)<tol or xU-xL<tol:
-            xOPT = x
-            break
+    def _iterate(self,func,args):
 
-        if f*fL<0:
-            xU = x
-        elif f*fU<0:
-            xL = x
+        lower,upper = float(self.lower),float(self.upper)
 
-    try:
-        print("Converged result is: %.8f" %xOPT)
-        print("Number of iterations is: %d" %(i+1))
-    except:
-        print("Convergence could not be obtained with %d iterations" %(Nmax))
+        flower = func(lower,*args)
+        fupper = func(upper,*args)
+
+        self.calls = 2
+
+        while (upper-lower)>self.tol:
+
+            middle = (lower+upper)/2
+
+            fmiddle = func(middle,*args)
+
+            # print(f"{self.calls:2} {lower:8.6f},{flower:8.6f},{upper:8.6f},{fupper:8.6f}")
+
+            self.calls += 1
+
+            if fmiddle*flower<0:
+                upper,fupper = middle,fmiddle
+            elif fmiddle*fupper<0:
+                lower,flower = middle,fmiddle
+            else:
+                self.info = "Either there is no root or even number of roots."
+                middle,fmiddle = float('nan'),float('nan')
+                break
+        else:
+
+            self.info = f"Found a root after {self.calls} iterations."
+
+        self.value = middle
+
+        self.minima = fmiddle
