@@ -1,5 +1,3 @@
-import numpy
-
 from ._ints import ints
 from ._floats import floats
 from ._strs import strs
@@ -50,4 +48,3 @@ def Special(vals):
         #     return
 
     return _array
-

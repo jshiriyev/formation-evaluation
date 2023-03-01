@@ -1,10 +1,3 @@
-def pop(kwargs,key,default=None):
-
-    try:
-        return kwargs.pop(key)
-    except KeyError:
-        return default
-
 class Curve():# INITIALIZATION MUST BE SIMPLIFIED TO: head=vals
     """It is a numpy array of shape (N,) with additional attributes of head, unit and info."""
 

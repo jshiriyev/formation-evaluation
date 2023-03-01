@@ -4,21 +4,53 @@ BorePy contains a set of modules used in integrated formation evaluation and res
 
 SComp \# scientific computing
 
-- arrays: Special, Curve, Bundle
-- datum: Binary, Header, Raster
+- interpolate: 
+- integrate: Gauss
+- optimize: Root Find, Scalar (Univariate), Local (Multivariate), Global
 - regression: Linear, Correlation
 - mlearn: 
-- optimize: Root Find, Scalar (Univariate), Local (Multivariate), Global
-- integrate: Gauss
-- interpolate: 
-- mesh: line, rectangle, ellipse, cuboid, cylinder, sphere
 
 TextIO \# Text Input and Output
 
-- Browser
-- TxtFile
-- XlSheet
-- XlBook
+- Array: Special, Curve, Frame
+- Datum: Binary, Header, Raster
+- Browser: 
+- TxtFile: 
+- XlBook: 
+- LasFile: 
+- Schedule:
+- vtk file format
+
+DataBase Management
+
+PetroPhysics \# Core Analysis and Well Logging Interpretations
+
+- LasBrief
+- LasBatch
+- BulkModel
+- DepthView
+- CorrView
+- WorkFlow
+
+WellTest \#
+
+- WorkFlow
+
+Diary \# Well Diary
+
+- Completion
+- Production
+- TimeView
+- WorkFlow: allocate
+
+FluidModel \# Reference: Tarek Ahmed chapter 2
+
+- Compositional Fluid Model
+- Modified Black Oil
+- Black Oil
+- Dead Oil
+- Dry Gas
+- Water
 
 GeoModel \# Elements of GeoModel:
 
@@ -32,33 +64,8 @@ GeoModel \# Elements of GeoModel:
 - Formation: 
 - Reservoir: 
 - Mbal:
+- Mesh: line, rectangle, ellipse, cuboid, cylinder, sphere
 - Gstats: heterogeneity, variogram, kriging, simulation
-
-Agenda \# Well Agenda
-
-- TimeCurve
-- Completion
-- Production
-- Schedule
-- TimeView
-- WorkFlow: allocate, 
-
-PetroPhysics \#
-
-- LasCurve
-- LasFile
-- LasBrief
-- LasBatch
-- BulkModel
-- DepthView
-- CrossView
-- WorkFlow
-
-WellTest \#
-
-- WorkFlow
-
-Fluid \# Reference: Tarek Ahmed chapter 2
 
 Flow \# Fluid FLow Modeling:
 
@@ -80,12 +87,3 @@ EMW \# Electomagnetic Waves Modeling, conductivity measurements with induction l
 - **AHM:** 2D wellbore conductivity simulation with axial hybrid method
 - **SIE:** 2D plane simulation with surface integral equations
 - **VIE:** 3D layer simulation volume integral equations
-
-Subjects \# Subjects to Study:
-
-- data structures and algorithms, spatial arrays
-- software development fundamentals (python packaging, git, bash, shell)
-- vtk file format
-- database SQL, sqlite
-- data analysis (statistics)
-- machine learning

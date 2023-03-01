@@ -1,12 +1,3 @@
-
-
-def pop(kwargs,key,default=None):
-
-    try:
-        return kwargs.pop(key)
-    except KeyError:
-        return default
-
 class Bundle():
     """It stores equal-size one-dimensional numpy arrays in a list."""
 
@@ -371,3 +362,10 @@ class Bundle():
     def infos(self):
 
         return [datacolumn.info for datacolumn in self.running]
+
+def pop(kwargs,key,default=None):
+
+    try:
+        return kwargs.pop(key)
+    except KeyError:
+        return default

@@ -1,11 +1,6 @@
 from borepy.scomp.array._curve import Curve
 
-def pop(kwargs,key,default=None):
-
-    try:
-        return kwargs.pop(key)
-    except KeyError:
-        return default
+# Data uniformly spaced in depth
 
 class LasCurve(Curve):
     """The major difference between Column and LasCurve is the depth attribute
@@ -61,3 +56,10 @@ class LasCurve(Curve):
         null = numpy.sum(thickness[self.isnone])
 
         return {'total': total, 'null': null, 'valid': total-null,}
+
+def pop(kwargs,key,default=None):
+
+    try:
+        return kwargs.pop(key)
+    except KeyError:
+        return default
