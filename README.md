@@ -18,10 +18,17 @@ TextIO \# Text Input and Output
 - TxtFile: 
 - XlBook: 
 - LasFile: 
-- Schedule:
+- Schedule: 
 - vtk file format
 
 DataBase Management
+
+Diary \# Well Diary
+
+- Completion
+- Production
+- TimeView
+- WorkFlow: allocate
 
 PetroPhysics \# Core Analysis and Well Logging Interpretations
 
@@ -35,13 +42,6 @@ PetroPhysics \# Core Analysis and Well Logging Interpretations
 WellTest \#
 
 - WorkFlow
-
-Diary \# Well Diary
-
-- Completion
-- Production
-- TimeView
-- WorkFlow: allocate
 
 FluidModel \# Reference: Tarek Ahmed chapter 2
 
