@@ -18,7 +18,7 @@ from matplotlib.ticker import MultipleLocator
 from matplotlib.ticker import NullLocator
 from matplotlib.ticker import ScalarFormatter
 
-from borepy.textio._browser import Browser
+from borepy.textio.folder._browser import Browser
 
 class CorrView(Browser):
     """It creates correlation based on multiple las files from different wells."""

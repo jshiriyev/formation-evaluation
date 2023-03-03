@@ -11,7 +11,7 @@ import re
 
 import numpy
 
-from ._browser import Browser
+from .folder._browser import Browser
 
 class TxtFile(Browser):
 

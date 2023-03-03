@@ -1,4 +1,4 @@
-from borepy.textio._browser import Browser
+from borepy.textio.folder._browser import Browser
 
 class LasBatch(Browser):
 

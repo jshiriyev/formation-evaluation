@@ -26,7 +26,7 @@ from matplotlib.ticker import ScalarFormatter
 
 import numpy
 
-from borepy.textio._browser import Browser
+from borepy.textio.folder._browser import Browser
 
 def pop(kwargs,key,default=None):
 

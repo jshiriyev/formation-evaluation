@@ -1,6 +1,6 @@
 import numpy
 
-from borepy.textio._browser import Browser
+from .folder._browser import Browser
 
 from borepy.gmodel._stock import Stock
 
@@ -92,11 +92,11 @@ class Schedule(Browser):
                         wfile.write("\n")
                     wfile.write("/\n\n")
 
-def loadschedule():
+def loadsched():
 
     pass
 
-class ScheduleWorm():
+class SchedWorm():
 
     def __init__(self,filepath):
 

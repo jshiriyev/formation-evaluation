@@ -1,10 +1,10 @@
 import numpy
 
-from ._ints import ints
-from ._floats import floats
-from ._strs import strs
-from ._dates import dates
-from ._datetimes import datetimes
+from .special._ints import ints
+from .special._floats import floats
+from .special._strs import strs
+from .special._dates import dates
+from .special._datetimes import datetimes
 
 def iterator(*args,size=None):
 

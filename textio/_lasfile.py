@@ -1,4 +1,4 @@
-from borepy.textio._browser import Browser
+from .folder._browser import Browser
 
 class LasFile(Browser):
 

@@ -1,4 +1,12 @@
+from dateutil import parser
+
 import os
+
+import pathlib
+
+from xml.etree import ElementTree
+
+import zipfile
 
 class Browser():
     """Base directory class to manage files in the input & output directories."""
@@ -10,11 +18,10 @@ class Browser():
 
         self.set_filedir(filedir)
 
-        if filepath is not None:
-            self.set_filepath(filepath)
+        self.set_filepath(filepath)
 
     def set_homedir(self,path=None):
-        """Sets the home directory to put outputs."""
+        """Sets the home directory for outputs."""
 
         if path is None:
             path = os.getcwd()
@@ -28,7 +35,7 @@ class Browser():
         super().__setattr__("homedir",path)
 
     def set_filedir(self,path=None):
-        """Sets the file directory to get inputs."""
+        """Sets the file directory for inputs."""
 
         if path is None:
             path = os.getcwd()
@@ -50,15 +57,16 @@ class Browser():
         if os.path.isabs(path):
             self.set_filedir(path)
         else:
-            path = self.get_abspath(path)
+            path = self.get_abspath(path,homeFlag=False)
 
         if os.path.isdir(path):
-            return
-
-        super().__setattr__("filedir",os.path.dirname(path))
-        super().__setattr__("filepath",path)
+            super().__setattr__("filedir",os.path.dirname(path))
+        else:
+            super().__setattr__("filedir",os.path.dirname(path))
+            super().__setattr__("filepath",path)
 
     def get_extended(self,path=None,extension=None):
+        """Returns the path confirming extension."""
 
         if path is None:
             path = self.filepath
@@ -155,7 +163,14 @@ class Browser():
                 else:
                     return [filename for filename in filenames if filename.startswith(prefix) and filename.endswith(extension)]
 
-    def find_files(self,path=None,prefix=None,extension=None,recursive=True,_list=None):
+    def get_fpaths(self,
+        path=None,
+        prefix=None,
+        extension=None,
+        timeref=None,
+        timecond="before",
+        timedetail="created",
+        recursive=True,_list=None):
 
         if path is None:
             path = self.homedir
@@ -169,19 +184,22 @@ class Browser():
 
             fpath = os.path.join(path,fname)
 
-            if os.path.isdir(fpath):
-                _list = self.find_files(path=fpath,prefix=prefix,extension=extension,recursive=True,_list=_list)
+            if os.path.isdir(fpath) and recursive:
+                _list = self.find_files(path=fpath,prefix=prefix,extension=extension,_list=_list)
             else:
-                if self.doesmatch(fname,prefix=prefix,extension=extension):
+                nameFlag = self.doesnamematch(path=fpath,prefix=prefix,extension=extension)
+                timeFlag = self.doestimematch(path=fpath,reference=timeref,condition=timecond,detail=timedetail)
+
+                if nameFlag and timeFlag:
                     _list.append(fpath)
 
         return _list
 
-    def doesmatch(self,fname,prefix=None,extension=None):
+    def doesnamematch(self,path,prefix=None,extension=None):
 
         flag = True
 
-        fname_lower = fname.lower()
+        fname_lower = path.lower()
 
         if prefix is not None:
             flag = flag and fname_lower.startswith(prefix.lower())
@@ -190,6 +208,34 @@ class Browser():
             flag = flag and fname_lower.endswith(extension.lower())
 
         return flag
+
+    def doestimematch(self,path,reference=None,condition="before",detail="created"):
+        """
+        reference     : reference datetime.datetime to compare
+        condition     : {before,after,equal}
+        detail        : {created,modified}
+        """
+
+        if reference is None:
+            return True
+
+        xls_zip = zipfile.ZipFile(path)
+
+        xml_contents = xls_zip.read("docProps/core.xml")
+
+        et = ElementTree.fromstring(xml_contents)
+
+        filetime = et.find(f'dcterms:{detail}',{"dcterms":"http://purl.org/dc/terms/"})
+        filetime = parser.parse(filetime.text)
+
+        reference = reference.astimezone(filetime.tzinfo)
+
+        if condition=="before":
+            return filetime<reference
+        elif condition=="after":
+            return filetime>reference
+        elif condition=="equal":
+            return filetime==reference
 
     @property
     def basename(self):
