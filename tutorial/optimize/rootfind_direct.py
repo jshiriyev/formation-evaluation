@@ -4,8 +4,7 @@ import time
 
 from scipy import optimize
 
-from optimize.rootfind import newton
-from optimize.rootfind import secant
+from borepy.scomp.optimize import root
 
 def obj(phi,epd,Re):
     xx = np.power(phi,-0.5)
@@ -24,12 +23,12 @@ phi0 = 8/Re
 phi1 = 16/Re
 
 tic = time.perf_counter()
-phiS = secant(obj,phi0,phi1,epd,Re)
+phiS = root.secant(obj,phi0,phi1,tol=1e-7,args=(epd,Re)).value
 toc = time.perf_counter()
 print(f"home built secant method took \t {toc - tic:0.7f} seconds")
 
 tic = time.perf_counter()
-phiN = newton(obj,obj_der,phi0,epd,Re)
+phiN = root.newton(obj,obj_der,phi0,tol=1e-7,args=(epd,Re)).value
 toc = time.perf_counter()
 print(f"home built newton method took \t {toc - tic:0.7f} seconds")
 

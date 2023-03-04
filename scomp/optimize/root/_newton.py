@@ -24,7 +24,7 @@ class newton():
 
         while abs(d0/d1)>self.tol:
 
-            print(f"{self.calls:2} {initial:8.6f},{d0:8.6f},{d1:8.6f},{d0/d1:8.6f}")
+            # print(f"{self.calls:2} {initial:8.6f},{d0:8.6f},{d1:8.6f},{d0/d1:8.6f}")
 
             initial -= d0/d1
 

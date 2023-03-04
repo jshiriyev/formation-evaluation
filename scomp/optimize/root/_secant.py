@@ -22,7 +22,7 @@ class secant():
 
         self.calls += 1
 
-        print(f"{self.calls:2} {x0:8.6f},{y0:8.6f}")
+        # print(f"{self.calls:2} {x0:8.6f},{y0:8.6f}")
 
         y1 = func(x1,*args)
 
@@ -32,7 +32,7 @@ class secant():
 
         while abs(y1/d1)>self.tol:
 
-            print(f"{self.calls:2} {x1:8.6f},{y1:8.6f},{y1/d1:8.6f}")
+            # print(f"{self.calls:2} {x1:8.6f},{y1:8.6f},{y1/d1:8.6f}")
 
             x2 = x1-y1/d1
 
