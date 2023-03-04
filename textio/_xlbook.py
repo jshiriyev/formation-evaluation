@@ -14,62 +14,27 @@ import openpyxl
 
 from .folder._browser import Browser
 
-class XlSheet(Browser):
+def pop(kwargs,key,default=None):
 
-    def __init__(self,*args,**kwargs):
-
-        super().__init__(*args,**kwargs)
-
-    def write(self,filepath,title):
-
-        wb = openpyxl.Workbook()
-
-        sheet = wb.active
-
-        if title is not None:
-            sheet.title = title
-
-        for line in running:
-            sheet.append(line)
-
-        wb.save(filepath)
+    try:
+        return kwargs.pop(key)
+    except KeyError:
+        return default
 
 class XlBook(Browser):
 
-    def __init__(self,filepaths=None,sheetnames=None,**kwargs):
+    def __init__(self,filepath=None,sheetnames=None,**kwargs):
 
-        super().__init__(**kwargs)
+        homedir = pop(kwargs,"homedir")
+        filedir = pop(kwargs,"filedir")
+
+        super().__init__(homedir=homedir,filedir=filedir,filepath=filepath)
 
         self.frames = []
 
-        self.loadall(filepaths,sheetnames,**kwargs)
-
-    def load(self,filepaths,sheetnames=None,**kwargs):
-        """It add frames from the excel worksheet provided with filepaths and sheetnames."""
-
-        if filepaths is None:
-            return
-        elif type(filepaths) is str:
-            filepaths = (filepaths,)
-        else:
-            filepaths = tuple(filepaths)
-
-        if sheetnames is None:
-            sheets = (sheetnames,)
-        elif type(sheetnames) is str:
-            sheets = (sheetnames,)
-        else:
-            sheets = tuple(sheetnames)
-
-        for filepath in filepaths:
-
-            filepath = self.get_abspath(filepath)
-
-            dataframe = loadbook(filepath,**kwargs)
-
-            self.frames.append(dataframe)
-
-            logging.info(f"Loaded {filepath} as expected.")
+    def split(self):
+        """It should split to frames based on all None lists."""
+        return
 
     def merge(self,cols=None,idframes=None,infosearch=False):
         """It merges all the frames as a single frame under the Excel class."""
@@ -121,6 +86,40 @@ class XlBook(Browser):
             framemerged._append(*datacolumns)
 
         return framemerged
+
+    def write(self,filepath,title):
+
+        wb = openpyxl.Workbook()
+
+        sheet = wb.active
+
+        if title is not None:
+            sheet.title = title
+
+        for line in running:
+            sheet.append(line)
+
+        wb.save(filepath)
+
+    @staticmethod
+    def transpose(frame):
+        """From row wise to column wise data or vice versa."""
+        return
+
+    @staticmethod
+    def drop(frame):
+        """Drop lists with all None."""
+        return
+
+    @staticmethod
+    def determine(frame):
+        """It will auto determine the variable typse of given list"""
+        return
+
+    @staticmethod
+    def bundleit(frame,types=None):
+        """It will set data types of list and convert it to array returning bundle of arrays."""
+        return
 
 def loadxl(filepath,sheetname=None,**kwargs):
 
