@@ -1,6 +1,5 @@
-from ._heterogeneity import varcoeff
-from ._heterogeneity import dykstraparson
-from ._heterogeneity import lorenz
+from .heterogeneity._dykstraparson import dykstraparson
+from .heterogeneity._lorenz import lorenz
 
 from ._variogram import variogram
 from ._kriging import kriging

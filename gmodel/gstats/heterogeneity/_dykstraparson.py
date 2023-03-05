@@ -4,8 +4,6 @@ import numpy
 
 from scipy.stats import norm
 
-from borepy.scomp.array._flatten import flatten
-
 class dykstraparson():
     """
     Calculates Dykstra-Parson coefficient for permeability and
@@ -33,12 +31,12 @@ class dykstraparson():
 
         """
 
-        self.permeability = numpy.array(flatten(permeability))
+        self.permeability = numpy.array(permeability)
 
         if thickness is None:
             self.thickness = None
         else:
-            self.thickness = numpy.array(flatten(thickness))
+            self.thickness = numpy.array(thickness)
 
         self._solve()
 

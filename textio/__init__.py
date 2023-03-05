@@ -6,7 +6,7 @@ from .folder._browser import Browser
 from ._txtfile import TxtFile, loadtxt
 from ._lasfile import LasFile, loadlas
 
-from ._xlbook import XlSheet, XlBook, loadxl
+from ._xlbook import XlBook, loadxl
 
 from ._schedule import Schedule, loadsched
 

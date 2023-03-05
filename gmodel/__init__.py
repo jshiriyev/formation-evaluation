@@ -2,6 +2,9 @@ import os,sys,json
 
 filedir = os.path.dirname(__file__)
 
+from . import gstats
+from . import mesh
+
 # Geomodeling Elements
 from ._items import Slot
 from ._items import Zone

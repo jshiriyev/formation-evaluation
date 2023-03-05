@@ -1,6 +1,4 @@
-from borepy.textio.datum._header import Header
-
-class BulkModel(Header):
+class BulkModel():
 
     def __init__(self,**kwargs):
 

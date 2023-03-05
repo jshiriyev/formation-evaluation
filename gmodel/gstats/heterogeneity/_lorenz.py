@@ -2,8 +2,6 @@ from matplotlib import pyplot
 
 import numpy
 
-from borepy.scomp.array._flatten import flatten
-
 class lorenz():
     """
     Calculates Lorenz coefficient for permeability, porosity and
@@ -32,13 +30,13 @@ class lorenz():
 
         """
 
-        self.permeability = numpy.array(flatten(permeability))
-        self.porosity = numpy.array(flatten(porosity))
+        self.permeability = numpy.array(permeability)
+        self.porosity = numpy.array(porosity)
         
         if thickness is None:
             self.thickness = None
         else:
-            self.thickness = numpy.array(flatten(thickness))
+            self.thickness = numpy.array(thickness)
 
         self._solve()
 
