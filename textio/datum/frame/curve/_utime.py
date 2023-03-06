@@ -1,8 +1,8 @@
-import numpy
+from ._curve import Curve
 
 # Data uniformly spaced in time
 
-class TimeCurve():
+class uTime(Curve):
 
     def __init__(self):
 

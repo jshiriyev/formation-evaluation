@@ -1,17 +1,29 @@
 import numpy
 
+from ._flatten import flatten
+
 class floats(numpy.ndarray): # HOW TO BEHAVE LIKE NUMPY ARRAY WHILE CORRECTLY FUNCTIONING WITH DIFFERET NAN
 
-    def __init__(self,vals,none=None):
+    def __new__(cls,variable,null=None,unit=None):
 
-        if none is None:
-            self._none = float('nan')
-        elif isinstance(none,float):
-            self._none = none
-        else:
-            raise TypeError("none must be float type!")
+        null = numpy.nan if null is None else null
 
-        self._setvals(vals)
+        iterable = floats._iterable(variable,null)
+
+        obj = numpy.asarray(iterable,dtype='float64').view(cls)
+
+        obj._null = str(null)
+
+        obj._unit = unit
+
+        return obj
+
+    def __array_finalize__(self,obj):
+
+        if obj is None: return
+
+        self._null = getattr(obj,'_null',numpy.nan)
+        self._unit = getattr(obj,'_unit',None)
 
     def normalize(self,vmin=None,vmax=None):
         """It returns normalized values (in between 0 and 1) of float arrays.
@@ -65,20 +77,25 @@ class floats(numpy.ndarray): # HOW TO BEHAVE LIKE NUMPY ARRAY WHILE CORRECTLY FU
                         if val==self.nones.datetime64:
                             bool_arr[index] = True
 
-    def _iterable(self,vals):
+    @staticmethod
+    def _iterable(variable,null):
 
-        _vals = []
+        null = float(null)
 
-        for _val in flatten(vals):
+        iterable = []
+
+        for value in flatten(variable):
 
             try:
-                val = float(_val)
+                value = float(value)
+            except TypeError:
+                value = null
             except ValueError:
-                val = self._none
+                value = null
 
-            _vals.append(val)
+            iterable.append(value)
 
-        self._vals = _vals
+        return iterable
 
     def _arange(*args,size=None,dtype=None):
 
@@ -91,3 +108,14 @@ class floats(numpy.ndarray): # HOW TO BEHAVE LIKE NUMPY ARRAY WHILE CORRECTLY FU
             return _array
         else:
             return _array.astype(dtype)
+
+def float2int(value,default=None):
+    """Returns integer converted from float value.
+    If there is a ValueError it returns default value."""
+
+    try:
+        value = int(value)
+    except ValueError:
+        value = default
+
+    return value

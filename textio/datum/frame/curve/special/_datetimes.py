@@ -2,66 +2,6 @@ import datetime
 
 import numpy
 
-def _datetime_adddelta(dtcurr:datetime.datetime,days:float=0.,hours:float=0.,minutes:float=0.,seconds:float=0.) -> datetime.datetime:
-
-    if dtcurr is None:
-        return
-        
-    dtcurr += relativedelta.relativedelta(days=days,hours=hours,minutes=minutes,seconds=seconds)
-
-    return dtcurr
-
-datetime_adddelta = numpy.vectorize(_datetime_adddelta,otypes=['datetime64[s]'])
-
-def _datetime_addmonths(dtcurr:datetime.datetime,delta:float) -> datetime.datetime:
-
-    if dtcurr is None:
-        return
-
-    delta_month = int(delta//1)
-
-    delta_month_fraction = delta%1
-
-    dtcurr += relativedelta.relativedelta(months=delta_month)
-
-    if delta_month_fraction==0:
-        return dtcurr
-
-    mrange = calendar.monthrange(dtcurr.year,dtcurr.month)[1]
-
-    delta_day = delta_month_fraction*mrange
-
-    dttemp = dtcurr+relativedelta.relativedelta(days=delta_day)
-
-    month_diff = (dttemp.year-dtcurr.year)*12+dttemp.month-dtcurr.month
-
-    if month_diff<2:
-        return dttemp
-
-    dtcurr += relativedelta.relativedelta(months=1)
-    
-    return datetime.datetime(dtcurr.year,dtcurr.month,dtcurr.day,23,59,59) #,999999
-
-datetime_addmonths = numpy.vectorize(_datetime_addmonths,otypes=['datetime64[s]'])
-
-def _datetime_addyears(dtcurr:datetime.datetime,delta:float) -> datetime.datetime:
-
-    if dtcurr is None:
-        return
-
-    delta_year = int(delta//1)
-
-    delta_year_fraction = delta%1
-
-    dtcurr += relativedelta.relativedelta(years=delta_year)
-
-    if delta_year_fraction==0:
-        return dtcurr
-    else:
-        return _datetime_addmonths(dtcurr,delta_year_fraction*12)
-
-datetime_addyears = numpy.vectorize(_datetime_addyears,otypes=['datetime64[s]'])
-
 class datetimes(numpy.ndarray): # HOW TO ADD SOME FUNCTIONALITY TO NUMPY DATETIME64 ARRAY
     """
     For numpy.datetime64, the issue with following deltatime units
@@ -124,7 +64,11 @@ class datetimes(numpy.ndarray): # HOW TO ADD SOME FUNCTIONALITY TO NUMPY DATETIM
 
     def add(self,delta,unit='month'):
 
-        pass
+        datetime_adddelta = numpy.vectorize(_datetime_adddelta,otypes=['datetime64[s]'])
+
+        datetime_addmonths = numpy.vectorize(_datetime_addmonths,otypes=['datetime64[s]'])
+
+        datetime_addyears = numpy.vectorize(_datetime_addyears,otypes=['datetime64[s]'])
 
     def shift(self):
 
@@ -275,3 +219,57 @@ class datetimes(numpy.ndarray): # HOW TO ADD SOME FUNCTIONALITY TO NUMPY DATETIM
     def day(self):
         
         return
+
+def _adddelta(dtcurr:datetime.datetime,days:float=0.,hours:float=0.,minutes:float=0.,seconds:float=0.) -> datetime.datetime:
+
+    if dtcurr is None:
+        return
+        
+    dtcurr += relativedelta.relativedelta(days=days,hours=hours,minutes=minutes,seconds=seconds)
+
+    return dtcurr
+
+def _addmonths(dtcurr:datetime.datetime,delta:float) -> datetime.datetime:
+
+    if dtcurr is None:
+        return
+
+    delta_month = int(delta//1)
+
+    delta_month_fraction = delta%1
+
+    dtcurr += relativedelta.relativedelta(months=delta_month)
+
+    if delta_month_fraction==0:
+        return dtcurr
+
+    mrange = calendar.monthrange(dtcurr.year,dtcurr.month)[1]
+
+    delta_day = delta_month_fraction*mrange
+
+    dttemp = dtcurr+relativedelta.relativedelta(days=delta_day)
+
+    month_diff = (dttemp.year-dtcurr.year)*12+dttemp.month-dtcurr.month
+
+    if month_diff<2:
+        return dttemp
+
+    dtcurr += relativedelta.relativedelta(months=1)
+    
+    return datetime.datetime(dtcurr.year,dtcurr.month,dtcurr.day,23,59,59) #,999999
+
+def _addyears(dtcurr:datetime.datetime,delta:float) -> datetime.datetime:
+
+    if dtcurr is None:
+        return
+
+    delta_year = int(delta//1)
+
+    delta_year_fraction = delta%1
+
+    dtcurr += relativedelta.relativedelta(years=delta_year)
+
+    if delta_year_fraction==0:
+        return dtcurr
+    else:
+        return _datetime_addmonths(dtcurr,delta_year_fraction*12)

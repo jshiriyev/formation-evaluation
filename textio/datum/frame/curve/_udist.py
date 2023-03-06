@@ -1,8 +1,8 @@
-from borepy.scomp.array._curve import Curve
+from ._curve import Curve
 
 # Data uniformly spaced in depth
 
-class LasCurve(Curve):
+class uDist(Curve):
     """The major difference between Column and LasCurve is the depth attribute
     of LasCurve."""
 

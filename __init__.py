@@ -2,6 +2,8 @@ from . import scomp
 
 from . import textio
 
+from .textio.datum.frame.curve import array
+
 from . import diary
 
 from . import pphys

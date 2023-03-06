@@ -4,6 +4,8 @@ import numpy
 
 from ._flatten import flatten
 
+from ._floats import float2int
+
 class ints(numpy.ndarray):
     """It is a flat subclass of numpy.ndarray that includes null entries.
     If null is not defined or is None, -99_999 is set as sentinel value."""
@@ -338,14 +340,3 @@ comparison_operators = (
     numpy.greater_equal,
     numpy.less_equal
 )
-
-def float2int(value,default=None):
-    """Returns integer converted from float value.
-    If there is a ValueError it returns default value."""
-
-    try:
-        value = int(value)
-    except ValueError:
-        value = default
-
-    return value
