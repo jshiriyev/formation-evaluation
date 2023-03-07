@@ -1,18 +1,18 @@
+import re
+
 import numpy
 
-from ._flatten import flatten
+class floats(numpy.ndarray):
 
-class floats(numpy.ndarray): # HOW TO BEHAVE LIKE NUMPY ARRAY WHILE CORRECTLY FUNCTIONING WITH DIFFERET NAN
+    def __new__(cls,values,null=None,unit=None):
 
-    def __new__(cls,variable,null=None,unit=None):
+        null = numpy.nan if null is None else float(null)
 
-        null = numpy.nan if null is None else null
+        values = iterable(values)
 
-        iterable = floats._iterable(variable,null)
+        obj = numpy.asarray(values,dtype='float64').view(cls)
 
-        obj = numpy.asarray(iterable,dtype='float64').view(cls)
-
-        obj._null = str(null)
+        obj._null = null
 
         obj._unit = unit
 
@@ -25,91 +25,106 @@ class floats(numpy.ndarray): # HOW TO BEHAVE LIKE NUMPY ARRAY WHILE CORRECTLY FU
         self._null = getattr(obj,'_null',numpy.nan)
         self._unit = getattr(obj,'_unit',None)
 
+    def __repr__(self):
+
+        parent = super().__repr__()
+
+        child = parent.replace('nan',str(self.null))
+
+        return re.sub(r"\s+"," ",child)
+
+    def __str__(self):
+
+        parent = super().__str__()
+
+        child = parent.replace('nan',str(self.null))
+
+        return re.sub(r"\s+"," ",child)
+
     def normalize(self,vmin=None,vmax=None):
         """It returns normalized values (in between 0 and 1) of float arrays.
         If vmin is provided, everything below 0 will be reported as zero.
         If vmax is provided, everything above 1 will be reported as one."""
 
-        datacolumn = copy.deepcopy(self)
+        vals = self.copy()
 
         if vmin is None:
-            vmin = datacolumn.min()
+            vmin = vals.min()
 
         if vmax is None:
-            vmax = datacolumn.max()
+            vmax = vals.max()
 
-        datacolumn.vals = (datacolumn.vals-vmin)/(vmax-vmin)
+        vals = (vals-vmin)/(vmax-vmin)
 
-        datacolumn.vals[datacolumn.vals<=0] = 0
-        datacolumn.vals[datacolumn.vals>=1] = 1
+        vals[vals<=0] = 0
+        vals[vals>=1] = 1
 
-        datacolumn._valsunit()
+        return vals
 
-        return datacolumn
+    def valids(self):
+
+        vals = self.copy()
+
+        return vals[self.isvalid]
+
+    def min(self):
+
+        return numpy.nanmin(self.view(numpy.ndarray))
+
+    def max(self):
+
+        return numpy.nanmax(self.view(numpy.ndarray))
 
     @property
-    def isnone(self):
-        """It return boolean array by comparing the values of vals to none types defined by column."""
+    def null(self):
 
-        if self.vals.dtype.type is numpy.object_:
+        return self._null
 
-            bool_arr = numpy.full(self.vals.shape,False,dtype=bool)
+    @property
+    def unit(self):
 
-            for index,val in enumerate(self.vals):
-                if val is None:
-                    bool_arr[index] = True
-                elif isinstance(val,int):
-                    if val==self.nones.int:
-                        bool_arr[index] = True
-                elif isinstance(val,float):
-                    if numpy.isnan(val):
-                        bool_arr[index] = True
-                    elif not numpy.isnan(self.nones.float):
-                        if val==self.nones.float:
-                            bool_arr[index] = True
-                elif isinstance(val,str):
-                    if val==self.nones.str:
-                        bool_arr[index] = True
-                elif isinstance(val,numpy.datetime64):
-                    if numpy.isnat(val):
-                        bool_arr[index] = True
-                    elif not numpy.isnat(self.nones.datetime64):
-                        if val==self.nones.datetime64:
-                            bool_arr[index] = True
+        return self._unit
 
-    @staticmethod
-    def _iterable(variable,null):
+    @property
+    def isvalid(self):
+        """It return boolean array True for float and False for null."""
+        return ~numpy.isnan(self.view(numpy.ndarray))
+    
+    @property
+    def isnull(self):
+        """It return numpy bool array, True for null and False for float."""
+        return numpy.isnan(self.view(numpy.ndarray))
 
-        null = float(null)
+def iterable(values):
 
-        iterable = []
+    vals = []
 
-        for value in flatten(variable):
+    for value in values:
 
-            try:
-                value = float(value)
-            except TypeError:
-                value = null
-            except ValueError:
-                value = null
+        try:
+            value = float(value)
+        except TypeError:
+            value = numpy.nan
+        except ValueError:
+            value = numpy.nan
 
-            iterable.append(value)
+        vals.append(value)
 
-        return iterable
+    return vals
 
-    def _arange(*args,size=None,dtype=None):
+def arange(*args,size=None,dtype=None):
 
-        if len(args)==0:
-            return
-        elif len(args)==1:
-            _array = array1d(args[0],size)
+    if len(args)==0:
+        return
+    elif len(args)==1:
+        _array = array1d(args[0],size)
 
-        if dtype is None:
-            return _array
-        else:
-            return _array.astype(dtype)
+    if dtype is None:
+        return _array
+    else:
+        return _array.astype(dtype)
 
-def float2int(value,default=None):
+def toint(value,default=None):
     """Returns integer converted from float value.
     If there is a ValueError it returns default value."""
 
@@ -119,3 +134,17 @@ def float2int(value,default=None):
         value = default
 
     return value
+
+if __name__ == "__main__":
+
+    array = floats([1,2,3,4,None,7],null=-99.999)
+
+    print(array)
+    print(array+1)
+
+    print(array.valids())
+
+    print(array.min())
+    print(array.max())
+
+    print(array.normalize())

@@ -163,14 +163,7 @@ class Browser():
                 else:
                     return [filename for filename in filenames if filename.startswith(prefix) and filename.endswith(extension)]
 
-    def get_fpaths(self,
-        path=None,
-        prefix=None,
-        extension=None,
-        timeref=None,
-        timecond="before",
-        timedetail="created",
-        recursive=True,_list=None):
+    def get_fpaths(self,path=None,prefix=None,extension=None,timeref=None,timecond="before",timedetail="created",recursive=True,_list=None):
 
         if path is None:
             path = self.homedir
@@ -185,17 +178,17 @@ class Browser():
             fpath = os.path.join(path,fname)
 
             if os.path.isdir(fpath) and recursive:
-                _list = self.find_files(path=fpath,prefix=prefix,extension=extension,_list=_list)
+                _list = self.get_fpaths(path=fpath,prefix=prefix,extension=extension,timeref=timeref,timecond=timecond,timedetail=timedetail,_list=_list)
             else:
-                nameFlag = self.doesnamematch(path=fpath,prefix=prefix,extension=extension)
-                timeFlag = self.doestimematch(path=fpath,reference=timeref,condition=timecond,detail=timedetail)
+                nameFlag = self._doesnamematch(path=fpath,prefix=prefix,extension=extension)
+                timeFlag = self._doestimematch(path=fpath,reference=timeref,condition=timecond,detail=timedetail)
 
                 if nameFlag and timeFlag:
                     _list.append(fpath)
 
         return _list
 
-    def doesnamematch(self,path,prefix=None,extension=None):
+    def _doesnamematch(self,path,prefix=None,extension=None):
 
         flag = True
 
@@ -209,7 +202,7 @@ class Browser():
 
         return flag
 
-    def doestimematch(self,path,reference=None,condition="before",detail="created"):
+    def _doestimematch(self,path,reference=None,condition="before",detail="created"):
         """
         reference     : reference datetime.datetime to compare
         condition     : {before,after,equal}

@@ -1,12 +1,6 @@
-from borepy.textio.folder._browser import Browser
-
-class LasBatch(Browser):
+class LasBatch():
 
     def __init__(self,filepaths=None,**kwargs):
-
-        super().__init__(
-            homedir = pop(kwargs,"homedir"),
-            filedir = pop(kwargs,"filedir"))
 
         self.files = []
 

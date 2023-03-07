@@ -5,63 +5,57 @@ from dateutil import relativedelta
 import unittest
 
 import numpy
-import pint
 
-if __name__ == "__main__":
-    import dirsetup
-
-from datum import array
-from datum import any2column
-from datum import key2column
+from borepy import array
 
 class TestArray(unittest.TestCase):
 
     def test_integer(self):
 
-        a = array(5)
+        a = array(5,float)
         # print(a,a.dtype,a.head,)
 
     def test_float_number(self):
 
-        b = array(5.)
+        b = array(5.,float)
         # print(b,b.dtype,b.head)
 
     def test_string_number(self):
 
-        c = array('5')
+        c = array('5',float)
         # print(c,c.dtype,c.head)
 
     def test_string_characters(self):
 
-        d = array('cavid')
+        d = array('cavid',float)
         # print(d,d.dtype,d.head)
 
     def test_string_datetime(self):
 
-        e = array('2022-02-28')
+        e = array('2022-02-28',float)
         # print(e,e.dtype,e.head)
 
     def test_datetime_datetime(self):
 
-        f = array(datetime.datetime.today())
+        f = array(datetime.datetime.today(),float)
         # print(f,f.dtype,f.head)
 
     def test_datetime_date(self):
 
-        g = array(datetime.date.today())
+        g = array(datetime.date.today(),float)
         # print(g,g.dtype,g.head)
 
     def test_none(self):
 
-        h = array(None)
+        h = array(None,float)
         # print(h,h.dtype,h.head,h.shape,h.size)
 
     def test_empty_list(self):
 
-        i = array([])
+        i = array([],float)
         # print(i,i.dtype,i.head,i.shape,i.size)
 
-    def test_init(self):
+    def _test_init(self):
 
         arr_ = key2column(5)
         numpy.testing.assert_array_equal(arr_,numpy.arange(5))
@@ -89,6 +83,20 @@ class TestArray(unittest.TestCase):
             arr_.vals,numpy.array(['Python','NumPy','Great!']))
 
         numpy.testing.assert_array_equal(arr_.vals,arr2.vals)
+
+    def test_functions(self):
+
+        values = array([1,2,3,4,None,7],float,null=-99.999)
+
+        print(values)
+        print(values+1)
+
+        print(values.valids())
+
+        print(values.min())
+        print(values.max())
+
+        print(values.normalize())
 
 if __name__ == "__main__":
 

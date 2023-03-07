@@ -12,9 +12,9 @@ import re
 import numpy
 import openpyxl
 
-from .folder._browser import Browser
-
 from .datum.frame._builtin import Frame
+
+from .directory._browser import Browser
 
 class XlBook(Browser):
 
@@ -24,8 +24,15 @@ class XlBook(Browser):
 
         self.sheets = {}
 
-    def split(self,sheetname,transpose=False,intFlag=False):
-        """It should split to frames based on all None lists."""
+    def split(self,sheetname,intFlag=False):
+        """It should split to frames based on all None lists.
+        
+        intFlag     : boolean to set integers as unwanted element.
+                     - If row contains only integers, it will be removed.
+                     - None is unwanted element by default.
+                     - If row contains nones and integers, it will be removed too.
+
+        """
 
         frames = []
         
@@ -47,68 +54,7 @@ class XlBook(Browser):
                 subrows.append(row)
                 prevRowNoneFlag = False
 
-        if not transpose:
-            return frames
-
-        for index,frame in enumerate(frames):
-
-            frame = frame.transpose()
-            frame = frame.drop()
-
-            frames[index] = frame
-
         return frames
-
-    def merge(self,cols=None,idframes=None,infosearch=False):
-        """It merges all the frames as a single frame under the Excel class."""
-
-        framemerged = frame()
-
-        if cols is None:
-            pass
-        elif type(cols) is int:
-            cols = (cols,)
-        elif type(cols) is str:
-            cols = (cols,)
-        else:
-            cols = tuple(cols)
-
-        if idframes is None:
-            idframes = range(len(self.frames))
-        elif type(idframes) is int:
-            idframes = (idframes,)
-        elif type(idframes) is str:
-            idframes = (idframes,)
-        else:
-            idframes = tuple(idframes)
-
-        for idframe in idframes:
-
-            frame = self.frames[idframe]
-
-            if cols is None:
-                datacolumns = [datacolumn for datacolumn in dataframe.running]
-            elif not infosearch:
-                datacolumns = []
-                for index in tuple(cols):
-                    if type(index) is int:
-                        datacolumns.append(dataframe.running[index])
-                    elif type(index) is str:
-                        datacolumns.append(dataframe[index])
-                    else:
-                        raise TypeError(f"cols type should be either int or str, not {type(index)}")
-            else:
-                datacolumns = []
-                for index in tuple(cols):
-                    if type(index) is str:
-                        scores = [SequenceMatcher(None,info,index).ratio() for info in frame.infos]
-                        datacolumns.append(dataframe.running[scores.index(max(scores))])
-                    else:
-                        raise TypeError(f"cols type should be str, not {type(index)}")
-
-            framemerged._append(*datacolumns)
-
-        return framemerged
 
     def write(self,filepath,title):
 
@@ -124,7 +70,7 @@ class XlBook(Browser):
 
         wb.save(filepath)
 
-def loadxl(*args,sheetnames=None,**kwargs):
+def loadxl(*args,sheetnames=None,command=False,**kwargs):
     """
     Returns an instance of textio.XlBook. If a filepath is specified, the instance
     represents the file.
@@ -152,6 +98,9 @@ def loadxl(*args,sheetnames=None,**kwargs):
     # It reads excel file and returns textio.XlBook instance.
     fullbook = XlWorm(nullbook,sheetnames=sheetnames).xlbook
 
+    if command:
+        print("Loaded {}".format(fullbook.filepath))
+
     return fullbook
 
 class XlWorm():
@@ -176,8 +125,6 @@ class XlWorm():
                 sheetnames = self.get_sheetname(name=sheetnames,search=search)
 
             for sheetname in sheetnames:
-
-                print("Loading {} {}".format(self.xlbook.filepath,sheetname))
 
                 rows = self.load(sheetname,min_row,min_col,max_row,max_col)
 

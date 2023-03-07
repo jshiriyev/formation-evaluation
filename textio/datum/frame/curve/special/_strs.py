@@ -2,8 +2,6 @@ import re
 
 import numpy
 
-from ._flatten import flatten
-
 class strs(numpy.ndarray):
     """It is a flat subclass of numpy.ndarray that includes null entries.
     If null is not defined or is None, zero length string is set as sentinel value."""

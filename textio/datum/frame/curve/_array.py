@@ -8,28 +8,34 @@ from .special import strs
 from .special import dates
 from .special import datetimes
 
-from .special import flatten
+from ._flatten import flatten
 
-def array(values):
+def array(values,pytype=None,**kwargs):
 
     values = flatten(values)
 
+    if pytype is None:
+        vvalue = get_valid_value(values)
+        pytype = get_python_type(vvalue) #float, datetime, or str
+
+    if pytype is int:
+        return ints(values,**kwargs)
+    elif pytype is float:
+        return floats(values,**kwargs)
+    elif pytype is str:
+        return strs(values,**kwargs)
+    elif pytype is datetime.date:
+        return dates(values,**kwargs)
+    elif pytype is datetime.datetime:
+        return datetimes(values,**kwargs)
+
+def get_valid_value(values):
+
     for value in values:
         if value is not None:
-            break
+            return value
 
-    value_type = get_higher_type(value) #float, datetime, or str
-
-    if value_type is float:
-        _array = floats(values)
-    elif value_type is str:
-        _array = strs(values)
-    elif value_type is datetime.datetime:
-        _array = datetimes(values)
-
-    return _array
-
-def get_higher_type(value):
+def get_python_type(value):
 
     for attempt in (float,parser.parse):
 

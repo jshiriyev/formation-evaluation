@@ -1,6 +1,6 @@
 import numpy
 
-from .folder._browser import Browser
+from .directory._browser import Browser
 
 from borepy.gmodel._stock import Stock
 

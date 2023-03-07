@@ -2,10 +2,6 @@ import re
 
 import numpy
 
-from ._flatten import flatten
-
-from ._floats import float2int
-
 class ints(numpy.ndarray):
     """It is a flat subclass of numpy.ndarray that includes null entries.
     If null is not defined or is None, -99_999 is set as sentinel value."""
@@ -273,64 +269,61 @@ class ints(numpy.ndarray):
 
         return numpy.all(variable[:-1]<=variable[1:])
 
-    @staticmethod
-    def _iterable(variable,null):
+def iterable(variable,null):
 
-        null = int(null)
+    null = int(null)
 
-        iterable = []
+    iterable = []
 
-        for value in flatten(variable):
+    for value in flatten(variable):
 
-            try:
-                value = float(value)
-            except TypeError:
-                value = null
-            except ValueError:
-                value = null
-            else: # execute code when there is no error.
-                value = float2int(value,null)
-            
-            iterable.append(value)
+        try:
+            value = float(value)
+        except TypeError:
+            value = null
+        except ValueError:
+            value = null
+        else: # execute code when there is no error.
+            value = float2int(value,null)
+        
+        iterable.append(value)
 
-        return iterable
+    return iterable
 
-    @staticmethod
-    def _arange(start=None,stop=None,step=None,size=None):
+def arange(start=None,stop=None,step=None,size=None):
 
-        if start is None:
-            start = 0
+    if start is None:
+        start = 0
 
-        if stop is None:
-            stop = start+size if step is None else start+step*size
+    if stop is None:
+        stop = start+size if step is None else start+step*size
 
-        if step is None:
-            step = 1 if size is None else stop/(size-1)
+    if step is None:
+        step = 1 if size is None else stop/(size-1)
 
-        array = numpy.arange(start=start,stop=stop+step/2,step=step)
-        array = array.astype('int32')
+    array = numpy.arange(start=start,stop=stop+step/2,step=step)
+    array = array.astype('int32')
 
-        array_min = array.min()
+    array_min = array.min()
 
-        null = -99_999
+    null = -99_999
 
-        while null>array_min:
-            null = null*10-9
+    while null>array_min:
+        null = null*10-9
 
-        return ints(array,null=null)
+    return ints(array,null=null)
 
-    @staticmethod
-    def _repeat(variable,size:int):
-        """Returns numpy array with specified size."""
+def repeat(variable,size:int):
+    """Returns numpy array with specified size."""
 
-        variable = ints(flatten(variable))
+    variable = ints(flatten(variable))
 
-        if variable.size==0:
-            return variable
+    if variable.size==0:
+        return variable
 
-        times = int(numpy.ceil(size/variable.size))
+    times = int(numpy.ceil(size/variable.size))
 
-        return numpy.tile(variable,times)[:size]
+    return numpy.tile(variable,times)[:size]
 
 comparison_operators = (
     numpy.equal,

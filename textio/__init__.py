@@ -1,7 +1,6 @@
 from . import datum
-from . import folder
 
-from .folder._browser import Browser
+from .directory._browser import Browser
 
 from ._txtfile import TxtFile, loadtxt
 from ._lasfile import LasFile, loadlas

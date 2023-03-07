@@ -12,8 +12,6 @@ from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.patches import Polygon
 from matplotlib.patches import Rectangle
 
-# from matplotlib.table import table as Table
-
 from matplotlib.ticker import AutoMinorLocator
 from matplotlib.ticker import FormatStrFormatter
 from matplotlib.ticker import LogFormatter
@@ -26,16 +24,7 @@ from matplotlib.ticker import ScalarFormatter
 
 import numpy
 
-from borepy.textio.folder._browser import Browser
-
-def pop(kwargs,key,default=None):
-
-    try:
-        return kwargs.pop(key)
-    except KeyError:
-        return default
-
-class NanView(Browser):
+class NanView():
 
     def __init__(self,lasfile,zonedepths=None,zonenames=None,ignorenansteps=None):
 
@@ -232,7 +221,7 @@ class NanView(Browser):
 
         pyplot.show()
 
-class TableView(Browser):
+class TableView():
 
     def __init__(self,lasfile,**kwargs):
 
@@ -470,4 +459,10 @@ class TableView(Browser):
     def wellname(self):
 
         return self.lasfile.well['WELL'].value
-    
+
+def pop(kwargs,key,default=None):
+
+    try:
+        return kwargs.pop(key)
+    except KeyError:
+        return default

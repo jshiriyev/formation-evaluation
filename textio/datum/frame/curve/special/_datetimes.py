@@ -2,35 +2,25 @@ import datetime
 
 import numpy
 
+"""
+For numpy.datetime64, the issue with following deltatime units
+has been solved:
+
+Y: year,
+M: month,
+
+For numpy.datetime64, following deltatime units
+have no inherent issue:
+
+W: week,
+D: day,
+h: hour,
+m: minute,
+s: second,
+"""
+
 class datetimes(numpy.ndarray): # HOW TO ADD SOME FUNCTIONALITY TO NUMPY DATETIME64 ARRAY
-    """
-    For numpy.datetime64, the issue with following deltatime units
-    has been solved by considering self.vals:
 
-    Y: year,
-    M: month,
-    
-    For numpy.datetime64, following deltatime units
-    have no inherent issue:
-
-    W: week,
-    D: day,
-    h: hour,
-    m: minute,
-    s: second,
-    
-    For numpy.datetime64, also include:
-
-    ms: millisecond,
-    us: microsecond,
-    ns: nanosecond,
-
-    For numpy.datetime64, do not include:
-
-    ps: picosecond,
-    fs: femtosecond,
-    as: attosecond,
-    """
     def __init__(self,none=None):
 
         if none is None:

@@ -20,18 +20,9 @@ from matplotlib.ticker import ScalarFormatter
 
 import numpy
 
-from borepy.textio.folder._browser import Browser
-
 from ._gradient import gradient_fill
 
-def pop(kwargs,key,default=None):
-
-    try:
-        return kwargs.pop(key)
-    except KeyError:
-        return default
-
-class DepthView(Browser):
+class DepthView():
 
     def __init__(self,lasfile,**kwargs):
 
@@ -1557,3 +1548,11 @@ class DepthViewLasio():
         nrows = 3 if max(rows)<3 else max(rows)
 
         return nrows
+
+
+def pop(kwargs,key,default=None):
+
+    try:
+        return kwargs.pop(key)
+    except KeyError:
+        return default

@@ -1,4 +1,4 @@
-from .folder._browser import Browser
+from .directory._browser import Browser
 
 class LasFile(Browser):
 
