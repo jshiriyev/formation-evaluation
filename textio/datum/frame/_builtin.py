@@ -1,6 +1,8 @@
 class Frame():
+    """One or Two dimensional list"""
 
     def __init__(self,_list):
+        """Initialization of 1 or 2 dimensional lists."""
 
         self._list = _list
 
@@ -11,6 +13,10 @@ class Frame():
     def __repr__(self):
 
         return repr(self._list)
+
+    def __setitem__(self,key,value):
+
+        self._list.__setitem__(key,value)
 
     def __getitem__(self,key):
 
@@ -24,6 +30,29 @@ class Frame():
     def __getattr__(self,key):
 
         return getattr(self._list,key)
+
+    def ndims(self,_dims=1,_list=None):
+
+        if _dims == 1:
+            _list = self._list
+
+        if _isnested(_list):
+            self.ndims(_dims=_dims+1,_list=_list[0])
+        else:
+            return _dims
+
+    def tofloat(self):
+
+        ndims = self.ndims()
+
+        if ndims == 1:
+            _frame = _tofloat(self._list)
+        elif ndims == 2:
+            _frame = [_tofloat(_list) for _list in self._list]
+        else:
+            raise ValueError(f"Can not do {ndims} dimensional conversion for now.")
+
+        return Frame(_frame)
 
     def tolist(self):
 
@@ -74,6 +103,24 @@ class Frame():
 
         return Frame(_frame)
 
+    def merge(self,refill=False):
+
+        if not refill:
+            return Frame([" ".join(column) for column in self.transpose()])
+
+        for i,row in enumerate(self._list):
+
+            for j,col in enumerate(row):
+
+                if j>1:
+                    self._list[i][j] = self._list[i][j-1] if col is None else col.strip()
+                else:
+                    self._list[i][j] = "" if col is None else col.strip()
+
+        _list = [" ".join(column) for column in self.transpose()]
+
+        return Frame(_list)
+
     def __len__(self):
 
         return len(self._list)
@@ -81,6 +128,36 @@ class Frame():
     def __iter__(self):
 
         return iter(self._list)
+
+def _isnested(_list):
+
+    try:
+        list0 = _list[0]
+    except IndexError:
+        return False
+    else:
+        if isinstance(list0,list):
+            return True
+
+    return False
+
+def _tofloat(_list):
+
+    _new_list = []
+
+    for value in _list:
+
+        try:
+            value = float(value)
+        except TypeError:
+            value = None
+        except ValueError:
+            value = None
+
+        _new_list.append(value)
+
+    return _new_list
+
 
 if __name__ == "__main__":
 

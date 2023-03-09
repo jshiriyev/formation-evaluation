@@ -18,9 +18,12 @@ from .directory._browser import Browser
 
 class XlBook(Browser):
 
-    def __init__(self,**kwargs):
+    def __init__(self,write=True,**kwargs):
 
         super().__init__(**kwargs)
+
+        if write:
+            self.book = openpyxl.Workbook()
 
         self.sheets = {}
 
@@ -56,19 +59,29 @@ class XlBook(Browser):
 
         return frames
 
-    def write(self,filepath,title):
+    def addsheets(self,*args):
 
-        wb = openpyxl.Workbook()
+        args = list(args)
 
-        sheet = wb.active
+        try:
+            sheet = self.book["Sheet"]
+        except KeyError:
+            pass
+        else:
+            sheet.title = args.pop(0)
+        finally:
+            [self.book.create_sheet(title) for title in args]
 
-        if title is not None:
-            sheet.title = title
+    def addrows(self,sheetname,rows):
 
-        for line in running:
-            sheet.append(line)
+        sheet = self.book[sheetname]
 
-        wb.save(filepath)
+        for row in rows:
+            sheet.append(row)
+
+    def save(self):
+
+        self.book.save(self.filepath)
 
 def loadxl(*args,sheetnames=None,command=False,**kwargs):
     """
@@ -93,7 +106,7 @@ def loadxl(*args,sheetnames=None,command=False,**kwargs):
         raise "The function does not take more than one positional argument."
 
     # It creates an empty textio.XlBook instance.
-    nullbook = XlBook(filepath=filepath,**kwargs)
+    nullbook = XlBook(filepath=filepath,write=False,**kwargs)
 
     # It reads excel file and returns textio.XlBook instance.
     fullbook = XlWorm(nullbook,sheetnames=sheetnames).xlbook
