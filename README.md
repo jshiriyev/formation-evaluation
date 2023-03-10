@@ -8,7 +8,9 @@ SComp \# scientific computing
 - integrate: Gauss
 - optimize: Root Find, Scalar (Univariate), Local (Multivariate), Global
 - regression: Linear, Correlation
-- mlearn: 
+- mlearn: Linear Regression, Logistic Regression, Decision Tree,
+	K Nearest Neighbour, K means, Support Vector Machine, Principal Component Analysis,
+	Naive Bayes, ANN, Adaboost
 
 TextIO \# Text Input and Output
 

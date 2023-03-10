@@ -31,15 +31,9 @@ class Frame():
 
         return getattr(self._list,key)
 
-    def ndims(self,_dims=1,_list=None):
+    def ndims(self):
 
-        if _dims == 1:
-            _list = self._list
-
-        if _isnested(_list):
-            self.ndims(_dims=_dims+1,_list=_list[0])
-        else:
-            return _dims
+        return _ndims(self._list)
 
     def tofloat(self):
 
@@ -127,7 +121,14 @@ class Frame():
 
     def __iter__(self):
 
-        return iter(self._list)
+        return (Frame(l) if _isnested(l) else l for l in self._list)
+
+def _ndims(_list,_dims=1):
+
+    if _isnested(_list):
+        return _ndims(_list[0],_dims=_dims+1)
+    else:
+        return _dims
 
 def _isnested(_list):
 
@@ -135,9 +136,11 @@ def _isnested(_list):
         list0 = _list[0]
     except IndexError:
         return False
-    else:
-        if isinstance(list0,list):
-            return True
+    except TypeError:
+        return False
+
+    if isinstance(list0,list):
+        return True
 
     return False
 
@@ -167,4 +170,10 @@ if __name__ == "__main__":
     fr = fr.transpose()
 
     for line in fr:
-        print(line)
+        for a in line:
+            print(a)
+            print(type(a))
+
+    print(fr)
+
+    print(fr.ndims())
