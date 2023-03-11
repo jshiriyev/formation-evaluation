@@ -1,5 +1,3 @@
-import _setup
-
 """ Class Exercise 2 """
 
 Pg = 101325         # pressure in Pa
