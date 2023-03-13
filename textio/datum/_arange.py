@@ -46,23 +46,6 @@ def arange(*args,**kwargs):
 
     return _array
 
-def repeat(times,size=None):
-
-    pass
-
-def iterator(*args,size=None):
-
-    arrs = [array1d(arg) for arg in args]
-
-    if size is None:
-        size = len(max(arrs,key=len))
-
-    for index,_array in enumerate(arrs):
-        repeat_count = int(numpy.ceil(size/_array.size))
-        arrs[index] = numpy.tile(_array,repeat_count)[:size]
-
-    return zip(*arrs)
-
 if __name__ == "__main__":
 
     pass

@@ -2,6 +2,8 @@ import contextlib
 import copy
 import datetime
 
+from dateutil import parser
+
 from difflib import SequenceMatcher
 
 import logging
@@ -11,24 +13,17 @@ import re
 
 import numpy
 
+from .datum.frame._builtin import Frame
+
 from .directory._browser import Browser
 
 class TxtFile(Browser):
 
-    def __init__(self,dataframe=None,**kwargs):
+    def __init__(self,**kwargs):
 
         super().__init__(**kwargs)
 
-        if dataframe is None:
-            self.frame = frame()
-        else:
-            self.frame = dataframe
-
-        # self.header = header(
-        #     heads=self.frame.heads,
-        #     units=self.frame.units,
-        #     infos=self.frame.infos,
-        #     )
+        self.frame = {}
 
     def write(self,filepath,comment=None,**kwargs):
         """It writes text form of frame."""
@@ -56,7 +51,7 @@ class TxtFile(Browser):
 
 def loadtxt(filepath,**kwargs):
     """
-    Returns an instance of textio.txtfile for the given filepath.
+    Returns an instance of textio.TxtFile for the given filepath.
     
     Arguments:
         filepath {str} -- path to the given txt file
@@ -66,53 +61,53 @@ def loadtxt(filepath,**kwargs):
         filedir {str} -- path to the file (input) directory
     
     Returns:
-        textio.txtfile -- an instance of textio.txtfile filled with LAS file text.
+        textio.TxtFile -- an instance of textio.TxtFile filled with LAS file text.
 
     """
 
-    # It creates an empty textio.txtfile instance.
-    nullfile = txtfile(filepath=filepath,**kwargs)
+    # It creates an empty textio.TxtFile instance.
+    nullfile = TxtFile(filepath=filepath)
 
-    # It reads LAS file and returns textio.lasfile instance.
-    return txtworm(nullfile).item
+    # It reads text file and returns textio.txtfile instance.
+    return TxtWorm(nullfile,**kwargs).txtfile
 
 class TxtWorm():
 
-    def __init__(self,filepath,headline=None,comments="#",delimiter=None,skiprows=0):
+    def __init__(self,txtfile,headline=None,comments="#",delimiter=None,skiprows=0):
 
-        self.headline   = headline
-        self.comments   = comments
-        self.delimiter  = delimiter
-        self.skiprows   = skiprows
+        self.txtfile = txtfile
+
+        self.headline = headline
+        self.comments = comments
+        self.delimiter = delimiter
+        self.skiprows = skiprows
         
-        with loadtxt.textopen(filepath) as filemaster:
-            dataframe = self.text(filemaster)
+        with TxtWorm.txtopen(self.txtfile.filepath) as self.txtmaster:
+            self.text()
 
-        self.frame = dataframe
+    def seekrow(self,rownumber):
 
-    def seekrow(self,filemaster,row):
-
-        filemaster.seek(0)
+        self.txtmaster.seek(0)
 
         countrows = 0
 
         while True:
 
-            if countrows >= row:
+            if countrows >= rownumber:
                 break
 
-            next(filemaster)
+            next(self.txtmaster)
 
             countrows += 1
 
-    def heads(self,filemaster):
+    def heads(self):
 
         if self.headline is None:
             return key2column(size=self.numcols,dtype='str').vals
 
-        self.seekrow(filemaster,self.headline)
+        self.seekrow(self.headline)
 
-        line = next(filemaster).strip()
+        line = next(self.txtmaster).strip()
 
         if self.delimiter is None:
             heads_ = re.sub(r"\s+"," ",line).split(" ")
@@ -121,13 +116,13 @@ class TxtWorm():
 
         return heads_
 
-    def types(self,filemaster):
+    def types(self):
 
-        self.seekrow(filemaster,self.skiprows)
+        self.seekrow(self.skiprows)
 
         while True:
 
-            line = next(filemaster).strip()
+            line = next(self.txtmaster).strip()
 
             if len(line)<1:
                 continue
@@ -142,11 +137,11 @@ class TxtWorm():
         else:
             row = line.split(self.delimiter)
 
-        return strtype(row)
+        return strtypes(row)
 
-    def text(self,filemaster):
+    def text(self):
 
-        types = self.types(filemaster)
+        types = self.types()
 
         if self.headline is None:
             self.numcols = len(types)
@@ -155,29 +150,42 @@ class TxtWorm():
 
         floatFlags = [True if type_ is float else False for type_ in types]
 
-        self.seekrow(filemaster,self.skiprows)
+        self.seekrow(self.skiprows)
 
         if all(floatFlags):
-            cols = numpy.loadtxt(filemaster,comments=self.comments,delimiter=self.delimiter,unpack=True)
+            cols = numpy.loadtxt(self.txtmaster,comments=self.comments,delimiter=self.delimiter,unpack=True)
         else:
-            cols = numpy.loadtxt(filemaster,comments=self.comments,delimiter=self.delimiter,unpack=True,dtype=str)
+            cols = numpy.loadtxt(self.txtmaster,comments=self.comments,delimiter=self.delimiter,unpack=True,dtype=str)
 
-        heads = self.heads(filemaster)
+        heads = self.heads()
 
-        running = [column(col,head=head,dtype=dtype) for col,head,dtype in zip(cols,heads,dtypes)]
+        print(heads)
 
-        return frame(*running)
+        for col,head in zip(cols,heads):
+            self.txtfile.frame[head] = col
 
     @contextlib.contextmanager
-    def textopen(filepath):
+    def txtopen(filepath):
 
-        if hasattr(filepath,'read'):
-            yield filepath
-        else:
-            self.set_filepath(filepath)
-            filemaster = open(self.filepath,"r")
-            try:
-                yield filemaster
-            finally:
-                filemaster.close()
+        txtmaster = open(filepath,"r")
+        try:
+            yield txtmaster
+        finally:
+            txtmaster.close()
 
+def strtypes(_list:list):
+
+    return [strtype(string) for string in _list]
+
+def strtype(string:str):
+
+    for attempt in (float,parser.parse):
+
+        try:
+            typedstring = attempt(string)
+        except:
+            continue
+
+        return type(typedstring)
+
+    return str

@@ -320,21 +320,6 @@ class Curve():# INITIALIZATION MUST BE SIMPLIFIED TO: head=vals
         elif self.vals.dtype.type is numpy.datetime64:
             return numpy.nanmax(self.vals)
 
-    def maxchar(self,fstring=None,return_value=False):
-        """It returns the maximum character count in stringified column."""
-
-        if return_value:
-            return max(self.tostring(fstring),key=len) #self.vals.astype('str_')
-
-        if self.vals.dtype.type is numpy.str_:
-            vals = numpy.array(self.vals.tolist())
-        else:
-            vals = self.tostring(fstring).vals
-
-        charsize = numpy.dtype(f"{vals.dtype.char}1").itemsize
-        
-        return int(vals.dtype.itemsize/charsize)
-
     """CONTAINER METHODS"""
 
     def __setitem__(self,key,vals):

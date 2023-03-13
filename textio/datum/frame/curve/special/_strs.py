@@ -28,17 +28,13 @@ class strs(numpy.ndarray):
 
         parent = super().__repr__()
 
-        child = parent.replace(f"'{self.null}'",'null')
-
-        return re.sub(r"\s+"," ",child)
+        return parent.replace(f"'{self.null}'",'null')
 
     def __str__(self):
 
         parent = super().__str__()
 
-        child = parent.replace(f"'{self.null}'",'null')
-
-        return re.sub(r"\s+"," ",child)
+        return parent.replace(f"'{self.null}'",'null')
 
     def __setitem__(self,key,value):
 
@@ -54,6 +50,41 @@ class strs(numpy.ndarray):
             return strs(vals,null=self.null)
         else:
             return vals
+
+    def maxchar(self):
+        """It returns the maximum character count in the array."""
+
+        charsize = numpy.dtype(f"{self.dtype.char}1").itemsize
+        
+        return int(self.dtype.itemsize/charsize)
+
+    def maxcharstr(self):
+        """It returns the string with maximum number of characters."""
+
+        return max(self.tolist(),key=len)
+
+    def replace(self,old=None,new=None,method="upper"):
+        """It replaces old with new. If old is not defined, it replaces nones.
+        If new is not defined, it uses upper or lower values to replace the olds."""
+
+        if old is None:
+            conds = self.isnull
+        else:
+            conds = self == old
+
+        if new is None:
+
+            if method=="upper":
+                for index in range(self.size):
+                    if conds[index]:
+                        self[index] = self[index-1]
+            elif method=="lower":
+                for index in range(self.size):
+                    if conds[index]:
+                        self[index] = self[index+1]
+        else:
+
+            self[conds] = new
 
     def toints(self):
 
@@ -83,6 +114,59 @@ class strs(numpy.ndarray):
 
         return
 
+    def __add__(self,other):
+        """Implementing '+' operator."""
+
+        if isinstance(other,str):
+            other = [other]
+
+        if not isinstance(other,strs):
+            other = strs(other)
+
+        return strs(numpy.char.add(self,other))
+
+    def __radd__(self,other):
+        """Implementing right '+' operator."""
+
+        if isinstance(other,str):
+            other = [other]
+
+        if not isinstance(other,strs):
+            other = strs(other)
+
+        return strs(numpy.char.add(self,other))
+
+    def unique(self):
+
+        datacolumn = copy.deepcopy(self)
+
+        datacolumn.vals = numpy.unique(self.vals)
+
+        return datacolumn
+
+    def append(self,other):
+
+        if not isinstance(other,column):
+            other = column(other)
+
+        if self.dtype.type is numpy.dtype('int').type:
+            if not other.dtype.type is numpy.dtype('int').type:
+                other = other.astype('int')
+        elif self.dtype.type is numpy.dtype('float').type:
+            if not other.dtype.type is numpy.dtype('float').type:
+                other = other.astype('float')
+            other = other.convert(self.unit)
+        elif self.dtype.type is numpy.dtype('str').type:
+            if not other.dtype.type is numpy.dtype('str').type:
+                other = other.astype('str')
+        elif self.dtype.type is numpy.dtype('datetime64').type:
+            if not other.dtype.type is numpy.dtype('datetime64').type:
+                other = other.astype('datetime64')
+                
+        dataarray = numpy.append(self.vals,other.vals)
+        
+        super().__setattr__("vals",dataarray)
+
     @property
     def null(self):
 
@@ -92,6 +176,11 @@ class strs(numpy.ndarray):
     def isnull(self):
         """It return numpy bool array, True for null and False for integer."""
         return numpy.equal(self.view(numpy.ndarray),self.null)
+
+    @property
+    def issorted(self):
+
+        return numpy.all(self.vals[:-1]<self.vals[1:])
 
 def arange(*args,start='A',stop=None,step=1,size=None,dtype=None):
 
@@ -176,15 +265,15 @@ def build_string_from_phrases(*args,phrases=None,repeats=None,size=None,dtype=No
 
 def iterable(variable,null):
 
-    null = str(null)
+    # null = str(null)
 
-    _list = []
+    _list = [str(value) for value in variable]
 
-    for value in flatten(variable):
+    # for value in variable:
 
-        value = str(value)
+    #     value = str(value)
 
-        _list.append(value)
+    #     _list.append(value)
 
     return _list
 
@@ -330,3 +419,20 @@ def types(string:str):
         return type(typedstring)
 
     return str
+
+
+if __name__ == "__main__":
+
+    firsts = strs(["cavid","aydan","mehru"])
+    
+    lasts = strs(["shiriyev","shiriyeva","shiriyeva"])
+
+    # print(strs(["    "]))
+
+    # firsts = firsts + " is my name"
+    # firsts = firsts + " "
+
+    print(firsts+" "+lasts)
+    # print(" "+firsts)
+
+    # print(firsts+" "+lasts)

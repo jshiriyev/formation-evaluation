@@ -1,10 +1,3 @@
-def pop(kwargs,key,default=None):
-
-    try:
-        return kwargs.pop(key)
-    except KeyError:
-        return default
-
 class Scape(): # MUST BE RENAMED TO DataScape
 
     def __init__(self,**kwargs):
@@ -336,3 +329,10 @@ class Scape(): # MUST BE RENAMED TO DataScape
             print("Could not run the called function ...")
 
         self.root.destroy()
+
+def pop(kwargs,key,default=None):
+
+    try:
+        return kwargs.pop(key)
+    except KeyError:
+        return default

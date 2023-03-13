@@ -1,3 +1,7 @@
+import math
+
+import re
+
 class Frame():
     """One or Two dimensional list"""
 
@@ -35,14 +39,26 @@ class Frame():
 
         return _ndims(self._list)
 
-    def tofloat(self):
+    def replace(self,old,new):
+
+        for index,value in enumerate(self._list):
+
+            if isinstance(value,float):
+                if math.isnan(old) and math.isnan(value):
+                    self._list[index] = new
+                    continue
+            
+            if value == old:
+                self._list[index] = new
+
+    def tofloat(self,**kwargs):
 
         ndims = self.ndims()
 
         if ndims == 1:
-            _frame = _tofloat(self._list)
+            _frame = _tofloat(self._list,**kwargs)
         elif ndims == 2:
-            _frame = [_tofloat(_list) for _list in self._list]
+            _frame = [_tofloat(_list,**kwargs) for _list in self._list]
         else:
             raise ValueError(f"Can not do {ndims} dimensional conversion for now.")
 
@@ -144,7 +160,7 @@ def _isnested(_list):
 
     return False
 
-def _tofloat(_list):
+def _tofloat(_list,**kwargs):
 
     _new_list = []
 
@@ -153,14 +169,54 @@ def _tofloat(_list):
         try:
             value = float(value)
         except TypeError:
-            value = None
+            value = float("nan")
         except ValueError:
-            value = None
+            value = _strtofloat(value,**kwargs)
 
         _new_list.append(value)
 
     return _new_list
 
+def _strtofloat(value:str,sepdecimal:str=".",septhousand:str=",",regex:str=None) -> float:
+    """It returns float after removing thousand separator and setting decimal separator as full stop.
+    
+    value       : string to convert to float
+
+    sepdecimal  : decimal separator, default = "."
+    septhousand : thousand separator, default = ","
+
+    regex       : regular expression to retrieve float from a given string
+
+    common regular expression for float type is f"[-+]?(?:\\d*\\{septhousand}*\\d*\\{sepdecimal}\\d+|\\d+)"
+
+    """
+
+    if not isinstance(value,str):
+        return float("nan")
+
+    if value.count(sepdecimal)>1:
+        raise ValueError(f"String contains more than one {sepdecimal=}, {value}")
+
+    if value.count(septhousand)>0:
+        value = value.replace(septhousand,"")
+
+    if sepdecimal != ".":
+        value = value.replace(sepdecimal,".")
+
+    if regex is None:
+        try:
+            return float(value)
+        except ValueError:
+            return float("nan")
+
+    match = re.search(regex,value)
+
+    if match is None:
+        return float("nan")
+
+    value = match.group()
+    
+    return float(value)
 
 if __name__ == "__main__":
 

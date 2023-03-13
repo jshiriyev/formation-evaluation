@@ -2,13 +2,13 @@ import datetime
 
 from dateutil import parser
 
+import numpy
+
 from .special import ints
 from .special import floats
 from .special import strs
 from .special import dates
 from .special import datetimes
-
-from ._flatten import flatten
 
 def array(values,pytype=None,**kwargs):
 
@@ -29,11 +29,29 @@ def array(values,pytype=None,**kwargs):
     elif pytype is datetime.datetime:
         return datetimes(values,**kwargs)
 
+def flatten(vals,_list=None):
+    """Returns a flat list."""
+
+    _list = [] if _list is None else _list
+
+    if type(vals).__module__ == numpy.__name__:
+        flatten(vals.tolist(),_list)
+    elif isinstance(vals,str):
+        _list.append(vals)
+    elif hasattr(vals,"__iter__"):
+        [flatten(val,_list) for val in list(vals)]
+    else:
+        _list.append(vals)
+
+    return _list
+
 def get_valid_value(values):
 
     for value in values:
         if value is not None:
             return value
+
+    return float("nan")
 
 def get_python_type(value):
 
