@@ -6,7 +6,7 @@ import numpy
 
 if __name__ == "__main__":
     
-    from borepy.scomp.array import ints
+    from borepy.array import ints
 
 class TestIntArray(unittest.TestCase):
 

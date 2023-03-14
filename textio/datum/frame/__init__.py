@@ -1,6 +1,6 @@
 from . import curve
 
-from ._builtin import Frame
+from ._batch import Batch
 
 from ._bundle import Bundle
 from ._header import Header

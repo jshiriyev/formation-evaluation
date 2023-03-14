@@ -7,9 +7,6 @@ import unittest
 import numpy
 import pint
 
-if __name__ == "__main__":
-    import dirsetup
-
 from datum import array
 from datum import any2column
 from datum import key2column

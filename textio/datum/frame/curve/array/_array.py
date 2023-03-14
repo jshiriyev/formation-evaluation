@@ -4,11 +4,11 @@ from dateutil import parser
 
 import numpy
 
-from .special import ints
-from .special import floats
-from .special import strs
-from .special import dates
-from .special import datetimes
+from .special._ints import ints
+from .special._floats import floats
+from .special._strs import strs
+from .special._dates import dates
+from .special._datetimes import datetimes
 
 def array(values,pytype=None,**kwargs):
 

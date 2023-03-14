@@ -1,6 +1,4 @@
-from . import special
-
-from ._array import array # ints, floats, strs, dates, datetimes
+from . import array
 
 from ._curve import Curve # curve with no spatiotemporal attachment
 from ._udist import uDist # curve with regular spacing in distance

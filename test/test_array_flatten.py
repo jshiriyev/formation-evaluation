@@ -4,9 +4,7 @@ import unittest
 
 import numpy
 
-if __name__ == "__main__":
-    
-    from borepy.scomp.arrays import flatten
+from borepy.scomp.arrays import flatten
 
 class TestFlatten(unittest.TestCase):
 

@@ -2,7 +2,7 @@ import math
 
 import re
 
-class Frame():
+class Batch():
     """One or Two dimensional list"""
 
     def __init__(self,_list):
@@ -27,7 +27,7 @@ class Frame():
         _frame = self._list[key]
 
         if isinstance(_frame,list):
-            return Frame(_frame)
+            return Batch(_frame)
         else:
             return _frame
 
@@ -62,7 +62,7 @@ class Frame():
         else:
             raise ValueError(f"Can not do {ndims} dimensional conversion for now.")
 
-        return Frame(_frame)
+        return Batch(_frame)
 
     def tolist(self):
 
@@ -95,7 +95,7 @@ class Frame():
 
             _frame.append(row)
 
-        return Frame(_frame)
+        return Batch(_frame)
 
     def drop(self):
         """Drop lists with all None."""
@@ -111,12 +111,12 @@ class Frame():
             elif _list.count(None)<len(_list):
                 _frame.append(_list)
 
-        return Frame(_frame)
+        return Batch(_frame)
 
     def merge(self,refill=False):
 
         if not refill:
-            return Frame([" ".join(column) for column in self.transpose()])
+            return Batch([" ".join(column) for column in self.transpose()])
 
         for i,row in enumerate(self._list):
 
@@ -129,7 +129,7 @@ class Frame():
 
         _list = [" ".join(column) for column in self.transpose()]
 
-        return Frame(_list)
+        return Batch(_list)
 
     def __len__(self):
 
@@ -137,7 +137,7 @@ class Frame():
 
     def __iter__(self):
 
-        return (Frame(l) if _isnested(l) else l for l in self._list)
+        return (Batch(l) if _isnested(l) else l for l in self._list)
 
 def _ndims(_list,_dims=1):
 
@@ -220,7 +220,7 @@ def _strtofloat(value:str,sepdecimal:str=".",septhousand:str=",",regex:str=None)
 
 if __name__ == "__main__":
 
-    fr = Frame([[1,2],[3,4],[None,None],[5,6]])
+    fr = Batch([[1,2],[3,4],[None,None],[5,6]])
 
     fr = fr.drop()
     fr = fr.transpose()
