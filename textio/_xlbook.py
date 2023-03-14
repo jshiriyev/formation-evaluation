@@ -12,7 +12,7 @@ import re
 import numpy
 import openpyxl
 
-from .datum.frame._builtin import Frame
+from .datum.frame._batch import Batch
 
 from .directory._browser import Browser
 
@@ -50,7 +50,7 @@ class XlBook(Browser):
 
             if unwanted_element_count==len(row):
                 if not prevRowNoneFlag:
-                    frames.append(Frame(subrows))
+                    frames.append(Batch(subrows))
                 subrows,prevRowNoneFlag = [],True
 
             else:

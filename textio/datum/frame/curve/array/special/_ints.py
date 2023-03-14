@@ -6,71 +6,32 @@ class ints(numpy.ndarray):
     """It is a flat subclass of numpy.ndarray that includes null entries.
     If null is not defined or is None, -99_999 is set as sentinel value."""
 
-    def __new__(cls,variable,null=None):
+    def __new__(cls,vals,null=None):
+        """
+        vals    : flat list
+        null    : null integer, default is -99,999
+        """
 
         null = -99_999 if null is None else null
 
-        iterable = ints._iterable(variable,null)
+        vals = ints.adopt(vals,null)
 
-        obj = numpy.asarray(iterable,dtype='int32').view(cls)
+        item = numpy.asarray(vals,dtype='int32').view(cls)
 
-        obj._null = int(null)
+        item._null = int(null)
 
-        return obj
+        return item
 
-    def __array_finalize__(self,obj):
+    def __array_finalize__(self,item):
 
-        if obj is None: return
+        if item is None: return
 
-        self._null = getattr(obj,'_null',-99_999)
-
-    def _resolved_dtypes_(self,ufunc,method,*args):
-
-        dtypes = []
-
-        reduction = False
-
-        if method != '__call__':
-
-            dtypes.append(None)
-
-            reduction = True
-
-        for index,arg in enumerate(args):
-
-            if arg is None:
-                dtypes.append(int)
-
-            elif type(arg).__module__ == numpy.__name__:
-                dtypes.append(arg.dtype)
-
-            elif isinstance(arg,numpy.ndarray):
-                dtypes.append(arg.dtype)
-
-            elif isinstance(arg,str):
-                dtypes.append(str)
-
-            elif hasattr(arg,"__iter__"):
-                values = numpy.array(arg)
-                dtypes.append(values.dtype)
-
-            else:
-                dtypes.append(type(arg))
-
-        for _ in range(len(dtypes),ufunc.nargs):
-
-            dtypes.append(None)
-
-        rdtypes = ufunc.resolve_dtypes(tuple(dtypes),reduction=reduction)
-
-        return rdtypes
+        self._null = getattr(item,'_null',-99_999)
 
     def __array_ufunc__(self,ufunc,method,*args,out=None,**kwargs):
 
         classtype = [] # index of ints type inputs
         superargs = [] # positional arguments for parent class
-
-        # dtypes = self._resolved_dtypes_(ufunc,method,*args)
 
         for index,arg in enumerate(args):
 
@@ -163,7 +124,7 @@ class ints(numpy.ndarray):
         vals = super().__getitem__(key)
 
         if isinstance(key,int):
-            return ints(vals,null=self.null)
+            return ints(vals.flatten(),null=self.null)
         else:
             return vals
 
@@ -174,75 +135,75 @@ class ints(numpy.ndarray):
 
         isnull = self.isnull
 
-        variable = self.view(numpy.ndarray)
+        vals = self.view(numpy.ndarray)
 
-        variable = variable.astype(dtype)
+        vals = vals.astype(dtype)
 
         if dtype is bool:
-            variable[isnull] = False
+            vals[isnull] = False
         elif dtype is float:
-            variable[isnull] = numpy.nan
+            vals[isnull] = numpy.nan
 
-        return variable
+        return vals
 
     def mean(self):
         """Returns sample mean."""
 
-        variable = self.view(numpy.ndarray).copy()
+        vals = self.view(numpy.ndarray).copy()
 
-        variable = variable[self.isvalid]
+        vals = vals[self.isvalid]
 
-        return numpy.mean(variable)
+        return numpy.mean(vals)
 
     def var(self):
         """Returns sample variance."""
 
-        variable = self.view(numpy.ndarray).copy()
+        vals = self.view(numpy.ndarray).copy()
 
-        variable = variable[self.isvalid]
+        vals = vals[self.isvalid]
 
-        N = variable.size
+        N = vals.size
 
-        S = numpy.sum(variable)
+        S = numpy.sum(vals)
 
-        return numpy.sum((variable-S/N)**2)/(N-1)
+        return numpy.sum((vals-S/N)**2)/(N-1)
 
     def argmin(self):
 
-        variable = self.view(numpy.ndarray).copy()
+        vals = self.view(numpy.ndarray).copy()
 
-        variable[self.isnull] = variable.max()+1
+        vals[self.isnull] = vals.max()+1
 
-        return numpy.argmin(variable)
+        return numpy.argmin(vals)
 
     def argmax(self):
 
-        variable = self.view(numpy.ndarray).copy()
+        vals = self.view(numpy.ndarray).copy()
 
-        variable[self.isnull] = variable.min()-1
+        vals[self.isnull] = vals.min()-1
 
-        return numpy.argmax(variable)
+        return numpy.argmax(vals)
 
     def ceil(self,digit_count=1):
         """Return the ceil round for the given digit count."""
         tens = 10**digit_count
 
-        variable = self.view(numpy.ndarray)
+        vals = self.view(numpy.ndarray).copy()
 
-        variable[self.isvalid] = (variable[self.isvalid]//tens+1)*tens
+        vals[self.isvalid] = (vals[self.isvalid]//tens+1)*tens
 
-        return ints(variable,self.null)
+        return ints(vals,null=self.null)
 
     def floor(self,digit_count=1):
         """Return the floor round for the given digit count."""
 
         tens = 10**digit_count
 
-        variable = self.view(numpy.ndarray)
+        vals = self.view(numpy.ndarray).copy()
 
-        variable[self.isvalid] = (variable[self.isvalid]//tens)*tens
+        vals[self.isvalid] = (vals[self.isvalid]//tens)*tens
 
-        return ints(variable,self.null)
+        return ints(vals,null=self.null)
 
     @property
     def null(self):
@@ -263,67 +224,66 @@ class ints(numpy.ndarray):
     def issorted(self):
         """It returns wether given array is sorted or not, excluding null entries."""
 
-        variable = self.view(numpy.ndarray)
+        vals = self.view(numpy.ndarray)
 
-        variable = variable[self.isvalid]
+        vals = vals[self.isvalid]
 
-        return numpy.all(variable[:-1]<=variable[1:])
+        return numpy.all(vals[:-1]<=vals[1:])
 
-def iterable(variable,null):
+    @staticmethod
+    def adopt(vals,null):
+        """
+        vals    : flat list
+        null    : null integer
+        """
 
-    null = int(null)
+        null = int(null)
 
-    iterable = []
+        for index,value in enumerate(vals):
 
-    for value in flatten(variable):
+            if isinstance(value,int):
+                pass
+            else:
+                try: # trying to convert to float
+                    value = float(value)
+                except TypeError: # happens with everything other than real number and str
+                    value = null
+                except ValueError: # happens with str
+                    value = null
+                else: # execute code when there is no error in the try.
+                    
+                    try:
+                        value = int(value)
+                    except ValueError: # happens with float("nan"), numpy.nan
+                        value = null
+                
+            vals[index] = value
 
-        try:
-            value = float(value)
-        except TypeError:
-            value = null
-        except ValueError:
-            value = null
-        else: # execute code when there is no error.
-            value = float2int(value,null)
-        
-        iterable.append(value)
+        return vals
 
-    return iterable
+    @staticmethod
+    def arange(start=None,stop=None,step=None,size=None):
 
-def arange(start=None,stop=None,step=None,size=None):
+        if start is None:
+            start = 0
 
-    if start is None:
-        start = 0
+        if stop is None:
+            stop = start+size if step is None else start+step*size
 
-    if stop is None:
-        stop = start+size if step is None else start+step*size
+        if step is None:
+            step = 1 if size is None else stop/(size-1)
 
-    if step is None:
-        step = 1 if size is None else stop/(size-1)
+        array = numpy.arange(start=start,stop=stop+step/2,step=step)
+        array = array.astype('int32')
 
-    array = numpy.arange(start=start,stop=stop+step/2,step=step)
-    array = array.astype('int32')
+        array_min = array.min()
 
-    array_min = array.min()
+        null = -99_999
 
-    null = -99_999
+        while null>array_min:
+            null = null*10-9
 
-    while null>array_min:
-        null = null*10-9
-
-    return ints(array,null=null)
-
-def repeat(variable,size:int):
-    """Returns numpy array with specified size."""
-
-    variable = ints(flatten(variable))
-
-    if variable.size==0:
-        return variable
-
-    times = int(numpy.ceil(size/variable.size))
-
-    return numpy.tile(variable,times)[:size]
+        return ints(array,null=null)
 
 comparison_operators = (
     numpy.equal,

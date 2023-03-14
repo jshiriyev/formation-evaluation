@@ -2,10 +2,7 @@ from . import scomp
 
 from . import textio
 
-from .textio.datum.frame.curve._array import array, flatten
-from .textio.datum.frame.curve._arange import arange
-from .textio.datum.frame.curve._repeat import repeat
-from .textio.datum.frame.curve._iterator import iterator
+from .textio.datum.frame.curve.array._array import array
 
 from . import diary
 

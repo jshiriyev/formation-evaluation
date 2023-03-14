@@ -13,8 +13,6 @@ import re
 
 import numpy
 
-from .datum.frame._builtin import Frame
-
 from .directory._browser import Browser
 
 class TxtFile(Browser):

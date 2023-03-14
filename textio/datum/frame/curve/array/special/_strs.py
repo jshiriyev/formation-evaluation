@@ -6,23 +6,27 @@ class strs(numpy.ndarray):
     """It is a flat subclass of numpy.ndarray that includes null entries.
     If null is not defined or is None, zero length string is set as sentinel value."""
 
-    def __new__(cls,variable,null=None):
+    def __new__(cls,vals,null=None):
+        """
+        vals    : flat list
+        null    : null str, default is ""
+        """
 
-        null = "None" if null is None else null
+        null = "" if null is None else null
 
-        _list = iterable(variable,null)
+        vals = strs.adopt(vals,null)
 
-        obj = numpy.asarray(_list,dtype='str_').view(cls)
+        item = numpy.asarray(vals,dtype='str_').view(cls)
 
-        obj._null = str(null)
+        item._null = str(null)
 
-        return obj
+        return item
 
-    def __array_finalize__(self,obj):
+    def __array_finalize__(self,item):
 
-        if obj is None: return
+        if item is None: return
 
-        self._null = getattr(obj,'_null',"")
+        self._null = getattr(item,'_null',"")
 
     def __repr__(self):
 
@@ -85,6 +89,10 @@ class strs(numpy.ndarray):
         else:
 
             self[conds] = new
+
+    def ptypes(self):
+
+        return
 
     def toints(self):
 
@@ -182,124 +190,116 @@ class strs(numpy.ndarray):
 
         return numpy.all(self.vals[:-1]<self.vals[1:])
 
-def arange(*args,start='A',stop=None,step=1,size=None,dtype=None):
+    @staticmethod
+    def adopt(vals,null):
 
-    kwargs = setargs(*args,**kwargs)
+        # null = str(null)
 
-    if start is not None:
-        if len(start)>5:
-            raise TypeError(f'tried excel like letters and failed because of size of start {len(start)}!')
-        elif not all([char in string.ascii_letters for char in start]):
-            raise TypeError(f'tried excel like letters and failed because of {start=}!')
-        start = start.upper()
+        _list = [str(value) for value in vals]
 
-    if stop is not None:
-        if len(stop)>5:
-            raise TypeError(f'tried excel like letters and failed because of size of stop {len(stop)}!')  
-        elif not all([char in string.ascii_letters for char in stop]):
-            raise TypeError(f'tried excel like letters and failed because of {stop=}!!')
-        stop = stop.upper()
+        # for value in variable:
 
-    if size is not None:
-        if size>1000_000:
-            raise TypeError(f'tried excel like letters and failed because of {size=}!')
+        #     value = str(value)
 
-    if isinstance(dtype,str):
-        dtype = numpy.dtype(str)
+        #     _list.append(value)
 
-    def excel_column_headers():
-        n = 1
-        while True:
-            yield from (
-                ''.join(group) for group in itertools.product(
-                    string.ascii_uppercase,repeat=n
+        return _list
+
+    @staticmethod
+    def arange(*args,start='A',stop=None,step=1,size=None,dtype=None):
+
+        kwargs = setargs(*args,**kwargs)
+
+        if start is not None:
+            if len(start)>5:
+                raise TypeError(f'tried excel like letters and failed because of size of start {len(start)}!')
+            elif not all([char in string.ascii_letters for char in start]):
+                raise TypeError(f'tried excel like letters and failed because of {start=}!')
+            start = start.upper()
+
+        if stop is not None:
+            if len(stop)>5:
+                raise TypeError(f'tried excel like letters and failed because of size of stop {len(stop)}!')  
+            elif not all([char in string.ascii_letters for char in stop]):
+                raise TypeError(f'tried excel like letters and failed because of {stop=}!!')
+            stop = stop.upper()
+
+        if size is not None:
+            if size>1000_000:
+                raise TypeError(f'tried excel like letters and failed because of {size=}!')
+
+        if isinstance(dtype,str):
+            dtype = numpy.dtype(str)
+
+        def excel_column_headers():
+            n = 1
+            while True:
+                yield from (
+                    ''.join(group) for group in itertools.product(
+                        string.ascii_uppercase,repeat=n
+                        )
                     )
-                )
-            n += 1
+                n += 1
 
-    for start_index,combo in enumerate(excel_column_headers()):
-        if start==combo:
-            break
-
-    if size is None:
-        if stop is None:
-            raise ValueError("stop value must be provided!")
-        for stop_index,combo in enumerate(excel_column_headers(),start=1):
-            if stop==combo:
+        for start_index,combo in enumerate(excel_column_headers()):
+            if start==combo:
                 break
-        _array = numpy.array(list(itertools.islice(excel_column_headers(),stop_index)))[start_index:stop_index]
-        _array = _array[::step]
-    else:
-        _array = numpy.array(list(itertools.islice(excel_column_headers(),start_index+size*step)))[start_index:]
-        _array = _array[::step]
 
-    if dtype is not None:
-        return _array.astype(dtype)
-    else:
-        return _array
-
-def build_string_from_phrases(*args,phrases=None,repeats=None,size=None,dtype=None):
-
-    if isinstance(dtype,str):
-        dtype = numpy.dtype(dtype)
-
-    if len(args)==0:
-        if phrases is None:
-            phrases = " "
-        if repeats is None:
-            repeats = 1
-
-        iterator = _any2column.toiterator(phrases,repeats,size=size)
-
-        _array = numpy.array(["".join([name]*num) for name,num in iterator])
-
-    elif len(args)==1:
-        _array = array1d(args[0],size)
-    else:
-        raise TypeError("Number of arguments can not be larger than 1!")
-
-    if dtype is None:
-        return _array
-    else:
-        return _array.astype(dtype)
-
-def iterable(variable,null):
-
-    # null = str(null)
-
-    _list = [str(value) for value in variable]
-
-    # for value in variable:
-
-    #     value = str(value)
-
-    #     _list.append(value)
-
-    return _list
-
-def starsplit(string_list,default=1.0):
-    """It returns star splitted list repeating post-star pre-star times."""
-
-    float_list = []
-
-    for string_value in string_list:
-
-        if "*" in string_value:
-
-            if string_value.endswith("*"):
-                mult = string_value.rstrip("*")
-                mult,val = int(mult),default
-            else:
-                mult,val = string_value.split("*",maxsplit=1)
-                mult,val = int(mult),float(val)
-
-            for i in range(mult):
-                float_list.append(val)
-
+        if size is None:
+            if stop is None:
+                raise ValueError("stop value must be provided!")
+            for stop_index,combo in enumerate(excel_column_headers(),start=1):
+                if stop==combo:
+                    break
+            _array = numpy.array(list(itertools.islice(excel_column_headers(),stop_index)))[start_index:stop_index]
+            _array = _array[::step]
         else:
-            float_list.append(float(string_value))
+            _array = numpy.array(list(itertools.islice(excel_column_headers(),start_index+size*step)))[start_index:]
+            _array = _array[::step]
 
-    return float_list
+        if dtype is not None:
+            return _array.astype(dtype)
+        else:
+            return _array
+
+    @staticmethod
+    def build(*args,phrases=None,repeats=None,size=None,dtype=None):
+
+        if isinstance(dtype,str):
+            dtype = numpy.dtype(dtype)
+
+        if len(args)==0:
+            if phrases is None:
+                phrases = " "
+            if repeats is None:
+                repeats = 1
+
+            iterator = _any2column.toiterator(phrases,repeats,size=size)
+
+            _array = numpy.array(["".join([name]*num) for name,num in iterator])
+
+        elif len(args)==1:
+            _array = array1d(args[0],size)
+        else:
+            raise TypeError("Number of arguments can not be larger than 1!")
+
+        if dtype is None:
+            return _array
+        else:
+            return _array.astype(dtype)
+
+def ptype(string:str):
+
+    for attempt in (float,parser.parse):
+
+        try:
+            typedstring = attempt(string)
+        except:
+            continue
+
+        return type(typedstring)
+
+    return str
 
 def toint(string:str,none_str:str="",none_int:int=-99_999,regex:str=None) -> int:
     """It returns integer converted from string."""
@@ -406,20 +406,6 @@ def todatetimes(string:str,null_str:str="",null_datetime:numpy.datetime64=numpy.
 
     except parser.ParserError:
         return null_datetime
-
-def types(string:str):
-
-    for attempt in (float,parser.parse):
-
-        try:
-            typedstring = attempt(string)
-        except:
-            continue
-
-        return type(typedstring)
-
-    return str
-
 
 if __name__ == "__main__":
 

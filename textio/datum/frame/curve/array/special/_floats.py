@@ -3,27 +3,29 @@ import re
 import numpy
 
 class floats(numpy.ndarray):
+    """It is a flat subclass of numpy.ndarray that includes null entries.
+    If null is not defined or is None, float("nan") is set as sentinel value."""
 
-    def __new__(cls,values,null=None,unit=None):
+    def __new__(cls,vals,null=None,unit=None):
 
         null = numpy.nan if null is None else float(null)
 
-        values = iterable(values)
+        vals = iterable(vals)
 
-        obj = numpy.asarray(values,dtype='float64').view(cls)
+        item = numpy.asarray(vals,dtype='float64').view(cls)
 
-        obj._null = null
+        item._null = null
 
-        obj._unit = unit
+        item._unit = unit
 
-        return obj
+        return item
 
-    def __array_finalize__(self,obj):
+    def __array_finalize__(self,item):
 
-        if obj is None: return
+        if item is None: return
 
-        self._null = getattr(obj,'_null',numpy.nan)
-        self._unit = getattr(obj,'_unit',None)
+        self._null = getattr(item,'_null',numpy.nan)
+        self._unit = getattr(item,'_unit',None)
 
     def __repr__(self):
 
@@ -95,45 +97,43 @@ class floats(numpy.ndarray):
         """It return numpy bool array, True for null and False for float."""
         return numpy.isnan(self.view(numpy.ndarray))
 
-def iterable(values):
+    @staticmethod
+    def adopt(vals,null):
+        """
+        vals    : flat list
+        null    : null float
+        """
 
-    vals = []
+        null = float(null)
 
-    for value in values:
+        for index,value in enumerate(vals):
 
-        try:
-            value = float(value)
-        except TypeError:
-            value = numpy.nan
-        except ValueError:
-            value = numpy.nan
+            if isinstance(value,float):
+                pass
+            else:
+                try:
+                    value = float(value)
+                except TypeError:
+                    value = float("nan")
+                except ValueError:
+                    value = float("nan")
 
-        vals.append(value)
+            vals[index] = value
 
-    return vals
+        return vals
 
-def arange(*args,size=None,dtype=None):
+    @staticmethod
+    def arange(*args,size=None,dtype=None):
 
-    if len(args)==0:
-        return
-    elif len(args)==1:
-        _array = array1d(args[0],size)
+        if len(args)==0:
+            return
+        elif len(args)==1:
+            _array = array1d(args[0],size)
 
-    if dtype is None:
-        return _array
-    else:
-        return _array.astype(dtype)
-
-def toint(value,default=None):
-    """Returns integer converted from float value.
-    If there is a ValueError it returns default value."""
-
-    try:
-        value = int(value)
-    except ValueError:
-        value = default
-
-    return value
+        if dtype is None:
+            return _array
+        else:
+            return _array.astype(dtype)
 
 if __name__ == "__main__":
 
