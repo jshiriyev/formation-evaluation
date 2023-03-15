@@ -1,112 +1,148 @@
 import datetime
 
-from dateutil import relativedelta
-
 import unittest
 
 import numpy
 
-from borepy import array
+from borepy import reel
 
-class TestArray(unittest.TestCase):
+class TestFloatArray(unittest.TestCase):
 
     def test_integer(self):
 
-        a = array(5,float)
-        # print(a,a.dtype,a.head,)
+        x = reel.array(5)
+
+        self.assertEqual(x.tolist()[0],5.)
+        self.assertIsInstance(x,reel.floats)
 
     def test_float_number(self):
 
-        b = array(5.,float)
-        # print(b,b.dtype,b.head)
+        x = reel.array(5.)
+
+        self.assertEqual(x.tolist()[0],5.)
+        self.assertIsInstance(x,reel.floats)
 
     def test_string_number(self):
 
-        c = array('5',float)
-        # print(c,c.dtype,c.head)
+        x = reel.array('5')
+        
+        self.assertEqual(x.tolist()[0],5.)
+        self.assertIsInstance(x,reel.floats)
 
     def test_string_characters(self):
 
-        d = array('cavid',float)
-        # print(d,d.dtype,d.head)
+        x = reel.array('cavid',float)
+        y = numpy.array([numpy.nan])
+
+        numpy.testing.assert_array_equal(x.tolist(),y.tolist())
+
+        self.assertIsInstance(x,reel.floats)
 
     def test_string_datetime(self):
 
-        e = array('2022-02-28',float)
-        # print(e,e.dtype,e.head)
+        x = reel.array('2022-02-28',float)
+        y = numpy.array([numpy.nan])
+
+        numpy.testing.assert_array_equal(x.tolist(),y.tolist())
+
+        self.assertIsInstance(x,reel.floats)
 
     def test_datetime_datetime(self):
 
-        f = array(datetime.datetime.today(),float)
-        # print(f,f.dtype,f.head)
+        x = reel.array(datetime.datetime.today(),float)
+        y = numpy.array([numpy.nan])
+
+        numpy.testing.assert_array_equal(x.tolist(),y.tolist())
+
+        self.assertIsInstance(x,reel.floats)
 
     def test_datetime_date(self):
 
-        g = array(datetime.date.today(),float)
-        # print(g,g.dtype,g.head)
+        x = reel.array(datetime.date.today(),float)
+        y = numpy.array([numpy.nan])
+
+        numpy.testing.assert_array_equal(x.tolist(),y.tolist())
+
+        self.assertIsInstance(x,reel.floats)
 
     def test_none(self):
 
-        h = array(None,float)
-        # print(h,h.dtype,h.head,h.shape,h.size)
+        x = reel.array(None)
+        y = numpy.array([numpy.nan])
+
+        numpy.testing.assert_array_equal(x.tolist(),y.tolist())
+
+        self.assertIsInstance(x,reel.floats)
 
     def test_empty_list(self):
 
-        i = array([],float)
-        # print(i,i.dtype,i.head,i.shape,i.size)
+        x = reel.array([])
 
-    def _test_init(self):
+        numpy.testing.assert_array_equal(x.tolist(),[])
 
-        arr_ = key2column(5)
-        numpy.testing.assert_array_equal(arr_,numpy.arange(5))
+        self.assertIsInstance(x,reel.floats)
 
-        arr_ = key2column(5.)
-        numpy.testing.assert_array_equal(arr_,numpy.arange(5,dtype='float64'))
+    def test_arange(self):
 
-        arr_ = key2column('E')
-        numpy.testing.assert_array_equal(arr_,numpy.array(['A','B','C','D','E']))
+        x = reel.floats.arange(5)
 
-        arr_ = key2column('2022-05-01','2022-07-29',dtype='datetime64[s]')
+        numpy.testing.assert_array_equal(x,numpy.arange(5,dtype="float64"))
 
-        arr_true = numpy.array([
-            datetime.date(2022,5,1),
-            datetime.date(2022,6,1),
-            datetime.date(2022,7,1)],
-            dtype='datetime64[s]')
-
-        # numpy.testing.assert_array_equal(arr_,arr_true)
-
-        arr_ = any2column(('Python','NumPy','Great!'),dtype='str')
-        arr2 = any2column(('Python','NumPy','Great!'))
-
-        numpy.testing.assert_array_equal(
-            arr_.vals,numpy.array(['Python','NumPy','Great!']))
-
-        numpy.testing.assert_array_equal(arr_.vals,arr2.vals)
+        self.assertEqual(x.dtype,numpy.dtype("float64"))
+        self.assertIsInstance(x,reel.floats)
 
     def test_functions(self):
 
-        values = array([1,2,3,4,None,7],float,null=-99.999)
+        x = reel.array([1,2,3,4,None,7],ptype=float,null=-99.999)
 
-        print(values)
-        print(values+1)
+        y = numpy.array([1,2,3,4,numpy.nan,7])
 
-        print(values.valids())
+        numpy.testing.assert_array_equal(x.tolist(),y.tolist())
 
-        print(values.min())
-        print(values.max())
+        self.assertIsInstance(x,reel.floats)
 
-        print(values.normalize())
+    def test_addition(self):
 
-    def test_remove_thousand_separator(self):
+        x = reel.array([1,2,3,4,None,7],ptype=float,null=-99.999)
 
-        a1 = str2float("10 000,00",sep_decimal=",",sep_thousand=" ")
-        a2 = str2float("10.000,00",sep_decimal=",",sep_thousand=".")
-        a3 = str2float("10,000.00")
+        y = numpy.array([2,3,4,5,numpy.nan,8])
 
-        self.assertEqual(a1,10000.,"could not remove thousand separator...")
-        self.assertEqual(a2,10000.,"could not remove thousand separator...")
-        self.assertEqual(a3,10000.,"could not remove thousand separator...")
+        x = x+1
+
+        numpy.testing.assert_array_equal(x.tolist(),y.tolist())
+
+        self.assertIsInstance(x,reel.floats)
+
+    def test_valids(self):
+
+        x = reel.array([1,2,3,4,None,7],ptype=float,null=-99.999)
+
+        y = numpy.array([1,2,3,4,7])
+
+        x = x.valids()
+
+        numpy.testing.assert_array_equal(x.tolist(),y.tolist())
+
+        self.assertIsInstance(x,reel.floats)
+
+    def test_nanmin_nanmax(self):
+
+        x = reel.array([1,2,3,4,None,7],ptype=float,null=-99.999)
+
+        self.assertEqual(x.min(),1)
+        self.assertEqual(x.max(),7)
+
+    def test_normalize(self):
+
+        x = reel.array([1,2,3,11,None],ptype=float,null=-99.999)
+
+        z = x.normalize()
+
+        y = numpy.array([0.,0.1,0.2,1.0,numpy.nan,])
+
+        numpy.testing.assert_array_equal(z.tolist(),y.tolist())
+
+        self.assertIsInstance(x,reel.floats)
 
 if __name__ == "__main__":
 

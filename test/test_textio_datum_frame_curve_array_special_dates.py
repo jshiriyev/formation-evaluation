@@ -7,14 +7,11 @@ import unittest
 import numpy
 import pint
 
-if __name__ == "__main__":
-    import _setup
-
 from datum import array
 from datum import any2column
 from datum import key2column
 
-class TestArray(unittest.TestCase):
+class TestDateArray(unittest.TestCase):
 
     def test_integer(self):
 
@@ -61,16 +58,7 @@ class TestArray(unittest.TestCase):
         i = array([])
         # print(i,i.dtype,i.head,i.shape,i.size)
 
-    def test_init(self):
-
-        arr_ = key2column(5)
-        numpy.testing.assert_array_equal(arr_,numpy.arange(5))
-
-        arr_ = key2column(5.)
-        numpy.testing.assert_array_equal(arr_,numpy.arange(5,dtype='float64'))
-
-        arr_ = key2column('E')
-        numpy.testing.assert_array_equal(arr_,numpy.array(['A','B','C','D','E']))
+    def _test_arange(self):
 
         arr_ = key2column('2022-05-01','2022-07-29',dtype='datetime64[s]')
 
@@ -81,14 +69,6 @@ class TestArray(unittest.TestCase):
             dtype='datetime64[s]')
 
         # numpy.testing.assert_array_equal(arr_,arr_true)
-
-        arr_ = any2column(('Python','NumPy','Great!'),dtype='str')
-        arr2 = any2column(('Python','NumPy','Great!'))
-
-        numpy.testing.assert_array_equal(
-            arr_.vals,numpy.array(['Python','NumPy','Great!']))
-
-        numpy.testing.assert_array_equal(arr_.vals,arr2.vals)
 
 if __name__ == "__main__":
 

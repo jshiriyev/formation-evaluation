@@ -11,7 +11,7 @@ from datum import array
 from datum import any2column
 from datum import key2column
 
-class TestArray(unittest.TestCase):
+class TestStrArray(unittest.TestCase):
 
     def test_integer(self):
 
@@ -78,6 +78,29 @@ class TestArray(unittest.TestCase):
             dtype='datetime64[s]')
 
         # numpy.testing.assert_array_equal(arr_,arr_true)
+
+        arr_ = any2column(('Python','NumPy','Great!'),dtype='str')
+        arr2 = any2column(('Python','NumPy','Great!'))
+
+        numpy.testing.assert_array_equal(
+            arr_.vals,numpy.array(['Python','NumPy','Great!']))
+
+        numpy.testing.assert_array_equal(arr_.vals,arr2.vals)
+
+    def test_remove_thousand_separator(self):
+
+        a1 = tofloat("10 000,00",sep_decimal=",",sep_thousand=" ")
+        a2 = tofloat("10.000,00",sep_decimal=",",sep_thousand=".")
+        a3 = tofloat("10,000.00")
+
+        self.assertEqual(a1,10000.,"could not remove thousand separator...")
+        self.assertEqual(a2,10000.,"could not remove thousand separator...")
+        self.assertEqual(a3,10000.,"could not remove thousand separator...")
+
+    def _test_arange(self):
+
+        arr_ = key2column('E')
+        numpy.testing.assert_array_equal(arr_,numpy.array(['A','B','C','D','E']))
 
         arr_ = any2column(('Python','NumPy','Great!'),dtype='str')
         arr2 = any2column(('Python','NumPy','Great!'))

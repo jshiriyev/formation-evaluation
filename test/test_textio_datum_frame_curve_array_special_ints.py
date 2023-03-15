@@ -4,9 +4,7 @@ import unittest
 
 import numpy
 
-if __name__ == "__main__":
-    
-    from borepy import reel
+from borepy import reel
 
 class TestIntArray(unittest.TestCase):
 

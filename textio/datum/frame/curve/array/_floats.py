@@ -123,17 +123,16 @@ class floats(numpy.ndarray):
         return vals
 
     @staticmethod
-    def arange(*args,size=None,dtype=None):
+    def arange(*args,**kwargs):
 
-        if len(args)==0:
-            return
-        elif len(args)==1:
-            _array = array1d(args[0],size)
+        size = kwargs.get("size")
 
-        if dtype is None:
-            return _array
+        if size is None:
+            vals = numpy.arange(*args,*kwargs)
         else:
-            return _array.astype(dtype)
+            vals = numpy.linspace(*args,*kwargs)
+
+        return floats(vals)
 
 if __name__ == "__main__":
 

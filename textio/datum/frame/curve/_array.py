@@ -75,7 +75,7 @@ class reel:
         return str
 
     @staticmethod
-    def arange(*args,**kwargs):
+    def arange(*args,start=None,stop=None,step=None,size=None,ptype=None,**kwargs):
         """Generating column by defining dtype and sending the keywords for array creating methods."""
         """It is a special function that takes input and returns linearly spaced data for
         ints, floats, string, datetime"""
