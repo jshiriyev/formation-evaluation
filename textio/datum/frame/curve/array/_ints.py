@@ -30,72 +30,69 @@ class ints(numpy.ndarray):
 
     def __array_ufunc__(self,ufunc,method,*args,out=None,**kwargs):
 
-        classtype = [] # index of ints type inputs
-        superargs = [] # positional arguments for parent class
+        trialargs = [] # positional arguments for trial calculations
+        superargs = [] # positional arguments for parent class calculations
 
         for index,arg in enumerate(args):
 
             if isinstance(arg,ints):
-                classtype.append(index)
+                targ = numpy.array([arg[0]])
+                sarg = arg.astype(float)
 
-                sarg = arg.view(numpy.ndarray).copy()
-
-                if ufunc in comparison_operators:
-                    superargs.append(sarg.astype(float))
-                elif method=="accumulate":
+                if method == "accumulate":
                     sarg[arg.isnull] = ufunc.identity
-                    superargs.append(sarg)
                 elif method in ('reduce','reduceat'):
-                    superargs.append(sarg[arg.isvalid])
-                else:
-                    superargs.append(arg.view(numpy.ndarray))
-            else:
+                    sarg = sarg[arg.isvalid]
 
-                superargs.append(numpy.array(arg).flatten())
+            else:
+                sarg = numpy.array(arg).flatten()
+                targ = numpy.array([sarg[0]])
+                
+            trialargs.append(targ)
+            superargs.append(sarg)
 
         if out is not None:
-            outputs = []
+
+            out = list(out)
             
-            for output in out:
-                if isinstance(output,ints):
-                    outputs.append(output.view(numpy.ndarray))
+            for index,arg in enumerate(out):
+
+                if isinstance(arg,ints):
+                    sarg = arg.astype(float)
                 else:
-                    outputs.append(output)
+                    sarg = numpy.array(arg).flatten()
 
-            kwargs['out'] = tuple(outputs)
+                out[index] = sarg
 
-        if ufunc not in comparison_operators:
+            out = tuple(out)
 
-            valids = numpy.not_equal(superargs[0],self.null)
-
-            for index,superarg in enumerate(superargs[1:],start=1):
-
-                if index in classtype:
-
-                    try:
-                        null = args[index].null
-                    except AttributeError:
-                        null = self.null
-
-                    rights = numpy.not_equal(superarg,null)
-                
-                    valids = numpy.logical_and(valids,rights)
-
-        temp = super().__array_ufunc__(ufunc,method,*superargs,**kwargs)
+        temp = super().__array_ufunc__(ufunc,method,*superargs,out=out,**kwargs)
 
         if not hasattr(temp,"__len__"):
-            pass
-        elif temp.size == 0:
-            temp = ints(temp,null=self.null)
-        elif isinstance(temp[0].tolist(),bool):
-            pass
-        elif isinstance(temp[0].tolist(),int):
-            temp[~valids] = self.null
-            temp = ints(temp,null=self.null)
-        elif isinstance(temp[0].tolist(),float):
-            temp[~valids] = numpy.nan
+            return temp.tolist()
 
-        return temp
+        if temp.size == 0:
+            return ints(temp,null=self.null)
+
+        test = super().__array_ufunc__(ufunc,method,*trialargs,out=None,**kwargs)
+        
+        test = test.flatten().tolist()[0]
+
+        if isinstance(test,float):
+            return temp
+        elif isinstance(test,bool):
+            return temp
+
+        isnan = numpy.isnan(temp)
+
+        temp[isnan] = self.null
+
+        if isinstance(test,int):
+
+            if method == "outer":
+                return temp.astype("int32")
+
+            return ints(temp,null=self.null)
 
     def __repr__(self):
 
@@ -135,7 +132,7 @@ class ints(numpy.ndarray):
 
         isnull = self.isnull
 
-        vals = self.view(numpy.ndarray)
+        vals = self.view(numpy.ndarray).copy()
 
         vals = vals.astype(dtype)
 
@@ -242,20 +239,20 @@ class ints(numpy.ndarray):
         for index,value in enumerate(vals):
 
             if isinstance(value,int):
-                pass
-            else:
-                try: # trying to convert to float
-                    value = float(value)
-                except TypeError: # happens with everything other than real number and str
+                continue
+                
+            try: # trying to convert to float
+                value = float(value)
+            except TypeError: # happens with everything other than real number and str
+                value = null
+            except ValueError: # happens with str
+                value = null
+            else: # execute code when there is no error in the try.
+                
+                try:
+                    value = int(value)
+                except ValueError: # happens with float("nan"), numpy.nan
                     value = null
-                except ValueError: # happens with str
-                    value = null
-                else: # execute code when there is no error in the try.
-                    
-                    try:
-                        value = int(value)
-                    except ValueError: # happens with float("nan"), numpy.nan
-                        value = null
                 
             vals[index] = value
 
@@ -284,12 +281,3 @@ class ints(numpy.ndarray):
             null = null*10-9
 
         return ints(array,null=null)
-
-comparison_operators = (
-    numpy.equal,
-    numpy.not_equal,
-    numpy.greater,
-    numpy.less,
-    numpy.greater_equal,
-    numpy.less_equal
-)

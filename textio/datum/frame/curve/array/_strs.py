@@ -192,18 +192,21 @@ class strs(numpy.ndarray):
 
     @staticmethod
     def adopt(vals,null):
+        """
+        vals    : flat list
+        null    : null str
+        """
 
-        # null = str(null)
+        null = str(null)
 
-        _list = [str(value) for value in vals]
+        for index,value in enumerate(vals):
 
-        # for value in variable:
+            if isinstance(value,str):
+                continue
 
-        #     value = str(value)
+            vals[index] = null if value is None else str(value)
 
-        #     _list.append(value)
-
-        return _list
+        return vals
 
     @staticmethod
     def arange(*args,start='A',stop=None,step=1,size=None,dtype=None):

@@ -1,10 +1,10 @@
 import numpy
 
-from .curve.array.special._ints import ints
-from .curve.array.special._floats import floats
-from .curve.array.special._strs import strs
-from .curve.array.special._dates import dates
-from .curve.array.special._datetimes import datetimes
+from .curve.array._ints import ints
+from .curve.array._floats import floats
+from .curve.array._strs import strs
+from .curve.array._dates import dates
+from .curve.array._datetimes import datetimes
 
 class Raster():
 	"""The idea is to have 2D numpy array where row and column keys are defined."""

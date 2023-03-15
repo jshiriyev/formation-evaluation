@@ -4,13 +4,13 @@ from dateutil import parser
 
 import numpy
 
-from .special._ints import ints
-from .special._floats import floats
-from .special._strs import strs
-from .special._dates import dates
-from .special._datetimes import datetimes
+from .array._ints import ints
+from .array._floats import floats
+from .array._strs import strs
+from .array._dates import dates
+from .array._datetimes import datetimes
 
-class array:
+class reel:
 
     ints = ints
     floats = floats
@@ -19,23 +19,23 @@ class array:
     datetimes = datetimes
 
     @staticmethod
-    def flat(vals,ptype=None,**kwargs):
+    def array(vals,ptype=None,**kwargs):
 
-        vals = array.flatten(vals)
+        vals = reel.flatten(vals)
 
         if ptype is None:
-            ptype = array.ptype(vals) #float, datetime, or str
+            ptype = reel.ptype(vals) #float, datetime, or str
 
         if ptype is int:
-            return array.ints(vals,**kwargs)
+            return reel.ints(vals,**kwargs)
         elif ptype is float:
-            return array.floats(vals,**kwargs)
+            return reel.floats(vals,**kwargs)
         elif ptype is str:
-            return array.strs(vals,**kwargs)
+            return reel.strs(vals,**kwargs)
         elif ptype is datetime.date:
-            return array.dates(vals,**kwargs)
+            return reel.dates(vals,**kwargs)
         elif ptype is datetime.datetime:
-            return array.datetimes(vals,**kwargs)
+            return reel.datetimes(vals,**kwargs)
 
     @staticmethod
     def flatten(vals,_list=None):
@@ -44,11 +44,11 @@ class array:
         _list = [] if _list is None else _list
 
         if type(vals).__module__ == numpy.__name__:
-            array.flatten(vals.tolist(),_list)
+            reel.flatten(vals.tolist(),_list)
         elif isinstance(vals,str):
             _list.append(vals)
         elif hasattr(vals,"__iter__"):
-            [array.flatten(val,_list) for val in list(vals)]
+            [reel.flatten(val,_list) for val in list(vals)]
         else:
             _list.append(vals)
 
@@ -123,7 +123,7 @@ class array:
         size    : size of flat list to be created, integer
         """
 
-        vals = array.flat(vals,ptype=ptype)
+        vals = reel.array(vals,ptype=ptype)
 
         if vals.size==0:
             return vals

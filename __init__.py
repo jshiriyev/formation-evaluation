@@ -2,7 +2,7 @@ from . import scomp
 
 from . import textio
 
-from .textio.datum.frame.curve.array._array import array
+from .textio.datum.frame.curve._array import reel
 
 from . import diary
 

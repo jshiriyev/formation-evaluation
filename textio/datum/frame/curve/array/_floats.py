@@ -10,7 +10,7 @@ class floats(numpy.ndarray):
 
         null = numpy.nan if null is None else float(null)
 
-        vals = iterable(vals)
+        vals = floats.adopt(vals,null)
 
         item = numpy.asarray(vals,dtype='float64').view(cls)
 
@@ -31,7 +31,7 @@ class floats(numpy.ndarray):
 
         parent = super().__repr__()
 
-        child = parent.replace('nan',str(self.null))
+        child = parent.replace('nan','null')
 
         return re.sub(r"\s+"," ",child)
 
@@ -39,7 +39,7 @@ class floats(numpy.ndarray):
 
         parent = super().__str__()
 
-        child = parent.replace('nan',str(self.null))
+        child = parent.replace('nan','null')
 
         return re.sub(r"\s+"," ",child)
 
@@ -109,14 +109,14 @@ class floats(numpy.ndarray):
         for index,value in enumerate(vals):
 
             if isinstance(value,float):
-                pass
-            else:
-                try:
-                    value = float(value)
-                except TypeError:
-                    value = float("nan")
-                except ValueError:
-                    value = float("nan")
+                continue
+                
+            try:
+                value = float(value)
+            except TypeError:
+                value = float("nan")
+            except ValueError:
+                value = float("nan")
 
             vals[index] = value
 
