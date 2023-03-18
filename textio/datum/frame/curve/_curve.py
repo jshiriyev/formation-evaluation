@@ -1,4 +1,4 @@
-class Curve():# INITIALIZATION MUST BE SIMPLIFIED TO: head=vals
+class curve():# INITIALIZATION MUST BE SIMPLIFIED TO: head=vals
     """It is a numpy array of shape (N,) with additional attributes of head, unit and info."""
 
     """INITIALIZATION"""
