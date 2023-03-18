@@ -10,7 +10,7 @@ from .array._strs import strs
 from .array._dates import dates
 from .array._datetimes import datetimes
 
-class reel:
+class linear:
 
     ints = ints
     floats = floats
@@ -19,23 +19,26 @@ class reel:
     datetimes = datetimes
 
     @staticmethod
-    def array(vals,ptype=None,**kwargs):
+    def array(vals,null=None,unit=None,ptype=None):
 
-        vals = reel.flatten(vals)
+        vals = linear.flatten(vals)
 
+        if unit is not None:
+            ptype = float
+            
         if ptype is None:
-            ptype = reel.ptype(vals) #float, datetime, or str
+            ptype = linear.ptype(vals) #float, datetime, or str
 
         if ptype is int:
-            return reel.ints(vals,**kwargs)
+            return linear.ints(vals,null=null)
         elif ptype is float:
-            return reel.floats(vals,**kwargs)
+            return linear.floats(vals,null=null,unit=unit)
         elif ptype is str:
-            return reel.strs(vals,**kwargs)
+            return linear.strs(vals,null=null)
         elif ptype is datetime.date:
-            return reel.dates(vals,**kwargs)
+            return linear.dates(vals,null=null)
         elif ptype is datetime.datetime:
-            return reel.datetimes(vals,**kwargs)
+            return linear.datetimes(vals,null=null)
 
     @staticmethod
     def flatten(vals,_list=None):
@@ -44,11 +47,11 @@ class reel:
         _list = [] if _list is None else _list
 
         if type(vals).__module__ == numpy.__name__:
-            reel.flatten(vals.tolist(),_list)
+            linear.flatten(vals.tolist(),_list)
         elif isinstance(vals,str):
             _list.append(vals)
         elif hasattr(vals,"__iter__"):
-            [reel.flatten(val,_list) for val in list(vals)]
+            [linear.flatten(val,_list) for val in list(vals)]
         else:
             _list.append(vals)
 
@@ -123,7 +126,7 @@ class reel:
         size    : size of flat list to be created, integer
         """
 
-        vals = reel.array(vals,ptype=ptype)
+        vals = linear.array(vals,ptype=ptype)
 
         if vals.size==0:
             return vals

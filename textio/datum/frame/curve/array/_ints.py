@@ -202,6 +202,10 @@ class ints(numpy.ndarray):
 
         return ints(vals,null=self.null)
 
+    def tostr(self):
+
+        return self.view(numpy.ndarray).astype(str)
+
     @property
     def null(self):
 

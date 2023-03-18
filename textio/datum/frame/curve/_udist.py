@@ -1,42 +1,34 @@
-from ._curve import Curve
+import numpy
 
-# Data uniformly spaced in depth
+from ._linear import linear
 
-class uDist(Curve):
-    """The major difference between Column and LasCurve is the depth attribute
-    of LasCurve."""
+class udist():
+    """Data uniformly distributed in one dimensional space."""
 
-    def __init__(self,**kwargs):
-        """Initialization of LasCurve."""
+    def __init__(self,vals,start=0,stop=None,step=1.0,null=None,unit=None,ptype=None):
+        """Initialization of uniformly distributed data."""
 
-        super().__init__(
-            vals = pop(kwargs,"vals"),
-            head = pop(kwargs,"head"),
-            unit = pop(kwargs,"unit"),
-            info = pop(kwargs,"info"),
-            size = pop(kwargs,"size"),
-            dtype = pop(kwargs,"dtype"))
+        self.array = linear.array(
+            vals,null=null,unit=unit,ptype=ptype)
 
-        depth = kwargs.pop("depth")
+        self.start,self.step = start,step
 
-        if not isinstance(depth,column):
-            depth = column(
-                vals = depth,
-                head = "DEPT",
-                unit = pop(kwargs,"dunit","m"),
-                info = "")
+        if stop is None:
+            
+            self.stop = (self.array.size-1)*self.step+self.start
+            
+            return
 
-        self.depth = depth
+        self.stop = stop
 
-        if self.depth.size != self.vals.size:
+        if (self.stop-self.start)/self.step+1 != self.array.size:
             raise f"depth.size and vals.size does not match!"
 
-        self.setattrs(**kwargs)
+    @property
+    def depth(self):
 
-    def setattrs(self,**kwargs):
-
-        for key,value in kwargs.items():
-            setattr(self,key,value)
+        return numpy.linspace(self.start,self.stop,self.array.size)
+    
 
     @property
     def height(self):
@@ -50,16 +42,9 @@ class uDist(Curve):
 
         thickness = (node_foot-node_head)/2
 
-        thickness[ 0] = (depth[ 1].vals[0]-depth[ 0].vals[0])/2
-        thickness[-1] = (depth[-1].vals[0]-depth[-2].vals[0])/2
+        thickness[ 0] = (depth[ 1]-depth[ 0])/2
+        thickness[-1] = (depth[-1]-depth[-2])/2
 
-        null = numpy.sum(thickness[self.isnone])
+        null = numpy.sum(thickness[self.array.isnull])
 
         return {'total': total, 'null': null, 'valid': total-null,}
-
-def pop(kwargs,key,default=None):
-
-    try:
-        return kwargs.pop(key)
-    except KeyError:
-        return default

@@ -43,6 +43,17 @@ class floats(numpy.ndarray):
 
         return re.sub(r"\s+"," ",child)
 
+    def tostr(self):
+
+        if numpy.isnan(self.null):
+            return self.astype(str)
+
+        vals = self.view(numpy.ndarray).copy()
+
+        vals[self.isnull] = self.null
+
+        return vals.astype(str)
+
     def normalize(self,vmin=None,vmax=None):
         """It returns normalized values (in between 0 and 1) of float arrays.
         If vmin is provided, everything below 0 will be reported as zero.
