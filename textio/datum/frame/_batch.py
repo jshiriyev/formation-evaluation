@@ -1,3 +1,5 @@
+import itertools
+
 import math
 
 import re
@@ -37,6 +39,9 @@ class Batch():
 
     def ndims(self):
 
+        if not isinstance(self._list,list):
+            return 0
+
         return _ndims(self._list)
 
     def replace(self,old,new):
@@ -71,31 +76,16 @@ class Batch():
     def transpose(self):
         """From row wise to column wise data or vice versa."""
 
-        _frame = []
+        ndims = self.ndims()
 
-        try:
-            _list0 = self._list[0]
-        except IndexError:
-            return self
-
-        if isinstance(_list0,str):
-            numcols = 1
+        if ndims == 0:
+            return
+        elif ndims == 1:
+            return Batch([[l] for l in self._list])
+        elif ndims == 2:
+            return Batch([list(l) for l in itertools.zip_longest(*self._list)])
         else:
-            try:
-                numcols = len(_list0)
-            except TypeError:
-                numcols = 1
-
-        for index in range(numcols):
-
-            if numcols == 1:
-                row = [[item] for item in self._list]
-            else:
-                row = [_list[index] for _list in self._list]
-
-            _frame.append(row)
-
-        return Batch(_frame)
+            return
 
     def drop(self):
         """Drop lists with all None."""
