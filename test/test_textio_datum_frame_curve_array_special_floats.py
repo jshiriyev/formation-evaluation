@@ -31,7 +31,8 @@ class TestFloatArray(unittest.TestCase):
 
     def test_string_characters(self):
 
-        x = linear.array('cavid',float)
+        x = linear.array('cavid',ptype=float)
+
         y = numpy.array([numpy.nan])
 
         numpy.testing.assert_array_equal(x.tolist(),y.tolist())
@@ -40,7 +41,7 @@ class TestFloatArray(unittest.TestCase):
 
     def test_string_datetime(self):
 
-        x = linear.array('2022-02-28',float)
+        x = linear.array('2022-02-28',ptype=float)
         y = numpy.array([numpy.nan])
 
         numpy.testing.assert_array_equal(x.tolist(),y.tolist())
@@ -49,7 +50,7 @@ class TestFloatArray(unittest.TestCase):
 
     def test_datetime_datetime(self):
 
-        x = linear.array(datetime.datetime.today(),float)
+        x = linear.array(datetime.datetime.today(),ptype=float)
         y = numpy.array([numpy.nan])
 
         numpy.testing.assert_array_equal(x.tolist(),y.tolist())
@@ -58,7 +59,7 @@ class TestFloatArray(unittest.TestCase):
 
     def test_datetime_date(self):
 
-        x = linear.array(datetime.date.today(),float)
+        x = linear.array(datetime.date.today(),ptype=float)
         y = numpy.array([numpy.nan])
 
         numpy.testing.assert_array_equal(x.tolist(),y.tolist())
