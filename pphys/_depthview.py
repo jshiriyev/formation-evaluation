@@ -20,7 +20,7 @@ from matplotlib.ticker import ScalarFormatter
 
 import numpy
 
-from ._gradient import gradient_fill
+from .gradient import gradient_fill
 
 class DepthView():
 
