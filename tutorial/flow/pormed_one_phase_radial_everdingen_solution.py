@@ -15,9 +15,7 @@ from scipy.special import yvp as bessel_yvp
 
 from scipy.optimize import root_scalar
 
-import _setup
-
-from flow.pormed import OnePhaseRadial
+from borepy.pormed import OnePhaseRadial
 
 beta = np.logspace(-4,3,10000)
 u = 1e-2
