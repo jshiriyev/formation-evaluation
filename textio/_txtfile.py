@@ -157,8 +157,6 @@ class TxtWorm():
 
         heads = self.heads()
 
-        print(heads)
-
         for col,head in zip(cols,heads):
             self.txtfile.frame[head] = col
 

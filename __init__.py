@@ -28,6 +28,5 @@ from . import fmodel
 
 from . import gmodel
 
-from . import flow
-from . import gmech
-from . import emw
+from . import pormed
+from . import wstab

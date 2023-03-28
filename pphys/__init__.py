@@ -19,4 +19,4 @@ from ._depthview import DepthViewLasio #must be depreciated later once I fully p
 
 from ._corrview import CorrView
 
-from . import wlogs
+from . import logan
