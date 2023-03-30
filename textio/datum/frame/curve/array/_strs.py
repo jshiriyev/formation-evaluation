@@ -144,6 +144,24 @@ class strs(numpy.ndarray):
 
         return strs(numpy.char.add(self,other))
 
+    def split(self,delimiter=None,maxsplit=None):
+
+        if maxsplit is None:
+            maxsplit = numpy.char.count(self,delimiter).max()
+
+        rows = []
+
+        for index,value in enumerate(self):
+
+            row = value.tolist().split(delimiter,maxsplit=maxsplit)
+
+            if maxsplit+1>len(row):
+                [row.append(datacolumn.nones.str) for _ in range(maxsplit+1-len(row))]
+
+            rows.append(row)
+
+        return [strs(values,null=self.null) for values in numpy.array(rows,dtype=str).T]
+
     def unique(self):
 
         datacolumn = copy.deepcopy(self)
