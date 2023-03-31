@@ -94,23 +94,128 @@ class strs(numpy.ndarray):
 
         return
 
+    """ADVANCED METHODS"""
+
+    def sort(self,reverse=False,return_indices=False):
+        
+        sort_index = numpy.argsort(self.vals)
+
+        if reverse:
+            sort_index = numpy.flip(sort_index)
+
+        if return_indices:
+            return sort_index
+        else:
+            return self[sort_index]
+
+    def filter(self,keywords=None,regex=None,return_indices=False):
+        
+        if keywords is not None:
+            match = [index for index,val in enumerate(self.vals) if val in keywords]
+            # numpy way of doing the same thing:
+            # kywrd = numpy.array(keywords).reshape((-1,1))
+            # match = numpy.any(datacolumn.vals==kywrd,axis=0)
+        elif regex is not None:
+            pttrn = re.compile(regex)
+            match = [index for index,val in enumerate(self.vals) if pttrn.match(val)]
+            # numpy way of doing the same thing:
+            # vectr = numpy.vectorize(lambda x: bool(re.compile(regex).match(x)))
+            # match = vectr(datacolumn.vals)
+
+        if return_indices:
+            return match
+        else:
+            return self[match]
+
+    def flip(self):
+
+        datacolumn = copy.deepcopy(self)
+
+        datacolumn.vals = numpy.flip(self.vals)
+
+        return datacolumn
+            
+    def unique(self):
+
+        datacolumn = copy.deepcopy(self)
+
+        datacolumn.vals = numpy.unique(self.vals)
+
+        return datacolumn
+        
     def toints(self):
 
+        # line = re.sub(r"[^\w]","",line) # cleans non-alphanumerics, keeps 0-9, A-Z, a-z, or underscore.
+
         func = numpy.vectorize(strs._str2int,otypes=[int],excluded=["none_str","none_int","regex"])
+
+        # dnone = self.nones.todict("str","int")
+        # regex = r"[-+]?\d+\b" if regex is None else regex
+        # datacolumn.vals = str2int(datacolumn.vals,regex=regex,**dnone)
 
         return func(array)
 
     def tofloats(self):
 
+        # dnone = self.nones.todict("str","float")
+        # regex = r"[-+]?[0-9]*\.?[0-9]+" if regex is None else regex
+        # datacolumn.vals = str2float(datacolumn.vals,regex=regex,**dnone)
+        # datacolumn._valsunit()
+
         func = numpy.vectorize(strs._str2float,otypes=[float],excluded=["none_str","none_float","sep_decimal","sep_thousand","regex"])
 
         return func(self)
 
-    def tostrs(self):
+    def _tostrs(self):
+
+        # dnone = self.nones.todict("str")
+        # datacolumn.vals = str2str(datacolumn.vals,regex=regex,**dnone)
 
         func = numpy.vectorize(strs._str2str,otypes=[str],excluded=["none_str","regex","fstring"])
 
         return func(self)
+
+    def tostrs(self,fstring=None,upper=False,lower=False,zfill=None):
+        """It has more capabilities than str2str on the outputting part."""
+
+        if fstring is None:
+            fstring_inner = "{}"
+            fstring_clean = "{}"
+        else:
+            fstring_inner = re.search(r"\{(.*?)\}",fstring).group()
+            fstring_clean = re.sub(r"\{(.*?)\}","{}",fstring,count=1)
+
+        vals_str = []
+
+        for val,none_bool in zip(self.vals.tolist(),self.isnone):
+
+            if none_bool:
+                vals_str.append(self.nones.str)
+                continue
+
+            text = fstring_inner.format(val)
+
+            if zfill is not None:
+                text = text.zfill(zfill)
+
+            if upper:
+                text = text.upper()
+            elif lower:
+                text = text.lower()
+
+            text = fstring_clean.format(text)
+
+            vals_str.append(text)
+
+        vals_str = numpy.array(vals_str,dtype="str")
+
+        datacolumn = copy.deepcopy(self)
+
+        datacolumn = datacolumn.astype("str")
+
+        datacolumn.vals = vals_str
+
+        return datacolumn
 
     def todates(self):
 
@@ -120,7 +225,8 @@ class strs(numpy.ndarray):
 
     def todatetimes(self):
 
-        return
+        dnone = self.nones.todict("str","datetime64")
+        datacolumn.vals = str2datetime64(datacolumn.vals,regex=regex,**dnone)
 
     def __add__(self,other):
         """Implementing '+' operator."""
@@ -144,6 +250,28 @@ class strs(numpy.ndarray):
 
         return strs(numpy.char.add(self,other))
 
+    def replace(self,new=None,old=None,method="upper"):
+        """It replaces old with new. If old is not defined, it replaces nones.
+        If new is not defined, it uses upper or lower values to replace the olds."""
+
+        if old is None:
+            conds = self.isnone
+        else:
+            conds = self.vals == old
+
+        if new is None:
+
+            if method=="upper":
+                for index in range(self.vals.size):
+                    if conds[index]:
+                        self.vals[index] = self.vals[index-1]
+            elif method=="lower":
+                for index in range(self.vals.size):
+                    if conds[index]:
+                        self.vals[index] = self.vals[index+1]
+        else:
+            self.vals[conds] = new
+
     def split(self,delimiter=None,maxsplit=None):
 
         if maxsplit is None:
@@ -161,6 +289,14 @@ class strs(numpy.ndarray):
             rows.append(row)
 
         return [strs(values,null=self.null) for values in numpy.array(rows,dtype=str).T]
+
+    def min(self):
+
+        return min(self.vals[~self.isnone],key=len)
+
+    def max(self):
+
+        return max(self.vals[~self.isnone],key=len)
 
     def unique(self):
 

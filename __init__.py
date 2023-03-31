@@ -6,6 +6,7 @@ from .textio.datum.frame.curve.array._ints import ints
 from .textio.datum.frame.curve.array._floats import floats
 from .textio.datum.frame.curve.array._strs import strs
 from .textio.datum.frame.curve.array._dates import dates
+from .textio.datum.frame.curve.array._times import times
 from .textio.datum.frame.curve.array._datetimes import datetimes
 
 from .textio.datum.frame.curve._linear import linear

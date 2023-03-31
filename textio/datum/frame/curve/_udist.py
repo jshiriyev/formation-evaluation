@@ -1,15 +1,14 @@
 import numpy
 
-from ._linear import linear
+from ._curve import curve
 
-class udist():
+class udist(curve):
     """Data uniformly distributed in one dimensional space."""
 
-    def __init__(self,vals,start=0,stop=None,step=1.0,null=None,unit=None,ptype=None):
+    def __init__(self,*args,start=0,stop=None,step=1.0,**kwargs):
         """Initialization of uniformly distributed data."""
 
-        self.array = linear.array(
-            vals,null=null,unit=unit,ptype=ptype)
+        super().__init__(*args,**kwargs)
 
         self.start,self.step = start,step
 
@@ -29,7 +28,6 @@ class udist():
 
         return numpy.linspace(self.start,self.stop,self.array.size)
     
-
     @property
     def height(self):
 
