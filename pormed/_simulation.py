@@ -366,6 +366,40 @@ class OnePhase():
 
         return Pwf
 
+    @staticmethod
+    def transmissibility(grids):
+        
+        dx_m = (grids.size[:,0]+grids.size[grids.index[:,1],0])/2
+        dx_p = (grids.size[:,0]+grids.size[grids.index[:,2],0])/2
+        dy_m = (grids.size[:,1]+grids.size[grids.index[:,3],1])/2
+        dy_p = (grids.size[:,1]+grids.size[grids.index[:,4],1])/2
+        dz_m = (grids.size[:,2]+grids.size[grids.index[:,5],2])/2
+        dz_p = (grids.size[:,2]+grids.size[grids.index[:,6],2])/2
+
+        kx_m = (2*dx_m)/(grids.size[:,0]/grids.permeability[:,0]+
+                         grids.size[grids.index[:,1],0]/grids.permeability[grids.index[:,1],0])
+        kx_p = (2*dx_p)/(grids.size[:,0]/grids.permeability[:,0]+
+                         grids.size[grids.index[:,2],0]/grids.permeability[grids.index[:,2],0])
+        ky_m = (2*dy_m)/(grids.size[:,1]/grids.permeability[:,1]+
+                         grids.size[grids.index[:,3],1]/grids.permeability[grids.index[:,3],1])
+        ky_p = (2*dy_p)/(grids.size[:,1]/grids.permeability[:,1]+
+                         grids.size[grids.index[:,4],1]/grids.permeability[grids.index[:,4],1])
+        kz_m = (2*dz_m)/(grids.size[:,2]/grids.permeability[:,2]+
+                         grids.size[grids.index[:,5],2]/grids.permeability[grids.index[:,5],2])
+        kz_p = (2*dz_p)/(grids.size[:,2]/grids.permeability[:,2]+
+                         grids.size[grids.index[:,6],2]/grids.permeability[grids.index[:,6],2])
+
+        transmissibility = np.zeros((grids.numtot,6))
+
+        transmissibility[:,0] = (2*kx_m)/(grids.viscosity*dx_m*(dx_m+dx_p))
+        transmissibility[:,1] = (2*kx_p)/(grids.viscosity*dx_p*(dx_m+dx_p))
+        transmissibility[:,2] = (2*ky_m)/(grids.viscosity*dy_m*(dy_m+dy_p))
+        transmissibility[:,3] = (2*ky_p)/(grids.viscosity*dy_p*(dy_m+dy_p))
+        transmissibility[:,4] = (2*kz_m)/(grids.viscosity*dz_m*(dz_m+dz_p))
+        transmissibility[:,5] = (2*kz_p)/(grids.viscosity*dz_p*(dz_m+dz_p))
+
+        return transmissibility
+
 class TwoPhaseIMPES():
     
     def __init__(self,res,fluids,wells,relperm):
