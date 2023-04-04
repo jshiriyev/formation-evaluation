@@ -13,7 +13,7 @@ class Line():
 
     def set_tracks(self,tracks):
         
-        self.tracks = np.array(tracks)
+        self.tracks = numpy.array(tracks)
 
     def set2Dview(self,axis,view='zy'):
 
@@ -317,7 +317,7 @@ class RectRectGrid():
 
         return self.delta[:,2]
     
-class ellipse():
+class Ellipse():
 
     # This class is supposed to create 2-D surface in 3-D domain
     # thickness: thickness of the ellipse
@@ -379,7 +379,7 @@ class ellipse():
         
         self.area = area
 
-        radius1 = np.sqrt(area*aspect/np.pi)
+        radius1 = numpy.sqrt(area*aspect/numpy.pi)
         radius2 = radius1/aspect
 
         self.set_radii(radii=(radius1,radius2))
@@ -395,21 +395,21 @@ class ellipse():
 
         numverts = 50
 
-        thetas = np.linspace(0,2*np.pi,numverts+1)[:-1]
+        thetas = numpy.linspace(0,2*numpy.pi,numverts+1)[:-1]
 
-        self.edge_vertices = np.zeros((2*numverts,3))
+        self.edge_vertices = numpy.zeros((2*numverts,3))
 
-        self.edge_vertices[:,0] = np.tile(self.radii[0]/2*np.cos(thetas),2)+self.radii[0]/2
-        self.edge_vertices[:,1] = np.tile(self.radii[1]/2*np.sin(thetas),2)+self.radii[1]/2
-        self.edge_vertices[:,2] = np.append(np.zeros(numverts),self.thickness*np.ones(numverts))
+        self.edge_vertices[:,0] = numpy.tile(self.radii[0]/2*numpy.cos(thetas),2)+self.radii[0]/2
+        self.edge_vertices[:,1] = numpy.tile(self.radii[1]/2*numpy.sin(thetas),2)+self.radii[1]/2
+        self.edge_vertices[:,2] = numpy.append(numpy.zeros(numverts),self.thickness*numpy.ones(numverts))
 
-        indices = np.empty((2*numverts,2),dtype=int)
+        indices = numpy.empty((2*numverts,2),dtype=int)
 
-        vertices_0 = np.arange(numverts)
-        vertices_1 = np.append(np.arange(numverts)[1:],0)
+        vertices_0 = numpy.arange(numverts)
+        vertices_1 = numpy.append(numpy.arange(numverts)[1:],0)
 
-        indices[:,0] = np.append(vertices_0,vertices_0+numverts)
-        indices[:,1] = np.append(vertices_1,vertices_1+numverts)
+        indices[:,0] = numpy.append(vertices_0,vertices_0+numverts)
+        indices[:,1] = numpy.append(vertices_1,vertices_1+numverts)
 
         x_aspects = self.edge_vertices[:,0][indices]
         y_aspects = self.edge_vertices[:,1][indices]
@@ -418,7 +418,7 @@ class ellipse():
         self.boundaries = []
 
         for x_aspect,y_aspect,z_aspect in zip(x_aspects,y_aspects,z_aspects):
-            self.boundaries.append(np.array([x_aspect,y_aspect,z_aspect]))
+            self.boundaries.append(numpy.array([x_aspect,y_aspect,z_aspect]))
 
         self.gridFlag = False
 
@@ -446,7 +446,7 @@ class ellipse():
         if showGridCenters:
             axis.scatter(*self.grid_centers.T)
 
-class cuboid():
+class Cuboid():
 
     """
     For rectangular parallelepiped, dimensions is a tuple
@@ -459,7 +459,7 @@ class cuboid():
 
         self.lengths = lengths
 
-        self.edge_vertices = np.zeros((8,3))
+        self.edge_vertices = numpy.zeros((8,3))
 
         self.edge_vertices[0,:] = (0,0,0)
         self.edge_vertices[1,:] = (self.lengths[0],0,0)
@@ -471,7 +471,7 @@ class cuboid():
         self.edge_vertices[6,:] = (self.lengths[0],self.lengths[1],self.lengths[2])
         self.edge_vertices[7,:] = (0,self.lengths[1],self.lengths[2])
 
-        indices = np.empty((12,2),dtype=int)
+        indices = numpy.empty((12,2),dtype=int)
 
         indices[:,0] = (0,1,2,3,0,1,2,3,4,5,6,7)
         indices[:,1] = (1,2,3,0,4,5,6,7,5,6,7,4)
@@ -483,7 +483,7 @@ class cuboid():
         self.boundaries = []
 
         for x_aspect,y_aspect,z_aspect in zip(x_aspects,y_aspects,z_aspects):
-            self.boundaries.append(np.array([x_aspect,y_aspect,z_aspect]))
+            self.boundaries.append(numpy.array([x_aspect,y_aspect,z_aspect]))
 
         self.gridFlag = False
 
@@ -501,11 +501,11 @@ class cuboid():
         
         self.grid_num = grid_num
 
-        self.grid_numtot = np.prod(self.grid_num)
+        self.grid_numtot = numpy.prod(self.grid_num)
 
-        idx = np.arange(self.grid_numtot)
+        idx = numpy.arange(self.grid_numtot)
         
-        self.grid_indices = np.tile(idx,(7,1)).T
+        self.grid_indices = numpy.tile(idx,(7,1)).T
 
         self.grid_indices[idx.reshape(-1,self.grid_num[0])[:,1:].ravel(),1] -= 1
         self.grid_indices[idx.reshape(-1,self.grid_num[0])[:,:-1].ravel(),2] += 1
@@ -521,33 +521,33 @@ class cuboid():
         self.grid_haszmin = ~(self.grid_indices[:,0]==self.grid_indices[:,5])
         self.grid_haszmax = ~(self.grid_indices[:,0]==self.grid_indices[:,6])
 
-        self.grid_xnodes = np.linspace(0,self.lengths[0],self.grid_num[0]+1)
-        self.grid_ynodes = np.linspace(0,self.lengths[1],self.grid_num[1]+1)
-        self.grid_znodes = np.linspace(0,self.lengths[2],self.grid_num[2]+1)
+        self.grid_xnodes = numpy.linspace(0,self.lengths[0],self.grid_num[0]+1)
+        self.grid_ynodes = numpy.linspace(0,self.lengths[1],self.grid_num[1]+1)
+        self.grid_znodes = numpy.linspace(0,self.lengths[2],self.grid_num[2]+1)
         
         xsize = self.grid_xnodes[1:]-self.grid_xnodes[:-1]
         ysize = self.grid_ynodes[1:]-self.grid_ynodes[:-1]
         zsize = self.grid_znodes[1:]-self.grid_znodes[:-1]
         
-        self.grid_sizes = np.zeros((self.grid_numtot,3))
-        self.grid_sizes[:,0] = np.tile(xsize,self.grid_num[1]*self.grid_num[2])
-        self.grid_sizes[:,1] = np.tile(ysize.repeat(self.grid_num[0]),self.grid_num[2])
+        self.grid_sizes = numpy.zeros((self.grid_numtot,3))
+        self.grid_sizes[:,0] = numpy.tile(xsize,self.grid_num[1]*self.grid_num[2])
+        self.grid_sizes[:,1] = numpy.tile(ysize.repeat(self.grid_num[0]),self.grid_num[2])
         self.grid_sizes[:,2] = zsize.repeat(self.grid_num[0]*self.grid_num[1])
 
-        self.grid_areas = np.zeros((self.grid_numtot,3))
+        self.grid_areas = numpy.zeros((self.grid_numtot,3))
         self.grid_areas[:,0] = self.grid_sizes[:,1]*self.grid_sizes[:,2]
         self.grid_areas[:,1] = self.grid_sizes[:,2]*self.grid_sizes[:,0]
         self.grid_areas[:,2] = self.grid_sizes[:,0]*self.grid_sizes[:,1]
 
-        self.grid_volumes = np.prod(self.grid_sizes,axis=1)
+        self.grid_volumes = numpy.prod(self.grid_sizes,axis=1)
 
         xcenter = self.grid_xnodes[:-1]+xsize/2
         ycenter = self.grid_ynodes[:-1]+ysize/2
         zcenter = self.grid_znodes[:-1]+zsize/2
         
-        self.grid_centers = np.zeros((self.grid_numtot,3))
-        self.grid_centers[:,0] = np.tile(xcenter,self.grid_num[1]*self.grid_num[2])
-        self.grid_centers[:,1] = np.tile(ycenter.repeat(self.grid_num[0]),self.grid_num[2])
+        self.grid_centers = numpy.zeros((self.grid_numtot,3))
+        self.grid_centers[:,0] = numpy.tile(xcenter,self.grid_num[1]*self.grid_num[2])
+        self.grid_centers[:,1] = numpy.tile(ycenter.repeat(self.grid_num[0]),self.grid_num[2])
         self.grid_centers[:,2] = zcenter.repeat(self.grid_num[0]*self.grid_num[1])
 
         self.gridFlag = True
@@ -556,7 +556,81 @@ class cuboid():
 
         pass
 
-class cylinder():
+class OneDimCuboid():
+
+    def __init__(self,length,numtot,csa):
+
+        self.length = length
+
+        self.numtot = numtot
+
+        self.csa = csa
+
+        self.num = (numtot,1,1)
+
+        self._index()
+
+        self._size()
+
+        self._area()
+
+    def _index(self):
+
+        idx = numpy.arange(self.numtot)
+
+        self.index = numpy.tile(idx,(7,1)).T
+
+        self.index[idx.reshape(-1,self.num[0])[:,1:].ravel(),1] -= 1
+        self.index[idx.reshape(-1,self.num[0])[:,:-1].ravel(),2] += 1
+        self.index[idx.reshape(self.num[2],-1)[:,self.num[0]:],3] -= self.num[0]
+        self.index[idx.reshape(self.num[2],-1)[:,:-self.num[0]],4] += self.num[0]
+        self.index[idx.reshape(self.num[2],-1)[1:,:],5] -= self.num[0]*self.num[1]
+        self.index[idx.reshape(self.num[2],-1)[:-1,:],6] += self.num[0]*self.num[1]
+
+    def _size(self):
+
+        self.size = numpy.zeros((self.numtot,3))
+
+        self.size[:,0] = self.length/self.num[0]
+        self.size[:,1] = self.csa
+        self.size[:,2] = 1
+
+        self.xaxis = numpy.linspace(0,self.length,self.numtot,endpoint=False)+self.size[:,0]/2
+
+    def _area(self):
+
+        self.area = numpy.zeros((self.numtot,6))
+
+        self.area[:,0] = self.size[:,1]*self.size[:,2]
+        self.area[:,1] = self.size[:,1]*self.size[:,2]
+        self.area[:,2] = self.size[:,2]*self.size[:,0]
+        self.area[:,3] = self.size[:,2]*self.size[:,0]
+        self.area[:,4] = self.size[:,0]*self.size[:,1]
+        self.area[:,5] = self.size[:,0]*self.size[:,1]
+
+    def set_permeability(self,permeability,homogeneous=True,isotropic=True):
+
+        self.permeability = numpy.zeros((self.numtot,3))
+
+        if homogeneous and isotropic:
+            
+            self.permeability[:] = permeability
+
+        elif homogeneous and not isotropic:
+
+            self.permeability[:] = permeability
+
+        elif not homogeneous and isotropic:
+
+            self.permeability[:,0] = permeability
+            self.permeability[:,1] = permeability
+            self.permeability[:,2] = permeability
+
+        else:
+
+            self.permeability[:] = permeability
+
+class Cylinder():
 
     """
     For cylindrical disk, dimensions is a tuple with two entries for sizes in r,z direction
@@ -570,21 +644,21 @@ class cylinder():
 
         numverts = 50
 
-        thetas = np.linspace(0,2*np.pi,numverts+1)[:-1]
+        thetas = numpy.linspace(0,2*numpy.pi,numverts+1)[:-1]
 
-        self.edge_vertices = np.zeros((2*numverts,3))
+        self.edge_vertices = numpy.zeros((2*numverts,3))
 
-        self.edge_vertices[:,0] = np.tile(self.lengths[0]/2*np.cos(thetas),2)+self.lengths[0]/2
-        self.edge_vertices[:,1] = np.tile(self.lengths[1]/2*np.sin(thetas),2)+self.lengths[1]/2
-        self.edge_vertices[:,2] = np.append(np.zeros(numverts),self.lengths[2]*np.ones(numverts))
+        self.edge_vertices[:,0] = numpy.tile(self.lengths[0]/2*numpy.cos(thetas),2)+self.lengths[0]/2
+        self.edge_vertices[:,1] = numpy.tile(self.lengths[1]/2*numpy.sin(thetas),2)+self.lengths[1]/2
+        self.edge_vertices[:,2] = numpy.append(numpy.zeros(numverts),self.lengths[2]*numpy.ones(numverts))
 
-        indices = np.empty((2*numverts,2),dtype=int)
+        indices = numpy.empty((2*numverts,2),dtype=int)
 
-        vertices_0 = np.arange(numverts)
-        vertices_1 = np.append(np.arange(numverts)[1:],0)
+        vertices_0 = numpy.arange(numverts)
+        vertices_1 = numpy.append(numpy.arange(numverts)[1:],0)
 
-        indices[:,0] = np.append(vertices_0,vertices_0+numverts)
-        indices[:,1] = np.append(vertices_1,vertices_1+numverts)
+        indices[:,0] = numpy.append(vertices_0,vertices_0+numverts)
+        indices[:,1] = numpy.append(vertices_1,vertices_1+numverts)
 
         x_aspects = self.edge_vertices[:,0][indices]
         y_aspects = self.edge_vertices[:,1][indices]
@@ -593,7 +667,7 @@ class cylinder():
         self.boundaries = []
 
         for x_aspect,y_aspect,z_aspect in zip(x_aspects,y_aspects,z_aspects):
-            self.boundaries.append(np.array([x_aspect,y_aspect,z_aspect]))
+            self.boundaries.append(numpy.array([x_aspect,y_aspect,z_aspect]))
 
     def grid(self):
         pass
@@ -601,7 +675,7 @@ class cylinder():
     def plot(self):
         pass
 
-class sphere():
+class Sphere():
 
     def __init__(self):
 

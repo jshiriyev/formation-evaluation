@@ -391,14 +391,73 @@ class OnePhase():
 
         transmissibility = np.zeros((grids.numtot,6))
 
-        transmissibility[:,0] = (2*kx_m)/(grids.viscosity*dx_m*(dx_m+dx_p))
-        transmissibility[:,1] = (2*kx_p)/(grids.viscosity*dx_p*(dx_m+dx_p))
-        transmissibility[:,2] = (2*ky_m)/(grids.viscosity*dy_m*(dy_m+dy_p))
-        transmissibility[:,3] = (2*ky_p)/(grids.viscosity*dy_p*(dy_m+dy_p))
-        transmissibility[:,4] = (2*kz_m)/(grids.viscosity*dz_m*(dz_m+dz_p))
-        transmissibility[:,5] = (2*kz_p)/(grids.viscosity*dz_p*(dz_m+dz_p))
+        transmissibility[:,0] = (kx_m*grids.area[:,0])/(grids.viscosity*dx_m)
+        transmissibility[:,1] = (kx_p*grids.area[:,1])/(grids.viscosity*dx_p)
+        transmissibility[:,2] = (ky_m*grids.area[:,2])/(grids.viscosity*dy_m)
+        transmissibility[:,3] = (ky_p*grids.area[:,3])/(grids.viscosity*dy_p)
+        transmissibility[:,4] = (kz_m*grids.area[:,4])/(grids.viscosity*dz_m)
+        transmissibility[:,5] = (kz_p*grids.area[:,5])/(grids.viscosity*dz_p)
 
         return transmissibility
+
+    @staticmethod
+    def transmatrix(grids,transmissibility):
+
+        T = np.zeros((grids.numtot,grids.numtot))
+
+        for i in range(grids.numtot):
+
+            if i>0:
+                T[i,i-1] = -transmissibility[i,0]
+                T[i,i] += transmissibility[i,0]
+
+            if i<grids.numtot-1:
+                T[i,i+1] = -transmissibility[i,1]
+                T[i,i] += transmissibility[i,1]
+
+        return T
+
+    @staticmethod
+    def picardsolver(grids,timestep,timesteps,T,J,Q):
+
+        array = np.zeros((grids.numtot,timesteps))
+
+        P = grids.pressure_initial
+
+        for j in range(timesteps):
+
+            Pk = P.copy()
+
+            firstIteration = True
+
+            k = 1
+
+            while firstIteration or error>1e-6:
+
+                firstIteration = False
+
+                A = np.eye(grids.numtot)*100/Pk
+
+                D = T+J+A
+
+                V = np.matmul(A,P)+Q
+
+                F = -np.matmul(D,Pk)+V
+
+                error = np.linalg.norm(F,2)
+
+                Pk = np.linalg.solve(D,V)
+
+                print(f"iteration #{k}: {error=}")
+                print(f"{Pk}\n")
+
+                k += 1
+
+            P = Pk.copy()
+
+            array[:,j] = P.flatten()
+
+        return array
 
 class TwoPhaseIMPES():
     
