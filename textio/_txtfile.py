@@ -155,10 +155,10 @@ class TxtWorm():
         else:
             cols = numpy.loadtxt(self.txtmaster,comments=self.comments,delimiter=self.delimiter,unpack=True,dtype=str)
 
-        heads = self.heads()
+        # heads = self.heads()
 
-        for col,head in zip(cols,heads):
-            self.txtfile.frame[head] = col
+        # for col,head in zip(cols,heads):
+        #     self.txtfile.frame[head] = col
 
     @contextlib.contextmanager
     def txtopen(filepath):

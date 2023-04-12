@@ -192,6 +192,8 @@ class Browser():
 
         flag = True
 
+        path = os.path.split(path)[-1]
+
         fname_lower = path.lower()
 
         if prefix is not None:
