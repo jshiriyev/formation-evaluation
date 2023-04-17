@@ -249,7 +249,7 @@ class theta3():
 
     #     return [varargout]
 
-class OnePhasePointSource():
+class PointSource():
     """
     ----------------------------------------------------------------------
      ref: Thambynayagam 2011 The Diffusion Handbook.
@@ -314,7 +314,7 @@ class OnePhasePointSource():
 
     #     return array
 
-class OnePhaseLineSource():
+class LineSource():
 
     def __init__(self):
 
@@ -385,7 +385,7 @@ class OnePhaseLineSource():
 
         #     return array
 
-class OnePhasePlaneSource():
+class PlaneSource():
 
     def __init__(self):
 
@@ -457,7 +457,7 @@ class OnePhasePlaneSource():
 
     #             disp(['Green loading... ',num2str(i/src.numAfrac*100),'% is complete'])
 
-class OnePhaseVolumeSource():
+class VolumeSource():
 
     def __init__(self):
 
@@ -478,7 +478,7 @@ class OnePhaseVolumeSource():
 
     #     return array
 
-class OnePhaseFractureNetwork():
+class FractureNetwork():
 
     def __init__(self):
     

@@ -1,5 +1,3 @@
-import matplotlib.pyplot as plt
-
 import numpy as np
 
 class RelPerm():
@@ -193,12 +191,6 @@ class RelPerm():
 
         return kro,krw,krg
 
-class CapPres():
-
-    def __init__(self):
-
-        pass
-    
 if __name__ == "__main__":
 
     import unittest

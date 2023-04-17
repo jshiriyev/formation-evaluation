@@ -1,11 +1,10 @@
 import matplotlib.pyplot as plt
+
 import numpy as np
 
 from scipy.sparse import csr_matrix as csr
 
-## from PIL import Imag
-
-class OnePhaseLinear():
+class OnePhase():
 
     """
     cartesian_1D_laplace
@@ -105,7 +104,7 @@ class OnePhaseLinear():
 
         self.pressure = PL+(PU-PL)*((self.x/L).reshape((1,-1))+2/np.pi*sum_)
 
-class OnePhaseLinearMultiComponent():
+class MultiComponent():
 
     def obj(XX,v,L):
 
@@ -132,7 +131,7 @@ class OnePhaseLinearMultiComponent():
             term3 = np.exp(v*L/DL)
             return 1/2*(term1+term2*term3)
 
-class TwoPhaseLinear():
+class BuckleyLeverett():
     
     """
     based on Buckley-Leverett solution

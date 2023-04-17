@@ -21,7 +21,7 @@ from scipy.optimize import root_scalar
 # from items import pormed
 # from items import Wells
 
-class OnePhaseRadial():
+class Radial():
     """The solution based on the paper published by Everdingen et al."""
 
     def __init__(self,rr,tt,RR,num_of_terms=2):
@@ -135,7 +135,7 @@ class OnePhaseRadial():
 
         self.PP = term1-term2-term3/term4+np.pi*term8.sum(axis=2)
 
-class OnePhaseRadialSteady():
+class Steady():
 
     def __init__(self,flow_rate):
 
@@ -192,7 +192,7 @@ class OnePhaseRadialSteady():
 
         self.pressure = self.pressure0-self.deltap
 
-class OnePhaseRadialTransient():
+class Transient():
 
     # Line source solution based on exponential integral
 
@@ -282,7 +282,7 @@ class OnePhaseRadialTransient():
 
         self.pressure = self.pressure0-self.deltap
 
-class OnePhaseRadialPseudoSteady():
+class PseudoSteady():
 
     gamma = 1.781
 

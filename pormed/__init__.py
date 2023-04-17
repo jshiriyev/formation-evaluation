@@ -1,21 +1,29 @@
-from ._main import RelPerm
-from ._main import CapPres
+from ._relperm import RelPerm
 
-from ._linear import OnePhaseLinear
-from ._linear import OnePhaseLinearMultiComponent
-from ._linear import TwoPhaseLinear
+from ._cappres import BrooksCorey
+from ._cappres import VanGenuchten
+from ._cappres import JFunction
+from ._cappres import ScanCurves
 
-from ._radial import OnePhaseRadial
-from ._radial import OnePhaseRadialSteady
-from ._radial import OnePhaseRadialTransient
-from ._radial import OnePhaseRadialPseudoSteady
+from ._initialization import ResInit
 
-from ._green import OnePhaseLineSource
-from ._green import OnePhasePlaneSource
-from ._green import OnePhaseFractureNetwork
+from ._linear import OnePhase
+from ._linear import MultiComponent
+from ._linear import BuckleyLeverett
 
-from ._simulation import OnePhase
-from ._simulation import TwoPhaseIMPES
-from ._simulation import TwoPhaseSS
-from ._simulation import ThreePhaseIMPES
-from ._simulation import ThreePhaseSS
+from ._radial import Radial
+from ._radial import Steady
+from ._radial import Transient
+from ._radial import PseudoSteady
+
+# from ._green import OnePhaseLineSource
+# from ._green import OnePhasePlaneSource
+# from ._green import OnePhaseFractureNetwork
+
+from ._onephase import OnePhaseImplicit
+
+from ._twophase import TwoPhaseIMPES
+from ._twophase import TwoPhaseSS
+
+from ._threephase import ThreePhaseIMPES
+from ._threephase import ThreePhaseSS
