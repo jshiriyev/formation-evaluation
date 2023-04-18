@@ -4,107 +4,170 @@ import numpy as np
 
 from scipy.sparse import csr_matrix as csr
 
-class OnePhase():
+class SinglePhaseLinear():
 
-    """
-    cartesian_1D_laplace
-    cartesian_1D_poisson
-    cartesian_1D
-    cartesian_2D
-    cartesian_3D
-    """
-
-    def __init__(self,length,radius,porosity,permeability,compressibility):
-
-        self.length = length
-        self.radius = radius
-
-        self.porosity = porosity
-        self.permeability = permeability
-        self.compressibility = compressibility
-
-    def set_hydraulic_diffusivity(self,hydraulic_diffusivity=None):
-
-        if hydraulic_diffusivity is not None:
-            self.eta = hydraulic_diffusivity
-
-    def cartesian_laplace_1D(self):
-        pass
-
-    def cartesian_poisson_1D(self,boundary_points,boundary_conditions,beta):
-        
+    def __init__(self,length:float,pinit:float):
         """
-        lower_boundary is a list of boundary conditions specified for xL
-        upper_boundary is a list of boundary conditions specified for xU
-
-        they contain following entries
-
-        x  : x-value of boundary line
-        d  : Dirichlet boundary condition coefficient
-        n  : Neumann boundary condition coefficient
-        f  : scalar function known for the boundary    
+        length  : length of the porous media, ft
+        pinit   : initial pressure, psi
         """
 
-        xL = boundary_points[0]
-        dL = boundary_conditions[0][0]
-        nL = boundary_conditions[0][1]
-        fL = boundary_conditions[0][2]
+        self.length,self.pinit = length*0.3048,pinit*6894.76
 
-        xU = boundary_points[1]    
-        dU = boundary_conditions[1][0]
-        nU = boundary_conditions[1][1]
-        fU = boundary_conditions[1][2]
+    def set_eta(self,k,phi,mu,ct):
+        """
+        k   : permeability, milli-Darcy
+        phi : porosity, non-dimensional
+        mu  : viscosity, centi-poise
+        ct  : total compressibility, 1/psi
+        """
+        k *= 9.869233e-16
+        mu *= 1e-3
+        ct /= 6894.76
 
-        rhs = np.zeros((2,1))
+        self.eta = self._eta(k,phi,mu,ct)
 
-        rhs[0,0] = fL-dL*beta/2*xL**2-nL*beta*xL
-        rhs[1,0] = fU-dU*beta/2*xU**2-nU*beta*xU
+    def solve(self,time,ngrids,pright=None,noflux=False):
+        """
+        time    : in hours
+        ngrids  : number of pressure calculation points
+        pright  : pressure on the right boundary, psi
+        noflux  : if True, no-flux boundary conditions are implementted on RHS.
+        """
 
-        mat = np.zeros((2,2))
+        time *= 3600
 
-        mat[0,0] = dL*xL+nL
-        mat[0,1] = dL
-        mat[1,0] = dU*xU+nU
-        mat[1,1] = dU
+        if not noflux:
+            pright = 101325 if pright is None else pright/6894.76
 
-        coeff = np.linalg.solve(mat,rhs)
+        xaxis,Pressure = self._solve(self.length,time,self.pinit,self.eta,ngrids,pright,noflux)
 
-        c1 = coeff[0]
-        c2 = coeff[1]
+        return xaxis,Pressure/6894.76
 
-        dx = (xU-xL)/1000
+    @staticmethod
+    def _solve(length,time,pinit,eta,ngrids,pright,noflux):
+        """
+        lenght  : length of core sample, meter
+        time    : time at which to calculate pressure, second
+        pinit   : initial pressure, Pascal
+        eta     : hydraulic diffusivity, m2/second
+        ngrids  : number of pressure calculation points
+        pright  : constant pressure boundary implemented at right hand side
+        """
+
+        x = np.arange(length/ngrids/2,length,length/ngrids)
         
-        self.x = np.arange(xL,xU+dx/2,dx)
+        X = SinglePhaseLinear._tondimx(x,length)
 
-        self.u = beta/2*self.x**2+c1*self.x+c2
-
-    def cartesian_1D(self,boundary_points,boundary_pressures,time,x=None,N=50):
-
-        xL = boundary_points[0]
-        xU = boundary_points[1]
-
-        PL = boundary_pressures[0][2]
-        PU = boundary_pressures[1][2]
-
-        L = xU-xL
-
-        self.time = time.reshape((-1,1,1))
-
-        if x is None:
-            self.x = np.linspace(xL,xU).reshape((1,-1,1))
+        T = SinglePhaseLinear._tondimtime(time,eta,length)
+        
+        if noflux:
+            P = SinglePhaseLinear._ndimpressure_noflux(X,T)
         else:
-            self.x = x.reshape((1,-1,1))
+            P = SinglePhaseLinear._ndimpressure_pconst(X,T)
+        
+        P = SinglePhaseLinear._todimpressure(P,pinit,pright)
 
-        n = np.arange(1,N).reshape((1,1,-1))
+        return x,P
 
-        sin_ = np.sin(n*np.pi*self.x/L)
-        exp_ = np.exp(-n**2*np.pi**2/L**2*self.eta*self.time)
+    @staticmethod
+    def _eta(k,phi,ct,mu):
+        """
+        k   : permeability, meter-square
+        phi : porosity, non-dimensional
+        mu  : viscosity, Pa.second
+        ct  : total compressibility, 1/Pascal
+        """
+        return k/(phi*ct*mu)
+    
+    @staticmethod
+    def _tondimx(dimx,length):
+        """Converts dimensional x to non-dimensional x."""
+        return dimx/length
 
-        sum_ = np.sum(1/n*exp_*sin_,axis=2)
+    @staticmethod
+    def _todimx(ndimx,length):
+        """Converts non-dimensional x to dimensional x."""
+        return ndimx*length
 
-        self.pressure = PL+(PU-PL)*((self.x/L).reshape((1,-1))+2/np.pi*sum_)
+    @staticmethod
+    def _tondimtime(dimtime,eta,length):
+        """Converts dimensional time to non-dimensional time."""
+        return eta*dimtime/length**2
 
-class MultiComponent():
+    @staticmethod
+    def _todimtime(ndimtime,eta,length):
+        """Converts non-dimensional time to dimensional time."""
+        return ndimtime*length**2/eta
+
+    @staticmethod
+    def _tondimpressure(dimpressure,pinit,pright):
+        """Converts dimensional pressure to non-dimensional pressure."""
+        return (dimpressure-pright)/(pinit-pright)
+
+    @staticmethod
+    def _todimpressure(ndimpressure,pinit,pright):
+        """Converts non-dimensional pressure to dimensional pressure."""
+        return ndimpressure*(pinit-pright)+pright
+
+    @staticmethod
+    def _ndimpressure_pconst(ndimx:np.ndarray,ndimtime:float,terms:int=100):
+        """Calculates the non-dimensional pressure for constant pressure
+        boundary conditions on both sides.
+
+        ndimx      : non-dimensional x
+        ndimtime   : non-dimensional time
+        terms      : number of terms after which to terminate the summation
+
+        """
+
+        psum1 = np.zeros(ndimx.shape)
+        psum2 = np.zeros(ndimx.shape)
+
+        for n in range(1,terms):
+
+            fstterm = (-1)**n/n
+
+            sinterm1 = np.sin(n*np.pi*ndimx)
+            sinterm2 = np.sin(n*np.pi*(ndimx-1))
+
+            expterm = np.exp(-n**2*np.pi**2*ndimtime)
+            
+            psum1 += fstterm*sinterm1*expterm
+            psum2 += fstterm*sinterm2*expterm
+
+        psum1 = psum1*2/np.pi
+        psum2 = psum2*2/np.pi
+
+        pdi = 0.2
+
+        return 1-ndimx-pdi*psum1-(1-pdi)*psum2
+
+    @staticmethod
+    def _ndimpressure_noflux(ndimx:np.ndarray,ndimtime:float,terms:int=100):
+        """Calculates the non-dimensional pressure for constant pressure on left side
+        and no-flux on right side of sample.
+
+        ndimx      : non-dimensional x
+        ndimtime   : non-dimensional time
+        terms      : number of terms after which to terminate the summation
+
+        """
+
+        psum = np.zeros(ndimx.shape)
+
+        for n in range(terms):
+
+            fstterm = (-1)**n/(2*n+1)
+            
+            expterm = np.exp(-(2*n+1)**2*np.pi**2*ndimtime/4)
+            costerm = np.cos((2*n+1)*np.pi/2*ndimx)
+            
+            psum += fstterm*expterm*costerm
+
+        return psum*4/np.pi
+
+class MiscibleDisplacement():
 
     def obj(XX,v,L):
 

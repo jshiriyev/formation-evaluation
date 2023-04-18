@@ -66,68 +66,81 @@ class ResInit():
 		"""free-water-level"""
 		return self.DWOC+self.peow/(self.gradw-self.grado)
 
-	def Sw(self,depth,pcow):
+	def saturations(self,depth,pcow,pcog=None,pcgw=None):
 		"""
-		pcow 	: oil-water capillary pressure model
-		"""
+		Zone1 	: below WOC; water
+		Zone2 	: WOC to GOC; water and oil
+		Zone3-a : GOC to transition; liquid and gas
+		Zone3-b : above transition; water and gas
 
-		depth = numpy.array(depth).flatten()
-
-		Sw = numpy.ones(depth.shape)
-
-		pw = self.waterpressure(depth[depth<self.DWOC])
-		po = self.oilpressure(depth[depth<self.DWOC])
-
-		Sw[depth<self.DWOC] = pcow.idrainage(po-pw)
-
-		return Sw
-
-	def saturations(self,depth,pcow,pcog=None):
-		"""
 		pcow 	: oil-water capillary pressure model
 		pcog 	: oil-gas capillary pressure model
+		pcgw	: gas-water capillary pressure model
 		"""
 
 		depth = numpy.array(depth).flatten()
 
 		Sw = numpy.ones(depth.shape)
 		So = numpy.zeros(depth.shape)
-
-		pw = self.waterpressure(depth[depth<self.DWOC])
-		po = self.oilpressure(depth[depth<self.DWOC])
-
-		Sw[depth<self.DWOC] = pcow.idrainage(po-pw)
-
-		So[depth<self.DWOC] = 1-Sw[depth<self.DWOC]
-
-		if pcog is None:
-			return Sw,So
-
 		Sg = numpy.zeros(depth.shape)
 
-		pl = self.oilpressure(depth[depth<self.DGOC])
-		pg = self.gaspressure(depth[depth<self.DGOC])
+		zone1 = depth>=self.DWOC
+		zone2 = numpy.logical_and(depth<self.DWOC,depth>=self.DGOC)
+		zone3 = depth<self.DGOC
 
-		Sg[depth<self.DGOC] = pcog.idrainage(pg-pl)
+		Sw2,So2 = self._water_oil_zone(depth[zone2],pcow)
+		Sw3a,So3a,Sg3a = self._three_phase_zone(depth[zone3],pcow,pcog)
+		Sw3b,Sg3b = self._water_gas_zone(depth[zone3],pcgw)
 
-		Sl = pcog.idrainage(pg-pl)
+		Sw3 = numpy.zeros(Sw3a.shape)
+		So3 = numpy.zeros(So3a.shape)
+		Sg3 = numpy.zeros(Sg3b.shape)
 
-		So[depth<self.DGOC] = Sl-Sw[depth<self.DGOC]
+		Sw3[So3a>=0] = Sw3a[So3a>=0]
+		So3[So3a>=0] = So3a[So3a>=0]
+		Sg3[So3a>=0] = Sg3a[So3a>=0]
+
+		Sw3[So3a<0] = Sw3b[So3a<0]
+		So3[So3a<0] = 0
+		Sg3[So3a<0] = Sg3b[So3a<0]
+
+		Sw[zone2] = Sw2
+		Sw[zone3] = Sw3
+
+		So[zone2] = So2
+		So[zone3] = So3
+
+		Sg[zone3] = Sg3
 
 		return Sw,So,Sg
 
-	def Sg(self,depth,pcog):
-		"""
-		pcog 	: oil-gas capillary pressure model
-		"""
+	def _water_oil_zone(self,depth,pcow):
 
-		depth = numpy.array(depth).flatten()
+		pw = self.waterpressure(depth)
+		po = self.oilpressure(depth)
 
-		Sg = numpy.zeros(depth.shape)
+		Sw = pcow.idrainage(po-pw)
 
-		pl = self.oilpressure(depth[depth<self.DGOC])
-		pg = self.gaspressure(depth[depth<self.DGOC])
+		return Sw,1-Sw
 
-		Sg[depth<self.DGOC] = pcog.idrainage(pg-pl)
+	def _three_phase_zone(self,depth,pcow,pcog):
 
-		return Sg
+		pw = self.waterpressure(depth)
+		po = self.oilpressure(depth)
+		pg = self.gaspressure(depth)
+
+		Sl = pcog.idrainage(pg-po)
+		Sw = pcow.idrainage(po-pw)
+
+		return Sw,Sl-Sw,1-Sl
+
+	def _water_gas_zone(self,depth,pcgw):
+
+		pw = self.waterpressure(depth)
+		pg = self.gaspressure(depth)
+
+		Sw = pcgw.idrainage(pg-pw)
+
+		return Sw,1-Sw
+
+

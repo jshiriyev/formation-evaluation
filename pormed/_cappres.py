@@ -18,6 +18,7 @@ class BrooksCorey():
         self.Pcentry = Pcentry
 
     def drainage(self,watersaturation):
+        """Drainage calculation, capillary pressure from saturation."""
 
         saturation = (watersaturation-self.irreducible)/(1-self.irreducible)
 
@@ -31,6 +32,7 @@ class BrooksCorey():
         return self.irreducible+saturation*(1-self.irreducible)
 
     def imbibition(self,watersaturation):
+        """Imbibition calculation, capillary pressure from saturation."""
 
         saturation = (watersaturation-self.irreducible)/(1-self.irreducible-self.residual)
 
