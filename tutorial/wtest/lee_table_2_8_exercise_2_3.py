@@ -53,14 +53,14 @@ k = 162.6*q*B*mu/m/h
 
 pws1 = -m*np.log10((tp+1))+4850
 
-print(tp,pws1)
+# print(tp,pws1)
 
 # s = 1.151*((pws1-709)/m+np.log10(1688*phi*mu*ct*rw**2/k)+np.log10((tp+1)/tp))
 s = 1.151*((pws1-709)/m-np.log10(k/(phi*mu*ct*rw**2))+3.23)
 
-print(k,s)
+# print(k,s)
 
-plt.plot(x1,y1,color='red')
+# plt.plot(x1,y1,color='red')
 
 plt.tight_layout()
 
@@ -79,7 +79,7 @@ y2 = 0.070*np.log10(x2)+3.453
 plt.xlim((1,100))
 plt.ylim((2000,5000))
 
-plt.plot(x2,10**y2,color='red')
+# plt.plot(x2,10**y2,color='red')
 
 plt.xscale("log")
 plt.yscale("log")
