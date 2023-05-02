@@ -1,4 +1,12 @@
+import numpy
+
+import lasio
+
 class allocate():
+
+	def __init__(self,lasfile):
+
+		self.lasfile = lasfile
 
 	@staticmethod
 	def production(prod:float,tops:tuple,perf:tuple):
@@ -50,3 +58,21 @@ class allocate():
 			shares.append(interval)
 		
 		return shares
+
+	@staticmethod
+	def nets(subzone:tuple,lithid:int,lasfile,lithidhead:str):
+		"""
+		The method requires the use of las file where the lithology identifier curve is available.
+
+		subzone : tuple of (top,bottom)
+		lithid 	: lithology identifier
+		output 	: thickness of lithology type in the subzone
+		"""
+
+		top,bottom = subzone
+
+		indices = numpy.logical_and(lasfile[0]>top,lasfile[0]<bottom)
+
+		curve = lasfile[lithidhead][indices]
+
+		return numpy.sum(curve==lithid)*steps # shoul do better calculation than this for non uniform spacing
