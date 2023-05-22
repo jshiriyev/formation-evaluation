@@ -28,7 +28,8 @@ toc = time.perf_counter()
 print(f"home built secant method took \t {toc - tic:0.7f} seconds")
 
 tic = time.perf_counter()
-phiN = root.newton(obj,obj_der,phi0,tol=1e-7,args=(epd,Re)).value
+mysol = root.newton(obj,obj_der,phi0,tol=1e-7,args=(epd,Re))
+phiN = mysol.value
 toc = time.perf_counter()
 print(f"home built newton method took \t {toc - tic:0.7f} seconds")
 
@@ -42,3 +43,5 @@ print("home built newton method result is \t",phiN)
 print("scipy newton method result is \t\t",phiM)
 ##print(obj(0.01851386607747164,epd,Re))
 ##print(obj(0.01851386607747165,epd,Re))
+
+print(mysol.info)

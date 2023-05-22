@@ -22,6 +22,8 @@ q = 988 	 # STB/day
 B = 1.126 	 # bbl/STB
 h = 7        # ft
 
+A = np.pi*re**2
+
 tp = Qo/q*24 # hours
 
 dtt = (tp+dt[1:])/dt[1:]
@@ -51,6 +53,8 @@ y1 = -m*np.log10(x1)+4850
 
 k = 162.6*q*B*mu/m/h
 
+print(k)
+
 pws1 = -m*np.log10((tp+1))+4850
 
 # print(tp,pws1)
@@ -59,6 +63,9 @@ pws1 = -m*np.log10((tp+1))+4850
 s = 1.151*((pws1-709)/m-np.log10(k/(phi*mu*ct*rw**2))+3.23)
 
 # print(k,s)
+
+print("Ps = ",162.6*(q*B*mu)/(k*h)*0.0637)
+print(0.000264*k*tp/(phi*mu*ct*A))
 
 # plt.plot(x1,y1,color='red')
 
