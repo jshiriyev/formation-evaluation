@@ -433,4 +433,208 @@ class RectRectGrid():
     def zdelta(self):
 
         return self.delta[:,2]
+
+class Hexahedral():
+
+    def __init__(self,origin=(0,0,0),dimens=(1,1,1),azimuth=0.,dx=10.,dy=10.,zcorn=None):
+        """
+        Initializes Hexahedral grid model with:
+        
+        origin  : (Ox,Oy,Oz)
+        dimens  : (Nx,Ny,Nz)
+
+        azimuth : azimuth of the collective grid orientation
+                  0 degree is East direction, 90 degree is North direction
+        """
+
+        self.origin = numpy.array(origin)
+        self.dimens = numpy.array(dimens,dtype="int32")
+
+        self.azimuth = azimuth
+
+        self.set_dx(dx)
+        self.set_dy(dy)
+
+        self.set_zcorn(zcorn)
+
+    def set_dx(self,dx):
+
+        Nx = self.dimens[0]
+
+        dx = numpy.array(dx).flatten()
+
+        if dx.size==1:
+            self.dx = numpy.repeat(dx,Nx)
+        elif dx.size==Nx:
+            self.dx = dx
+        else:
+            raise ValueError()
+
+    def set_dy(self,dy):
+
+        Ny = self.dimens[1]
+
+        dy = numpy.array(dy).flatten()
+
+        if dy.size==1:
+            self.dy = numpy.repeat(dy,Ny)
+        elif dy.size==Ny:
+            self.dy = dy
+        else:
+            raise ValueError()
+
+    def set_zcorn(self,zcorn=None):
+        """The size of zcorn must be equal to (Nx+1)*(Ny+1)*(Nz+1)."""
+
+        Nx,Ny,Nz = self.dimens
+
+        if zcorn.size==(Nx+1)*(Ny+1)*(Nz+1):
+            self.zcorn = zcorn
+        else:
+            raise ValueError()
+
+    def set_scalars(self,**kwargs):
+
+        if len(kwargs)==0:
+            raise AttributeError
+        elif len(kwargs)>1:
+            raise AttributeError
+        else:
+            setattr(kwargs[0])
+
+    @property
+    def grids(self):
+        """Returns number of total grids."""
+        return numpy.prod(self.dimens)
+
+    @property
+    def gridsxy(self):
+        """Returns number of total grids in one layer."""
+        return numpy.prod(self.dimens[:2])
+
+    @property
+    def vertices(self):
+        """Returns number of total vertices."""
+        Nx,Ny,Nz = self.dimens
+
+        return (Nx+1)*(Ny+1)*(Nz+1)
+
+    @property
+    def verticesxy(self):
+        """Returns number of total vertices on the surface."""
+        Nx,Ny,_ = self.dimens
+
+        return (Nx+1)*(Ny+1)
     
+    @property
+    def nodeIDs(self):
+        """Returns ID of nodes on the surface."""
+        Nx,Ny,Nz = self.dimens
+
+        surface_nodes = numpy.zeros((Nx*Ny,4),dtype="int32")
+
+        Snodes = (Nx+1)*(Ny+1)
+
+        indices = numpy.arange(Snodes)
+
+        indices = indices.reshape((Ny+1,Nx+1))
+
+        surface_nodes[:,0] = indices[:Ny,:Nx].flatten()
+        surface_nodes[:,1] = indices[1:,:Nx].flatten()
+        surface_nodes[:,2] = indices[1:,1:].flatten()
+        surface_nodes[:,3] = indices[:Ny,1:].flatten()
+
+        return surface_nodes
+
+    @property
+    def coords(self):
+        return self._coords
+
+    @property
+    def coordsxy(self):
+
+        Nx,Ny,_ = self.dimens
+
+        coords = numpy.zeros((Nx*Ny,4))
+
+        nodeIDs = self.nodeIDs
+
+        xcoord = numpy.cumsum(self.dx)
+        ycoord = numpy.cumsum(self.dy)
+
+        xcoord = np.tile(xcoord,Ny+1)
+        ycoord = np.repeat(ycoord,Nx+1)
+
+        return xcoord[nodeIDs],ycoord[nodeIDs],self.zcorn[nodeIDs]
+    
+    @property
+    def tops(self):
+        """Returns top of surface grids, (Ngrids @surface,)."""
+        return self.zcorn[self.nodeIDs].mean(axis=1)
+
+    @property
+    def centers(self):
+        """Returns center of all grids, (Ngrids,3)."""
+        Nx,Ny,Nz = self.dimens
+
+        Ngrids = Nx*Ny*Nz
+
+        _centers = numpy.array((Ngrids,3))
+
+        xcoords,ycoords,zcoords = self.coordsxy
+
+        xcoords.mean(axis=1)
+        ycoords.mean(axis=1)
+        zcoords.mean(axis=1)
+
+        for k in range(Nz):
+            pass
+
+    @property
+    def areas(self):
+        """Returns area of all grids, (Ngrids,6)"""
+        pass
+
+    @property
+    def volumes(self):
+        """Returns volume of all grids, (Ngrids,)."""
+        pass
+
+    def vtk(self,filename):
+
+        self.dimens
+
+        with open(filename) as outfile:
+            outfile.write("# vtk DataFile Version 3.0\n")
+            outfile.write("3D scalar data\n")
+            outfile.write("ASCII\n")
+            outfile.write("DATASET UNSTRUCTURED_GRID\n")
+            outfile.write(f"POINTS {self.vertices} float\n")
+
+            for i in range(self.vertices):
+
+                outfile.write(f"{self.nodeIDs[i,0]} {self.nodeIDs[i,1]} {self.nodeIDs[i,2]}\n")
+
+            outfile.write("\n")
+
+            outfile.write(f"CELLS {self.grids} {3*self.grids}\n")
+
+            for i in range(self.grids):
+
+                x = self.nodeIDs[i,:]
+                y = x+self.vertices
+
+                outfile.write(f"8 {x[0]} {x[1]} {x[2]} {x[3]} {y[0]} {y[1]} {y[2]} {y[3]}\n")
+
+            outfile.write(f"CELL_TYPES {self.grids}\n")
+
+            for i in range(self.grids):
+                outfile.write("12\n")
+
+            outfile.write("\n")
+
+            outfile.write(f"CELL_DATA {self.grids}\n")
+
+    def grdecl(self,filename):
+
+        pass
