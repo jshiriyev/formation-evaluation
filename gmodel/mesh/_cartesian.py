@@ -1,8 +1,8 @@
-from matplotlib import pyplot
-
 import numpy
 
-class Cuboid():
+from dataclasses import dataclass
+
+class Voxel():
 
     """
     For rectangular parallelepiped, dimensions is a tuple
@@ -362,10 +362,10 @@ class RectRectGrid():
             axis = pyplot.figure().add_subplot()
 
         if vertices:
-            axis.scatter(*self.vertices.T)
+            axis.scatter(*self.numvertices.T)
 
         if bounds:
-            axis.plot(*self.vertices[self.indices].T,color='grey')
+            axis.plot(*self.numvertices[self.indices].T,color='grey')
 
         if edges:
             xdelta = self.xdelta[:self.xnumber]
@@ -436,7 +436,7 @@ class RectRectGrid():
 
 class Hexahedral():
 
-    def __init__(self,origin=(0,0,0),dimens=(1,1,1),azimuth=0.,dx=10.,dy=10.,zcorn=None):
+    def __init__(self,origin=(0,0,0),dimens=(1,1,1),azimuth=0.,dx=10.,dy=10.,dz=1.0,zcorn=None):
         """
         Initializes Hexahedral grid model with:
         
@@ -455,7 +455,12 @@ class Hexahedral():
         self.set_dx(dx)
         self.set_dy(dy)
 
-        self.set_zcorn(zcorn)
+        if zcorn is None:
+            self.set_dz(dz)
+        else:
+            self.set_zcorn(zcorn)
+
+        self.scalars = {}
 
     def set_dx(self,dx):
 
@@ -483,12 +488,29 @@ class Hexahedral():
         else:
             raise ValueError()
 
+    def set_dz(self,dz):
+
+        Nz = self.dimens[2]
+
+        dz = numpy.array(dz).flatten()
+
+        if dz.size==1:
+            self.dz = numpy.repeat(dz,Nz)
+        elif dz.size==Nz:
+            self.dz = dz
+        else:
+            raise ValueError()
+
+        zcorn = numpy.zeros((Nz+1,))+self.origin[2]
+
+        zcorn[1:] += numpy.cumsum(self.dz)
+
+        self.set_zcorn(zcorn.repeat(self.numverticesxy))
+
     def set_zcorn(self,zcorn=None):
         """The size of zcorn must be equal to (Nx+1)*(Ny+1)*(Nz+1)."""
 
-        Nx,Ny,Nz = self.dimens
-
-        if zcorn.size==(Nx+1)*(Ny+1)*(Nz+1):
+        if zcorn.size==self.numvertices:
             self.zcorn = zcorn
         else:
             raise ValueError()
@@ -499,96 +521,136 @@ class Hexahedral():
             raise AttributeError
         elif len(kwargs)>1:
             raise AttributeError
-        else:
-            setattr(kwargs[0])
+
+        key,array = kwargs.popitem()
+
+        self.scalars[key] = array
 
     @property
-    def grids(self):
+    def numgrids(self):
         """Returns number of total grids."""
         return numpy.prod(self.dimens)
 
     @property
-    def gridsxy(self):
+    def numgridsxy(self):
         """Returns number of total grids in one layer."""
         return numpy.prod(self.dimens[:2])
 
     @property
-    def vertices(self):
+    def numvertices(self):
         """Returns number of total vertices."""
-        Nx,Ny,Nz = self.dimens
-
-        return (Nx+1)*(Ny+1)*(Nz+1)
+        return numpy.prod(self.dimens+1)
 
     @property
-    def verticesxy(self):
+    def numverticesxy(self):
         """Returns number of total vertices on the surface."""
-        Nx,Ny,_ = self.dimens
-
-        return (Nx+1)*(Ny+1)
+        return numpy.prod(self.dimens[:2]+1)
     
     @property
-    def nodeIDs(self):
+    def vertices(self):
         """Returns ID of nodes on the surface."""
         Nx,Ny,Nz = self.dimens
 
-        surface_nodes = numpy.zeros((Nx*Ny,4),dtype="int32")
+        surface_nodes = numpy.zeros((self.numgridsxy,4),dtype="int32")
 
-        Snodes = (Nx+1)*(Ny+1)
-
-        indices = numpy.arange(Snodes)
+        indices = numpy.arange(self.numverticesxy)
 
         indices = indices.reshape((Ny+1,Nx+1))
 
         surface_nodes[:,0] = indices[:Ny,:Nx].flatten()
-        surface_nodes[:,1] = indices[1:,:Nx].flatten()
+        surface_nodes[:,1] = indices[:Ny,1:].flatten()
         surface_nodes[:,2] = indices[1:,1:].flatten()
-        surface_nodes[:,3] = indices[:Ny,1:].flatten()
+        surface_nodes[:,3] = indices[1:,:Nx].flatten()
 
         return surface_nodes
 
     @property
+    def connectivity(self):
+        """Returns connectivity map of the grids"""
+        
+        indices = numpy.arange(self.numgrids)
+
+        Nx,Ny,Nz = self.dimens
+        
+        connectivity_map = numpy.tile(indices,(6,1)).T
+
+        connectivity_map[indices.reshape(-1,Nx)[:,1:].ravel(),0] -= 1
+        connectivity_map[indices.reshape(-1,Nx)[:,:-1].ravel(),1] += 1
+
+        connectivity_map[indices.reshape(Nz,-1)[:,Nx:],2] -= Nx
+        connectivity_map[indices.reshape(Nz,-1)[:,:-Nx],3] += Nx
+
+        connectivity_map[indices.reshape(Nz,-1)[1:,:],4] -= Nx*Ny
+        connectivity_map[indices.reshape(Nz,-1)[:-1,:],5] += Nx*Ny
+
+        return connectivity_map
+
+    @property
     def coords(self):
-        return self._coords
+        
+        Nx,Ny,Nz = self.dimens
+
+        coordinates = numpy.zeros((self.numvertices,3))
+
+        xcoord = numpy.zeros((Nx+1,))+self.origin[0]
+        ycoord = numpy.zeros((Ny+1,))+self.origin[1]
+
+        xcoord[1:] += numpy.cumsum(self.dx)
+        ycoord[1:] += numpy.cumsum(self.dy)
+
+        coordinates[:,0] = numpy.tile(xcoord,(Ny+1)*(Nz+1))
+        coordinates[:,1] = numpy.tile(numpy.repeat(ycoord,Nx+1),(Nz+1))
+        coordinates[:,2] = self.zcorn
+
+        return coordinates
 
     @property
     def coordsxy(self):
 
         Nx,Ny,_ = self.dimens
 
-        coords = numpy.zeros((Nx*Ny,4))
+        coordinates = numpy.zeros((self.numverticesxy,3))
 
-        nodeIDs = self.nodeIDs
+        xcoord = numpy.zeros((Nx+1,))+self.origin[0]
+        ycoord = numpy.zeros((Ny+1,))+self.origin[1]
 
-        xcoord = numpy.cumsum(self.dx)
-        ycoord = numpy.cumsum(self.dy)
+        xcoord[1:] += numpy.cumsum(self.dx)
+        ycoord[1:] += numpy.cumsum(self.dy)
 
-        xcoord = np.tile(xcoord,Ny+1)
-        ycoord = np.repeat(ycoord,Nx+1)
+        coordinates[:,0] = numpy.tile(xcoord,(Ny+1))
+        coordinates[:,1] = numpy.repeat(ycoord,Nx+1)
 
-        return xcoord[nodeIDs],ycoord[nodeIDs],self.zcorn[nodeIDs]
+        return coordinates
     
     @property
     def tops(self):
         """Returns top of surface grids, (Ngrids @surface,)."""
-        return self.zcorn[self.nodeIDs].mean(axis=1)
+        return self.zcorn[self.vertices].mean(axis=1)
 
     @property
     def centers(self):
         """Returns center of all grids, (Ngrids,3)."""
         Nx,Ny,Nz = self.dimens
 
-        Ngrids = Nx*Ny*Nz
+        grid_centers = numpy.zeros((self.numgrids,3))
 
-        _centers = numpy.array((Ngrids,3))
+        xcoords = self.coordsxy[:,0][self.vertices]
+        ycoords = self.coordsxy[:,1][self.vertices]
 
-        xcoords,ycoords,zcoords = self.coordsxy
+        xcenter = xcoords.mean(axis=1)
+        ycenter = ycoords.mean(axis=1)
 
-        xcoords.mean(axis=1)
-        ycoords.mean(axis=1)
-        zcoords.mean(axis=1)
+        zcoords = self.coords[:,2].reshape((-1,self.numverticesxy))
 
-        for k in range(Nz):
-            pass
+        layers = [zcoords[k][self.vertices].mean(axis=1) for k in range(Nz+1)]
+
+        zcenters = [(layers[k]+layers[k+1])/2 for k in range(Nz)]
+
+        grid_centers[:,0] = numpy.tile(xcenter,Nz)
+        grid_centers[:,1] = numpy.tile(ycenter,Nz)
+        grid_centers[:,2] = numpy.array(zcenters).flatten()
+
+        return grid_centers
 
     @property
     def areas(self):
@@ -602,39 +664,67 @@ class Hexahedral():
 
     def vtk(self,filename):
 
-        self.dimens
+        with open(filename,"w") as vtkfile:
 
-        with open(filename) as outfile:
-            outfile.write("# vtk DataFile Version 3.0\n")
-            outfile.write("3D scalar data\n")
-            outfile.write("ASCII\n")
-            outfile.write("DATASET UNSTRUCTURED_GRID\n")
-            outfile.write(f"POINTS {self.vertices} float\n")
+            vtkfile.write("# vtk DataFile Version 3.0\n")
+            vtkfile.write("3D scalar data\n")
+            vtkfile.write("ASCII\n")
+            vtkfile.write("DATASET UNSTRUCTURED_GRID\n")
 
-            for i in range(self.vertices):
+            vtkfile.write(f"POINTS {self.numvertices} float\n")
 
-                outfile.write(f"{self.nodeIDs[i,0]} {self.nodeIDs[i,1]} {self.nodeIDs[i,2]}\n")
+            numpy.savetxt(vtkfile,self.coords,fmt="%.1f")
 
-            outfile.write("\n")
+            vtkfile.write("\n")
 
-            outfile.write(f"CELLS {self.grids} {3*self.grids}\n")
+            vtkfile.write(f"CELLS {self.numgrids} {self.numgrids*9}\n")
 
-            for i in range(self.grids):
+            vertices = self.vertices
 
-                x = self.nodeIDs[i,:]
-                y = x+self.vertices
+            for k in range(self.dimens[2]):
 
-                outfile.write(f"8 {x[0]} {x[1]} {x[2]} {x[3]} {y[0]} {y[1]} {y[2]} {y[3]}\n")
+                array = numpy.concatenate((
+                    vertices+k*self.numverticesxy,
+                    vertices+(k+1)*self.numverticesxy),
+                    axis=1)
 
-            outfile.write(f"CELL_TYPES {self.grids}\n")
+                types = numpy.array([8],dtype='int32').repeat(self.numgridsxy)
 
-            for i in range(self.grids):
-                outfile.write("12\n")
+                types = types.reshape((-1,1))
 
-            outfile.write("\n")
+                array = numpy.concatenate((types,array),axis=1)
 
-            outfile.write(f"CELL_DATA {self.grids}\n")
+                numpy.savetxt(vtkfile,array,fmt="%d")
+
+            vtkfile.write("\n")
+            vtkfile.write(f"CELL_TYPES {self.numgrids}\n")
+
+            types = numpy.array([12],dtype='int32').repeat(self.numgrids)
+
+            numpy.savetxt(vtkfile,types,fmt="%d")
+
+            vtkfile.write("\n")
+
+            vtkfile.write(f"CELL_DATA {self.numgrids}\n")
+
+            for key,array in self.scalars.items():
+
+                dtype = ''.join([i for i in str(array.dtype) if not i.isdigit()])
+
+                vtkfile.write(f"SCALARS {key} {dtype} 1")
+
+                vtkfile.write("\n")
+                vtkfile.write("LOOKUP_TABLE default\n")
+
+                numpy.savetxt(vtkfile,array,fmt="%.1f")
 
     def grdecl(self,filename):
 
         pass
+
+@dataclass
+class Scalar:
+    """It is a scalar data type dictionary."""
+    name: str
+    array: numpy.ndarray
+    vtkdatatype: str = None
