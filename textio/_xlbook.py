@@ -1,13 +1,6 @@
 import contextlib
-import copy
-import datetime
 
 from difflib import SequenceMatcher
-
-import logging
-
-import os
-import re
 
 import numpy
 import openpyxl

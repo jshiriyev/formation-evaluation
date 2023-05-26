@@ -2,8 +2,6 @@ from dateutil import parser
 
 import os
 
-import pathlib
-
 from xml.etree import ElementTree
 
 import zipfile
