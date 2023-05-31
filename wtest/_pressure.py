@@ -2,7 +2,14 @@ from matplotlib import pyplot
 
 import numpy
 
+from scipy import integrate
+
 from scipy.special import expi
+
+from scipy.special import j0 as BJ0
+from scipy.special import j1 as BJ1
+from scipy.special import y0 as BY0
+from scipy.special import y1 as BY1
 
 class pressure():
     """Calculates well bottomhole pressure in field units for the given
@@ -179,6 +186,52 @@ class pressure():
 
         return 39.5*self.radius**2/self.eta
 
+class ramey():
+
+    gamma = 0.57722
+
+    def __init__(self,tD,CD,sf):
+        """
+        tD  : dimensionless time (k*t)/(phi*mu*ct*rw**2)
+        CD  : dimensionless wellbore storage constant C/(2*pi*phi*h*ct*rw**2)
+        sf  : skin factor, dimensionless
+        """
+
+        self.tD = numpy.array(tD).flatten()
+
+        self.CD = float(CD)
+        self.sf = float(sf)
+
+    def pwD(self):
+
+        if self.CD==0:
+
+            return 1/2*(numpy.log(4*self.tD)-self.gamma)+self.sf
+
+        pressure = numpy.zeros(self.tD.shape)
+
+        for index,time in enumerate(self.tD):
+            u = numpy.logspace(-8,2,10000)
+            y = self.integrand(u,time,self.CD,self.sf)
+            z = integrate.simpson(y,u)
+
+            pressure[index] = 4*z/numpy.pi**2
+
+        return pressure
+
+    def derivative(self):
+
+        pass
+
+    @staticmethod
+    def integrand(u,tD,C,s):
+
+        term1 = 1-numpy.exp(-u**2*tD)
+        term2 = u*C*BJ0(u)-(1-C*s*u**2)*BJ1(u)
+        term3 = u*C*BY0(u)-(1-C*s*u**2)*BY1(u)
+
+        return term1/(u**3*(term2**2+term3**2))
+
 class dimensionless_models():
 
     def __init__(self,tD,CD=0,SF=0):
@@ -215,26 +268,153 @@ class dimensionless_models():
         return 0.5/self.tD
         # return 0.5*numpy.exp(-1/(4*self.tD))
 
+def shorttime(tD,C,s): #useless actuall
+
+    if s==0 and C!=0:
+        term1 = 0
+        term2 = -(4*tD**(3/2))/(3*C*numpy.sqrt(numpy.pi))
+
+        return 1/C*(tD+term1+term2)
+
+    elif s!=0 and C!=0:
+        term1 = -(tD**2)/(2*C*s)
+        term2 = (8*tD**(5/2))/(15*numpy.sqrt(numpy.pi)*C*s**2)
+
+        return 1/C*(tD+term1+term2)
+
+def shorttime_derivative(tD,C,s): #useless actuall
+
+    if s==0 and C!=0:
+        return 1-2*numpy.sqrt(tD/numpy.pi)/C+1/C*(1/C-1/2)*tD
+    elif s!=0 and C!=0:
+        return 1-tD/(C*s)
+
+def longtime(tD,C,s): #useless actuall
+
+    gamma = 0.57722
+
+    term1 = numpy.log(4*tD)-gamma
+    term2 = term1+2*s
+
+    # return 1/2*(term2+1/(2*tD)*(term1+1-2*C*term2))
+
+    return 1/2*(term2)
+
+def longtime_derivative(tD,C,s): #useless actuall
+
+    gamma = 0.57722
+
+    term1 = C/(2*tD)
+    term2 = C**2/(2*tD**2)*(2*s-1)
+    term3 = C*(1-2*C)/(4*tD**2)*(numpy.log(4*tD)-gamma)
+
+    return term1+term2-term3
+
 if __name__ == "__main__":
 
-    TD = numpy.logspace(-3,8)
-    CD = 1000
-    SF = 0
+    # u = numpy.logspace(-5,0,1000)
 
-    model1 = dimensionless_models(TD,CD=0,SF=0)
-    model2 = dimensionless_models(TD,CD=1000,SF=10)
+    # y1 = integrand(u,1e3,0,-5)
+    # y2 = integrand(u,1e3,0,0)
+    # y3 = integrand(u,1e3,0,5)
+    # y4 = integrand(u,1e3,0,10)
+    # y5 = integrand(u,1e3,0,20)
+
+    # pyplot.loglog(u,y1)
+    # pyplot.loglog(u,y2)
+    # pyplot.loglog(u,y3)
+    # pyplot.loglog(u,y4)
+    # pyplot.loglog(u,y5)
+
+    # pyplot.show()
+
+    tD = numpy.logspace(2,7,100)
+
+    # model1 = dimensionless_models(tD,C=0,s=0)
+    # model2 = dimensionless_models(TD,C=1000,s=10)
+
+    # st = shorttime(tD,0,-5)
+    # lt = longtime(tD,0,5)
+
+    ft01 = ramey(tD,0,-5).pwD()
+    ft02 = ramey(tD,100,-5).pwD()
+    ft03 = ramey(tD,1000,-5).pwD()
+    ft04 = ramey(tD,10000,-5).pwD()
+    ft05 = ramey(tD,100000,-5).pwD()
+
+    ft06 = ramey(tD,0,0).pwD()
+    ft07 = ramey(tD,100,0).pwD()
+    ft08 = ramey(tD,1000,0).pwD()
+    ft09 = ramey(tD,10000,0).pwD()
+    ft10 = ramey(tD,100000,0).pwD()
+
+    ft11 = ramey(tD,0,5).pwD()
+    ft12 = ramey(tD,100,5).pwD()
+    ft13 = ramey(tD,1000,5).pwD()
+    ft14 = ramey(tD,10000,5).pwD()
+    ft15 = ramey(tD,100000,5).pwD()
+
+    ft16 = ramey(tD,0,10).pwD()
+    ft17 = ramey(tD,100,10).pwD()
+    ft18 = ramey(tD,1000,10).pwD()
+    ft19 = ramey(tD,10000,10).pwD()
+    ft20 = ramey(tD,100000,10).pwD()
+
+    ft21 = ramey(tD,0,20).pwD()
+    ft22 = ramey(tD,100,20).pwD()
+    ft23 = ramey(tD,1000,20).pwD()
+    ft24 = ramey(tD,10000,20).pwD()
+    ft25 = ramey(tD,100000,20).pwD()
 
     figure,axis = pyplot.subplots(nrows=1,ncols=1)
 
+    # axis.plot(tD,st,label="short-time")
+    # axis.plot(tD,lt,label="long-time")
+
+    axis.plot(tD,ft01,color="k",linewidth=0.5)
+    axis.plot(tD,ft02,color="k",linewidth=0.5)
+    axis.plot(tD,ft03,color="k",linewidth=0.5)
+    axis.plot(tD,ft04,color="k",linewidth=0.5)
+    axis.plot(tD,ft05,color="k",linewidth=0.5)
+
+    axis.plot(tD,ft06,color="r",linewidth=0.5)
+    axis.plot(tD,ft07,color="r",linewidth=0.5)
+    axis.plot(tD,ft08,color="r",linewidth=0.5)
+    axis.plot(tD,ft09,color="r",linewidth=0.5)
+    axis.plot(tD,ft10,color="r",linewidth=0.5)
+
+    axis.plot(tD,ft11,color="b",linewidth=0.5)
+    axis.plot(tD,ft12,color="b",linewidth=0.5)
+    axis.plot(tD,ft13,color="b",linewidth=0.5)
+    axis.plot(tD,ft14,color="b",linewidth=0.5)
+    axis.plot(tD,ft15,color="b",linewidth=0.5)
+
+    axis.plot(tD,ft16,color="g",linewidth=0.5)
+    axis.plot(tD,ft17,color="g",linewidth=0.5)
+    axis.plot(tD,ft18,color="g",linewidth=0.5)
+    axis.plot(tD,ft19,color="g",linewidth=0.5)
+    axis.plot(tD,ft20,color="g",linewidth=0.5)
+
+    axis.plot(tD,ft21,color="m",linewidth=0.5)
+    axis.plot(tD,ft22,color="m",linewidth=0.5)
+    axis.plot(tD,ft23,color="m",linewidth=0.5)
+    axis.plot(tD,ft24,color="m",linewidth=0.5)
+    axis.plot(tD,ft25,color="m",linewidth=0.5)
+
     # axis.plot(model1.tD,model1.pressure_infinite(),label="Pressure1")
     # axis.plot(model1.tD,model1.pressure_infinite_approximation(),linestyle="--",label="Storage1")
-    axis.plot(model2.tD,model2.pressure_infinite(),label="Pressure2")
-    axis.plot(model2.tD,model2.pressure_infinite_approximation(),linestyle="--",label="Storage2")
+    # axis.plot(model2.tD,model2.pressure_infinite(),label="Pressure2")
+    # axis.plot(model2.tD,model2.pressure_infinite_approximation(),linestyle="--",label="Storage2")
     # axis.plot(model.tD,model.derivative(),label="Derivative")
+
+    axis.set_ylim((0.1,100))
+    axis.set_xlim((1e2,1e7))
 
     axis.set_xscale("log")
     axis.set_yscale("log")
 
-    axis.legend()
+    axis.grid()
+
+    # axis.legend()
 
     pyplot.show()
