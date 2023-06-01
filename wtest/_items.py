@@ -37,4 +37,4 @@ class fluid:
     viscosity: float = None
     density: float = None
     compressibility: float = None
-    formation_volume_factor: float = 1
+    fvf: float = 1
