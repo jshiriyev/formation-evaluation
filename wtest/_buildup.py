@@ -2,7 +2,7 @@ from matplotlib import pyplot
 
 import numpy
 
-from ._pressure import pressure
+# from ._pressure import pressure
 
 from ._items import well
 

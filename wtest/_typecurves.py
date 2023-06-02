@@ -206,6 +206,7 @@ class agarwal1970():
             - wellbore storage effect,
             - skin effect,
             - infinite reservoir
+        Equation # 9, page 281
         """
 
         tD,CD,SF = numpy.array(tD).flatten(),float(CD),float(SF)
@@ -213,10 +214,18 @@ class agarwal1970():
         if CD==0:
             return 1/2*(numpy.log(4*tD)-agarwal1970.gamma)+SF
 
+        u = numpy.logspace(-8,1,2000)
+        # u = numpy.linspace(1e-8,1e1,100000)
+
+        if SF<0:
+            TSF,SF = SF,0
+            tD = tD*numpy.exp(2*TSF)
+            CD = CD*numpy.exp(2*TSF)
+            u = u/numpy.exp(2*TSF)
+
         pwD = numpy.zeros(tD.shape)
 
         for index,time in enumerate(tD):
-            u = numpy.logspace(-7,1,1000)
             y = agarwal1970.pressure_integrand(u,time,CD,SF)
             z = integrate.simpson(y,u)
 
@@ -226,6 +235,7 @@ class agarwal1970():
 
     @staticmethod
     def pressure_integrand(u,tD,CD=0,SF=0):
+        """Integral kernel of the equation # 9, page 281"""
 
         tD,CD,SF = numpy.array(tD).flatten(),float(CD),float(SF)
 
@@ -236,36 +246,44 @@ class agarwal1970():
         return term1/(u**3*(term2**2+term3**2))
 
     @staticmethod
-    def pressure_infinite(tD,CD=0,SF=0):
-        """Infinite reservoir solution. No wellbore storage."""
+    def pressure_lineSource(tD,CD=0,SF=0):
+        """Equation # 11, page 281"""
 
         tD,CD,SF = numpy.array(tD).flatten(),float(CD),float(SF)
 
-        return -0.5*expi(-1/(4*tD))+SF
+        u = numpy.logspace(-8,1,2000)
+
+        if SF<0:
+            TSF,SF = SF,0
+            tD *= numpy.exp(2*TSF)
+            CD *= numpy.exp(2*TSF)
+            u /= numpy.exp(2*TSF)
+
+        pwDline = numpy.zeros(tD.shape)
+
+        for index,time in enumerate(tD):
+            y = agarwal1970.pressure_lineSource_integrand(u,time,CD,SF)
+            z = integrate.simpson(y,u)
+
+            pwDline[index] = z
+
+        return pwDline
 
     @staticmethod
-    def pressure_infinite_approx(tD,CD=0,SF=0):
-        """Approximation to infinite solution. No wellbore storage."""
+    def pressure_lineSource_integrand(u,tD,CD=0,SF=0):
+        """Internal kernel of the equation # 11, page 281"""
 
         tD,CD,SF = numpy.array(tD).flatten(),float(CD),float(SF)
 
-        term1 = numpy.log(tD/CD)
+        term1 = (1-numpy.exp(-u**2*tD))*BJ0(u)
+        term2 = 1-u**2*CD*SF+1/2*numpy.pi*u**2*CD*BY0(u)
+        term3 = 1/2*numpy.pi*CD*u**2*BJ0(u)
 
-        term3 = numpy.log(CD)
-
-        return 0.5*term1+0.80908+term3+SF
-
-    @staticmethod
-    def pressure_storage(tD,CD=0,SF=0):
-        """Wellbore storage model."""
-
-        tD,CD,SF = numpy.array(tD).flatten(),float(CD),float(SF)
-
-        # return -0.5*(expi(-self.CD/(4*self.tD))+numpy.log(self.CD))+self.SF
-        return tD/CD
+        return term1/(u*(term2**2+term3**2))
 
     @staticmethod
     def pressure_shorttime(tD,CD=0,SF=0):
+        """Short-time approximation of pressure equation, Equation #14 & 15, page 282"""
 
         tD,CD,SF = numpy.array(tD).flatten(),float(CD),float(SF)
 
@@ -285,6 +303,7 @@ class agarwal1970():
 
     @staticmethod
     def pressure_longtime(tD,CD=0,SF=0):
+        """Long-time approximation of pressure equation, Equation #13, page 282"""
 
         tD,CD,SF = numpy.array(tD).flatten(),float(CD),float(SF)
 
@@ -295,6 +314,7 @@ class agarwal1970():
 
     @staticmethod
     def derivative(tD,CD=0,SF=0):
+        """Equation #26, page 284"""
 
         tD,CD,SF = numpy.array(tD).flatten(),float(CD),float(SF)
 
@@ -311,6 +331,7 @@ class agarwal1970():
 
     @staticmethod
     def derivative_integrand(u,tD,CD=0,SF=0):
+        """Integral kernel of the equation 26, page 284"""
 
         tD,CD,SF = numpy.array(tD).flatten(),float(CD),float(SF)
 
@@ -322,6 +343,7 @@ class agarwal1970():
 
     @staticmethod
     def derivative_shorttime(tD,CD=0,SF=0):
+        """Short-time approximation, equation 27 & 28, page 284"""
 
         tD,CD,SF = numpy.array(tD).flatten(),float(CD),float(SF)
 
@@ -332,6 +354,7 @@ class agarwal1970():
 
     @staticmethod
     def derivative_longtime(tD,CD=0,SF=0):
+        """Long-time approximation, equation 29, page 284"""
 
         tD,CD,SF = numpy.array(tD).flatten(),float(CD),float(SF)
 
@@ -343,120 +366,25 @@ class agarwal1970():
 
 if __name__ == "__main__":
 
-    # u = numpy.logspace(-8,-1,1000)
+    u1 = numpy.logspace(-8,1,100000)
+    u2 = numpy.logspace(-8,1,100000)
 
-    # y1 = agarwal1970.derivative_integrand(u,1e3,10000,-5)
-    # y2 = agarwal1970.derivative_integrand(u,1e3,10000,0)
-    # y3 = agarwal1970.derivative_integrand(u,1e3,10000,5)
-    # y4 = agarwal1970.derivative_integrand(u,1e3,10000,10)
-    # y5 = agarwal1970.derivative_integrand(u,1e3,10000,20)
+    y1 = agarwal1970.pressure_integrand(u1,1e8,1e5,0)
+    y2 = agarwal1970.pressure_integrand(u2,1e8,1e5,0)
+    # y2 = agarwal1970.pressure_lineSource_integrand(u,1e3,10000,0)
+    # y3 = agarwal1970.pressure_lineSource_integrand(u,1e3,10000,5)
+    # y4 = agarwal1970.pressure_lineSource_integrand(u,1e3,10000,10)
+    # y5 = agarwal1970.pressure_lineSource_integrand(u,1e3,10000,20)
 
-    # pyplot.loglog(u,y1)
-    # pyplot.loglog(u,y2)
+    print(f"{agarwal1970.pressure(1e8,1e5,0)[0]:8.5f}")
+
+    pyplot.loglog(u1,y1)
+    pyplot.loglog(u2,y2)
     # pyplot.loglog(u,y3)
     # pyplot.loglog(u,y4)
     # pyplot.loglog(u,y5)
 
-    # pyplot.show()
-
-    tD = numpy.logspace(2,7,100)
-
-    # st = agarwal1970.pressure_shorttime(tD,0,-5)
-    # lt = agarwal1970.pressure_longtime(tD,0,5)
-
-    ft01 = agarwal1970.pressure(tD,0,-5)
-    ft02 = agarwal1970.pressure(tD,100,-5)
-    ft03 = agarwal1970.pressure(tD,1000,-5)
-    ft04 = agarwal1970.pressure(tD,10000,-5)
-    ft05 = agarwal1970.pressure(tD,100000,-5)
-
-    ft06 = agarwal1970.pressure(tD,0,0)
-    ft07 = agarwal1970.pressure(tD,100,0)
-    ft08 = agarwal1970.pressure(tD,1000,0)
-    ft09 = agarwal1970.pressure(tD,10000,0)
-    ft10 = agarwal1970.pressure(tD,100000,0)
-
-    ft11 = agarwal1970.pressure(tD,0,5)
-    ft12 = agarwal1970.pressure(tD,100,5)
-    ft13 = agarwal1970.pressure(tD,1000,5)
-    ft14 = agarwal1970.pressure(tD,10000,5)
-    ft15 = agarwal1970.pressure(tD,100000,5)
-
-    df11 = agarwal1970.derivative(tD,0,5)
-    df12 = agarwal1970.derivative(tD,100,5)
-    df13 = agarwal1970.derivative(tD,1000,5)
-    df14 = agarwal1970.derivative(tD,10000,5)
-    df15 = agarwal1970.derivative(tD,100000,5)
-
-    ft16 = agarwal1970.pressure(tD,0,10)
-    ft17 = agarwal1970.pressure(tD,100,10)
-    ft18 = agarwal1970.pressure(tD,1000,10)
-    ft19 = agarwal1970.pressure(tD,10000,10)
-    ft20 = agarwal1970.pressure(tD,100000,10)
-
-    ft21 = agarwal1970.pressure(tD,0,20)
-    ft22 = agarwal1970.pressure(tD,100,20)
-    ft23 = agarwal1970.pressure(tD,1000,20)
-    ft24 = agarwal1970.pressure(tD,10000,20)
-    ft25 = agarwal1970.pressure(tD,100000,20)
-
-    df21 = agarwal1970.derivative(tD,0,20)
-    df22 = agarwal1970.derivative(tD,100,20)
-    df23 = agarwal1970.derivative(tD,1000,20)
-    df24 = agarwal1970.derivative(tD,10000,20)
-    df25 = agarwal1970.derivative(tD,100000,20)
-
-    figure,axis = pyplot.subplots(nrows=1,ncols=1)
-
-    # axis.plot(tD,ft01,color="k",linewidth=0.5)
-    # axis.plot(tD,ft02,color="k",linewidth=0.5)
-    # axis.plot(tD,ft03,color="k",linewidth=0.5)
-    # axis.plot(tD,ft04,color="k",linewidth=0.5)
-    # axis.plot(tD,ft05,color="k",linewidth=0.5)
-
-    # axis.plot(tD,ft06,color="r",linewidth=0.5)
-    # axis.plot(tD,ft07,color="r",linewidth=0.5)
-    # axis.plot(tD,ft08,color="r",linewidth=0.5)
-    # axis.plot(tD,ft09,color="r",linewidth=0.5)
-    # axis.plot(tD,ft10,color="r",linewidth=0.5)
-
-    axis.plot(tD,ft11,color="b",linewidth=0.5)
-    axis.plot(tD,ft12,color="b",linewidth=0.5)
-    axis.plot(tD,ft13,color="b",linewidth=0.5)
-    axis.plot(tD,ft14,color="b",linewidth=0.5)
-    axis.plot(tD,ft15,color="b",linewidth=0.5)
-
-    axis.plot(tD,df11,color="b",linewidth=0.5,linestyle='--')
-    axis.plot(tD,df12,color="b",linewidth=0.5,linestyle='--')
-    axis.plot(tD,df13,color="b",linewidth=0.5,linestyle='--')
-    axis.plot(tD,df14,color="b",linewidth=0.5,linestyle='--')
-    axis.plot(tD,df15,color="b",linewidth=0.5,linestyle='--')
-
-    # axis.plot(tD,ft16,color="g",linewidth=0.5)
-    # axis.plot(tD,ft17,color="g",linewidth=0.5)
-    # axis.plot(tD,ft18,color="g",linewidth=0.5)
-    # axis.plot(tD,ft19,color="g",linewidth=0.5)
-    # axis.plot(tD,ft20,color="g",linewidth=0.5)
-
-    # axis.plot(tD,ft21,color="m",linewidth=0.5)
-    # axis.plot(tD,ft22,color="m",linewidth=0.5)
-    # axis.plot(tD,ft23,color="m",linewidth=0.5)
-    # axis.plot(tD,ft24,color="m",linewidth=0.5)
-    # axis.plot(tD,ft25,color="m",linewidth=0.5)
-
-    # axis.plot(tD,df22,color="m",linewidth=0.5,linestyle='--')
-    # axis.plot(tD,df23,color="m",linewidth=0.5,linestyle='--')
-    # axis.plot(tD,df24,color="m",linewidth=0.5,linestyle='--')
-    # axis.plot(tD,df25,color="m",linewidth=0.5,linestyle='--')
-
-    axis.set_ylim((0.1,100))
-    axis.set_xlim((1e2,1e7))
-
-    axis.set_xscale("log")
-    axis.set_yscale("log")
-
-    axis.grid()
-
-    # axis.legend()
-
     pyplot.show()
+
+
+
