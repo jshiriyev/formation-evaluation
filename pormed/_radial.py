@@ -6,13 +6,13 @@ from scipy.special import expi
 
 from scipy.sparse import csr_matrix as csr
 
-from scipy.special import j0 as bessel_j0
-from scipy.special import j1 as bessel_j1
-from scipy.special import y0 as bessel_y0
-from scipy.special import y1 as bessel_y1
+from scipy.special import j0 as BJ0
+from scipy.special import j1 as BJ1
+from scipy.special import y0 as BY0
+from scipy.special import y1 as BY1
 
-from scipy.special import jvp as bessel_jvp
-from scipy.special import yvp as bessel_yvp
+from scipy.special import jvp as BJVp
+from scipy.special import yvp as BYVp
 
 from scipy.optimize import root_scalar
 
@@ -53,7 +53,6 @@ class Radial():
         self.beta_n = roots
 
     def root_function(self,beta):
-
         """
         This is the function that outputs values of root function 
         defined in Everdingen solution. At singularity point of \beta = 0,
@@ -66,11 +65,11 @@ class Radial():
 
         res[beta==0] = -self.RR/np.pi+1/(np.pi*self.RR)
 
-        J1B = bessel_j1(beta[beta>0])
-        Y1B = bessel_y1(beta[beta>0])
+        J1B = BJ1(beta[beta>0])
+        Y1B = BY1(beta[beta>0])
         
-        J1BR = bessel_j1(beta[beta>0]*self.RR)
-        Y1BR = bessel_y1(beta[beta>0]*self.RR)
+        J1BR = BJ1(beta[beta>0]*self.RR)
+        Y1BR = BY1(beta[beta>0]*self.RR)
         
         res[beta>0] = J1BR*Y1B-J1B*Y1BR
 
@@ -83,17 +82,17 @@ class Radial():
         one close to singularity \beta=0, the other at larger values of \betta
         """
 
-        J1B = bessel_j1(beta)
-        Y1B = bessel_y1(beta)
+        J1B = BJ1(beta)
+        Y1B = BY1(beta)
         
-        J1BR = bessel_j1(beta*self.RR)
-        Y1BR = bessel_y1(beta*self.RR)
+        J1BR = BJ1(beta*self.RR)
+        Y1BR = BY1(beta*self.RR)
 
-        J1B_prime = bessel_jvp(1,beta)
-        Y1B_prime = bessel_yvp(1,beta)
+        J1B_prime = BJVp(1,beta)
+        Y1B_prime = BYVp(1,beta)
 
-        J1BR_prime = self.RR*bessel_jvp(1,beta*self.RR)
-        Y1BR_prime = self.RR*bessel_yvp(1,beta*self.RR)
+        J1BR_prime = self.RR*BJVp(1,beta*self.RR)
+        Y1BR_prime = self.RR*BYVp(1,beta*self.RR)
 
         return J1BR_prime*Y1B+J1BR*Y1B_prime-J1B_prime*Y1BR-J1B*Y1BR_prime
 
@@ -127,9 +126,9 @@ class Radial():
         term3 = 3*self.RR**4-4*self.RR**4*np.log(self.RR)-2*self.RR**2-1
         term4 = 4*(self.RR**2-1)**2
 
-        term5 = (bessel_j1(beta*self.RR))**2*np.exp(-(beta**2)*time)
-        term6 = bessel_j1(beta)*bessel_y0(beta*dist)-bessel_y1(beta)*bessel_j0(beta*dist)
-        term7 = beta*((bessel_j1(beta*self.RR))**2-(bessel_j1(beta))**2)
+        term5 = (BJ1(beta*self.RR))**2*np.exp(-(beta**2)*time)
+        term6 = BJ1(beta)*BY0(beta*dist)-BY1(beta)*BJ0(beta*dist)
+        term7 = beta*((BJ1(beta*self.RR))**2-(BJ1(beta))**2)
 
         term8 = term5*term6/term7
 

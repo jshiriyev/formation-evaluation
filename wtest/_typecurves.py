@@ -188,7 +188,51 @@ class dimless():
 
 class everdingen1949():
 
-    pass
+    @staticmethod
+    def pressure(tD):
+
+        tD = numpy.array(tD).flatten()
+
+        pwD = numpy.zeros(tD.shape)
+
+        for index,time in enumerate(tD):
+
+            umin = numpy.sqrt(1/time)/1e6
+            umax = numpy.sqrt(1/time)*1e5
+
+            u = numpy.logspace(numpy.log10(umin),numpy.log10(umax),2000)
+
+            y = everdingen1949.pressure_integrand(u,time)
+            z = integrate.simpson(y,u)
+
+            pwD[index] = 4*z/numpy.pi**2
+
+        return pwD
+
+    @staticmethod
+    def pressure_integrand(u,tD):
+        """Integral kernel of the equation #VI-24, page 313"""
+
+        tD = numpy.array(tD).flatten()
+
+        term1 = 1-numpy.exp(-u**2*tD)
+        term2 = BJ1(u)**2+BY1(u)**2
+
+        return term1/(u**3*term2)
+
+    @staticmethod
+    def pressure_bounded(tD,R):
+
+        tD = numpy.array(tD).flatten()
+
+        pwD = numpy.zeros(tD.shape)
+
+        return pwD
+
+    @staticmethod
+    def pressure_bounded_root_function(R):
+
+        return beta1,beta2
 
 class agarwal1970():
     """
@@ -366,20 +410,29 @@ class agarwal1970():
 
 if __name__ == "__main__":
 
-    u1 = numpy.logspace(-8,1,100000)
-    u2 = numpy.logspace(-8,1,100000)
+    tD = 1e-2
 
-    y1 = agarwal1970.pressure_integrand(u1,1e8,1e5,0)
-    y2 = agarwal1970.pressure_integrand(u2,1e8,1e5,0)
+    umin = numpy.sqrt(1/tD)/1e6
+    umax = numpy.sqrt(1/tD)*1e5
+
+    u = numpy.logspace(numpy.log10(umin),numpy.log10(umax),2000)
+
+    y1 = everdingen1949.pressure_integrand(u,tD)
+    # y2 = everdingen1949.pressure_integrand(u2,1e8)
+    # y1 = everdingen1949.pressure_integrand(u3,0.0001)
+
+    # y1 = agarwal1970.pressure_integrand(u1,1e8,1e5,0)
+    # y2 = agarwal1970.pressure_integrand(u2,1e8,1e5,0)
     # y2 = agarwal1970.pressure_lineSource_integrand(u,1e3,10000,0)
     # y3 = agarwal1970.pressure_lineSource_integrand(u,1e3,10000,5)
     # y4 = agarwal1970.pressure_lineSource_integrand(u,1e3,10000,10)
     # y5 = agarwal1970.pressure_lineSource_integrand(u,1e3,10000,20)
 
-    print(f"{agarwal1970.pressure(1e8,1e5,0)[0]:8.5f}")
+    # print(f"{agarwal1970.pressure(1e8,1e5,0)[0]:8.5f}")
 
-    pyplot.loglog(u1,y1)
-    pyplot.loglog(u2,y2)
+    pyplot.loglog(u,y1)
+    # pyplot.loglog(u1,y1)
+    # pyplot.loglog(u2,y2)
     # pyplot.loglog(u,y3)
     # pyplot.loglog(u,y4)
     # pyplot.loglog(u,y5)
