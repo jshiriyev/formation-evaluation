@@ -4,10 +4,10 @@ from scipy.sparse import csr_matrix as csr
 
 def derive(yvals,xvals=None):
 
-	yvals = yvals.flatten()
+	yvals = numpy.array(yvals).flatten()
 
 	if xvals is not None:
-		xvals = xvals.flatten()
+		xvals = numpy.array(xvals).flatten()
 
 	size = yvals.size
 
