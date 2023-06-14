@@ -445,6 +445,41 @@ class agarwal1970():
 
         return (term1+term2-term3)
 
+class finite():
+
+    def __init__(self,r2D,r1D=1,permred=1,nr1=100,nr2=100):
+
+        self.r2D = r2D
+        self.r1D = r1D
+
+        self.permred = permred
+
+        self.nr1 = nr1
+        self.nr2 = nr2
+
+    def pressure(self,tD,CD=0):
+
+        pass
+
+    def derivative(self,):
+
+        pass
+
+    @property
+    def rD(self):
+
+        intrvl = numpy.zeros(shape=(self.nr1+self.nr2,))
+
+        intrvl[:self.nr1] = numpy.linspace(1,self.r1D,self.nr1,endpoint=False)
+        intrvl[self.nr1:] = numpy.linspace(self.r1D,self.r2D,self.nr2)
+
+        return intrvl
+
+    @property
+    def skin(self):
+
+        return (1/self.permred-1)*numpy.log(self.r1D)
+
 if __name__ == "__main__":
 
     tD = 1e-2
