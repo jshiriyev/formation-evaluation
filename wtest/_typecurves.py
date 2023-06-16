@@ -6,6 +6,9 @@ from scipy import integrate
 
 from scipy.optimize import root_scalar
 
+from scipy.sparse import csr_matrix as csr
+from scipy.sparse.linalg import spsolve as sps
+
 from scipy.special import expi
 
 from scipy.special import j0 as BJ0
@@ -447,38 +450,154 @@ class agarwal1970():
 
 class finite():
 
-    def __init__(self,r2D,r1D=1,permred=1,nr1=100,nr2=100):
+    def __init__(self,R,r=1,deltat=0.1,nsteps=10000,alpha=1,ngrids1=100,ngrids2=100):
+        """
+        R       : radius of reservoir
+        r       : radius of impaired zone
 
-        self.r2D = r2D
-        self.r1D = r1D
+        alpha   : permeability reduction in impaired zone, k_impaired/k_unharmed
 
-        self.permred = permred
+        ngrids1 : number of grids in the impaired zone
+        ngrids2 : number of grids in the unharmed zone
 
-        self.nr1 = nr1
-        self.nr2 = nr2
+        deltat  : time steps for the time loop
+        nsteps  : number of time steps
+        """
 
-    def pressure(self,tD,CD=0):
+        self.R = R
+        self.r = r
 
-        pass
+        self.deltat = deltat
+        self.nsteps = nsteps
 
-    def derivative(self,):
+        self.alpha = alpha
+
+        self.ngrids1 = ngrids1
+        self.ngrids2 = ngrids2
+
+        # impaired = numpy.linspace(1,self.r,self.ngrids1+1)
+        unharmed = numpy.linspace(self.r,self.R,self.ngrids2+1)
+
+        # self._nodes = numpy.append(impaired,unharmed[1:])
+        self._nodes = unharmed
+
+    def pressure(self,CD=0):
+
+        Tmat,Tl0 = self.transmat(CD)
+
+        pform = numpy.zeros(self.radii.shape)
+
+        pwell = numpy.zeros(self.nsteps+1)
+
+        beta2 = self.beta2(CD)
+
+        for index in range(1,self.nsteps+1):
+
+            beta1 = self.beta1(pwell[index-1],CD)
+
+            pform[0] += Tl0*beta1
+
+            pform = sps(Tmat,pform)
+
+            pwell[index] = beta1+beta2*pform[0]
+
+        return pwell[1:]
+
+    def derivative(self):
 
         pass
 
     @property
-    def rD(self):
+    def nodes(self):
 
-        intrvl = numpy.zeros(shape=(self.nr1+self.nr2,))
+        return self._nodes
+    
+    @property
+    def radii(self):
+        
+        return (self._nodes[1:]+self._nodes[:-1])/2
 
-        intrvl[:self.nr1] = numpy.linspace(1,self.r1D,self.nr1,endpoint=False)
-        intrvl[self.nr1:] = numpy.linspace(self.r1D,self.r2D,self.nr2)
+    @property
+    def deltar(self):
 
-        return intrvl
+        radii = self.radii
+
+        temp = radii[1:]-radii[:-1]
+
+        temp = numpy.insert(temp,0,radii[0]-self._nodes[0])
+
+        return numpy.append(temp,temp[-1])
+
+    @property
+    def transvec(self):
+
+        vectors = {}
+
+        gamma = self.gamma
+
+        radii,deltar = self.radii,self.deltar
+
+        deltar_sum = deltar[:-1]+deltar[1:]
+        deltar_mul = deltar[:-1]*deltar[1:]
+
+        vectors["inner"] = -gamma/deltar_sum*(2/deltar[1:]+1/radii)
+        vectors["outer"] = -gamma/deltar_sum*(2/deltar[:-1]-1/radii)
+
+        vectors["center"] = gamma/deltar_mul*2+1
+
+        return vectors
+
+    def transmat(self,CD=0):
+
+        vectors = self.transvec
+
+        Tl = vectors["inner"]
+        Tc = vectors["center"]
+        Tr = vectors["outer"]
+
+        deltar = self.deltar
+
+        N = deltar.size-1
+
+        indices = numpy.arange(N)
+
+        Tmat = csr((N,N))
+
+        Tc[0] -= self.beta2(CD)*Tl[0] # inner boundary correction
+
+        Tc[-1] -= Tr[-1] # outer boundary correction
+
+        Tmat += csr((Tc,(indices,indices)),shape=(N,N))
+        Tmat += csr((Tl[1:],(indices[1:],indices[:-1])),shape=(N,N))
+        Tmat += csr((Tr[:-1],(indices[:-1],indices[1:])),shape=(N,N))
+
+        return Tmat,Tl[0]
+
+    def beta1(self,pwelln,CD=0):
+
+        theta = CD/self.deltat
+
+        return (1+theta*pwelln)/(self.alpha/self.deltar[0]+theta)
+
+    def beta2(self,CD=0):
+
+        return self.gamma/(self.gamma+CD*self.deltar[0])
 
     @property
     def skin(self):
 
-        return (1/self.permred-1)*numpy.log(self.r1D)
+        return (1/self.alpha-1)*numpy.log(self.r)
+
+    @property
+    def gamma(self):
+
+        return self.alpha*self.deltat
+
+    @property
+    def times(self):
+
+        return numpy.linspace(self.deltat,self.nsteps*self.deltat,self.nsteps)
+    
 
 if __name__ == "__main__":
 
@@ -490,11 +609,11 @@ if __name__ == "__main__":
     u = numpy.logspace(numpy.log10(umin),numpy.log10(umax),2000)
 
     y1 = everdingen1949.pressure_integrand(u,tD)
-    y2 = everdingen1949.pressure_integrand(u2,1e8)
-    y1 = everdingen1949.pressure_integrand(u3,0.0001)
+    y2 = everdingen1949.pressure_integrand(u,1e8)
+    y1 = everdingen1949.pressure_integrand(u,0.0001)
 
-    y1 = agarwal1970.pressure_integrand(u1,1e8,1e5,0)
-    y2 = agarwal1970.pressure_integrand(u2,1e8,1e5,0)
+    y1 = agarwal1970.pressure_integrand(u,1e8,1e5,0)
+    y2 = agarwal1970.pressure_integrand(u,1e8,1e5,0)
     y2 = agarwal1970.pressure_lineSource_integrand(u,1e3,10000,0)
     y3 = agarwal1970.pressure_lineSource_integrand(u,1e3,10000,5)
     y4 = agarwal1970.pressure_lineSource_integrand(u,1e3,10000,10)
@@ -503,8 +622,8 @@ if __name__ == "__main__":
     print(f"{agarwal1970.pressure(1e8,1e5,0)[0]:8.5f}")
 
     pyplot.loglog(u,y1)
-    pyplot.loglog(u1,y1)
-    pyplot.loglog(u2,y2)
+    pyplot.loglog(u,y1)
+    pyplot.loglog(u,y2)
     pyplot.loglog(u,y3)
     pyplot.loglog(u,y4)
     pyplot.loglog(u,y5)
