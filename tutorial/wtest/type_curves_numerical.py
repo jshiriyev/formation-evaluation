@@ -16,7 +16,7 @@ pwD = agarwal1970.pressure(tD,CD,0)
 
 pwD_800 = everdingen1949.pressure_bounded(tD=tD,R=800,numterms=10)
 
-sol = finite(R=800,deltat=100,nsteps=10000,ngrids2=100)
+sol = finite(R=800,deltat=100,nsteps=10000,ngrids2=200)
 
 # print(sol.nodes)
 # print(sol.radii)
@@ -29,7 +29,7 @@ sol = finite(R=800,deltat=100,nsteps=10000,ngrids2=100)
 line1 = plt.loglog(tD/CD,pwD,label="R -> inf, CD = 1000")[0]
 # plt.loglog(tD/CD,pwDD,color=line1.get_color())
 
-line2 = plt.loglog(sol.times/CD,sol.pressure(CD))
+line2 = plt.scatter(sol.times/CD,sol.pressure(CD),s=1)
 
 line3 = plt.loglog(tD/CD,pwD_800,label="R = 800, CD = 0")[0]
 # plt.loglog(tD/CD,pwDD_800,color=line3.get_color())

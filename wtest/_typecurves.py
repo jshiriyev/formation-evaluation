@@ -450,18 +450,22 @@ class agarwal1970():
 
 class finite():
 
-    def __init__(self,R,r=1,deltat=0.1,nsteps=10000,alpha=1,ngrids1=100,ngrids2=100):
+    def __init__(self,deltat=0.1,nsteps=10000,CD=0,r=1,alpha=1,R=None,ngrids1=None,ngrids2=None):
         """
-        R       : radius of reservoir
-        r       : radius of impaired zone
-
-        alpha   : permeability reduction in impaired zone, k_impaired/k_unharmed
-
-        ngrids1 : number of grids in the impaired zone
-        ngrids2 : number of grids in the unharmed zone
+        Time, storage, skin factor and external radius are the input.
 
         deltat  : time steps for the time loop
         nsteps  : number of time steps
+
+        CD      : dimensionless storage
+
+        r       : radius of impaired zone
+        alpha   : permeability reduction in impaired zone, k_impaired/k_unharmed
+
+        R       : radius of reservoir
+
+        ngrids1 : number of grids in the impaired zone
+        ngrids2 : number of grids in the unharmed zone
         """
 
         self.R = R
@@ -472,14 +476,7 @@ class finite():
 
         self.alpha = alpha
 
-        self.ngrids1 = ngrids1
-        self.ngrids2 = ngrids2
-
-        # impaired = numpy.linspace(1,self.r,self.ngrids1+1)
-        unharmed = numpy.linspace(self.r,self.R,self.ngrids2+1)
-
-        # self._nodes = numpy.append(impaired,unharmed[1:])
-        self._nodes = unharmed
+        self._nodes = self.spacenode(ngrids1,ngrids2)
 
     def pressure(self,CD=0):
 
@@ -489,29 +486,39 @@ class finite():
 
         pwell = numpy.zeros(self.nsteps+1)
 
-        beta2 = self.beta2(CD)
+        beta1 = self.beta1(CD)
 
         for index in range(1,self.nsteps+1):
 
-            beta1 = self.beta1(pwell[index-1],CD)
+            beta2 = self.beta2(pwell[index-1],CD)
 
-            pform[0] += Tl0*beta1
+            pform[0] += Tl0*beta2
 
             pform = sps(Tmat,pform)
 
-            pwell[index] = beta1+beta2*pform[0]
+            pwell[index] = beta2+beta1*pform[0]
 
         return pwell[1:]
 
     def derivative(self):
 
         pass
-
+    
     @property
     def nodes(self):
 
         return self._nodes
-    
+
+    def spacenode(self,ngrids1=None,ngrids2=None):
+
+        ngrids1 = self.r if ngrids1 is None else ngrids1
+        ngrids2 = self.R/self.r if ngrids2 is None else ngrids2
+
+        impaired = numpy.logspace(*numpy.log10((1,self.r)),ngrids1)
+        unharmed = numpy.logspace(*numpy.log10((self.r,self.R)),ngrids2)
+
+        return numpy.append(impaired,unharmed[1:])
+
     @property
     def radii(self):
         
@@ -527,6 +534,16 @@ class finite():
         temp = numpy.insert(temp,0,radii[0]-self._nodes[0])
 
         return numpy.append(temp,temp[-1])
+
+    @property
+    def times(self):
+
+        return numpy.linspace(self.deltat,self.nsteps*self.deltat,self.nsteps)
+
+    @property
+    def skin(self):
+
+        return (1/self.alpha-1)*numpy.log(self.r)
 
     @property
     def transvec(self):
@@ -563,7 +580,7 @@ class finite():
 
         Tmat = csr((N,N))
 
-        Tc[0] -= self.beta2(CD)*Tl[0] # inner boundary correction
+        Tc[0] -= self.beta1(CD)*Tl[0] # inner boundary correction
 
         Tc[-1] -= Tr[-1] # outer boundary correction
 
@@ -573,31 +590,20 @@ class finite():
 
         return Tmat,Tl[0]
 
-    def beta1(self,pwelln,CD=0):
-
-        theta = CD/self.deltat
-
-        return (1+theta*pwelln)/(self.alpha/self.deltar[0]+theta)
-
-    def beta2(self,CD=0):
+    def beta1(self,CD=0):
 
         return self.gamma/(self.gamma+CD*self.deltar[0])
 
-    @property
-    def skin(self):
+    def beta2(self,pwell,CD=0):
 
-        return (1/self.alpha-1)*numpy.log(self.r)
+        theta = CD/self.deltat
+
+        return (1+theta*pwell)/(self.alpha/self.deltar[0]+theta)
 
     @property
     def gamma(self):
 
         return self.alpha*self.deltat
-
-    @property
-    def times(self):
-
-        return numpy.linspace(self.deltat,self.nsteps*self.deltat,self.nsteps)
-    
 
 if __name__ == "__main__":
 
