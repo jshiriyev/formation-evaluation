@@ -450,129 +450,72 @@ class agarwal1970():
 
 class finite():
 
-    def __init__(self,deltat=0.1,nsteps=10000,CD=0,r=1,alpha=1,R=None,ngrids1=None,ngrids2=None):
+    def __init__(self,r=1,alpha=1,nimpaired=None,nunharmed=None):
         """
-        Time, storage, skin factor and external radius are the input.
+        r         : radius of impaired zone
 
-        deltat  : time steps for the time loop
-        nsteps  : number of time steps
+        alpha     : permeability reduction in the impaired zone,
+                    k_impaired/k_unharmed
 
-        CD      : dimensionless storage
-
-        r       : radius of impaired zone
-        alpha   : permeability reduction in impaired zone, k_impaired/k_unharmed
-
-        R       : radius of reservoir
-
-        ngrids1 : number of grids in the impaired zone
-        ngrids2 : number of grids in the unharmed zone
+        nimpaired : number of grids in the impaired zone
+        nunharmed : number of grids in the unharmed zone
         """
 
-        self.R = R
         self.r = r
-
-        self.deltat = deltat
-        self.nsteps = nsteps
 
         self.alpha = alpha
 
-        self._nodes = self.spacenode(ngrids1,ngrids2)
+        self.nimpaired = nimpaired
+        self.nunharmed = nunharmed
 
-    def pressure(self,CD=0):
+    def pressure(self,tD,CD=0,R=None):
+        """
+        tD        : times to calculate well pressure
+        CD        : dimensionless storage
+        R         : reservoir radius
+        """
 
-        Tmat,Tl0 = self.transmat(CD)
+        nodes = finite.spacing(R,self.r,self.nimpaired,self.nunharmed)
+        
+        radii = finite.radii(nodes)
 
-        pform = numpy.zeros(self.radii.shape)
+        deltar = finite.deltar(radii)
 
-        pwell = numpy.zeros(self.nsteps+1)
+        deltat = tD[1:]-tD[:-1]
 
-        beta1 = self.beta1(CD)
+        deltat = numpy.insert(deltat,0,deltat[0])
 
-        for index in range(1,self.nsteps+1):
+        pform = numpy.zeros(radii.shape)
 
-            beta2 = self.beta2(pwell[index-1],CD)
+        pwell = numpy.zeros(deltat.size+1)
 
-            pform[0] += Tl0*beta2
+        for index,dt in enumerate(deltat,start=1):
+
+            Tmat,Tl0 = finite.transmat(self.alpha,dt,deltar,radii,CD)
+
+            beta1 = finite.beta1(self.alpha,dt,deltar,CD,pwell[index-1])
+            beta2 = finite.beta2(self.alpha,dt,deltar,CD)
+
+            pform[0] -= beta1*Tl0
 
             pform = sps(Tmat,pform)
 
-            pwell[index] = beta2+beta1*pform[0]
+            pimag = beta1+beta2*pform[0]
+
+            pwell[index] = (pimag+pform[0])/2
 
         return pwell[1:]
 
     def derivative(self):
 
         pass
-    
-    @property
-    def nodes(self):
 
-        return self._nodes
+    @staticmethod
+    def transmat(alpha,deltat,deltar,radii,CD):
 
-    def spacenode(self,ngrids1=None,ngrids2=None):
-
-        ngrids1 = self.r if ngrids1 is None else ngrids1
-        ngrids2 = self.R/self.r if ngrids2 is None else ngrids2
-
-        impaired = numpy.logspace(*numpy.log10((1,self.r)),ngrids1)
-        unharmed = numpy.logspace(*numpy.log10((self.r,self.R)),ngrids2)
-
-        return numpy.append(impaired,unharmed[1:])
-
-    @property
-    def radii(self):
-        
-        return (self._nodes[1:]+self._nodes[:-1])/2
-
-    @property
-    def deltar(self):
-
-        radii = self.radii
-
-        temp = radii[1:]-radii[:-1]
-
-        temp = numpy.insert(temp,0,radii[0]-self._nodes[0])
-
-        return numpy.append(temp,temp[-1])
-
-    @property
-    def times(self):
-
-        return numpy.linspace(self.deltat,self.nsteps*self.deltat,self.nsteps)
-
-    @property
-    def skin(self):
-
-        return (1/self.alpha-1)*numpy.log(self.r)
-
-    @property
-    def transvec(self):
-
-        vectors = {}
-
-        gamma = self.gamma
-
-        radii,deltar = self.radii,self.deltar
-
-        deltar_sum = deltar[:-1]+deltar[1:]
-        deltar_mul = deltar[:-1]*deltar[1:]
-
-        vectors["inner"] = -gamma/deltar_sum*(2/deltar[1:]+1/radii)
-        vectors["outer"] = -gamma/deltar_sum*(2/deltar[:-1]-1/radii)
-
-        vectors["center"] = gamma/deltar_mul*2+1
-
-        return vectors
-
-    def transmat(self,CD=0):
-
-        vectors = self.transvec
-
-        Tl = vectors["inner"]
-        Tc = vectors["center"]
-        Tr = vectors["outer"]
-
-        deltar = self.deltar
+        Tl = finite.thetaL(alpha,deltat,deltar,radii)
+        Tc = finite.thetaC(alpha,deltat,deltar)
+        Tr = finite.thetaR(alpha,deltat,deltar,radii)
 
         N = deltar.size-1
 
@@ -580,9 +523,9 @@ class finite():
 
         Tmat = csr((N,N))
 
-        Tc[0] -= self.beta1(CD)*Tl[0] # inner boundary correction
+        Tc[0] += finite.beta2(alpha,deltat,deltar,CD)*Tl[0] # inner boundary correction
 
-        Tc[-1] -= Tr[-1] # outer boundary correction
+        Tc[-1] += Tr[-1] # outer boundary correction
 
         Tmat += csr((Tc,(indices,indices)),shape=(N,N))
         Tmat += csr((Tl[1:],(indices[1:],indices[:-1])),shape=(N,N))
@@ -590,20 +533,88 @@ class finite():
 
         return Tmat,Tl[0]
 
-    def beta1(self,CD=0):
-
-        return self.gamma/(self.gamma+CD*self.deltar[0])
-
-    def beta2(self,pwell,CD=0):
-
-        theta = CD/self.deltat
-
-        return (1+theta*pwell)/(self.alpha/self.deltar[0]+theta)
-
     @property
-    def gamma(self):
+    def skin(self):
 
-        return self.alpha*self.deltat
+        return (1/self.alpha-1)*numpy.log(self.r)
+
+    @staticmethod
+    def spacing(R,r=1,nimpaired=None,nunharmed=None):
+        """
+        R         : reservoir radius
+        r         : radius of impaired zone
+
+        nimpaired : number of grids in the impaired zone
+        nunharmed : number of grids in the unharmed zone
+        """
+
+        if nimpaired is None and r!=1:
+            nimpaired = int(numpy.ceil(r).tolist())
+            nimpaired = max(nimpaired,50)
+        elif nimpaired is None and r==1:
+            nimpaired = 1
+
+        if nunharmed is None:
+            nunharmed = int(numpy.ceil(R/r).tolist())
+            nunharmed = max(nunharmed,50)
+
+        inner = numpy.log10((1,r))
+        outer = numpy.log10((r,R))
+
+        impaired = numpy.logspace(*inner,nimpaired)
+        unharmed = numpy.logspace(*outer,nunharmed)
+
+        return numpy.append(impaired,unharmed[1:])
+
+    @staticmethod
+    def radii(nodes):
+        
+        return (nodes[1:]+nodes[:-1])/2
+
+    @staticmethod
+    def deltar(radii):
+
+        temp = radii[1:]-radii[:-1]
+
+        temp = numpy.insert(temp,0,temp[0])
+
+        return numpy.append(temp,temp[-1])
+
+    @staticmethod
+    def thetaL(alpha,deltat,deltar,radii):
+
+        theta1 = (alpha*deltat)/(deltar[:-1]+deltar[1:])
+        theta2 = (2/deltar[:-1]-1/radii)
+
+        return -theta1*theta2
+
+    @staticmethod
+    def thetaC(alpha,deltat,deltar):
+
+        return 1+(2*alpha*deltat)/(deltar[:-1]*deltar[1:])
+
+    @staticmethod
+    def thetaR(alpha,deltat,deltar,radii):
+
+        theta1 = (alpha*deltat)/(deltar[:-1]+deltar[1:])
+        theta2 = (2/deltar[1:]+1/radii)
+
+        return -theta1*theta2
+
+    @staticmethod
+    def beta1(alpha,deltat,deltar,CD,pwell):
+
+        term1 = (deltat/CD+pwell)
+        term2 = (alpha*deltat)/(CD*deltar[0])
+
+        return term1/(1/2+term2)
+
+    @staticmethod
+    def beta2(alpha,deltat,deltar,CD):
+
+        term1 = (alpha*deltat)/(CD*deltar[0])
+
+        return 1-1/(1/2+term1)
 
 if __name__ == "__main__":
 
