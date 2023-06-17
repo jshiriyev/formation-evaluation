@@ -35,11 +35,11 @@ pwDD_800num = derive(pwD_800num,tD2)*tD2
 line1 = plt.loglog(tD/CD,pwD,label="R -> inf, CD = 1000")[0]
 plt.loglog(tD/CD,pwDD,color=line1.get_color())
 
-line2 = plt.loglog(tD2[500:]/CD,pwD_800num[500:],color='k',label="Finite Difference")[0]
-plt.loglog(tD2[500:]/CD,pwDD_800num[500:],color=line2.get_color())
-
 line3 = plt.loglog(tD/CD,pwD_800,label="R = 800, CD = 0")[0]
 plt.loglog(tD/CD,pwDD_800,color=line3.get_color())
+
+line2 = plt.loglog(tD2[500:]/CD,pwD_800num[500:],color='k',label="Finite Difference")[0]
+plt.loglog(tD2[500:]/CD,pwDD_800num[500:],color=line2.get_color())
 
 plt.xlabel("${t_D/C_D}$")
 
