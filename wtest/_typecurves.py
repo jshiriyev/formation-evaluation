@@ -191,7 +191,7 @@ class dimless():
 
         return 39.5*self.radius**2/self.eta
 
-class everdingen1949():
+class everdingen():
 
     @staticmethod
     def pressure(tD):
@@ -207,7 +207,7 @@ class everdingen1949():
 
             u = numpy.logspace(numpy.log10(umin),numpy.log10(umax),2000)
 
-            y = everdingen1949.pressure_integrand(u,time)
+            y = everdingen.pressure_integrand(u,time)
             z = integrate.simpson(y,u)
 
             pwD[index] = 4*z/numpy.pi**2
@@ -236,7 +236,7 @@ class everdingen1949():
 
         tD = tD.reshape((-1,1))
 
-        betan = everdingen1949.pressure_bounded_find_roots(R,numterms)
+        betan = everdingen.pressure_bounded_find_roots(R,numterms)
 
         # print(f"{R=} {betan=}")
 
@@ -262,7 +262,7 @@ class everdingen1949():
 
             bracket = (lower_bound,upper_bound)
 
-            solver = root_scalar(everdingen1949.pressure_bounded_root_function,
+            solver = root_scalar(everdingen.pressure_bounded_root_function,
                 args=(R,),method="brentq",bracket=bracket)
 
             roots[index] = solver.root
@@ -274,7 +274,7 @@ class everdingen1949():
 
         return BJ1(beta*R)*BY1(beta)-BJ1(beta)*BY1(beta*R)
 
-class agarwal1970():
+class agarwal():
     """
     tD  : dimensionless time (k*t)/(phi*mu*ct*rw**2)
     CD  : dimensionless wellbore storage constant C/(2*pi*phi*h*ct*rw**2)
@@ -296,7 +296,7 @@ class agarwal1970():
         tD,CD,SF = numpy.array(tD).flatten(),float(CD),float(SF)
 
         if CD==0:
-            return 1/2*(numpy.log(4*tD)-agarwal1970.gamma)+SF
+            return 1/2*(numpy.log(4*tD)-agarwal.gamma)+SF
 
         u = numpy.logspace(-8,1,2000)
         # u = numpy.linspace(1e-8,1e1,100000)
@@ -310,7 +310,7 @@ class agarwal1970():
         pwD = numpy.zeros(tD.shape)
 
         for index,time in enumerate(tD):
-            y = agarwal1970.pressure_integrand(u,time,CD,SF)
+            y = agarwal.pressure_integrand(u,time,CD,SF)
             z = integrate.simpson(y,u)
 
             pwD[index] = 4*z/numpy.pi**2
@@ -346,7 +346,7 @@ class agarwal1970():
         pwDline = numpy.zeros(tD.shape)
 
         for index,time in enumerate(tD):
-            y = agarwal1970.pressure_lineSource_integrand(u,time,CD,SF)
+            y = agarwal.pressure_lineSource_integrand(u,time,CD,SF)
             z = integrate.simpson(y,u)
 
             pwDline[index] = z
@@ -391,7 +391,7 @@ class agarwal1970():
 
         tD,CD,SF = numpy.array(tD).flatten(),float(CD),float(SF)
 
-        term1 = numpy.log(4*tD)-agarwal1970.gamma
+        term1 = numpy.log(4*tD)-agarwal.gamma
         term2 = term1+2*SF
 
         return 1/2*(term2+1/(2*tD)*(term1+1-2*CD*term2))
@@ -406,7 +406,7 @@ class agarwal1970():
 
         for index,time in enumerate(tD):
             u = numpy.logspace(-8,-1,1000)
-            y = agarwal1970.derivative_integrand(u,time,CD,SF)
+            y = agarwal.derivative_integrand(u,time,CD,SF)
             z = integrate.simpson(y,u)
 
             pwDder[index] = 4*CD*z/numpy.pi**2
@@ -444,7 +444,7 @@ class agarwal1970():
 
         term1 = CD/(2*tD)
         term2 = CD**2/(2*tD**2)*(2*SF-1)
-        term3 = CD*(1-2*CD)/(4*tD**2)*(numpy.log(4*tD)-agarwal1970.gamma)
+        term3 = CD*(1-2*CD)/(4*tD**2)*(numpy.log(4*tD)-agarwal.gamma)
 
         return (term1+term2-term3)
 
@@ -479,22 +479,22 @@ class finite():
         
         radii = finite.radii(nodes)
 
-        deltar = finite.deltar(radii)
+        thickness = finite.thickness(radii)
 
-        deltat = tD[1:]-tD[:-1]
+        timestep = tD[1:]-tD[:-1]
 
-        deltat = numpy.insert(deltat,0,deltat[0])
+        timestep = numpy.insert(timestep,0,timestep[0])
 
         pform = numpy.zeros(radii.shape)
 
-        pwell = numpy.zeros(deltat.size+1)
+        pwell = numpy.zeros(timestep.size+1)
 
-        for index,dt in enumerate(deltat,start=1):
+        for index,dt in enumerate(timestep,start=1):
 
-            Tmat,Tl0 = finite.transmat(self.alpha,dt,deltar,radii,CD)
+            Tmat,Tl0 = finite.transmat(self.alpha,dt,thickness,radii,CD)
 
-            beta1 = finite.beta1(self.alpha,dt,deltar,CD,pwell[index-1])
-            beta2 = finite.beta2(self.alpha,dt,deltar,CD)
+            beta1 = finite.beta1(self.alpha,dt,thickness,CD,pwell[index-1])
+            beta2 = finite.beta2(self.alpha,dt,thickness,CD)
 
             pform[0] -= beta1*Tl0
 
@@ -511,19 +511,24 @@ class finite():
         pass
 
     @staticmethod
-    def transmat(alpha,deltat,deltar,radii,CD):
+    def transmat(alpha,timestep,thickness,radii,CD):
 
-        Tl = finite.thetaL(alpha,deltat,deltar,radii)
-        Tc = finite.thetaC(alpha,deltat,deltar)
-        Tr = finite.thetaR(alpha,deltat,deltar,radii)
+        theta = nodes*nalpha/thickness
 
-        N = deltar.size-1
+        thetaL = 1
+        thetaR = 1
+
+        Tl = finite.thetaL(alpha,timestep,thickness,radii)
+        Tc = finite.thetaC(alpha,timestep,thickness)
+        Tr = finite.thetaR(alpha,timestep,thickness,radii)
+
+        N = thickness.size-1
 
         indices = numpy.arange(N)
 
         Tmat = csr((N,N))
 
-        Tc[0] += finite.beta2(alpha,deltat,deltar,CD)*Tl[0] # inner boundary correction
+        Tc[0] += finite.beta2(alpha,timestep,thickness,CD)*Tl[0] # inner boundary correction
 
         Tc[-1] += Tr[-1] # outer boundary correction
 
@@ -541,6 +546,8 @@ class finite():
     @staticmethod
     def spacing(R,r=1,nimpaired=None,nunharmed=None):
         """
+        Impaired zone is linearly spaced, and unharmed zone is log-spaced.
+
         R         : reservoir radius
         r         : radius of impaired zone
 
@@ -548,21 +555,22 @@ class finite():
         nunharmed : number of grids in the unharmed zone
         """
 
-        if nimpaired is None and r!=1:
-            nimpaired = int(numpy.ceil(r).tolist())
-            nimpaired = max(nimpaired,50)
-        elif nimpaired is None and r==1:
-            nimpaired = 1
+        if nimpaired is None:
+            nimpaired = int(numpy.ceil(r-1).tolist())
+
+            if nimpaired != 0:
+                nimpaired = max(nimpaired,50)
 
         if nunharmed is None:
             nunharmed = int(numpy.ceil(R/r).tolist())
-            nunharmed = max(nunharmed,50)
 
-        inner = numpy.log10((1,r))
+            if nunharmed != 1:
+                nunharmed = max(nunharmed,50)
+
         outer = numpy.log10((r,R))
 
-        impaired = numpy.logspace(*inner,nimpaired)
-        unharmed = numpy.logspace(*outer,nunharmed)
+        impaired = numpy.linspace(*(1,r),nimpaired+1)
+        unharmed = numpy.logspace(*outer,nunharmed+1)
 
         return numpy.append(impaired,unharmed[1:])
 
@@ -572,80 +580,66 @@ class finite():
         return (nodes[1:]+nodes[:-1])/2
 
     @staticmethod
-    def deltar(radii):
+    def thickness(nodes):
 
-        temp = radii[1:]-radii[:-1]
-
-        temp = numpy.insert(temp,0,temp[0])
-
-        return numpy.append(temp,temp[-1])
+        return (nodes[1:]-nodes[:-1])
 
     @staticmethod
-    def thetaL(alpha,deltat,deltar,radii):
+    def nalpha(alpha,nodes,radii):
 
-        theta1 = (alpha*deltat)/(deltar[:-1]+deltar[1:])
-        theta2 = (2/deltar[:-1]-1/radii)
+        alpha = numpy.insert(alpha,0,alpha[0])
+        alpha = alpha.append(alpha[-1])
 
-        return -theta1*theta2
+        radii = numpy.insert(radii,0,radii[0])
+        radii = radii.append(radii[-1])
 
-    @staticmethod
-    def thetaC(alpha,deltat,deltar):
+        radrad = numpy.log(radii[1:]/radii[:-1])
+        nodrad = numpy.log(nodes/radii[:-1])/alpha[:-1]
+        radnod = numpy.log(radii[1:]/nodes)/alpha[1:]
 
-        return 1+(2*alpha*deltat)/(deltar[:-1]*deltar[1:])
-
-    @staticmethod
-    def thetaR(alpha,deltat,deltar,radii):
-
-        theta1 = (alpha*deltat)/(deltar[:-1]+deltar[1:])
-        theta2 = (2/deltar[1:]+1/radii)
-
-        return -theta1*theta2
+        return radrad/(nodrad+radnod)
 
     @staticmethod
-    def beta1(alpha,deltat,deltar,CD,pwell):
+    def betas(alpha,timestep,thickness,storage,pwell):
 
-        term1 = (deltat/CD+pwell)
-        term2 = (alpha*deltat)/(CD*deltar[0])
+        term1 = alpha[0]/thickness[0]
+        term2 = storage/timestep
+        term3 = term1+term2/2
 
-        return term1/(1/2+term2)
-
-    @staticmethod
-    def beta2(alpha,deltat,deltar,CD):
-
-        term1 = (alpha*deltat)/(CD*deltar[0])
-
-        return 1-1/(1/2+term1)
+        return (1+term2*pwell)/term3,term2/term3
 
 if __name__ == "__main__":
 
-    tD = 1e-2
+    print(finite.spacing(10,r=2.5))
 
-    umin = numpy.sqrt(1/tD)/1e6
-    umax = numpy.sqrt(1/tD)*1e5
+    # tD = 1e-2
 
-    u = numpy.logspace(numpy.log10(umin),numpy.log10(umax),2000)
+    # umin = numpy.sqrt(1/tD)/1e6
+    # umax = numpy.sqrt(1/tD)*1e5
 
-    y1 = everdingen1949.pressure_integrand(u,tD)
-    y2 = everdingen1949.pressure_integrand(u,1e8)
-    y1 = everdingen1949.pressure_integrand(u,0.0001)
+    # u = numpy.logspace(numpy.log10(umin),numpy.log10(umax),2000)
 
-    y1 = agarwal1970.pressure_integrand(u,1e8,1e5,0)
-    y2 = agarwal1970.pressure_integrand(u,1e8,1e5,0)
-    y2 = agarwal1970.pressure_lineSource_integrand(u,1e3,10000,0)
-    y3 = agarwal1970.pressure_lineSource_integrand(u,1e3,10000,5)
-    y4 = agarwal1970.pressure_lineSource_integrand(u,1e3,10000,10)
-    y5 = agarwal1970.pressure_lineSource_integrand(u,1e3,10000,20)
+    # y1 = everdingen.pressure_integrand(u,tD)
+    # y2 = everdingen.pressure_integrand(u,1e8)
+    # y1 = everdingen.pressure_integrand(u,0.0001)
 
-    print(f"{agarwal1970.pressure(1e8,1e5,0)[0]:8.5f}")
+    # y1 = agarwal.pressure_integrand(u,1e8,1e5,0)
+    # y2 = agarwal.pressure_integrand(u,1e8,1e5,0)
+    # y2 = agarwal.pressure_lineSource_integrand(u,1e3,10000,0)
+    # y3 = agarwal.pressure_lineSource_integrand(u,1e3,10000,5)
+    # y4 = agarwal.pressure_lineSource_integrand(u,1e3,10000,10)
+    # y5 = agarwal.pressure_lineSource_integrand(u,1e3,10000,20)
 
-    pyplot.loglog(u,y1)
-    pyplot.loglog(u,y1)
-    pyplot.loglog(u,y2)
-    pyplot.loglog(u,y3)
-    pyplot.loglog(u,y4)
-    pyplot.loglog(u,y5)
+    # print(f"{agarwal.pressure(1e8,1e5,0)[0]:8.5f}")
 
-    pyplot.show()
+    # pyplot.loglog(u,y1)
+    # pyplot.loglog(u,y1)
+    # pyplot.loglog(u,y2)
+    # pyplot.loglog(u,y3)
+    # pyplot.loglog(u,y4)
+    # pyplot.loglog(u,y5)
+
+    # pyplot.show()
 
 
 

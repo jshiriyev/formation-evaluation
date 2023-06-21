@@ -2,8 +2,8 @@ import numpy
 
 import matplotlib.pyplot as plt
 
-from borepy.wtest import agarwal1970
-from borepy.wtest import everdingen1949
+from borepy.wtest import agarwal
+from borepy.wtest import everdingen
 from borepy.wtest import finite
 
 from borepy.scomp.finite import derive
@@ -11,10 +11,10 @@ from borepy.scomp.finite import derive
 tD = numpy.logspace(2,7,2000)
 CD = 1000
 
-pwD = agarwal1970.pressure(tD,CD,0)
+pwD = agarwal.pressure(tD,CD,0)
 pwDD = derive(pwD,tD)*tD
 
-pwD_800 = everdingen1949.pressure_bounded(tD=tD,R=800,numterms=10)
+pwD_800 = everdingen.pressure_bounded(tD=tD,R=800,numterms=10)
 pwDD_800 = derive(pwD_800,tD)*tD
 
 sol = finite()
