@@ -26,7 +26,7 @@ class dimless():
         
         self.k = res.permeability
         self.phi = res.porosity
-        self.h = res.thickness
+        self.h = res.width
         self.cr = res.compressibility
 
         self.muo = oil.viscosity
@@ -450,9 +450,11 @@ class agarwal():
 
 class finite():
 
-    def __init__(self,r=1,alpha=1,nimpaired=None,nunharmed=None):
+    def __init__(self,R,rskin=1,alpha=1,nimpaired=None,nunharmed=None):
         """
-        r         : radius of impaired zone
+        R         : reservoir radius
+
+        rskin     : radius of impaired zone
 
         alpha     : permeability reduction in the impaired zone,
                     k_impaired/k_unharmed
@@ -461,48 +463,63 @@ class finite():
         nunharmed : number of grids in the unharmed zone
         """
 
-        self.r = r
+        self.R = R
 
+        self.rskin = rskin
         self.alpha = alpha
 
         self.nimpaired = nimpaired
         self.nunharmed = nunharmed
 
-    def pressure(self,tD,CD=0,R=None):
+        self.nodes = self.spacing()
+
+    def pressure(self,tD,CD=0):
         """
         tD        : times to calculate well pressure
         CD        : dimensionless storage
-        R         : reservoir radius
         """
-
-        nodes = finite.spacing(R,self.r,self.nimpaired,self.nunharmed)
         
-        radii = finite.radii(nodes)
+        #static part of transmissibility
+        gradii = self.gradii(self.nodes)
+        gwidth = self.gwidth(self.nodes)
+        galpha = self.galpha(self.nodes,self.rskin,self.alpha)
 
-        thickness = finite.thickness(radii)
+        theta_inner,theta_outer = self.thetas(self.nodes,galpha)
 
-        timestep = tD[1:]-tD[:-1]
+        #creating time steps
+        timesteps = tD[1:]-tD[:-1]
+        timesteps = numpy.insert(timesteps,0,timesteps[0])
 
-        timestep = numpy.insert(timestep,0,timestep[0])
+        #initialization of pressure arrays
+        press = numpy.zeros(gradii.shape)
+        pwell = numpy.zeros(timesteps.size+1)
 
-        pform = numpy.zeros(radii.shape)
+        N,indices = self.size,self.indices
 
-        pwell = numpy.zeros(timestep.size+1)
+        for index,timestep in enumerate(timesteps,start=1):
 
-        for index,dt in enumerate(timestep,start=1):
+            ThetaL = theta_inner*timestep
+            ThetaR = theta_outer*timestep
+            ThetaC = 1+ThetaL+ThetaR
 
-            Tmat,Tl0 = finite.transmat(self.alpha,dt,thickness,radii,CD)
+            beta1,beta2 = self.betas(self.nodes,galpha,timestep,CD,pwell[index-1])
 
-            beta1 = finite.beta1(self.alpha,dt,thickness,CD,pwell[index-1])
-            beta2 = finite.beta2(self.alpha,dt,thickness,CD)
+            ThetaC[0] = 1+theta_outer[0]*timestep*(1+beta2) # inner boundary correction
+            ThetaC[-1] = 1+theta_inner[-1]*timestep # outer boundary correction
 
-            pform[0] -= beta1*Tl0
+            Tmat = csr((N,N))
+            
+            Tmat += csr((ThetaC,(indices,indices)),shape=(N,N))
+            Tmat += csr((-ThetaL[1:],(indices[1:],indices[:-1])),shape=(N,N))
+            Tmat += csr((-ThetaR[:-1],(indices[:-1],indices[1:])),shape=(N,N))
 
-            pform = sps(Tmat,pform)
+            press[0] += theta_inner[0]*timestep*beta1
 
-            pimag = beta1+beta2*pform[0]
+            press = sps(Tmat,press)
 
-            pwell[index] = (pimag+pform[0])/2
+            pimag = beta1+(1-beta2)*press[0]
+
+            pwell[index] = (pimag+press[0])/2
 
         return pwell[1:]
 
@@ -510,50 +527,12 @@ class finite():
 
         pass
 
-    @staticmethod
-    def transmat(alpha,timestep,thickness,radii,CD):
+    def spacing(self):
 
-        theta = nodes*nalpha/thickness
+        R,r = self.R,self.rskin
 
-        thetaL = 1
-        thetaR = 1
-
-        Tl = finite.thetaL(alpha,timestep,thickness,radii)
-        Tc = finite.thetaC(alpha,timestep,thickness)
-        Tr = finite.thetaR(alpha,timestep,thickness,radii)
-
-        N = thickness.size-1
-
-        indices = numpy.arange(N)
-
-        Tmat = csr((N,N))
-
-        Tc[0] += finite.beta2(alpha,timestep,thickness,CD)*Tl[0] # inner boundary correction
-
-        Tc[-1] += Tr[-1] # outer boundary correction
-
-        Tmat += csr((Tc,(indices,indices)),shape=(N,N))
-        Tmat += csr((Tl[1:],(indices[1:],indices[:-1])),shape=(N,N))
-        Tmat += csr((Tr[:-1],(indices[:-1],indices[1:])),shape=(N,N))
-
-        return Tmat,Tl[0]
-
-    @property
-    def skin(self):
-
-        return (1/self.alpha-1)*numpy.log(self.r)
-
-    @staticmethod
-    def spacing(R,r=1,nimpaired=None,nunharmed=None):
-        """
-        Impaired zone is linearly spaced, and unharmed zone is log-spaced.
-
-        R         : reservoir radius
-        r         : radius of impaired zone
-
-        nimpaired : number of grids in the impaired zone
-        nunharmed : number of grids in the unharmed zone
-        """
+        nimpaired = self.nimpaired
+        nunharmed = self.nunharmed
 
         if nimpaired is None:
             nimpaired = int(numpy.ceil(r-1).tolist())
@@ -574,39 +553,89 @@ class finite():
 
         return numpy.append(impaired,unharmed[1:])
 
+    @property
+    def skin(self):
+
+        return (1/self.alpha-1)*numpy.log(self.rskin)
+
+    @property
+    def size(self):
+
+        return self.nodes.size-1
+
+    @property
+    def indices(self):
+
+        return numpy.arange(self.size)
+    
     @staticmethod
-    def radii(nodes):
+    def gradii(nodes):
         
         return (nodes[1:]+nodes[:-1])/2
 
     @staticmethod
-    def thickness(nodes):
+    def gwidth(nodes):
 
         return (nodes[1:]-nodes[:-1])
 
     @staticmethod
-    def nalpha(alpha,nodes,radii):
+    def nwidth(width):
 
-        alpha = numpy.insert(alpha,0,alpha[0])
-        alpha = alpha.append(alpha[-1])
+        width = numpy.insert(width,0,width[0])
+        width = numpy.append(width,width[-1])
 
-        radii = numpy.insert(radii,0,radii[0])
-        radii = radii.append(radii[-1])
+        return (width[1:]+width[:-1])/2
 
-        radrad = numpy.log(radii[1:]/radii[:-1])
-        nodrad = numpy.log(nodes/radii[:-1])/alpha[:-1]
-        radnod = numpy.log(radii[1:]/nodes)/alpha[1:]
+    @staticmethod
+    def galpha(nodes,rskin,alpha):
+
+        array = numpy.ones(nodes.size-1)
+
+        array[:(nodes<=rskin).sum()] = alpha
+
+        return array
+
+    @staticmethod
+    def nalpha(nodes,galpha):
+
+        gradii = finite.gradii(nodes)
+
+        galpha = numpy.insert(galpha,0,galpha[0])
+        galpha = numpy.append(galpha,galpha[-1])
+
+        gradii = numpy.insert(gradii,0,gradii[0])
+        gradii = numpy.append(gradii,gradii[-1])
+
+        radrad = numpy.log(gradii[1:]/gradii[:-1])
+        nodrad = numpy.log(nodes/gradii[:-1])/galpha[:-1]
+        radnod = numpy.log(gradii[1:]/nodes)/galpha[1:]
 
         return radrad/(nodrad+radnod)
 
     @staticmethod
-    def betas(alpha,timestep,thickness,storage,pwell):
+    def betas(nodes,galpha,timestep,storage,pwell):
 
-        term1 = alpha[0]/thickness[0]
+        term1 = galpha[0]/(nodes[1]-nodes[0])
         term2 = storage/timestep
         term3 = term1+term2/2
 
         return (1+term2*pwell)/term3,term2/term3
+
+    @staticmethod
+    def thetas(nodes,galpha):
+
+        gradii = finite.gradii(nodes)
+        gwidth = finite.gwidth(nodes)
+
+        nwidth = finite.nwidth(gwidth)
+        nalpha = finite.nalpha(nodes,galpha)
+
+        ntheta = nodes*nalpha/nwidth
+
+        thetaL = ntheta[:-1]/gradii/gwidth
+        thetaR = ntheta[1:]/gradii/gwidth
+
+        return thetaL,thetaR
 
 if __name__ == "__main__":
 
