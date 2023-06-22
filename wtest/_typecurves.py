@@ -471,7 +471,11 @@ class finite():
         self.nimpaired = nimpaired
         self.nunharmed = nunharmed
 
-        self.nodes = self.spacing()
+        self.node = self.setnode()
+        self.grid = self.setgrid()
+
+        self.width_grid = self.setwidth()
+        self.alpha_grid = self.setalpha()
 
     def pressure(self,tD,CD=0):
         """
@@ -480,44 +484,40 @@ class finite():
         """
         
         #static part of transmissibility
-        gradii = self.gradii(self.nodes)
-        gwidth = self.gwidth(self.nodes)
-        galpha = self.galpha(self.nodes,self.rskin,self.alpha)
-
-        theta_inner,theta_outer = self.thetas(self.nodes,galpha)
+        beta_inner,beta_outer = self.betas()
 
         #creating time steps
         timesteps = tD[1:]-tD[:-1]
         timesteps = numpy.insert(timesteps,0,timesteps[0])
 
         #initialization of pressure arrays
-        press = numpy.zeros(gradii.shape)
+        press = numpy.zeros(self.size)
         pwell = numpy.zeros(timesteps.size+1)
 
         N,indices = self.size,self.indices
 
         for index,timestep in enumerate(timesteps,start=1):
 
-            ThetaL = theta_inner*timestep
-            ThetaR = theta_outer*timestep
-            ThetaC = 1+ThetaL+ThetaR
+            BetaL = beta_inner*timestep
+            BetaR = beta_outer*timestep
+            BetaC = 1+BetaL+BetaR
 
-            beta1,beta2 = self.betas(self.nodes,galpha,timestep,CD,pwell[index-1])
+            theta1,theta2 = self.thetas(CD,timestep,pwell[index-1])
 
-            ThetaC[0] = 1+theta_outer[0]*timestep*(1+beta2) # inner boundary correction
-            ThetaC[-1] = 1+theta_inner[-1]*timestep # outer boundary correction
+            BetaC[0] = 1+BetaR[0]*(1+theta2) # inner boundary correction
+            BetaC[-1] = 1+BetaL[-1] # outer boundary correction
 
             Tmat = csr((N,N))
             
-            Tmat += csr((ThetaC,(indices,indices)),shape=(N,N))
-            Tmat += csr((-ThetaL[1:],(indices[1:],indices[:-1])),shape=(N,N))
-            Tmat += csr((-ThetaR[:-1],(indices[:-1],indices[1:])),shape=(N,N))
+            Tmat += csr((BetaC,(indices,indices)),shape=(N,N))
+            Tmat += csr((-BetaL[1:],(indices[1:],indices[:-1])),shape=(N,N))
+            Tmat += csr((-BetaR[:-1],(indices[:-1],indices[1:])),shape=(N,N))
 
-            press[0] += theta_inner[0]*timestep*beta1
+            press[0] += BetaL[0]*theta1
 
             press = sps(Tmat,press)
 
-            pimag = beta1+(1-beta2)*press[0]
+            pimag = theta1+(1-theta2)*press[0]
 
             pwell[index] = (pimag+press[0])/2
 
@@ -527,7 +527,7 @@ class finite():
 
         pass
 
-    def spacing(self):
+    def setnode(self):
 
         R,r = self.R,self.rskin
 
@@ -541,10 +541,7 @@ class finite():
                 nimpaired = max(nimpaired,50)
 
         if nunharmed is None:
-            nunharmed = int(numpy.ceil(R/r).tolist())
-
-            if nunharmed != 1:
-                nunharmed = max(nunharmed,50)
+            nunharmed = 50
 
         outer = numpy.log10((r,R))
 
@@ -552,6 +549,72 @@ class finite():
         unharmed = numpy.logspace(*outer,nunharmed+1)
 
         return numpy.append(impaired,unharmed[1:])
+
+    def setgrid(self):
+        
+        return (self.node[1:]+self.node[:-1])/2
+
+    def setwidth(self):
+
+        return (self.node[1:]-self.node[:-1])
+
+    def setalpha(self):
+
+        array = numpy.ones(self.size)
+
+        border = (self.node<self.rskin).sum()
+
+        array[:border] = self.alpha
+
+        return array
+
+    def betas(self):
+
+        nwidth = self.nodewidth()
+        nalpha = self.nodealpha()
+
+        nbeta = self.node*nalpha/nwidth
+
+        betaL = nbeta[:-1]/self.grid/self.width_grid
+        betaR = nbeta[1:]/self.grid/self.width_grid
+
+        return betaL,betaR
+
+    def thetas(self,storage,timestep,pwell):
+
+        term1 = self.alpha_grid[0]/self.width_grid[0]
+        term2 = storage/timestep
+
+        term3 = term1+term2/2
+
+        return (1+term2*pwell)/term3,term2/term3
+
+    def nodewidth(self):
+
+        gwidth = self.width_grid
+
+        gwidth = numpy.insert(gwidth,0,gwidth[0])
+        gwidth = numpy.append(gwidth,gwidth[-1])
+
+        return (gwidth[1:]+gwidth[:-1])/2
+
+    def nodealpha(self):
+
+        center = self.grid
+
+        center = numpy.insert(center,0,center[0]-self.width_grid[0])
+        center = numpy.append(center,center[-1]+self.width_grid[-1])
+
+        galpha = self.alpha_grid
+
+        galpha = numpy.insert(galpha,0,galpha[0])
+        galpha = numpy.append(galpha,galpha[-1])
+
+        radrad = numpy.log(center[1:]/center[:-1])
+        nodrad = numpy.log(self.node/center[:-1])/galpha[:-1]
+        radnod = numpy.log(center[1:]/self.node)/galpha[1:]
+
+        return radrad/(nodrad+radnod)
 
     @property
     def skin(self):
@@ -561,85 +624,16 @@ class finite():
     @property
     def size(self):
 
-        return self.nodes.size-1
+        return self.node.size-1
 
     @property
     def indices(self):
 
         return numpy.arange(self.size)
-    
-    @staticmethod
-    def gradii(nodes):
-        
-        return (nodes[1:]+nodes[:-1])/2
-
-    @staticmethod
-    def gwidth(nodes):
-
-        return (nodes[1:]-nodes[:-1])
-
-    @staticmethod
-    def nwidth(width):
-
-        width = numpy.insert(width,0,width[0])
-        width = numpy.append(width,width[-1])
-
-        return (width[1:]+width[:-1])/2
-
-    @staticmethod
-    def galpha(nodes,rskin,alpha):
-
-        array = numpy.ones(nodes.size-1)
-
-        array[:(nodes<=rskin).sum()] = alpha
-
-        return array
-
-    @staticmethod
-    def nalpha(nodes,galpha):
-
-        gradii = finite.gradii(nodes)
-
-        galpha = numpy.insert(galpha,0,galpha[0])
-        galpha = numpy.append(galpha,galpha[-1])
-
-        gradii = numpy.insert(gradii,0,gradii[0])
-        gradii = numpy.append(gradii,gradii[-1])
-
-        radrad = numpy.log(gradii[1:]/gradii[:-1])
-        nodrad = numpy.log(nodes/gradii[:-1])/galpha[:-1]
-        radnod = numpy.log(gradii[1:]/nodes)/galpha[1:]
-
-        return radrad/(nodrad+radnod)
-
-    @staticmethod
-    def betas(nodes,galpha,timestep,storage,pwell):
-
-        term1 = galpha[0]/(nodes[1]-nodes[0])
-        term2 = storage/timestep
-        term3 = term1+term2/2
-
-        return (1+term2*pwell)/term3,term2/term3
-
-    @staticmethod
-    def thetas(nodes,galpha):
-
-        gradii = finite.gradii(nodes)
-        gwidth = finite.gwidth(nodes)
-
-        nwidth = finite.nwidth(gwidth)
-        nalpha = finite.nalpha(nodes,galpha)
-
-        ntheta = nodes*nalpha/nwidth
-
-        thetaL = ntheta[:-1]/gradii/gwidth
-        thetaR = ntheta[1:]/gradii/gwidth
-
-        return thetaL,thetaR
 
 if __name__ == "__main__":
 
-    print(finite.spacing(10,r=2.5))
+    print(finite.setnode(10,r=2.5))
 
     # tD = 1e-2
 

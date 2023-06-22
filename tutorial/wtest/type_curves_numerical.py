@@ -17,11 +17,11 @@ pwDD = derive(pwD,tD)*tD
 pwD_800 = everdingen.pressure_bounded(tD=tD,R=800,numterms=10)
 pwDD_800 = derive(pwD_800,tD)*tD
 
-sol = finite(800)
+sol = finite(800,nunharmed=200)
 
 tD2 = numpy.logspace(0,7,2000)
 
-pwD_800num = sol.pressure(tD2,CD)
+pwD_800num = sol.pressure(tD2,0)
 pwDD_800num = derive(pwD_800num,tD2)*tD2
 
 # print(sol.nodes)
@@ -39,7 +39,7 @@ line3 = plt.loglog(tD/CD,pwD_800,label="R = 800, CD = 0")[0]
 plt.loglog(tD/CD,pwDD_800,color=line3.get_color())
 
 line2 = plt.loglog(tD2[500:]/CD,pwD_800num[500:],color='k',label="Finite Difference")[0]
-# plt.loglog(tD2[500:]/CD,pwDD_800num[500:],color=line2.get_color())
+plt.loglog(tD2[500:]/CD,pwDD_800num[500:],color=line2.get_color())
 
 plt.xlabel("${t_D/C_D}$")
 
