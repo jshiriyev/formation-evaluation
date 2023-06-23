@@ -8,6 +8,9 @@ from borepy.wtest import finite
 
 from borepy.scomp.finite import derive
 
+# print(finite.gridinner(4.48,5,5/4))
+# print(finite.gridouter(4.48,4,5/4))
+
 tD = numpy.logspace(2,7,2000)
 CD = 1000
 
@@ -17,7 +20,17 @@ pwDD = derive(pwD,tD)*tD
 pwD_800 = everdingen.pressure_bounded(tD=tD,R=800,numterms=10)
 pwDD_800 = derive(pwD_800,tD)*tD
 
-sol = finite(800,nunharmed=200)
+sol = finite(800)
+
+print(sol.radii_grid)
+
+# print(sol.nimpaired)
+
+# print(sol.radii_grid)
+
+# plt.scatter(sol.radii_grid,numpy.zeros(sol.radii_grid.shape))
+
+# plt.show()
 
 tD2 = numpy.logspace(0,7,2000)
 

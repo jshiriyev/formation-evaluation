@@ -450,7 +450,7 @@ class agarwal():
 
 class finite():
 
-    def __init__(self,R,rskin=1,alpha=1,nimpaired=None,nunharmed=None):
+    def __init__(self,R,rskin=1,alpha=1,nimpaired=None,nunharmed=50):
         """
         R         : reservoir radius
 
@@ -471,8 +471,8 @@ class finite():
         self.nimpaired = nimpaired
         self.nunharmed = nunharmed
 
-        self.node = self.setnode()
-        self.grid = self.setgrid()
+        self.radii_grid = self.setradii()
+        self.radii_node = self.setnodes()
 
         self.width_grid = self.setwidth()
         self.alpha_grid = self.setalpha()
@@ -527,8 +527,8 @@ class finite():
 
         pass
 
-    def setnode(self):
-
+    def setradii(self):
+        
         R,r = self.R,self.rskin
 
         nimpaired = self.nimpaired
@@ -540,29 +540,47 @@ class finite():
             if nimpaired != 0:
                 nimpaired = max(nimpaired,50)
 
-        if nunharmed is None:
-            nunharmed = 50
+        nunharmed = self.loggridnum(r,R,nunharmed)
 
-        outer = numpy.log10((r,R))
+        self.nimpaired = nimpaired
+        self.nunharmed = nunharmed
 
-        impaired = numpy.linspace(*(1,r),nimpaired+1)
-        unharmed = numpy.logspace(*outer,nunharmed+1)
+        unharmed = self.loggrid(r,R,nunharmed)
 
-        return numpy.append(impaired,unharmed[1:])
+        if nimpaired==0:
+            return unharmed
 
-    def setgrid(self):
-        
-        return (self.node[1:]+self.node[:-1])/2
+        r1,ratio = self.transition(r,R,nunharmed)
+
+        deltar = (r1/ratio-1)/(nimpaired+1/2)
+
+        impaired = numpy.linspace(1+deltar/2,r1/ratio,nimpaired+1)
+
+        return numpy.append(impaired,unharmed)
+
+    def setnodes(self):
+
+        gradii = self.radii_grid
+
+        nwidth = (gradii[1:]-gradii[:-1])
+        nratio = numpy.log(gradii[1:]/gradii[:-1])
+
+        nradii = nwidth/nratio
+
+        nradii = numpy.insert(nradii,0,1)
+        nradii = numpy.append(nradii,self.R)
+
+        return nradii
 
     def setwidth(self):
 
-        return (self.node[1:]-self.node[:-1])
+        return (self.radii_node[1:]-self.radii_node[:-1])
 
     def setalpha(self):
 
         array = numpy.ones(self.size)
 
-        border = (self.node<self.rskin).sum()
+        border = (self.radii_node<self.rskin).sum()
 
         array[:border] = self.alpha
 
@@ -573,10 +591,10 @@ class finite():
         nwidth = self.nodewidth()
         nalpha = self.nodealpha()
 
-        nbeta = self.node*nalpha/nwidth
+        nbeta = self.radii_node*nalpha/nwidth
 
-        betaL = nbeta[:-1]/self.grid/self.width_grid
-        betaR = nbeta[1:]/self.grid/self.width_grid
+        betaL = nbeta[:-1]/self.radii_grid/self.width_grid
+        betaR = nbeta[1:]/self.radii_grid/self.width_grid
 
         return betaL,betaR
 
@@ -591,7 +609,18 @@ class finite():
 
     def nodewidth(self):
 
+        # r0,r1 = self.radii_grid[:2]
+
+        # ratio = r1/r0
+
+        # rm1 = r0/ratio
+        # rm2 = rm1/ratio
+
+        # node = (rm1-rm2)/numpy.log(ratio)
+
         gwidth = self.width_grid
+
+        # print(node)
 
         gwidth = numpy.insert(gwidth,0,gwidth[0])
         gwidth = numpy.append(gwidth,gwidth[-1])
@@ -600,7 +629,7 @@ class finite():
 
     def nodealpha(self):
 
-        center = self.grid
+        center = self.radii_grid
 
         center = numpy.insert(center,0,center[0]-self.width_grid[0])
         center = numpy.append(center,center[-1]+self.width_grid[-1])
@@ -611,8 +640,8 @@ class finite():
         galpha = numpy.append(galpha,galpha[-1])
 
         radrad = numpy.log(center[1:]/center[:-1])
-        nodrad = numpy.log(self.node/center[:-1])/galpha[:-1]
-        radnod = numpy.log(center[1:]/self.node)/galpha[1:]
+        nodrad = numpy.log(self.radii_node/center[:-1])/galpha[:-1]
+        radnod = numpy.log(center[1:]/self.radii_node)/galpha[1:]
 
         return radrad/(nodrad+radnod)
 
@@ -624,16 +653,72 @@ class finite():
     @property
     def size(self):
 
-        return self.node.size-1
+        return self.radii_grid.size
 
     @property
     def indices(self):
 
         return numpy.arange(self.size)
 
+    @staticmethod
+    def lingrid(start,stop,number=10):
+
+        deltar = (stop-start)/(number-1/2)
+
+        center = start+deltar/2
+
+        return numpy.linspace(center,stop,number)
+
+    @staticmethod
+    def transition(start,stop,number):
+
+        gamma = (stop/start)**(1/number)
+
+        r1 = start*numpy.log(gamma)/(1-1/gamma)
+
+        return r1,gamma
+
+    @staticmethod
+    def loggridnum(start,stop,number):
+
+        if start==1:
+            return number
+
+        term1 = numpy.log(stop/start)
+        term2 = numpy.log(3-2/start)
+
+        N = numpy.ceil(term1/term2).tolist()
+
+        if int(N)>number:
+            return int(N)
+
+        return number
+
+    @staticmethod
+    def loggrid(start,stop,number=50):
+
+        centers = numpy.zeros(number)
+
+        centers[0],ratio = finite.transition(start,stop,number)
+
+        for i in range(number-1):
+            centers[i+1] = centers[i]*ratio
+
+        return centers
+
+    @staticmethod
+    def gridinner(node,grid,ratio):
+
+        return grid-node*numpy.log(ratio)
+
+    @staticmethod
+    def gridouter(node,grid,ratio):
+
+        return grid+node*numpy.log(ratio)
+
 if __name__ == "__main__":
 
-    print(finite.setnode(10,r=2.5))
+    print(finite.setnodes(10,r=2.5))
 
     # tD = 1e-2
 
