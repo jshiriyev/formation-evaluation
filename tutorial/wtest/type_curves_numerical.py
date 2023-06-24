@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 from borepy.wtest import agarwal
 from borepy.wtest import everdingen
-from borepy.wtest import finite
+from borepy.wtest import finite2 as finite
 
 from borepy.scomp.finite import derive
 
@@ -20,9 +20,9 @@ pwDD = derive(pwD,tD)*tD
 pwD_800 = everdingen.pressure_bounded(tD=tD,R=800,numterms=10)
 pwDD_800 = derive(pwD_800,tD)*tD
 
-sol = finite(800)
+sol = finite(1,800)
 
-print(sol.radii_grid)
+# print(sol.radii_grid)
 
 # print(sol.nimpaired)
 
