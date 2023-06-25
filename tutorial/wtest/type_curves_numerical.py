@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 from borepy.wtest import agarwal
 from borepy.wtest import everdingen
-from borepy.wtest import finite2 as finite
+from borepy.wtest import finite
 
 from borepy.scomp.finite import derive
 
@@ -20,30 +20,13 @@ pwDD = derive(pwD,tD)*tD
 pwD_800 = everdingen.pressure_bounded(tD=tD,R=800,numterms=10)
 pwDD_800 = derive(pwD_800,tD)*tD
 
-sol = finite(1,800)
-
-# print(sol.radii_grid)
-
-# print(sol.nimpaired)
-
-# print(sol.radii_grid)
-
-# plt.scatter(sol.radii_grid,numpy.zeros(sol.radii_grid.shape))
-
-# plt.show()
+sol = finite(800,10,0.3)
+print(sol.skin)
 
 tD2 = numpy.logspace(0,7,2000)
 
-pwD_800num = sol.pressure(tD2,0)
+pwD_800num = sol.pressure(tD2,CD)
 pwDD_800num = derive(pwD_800num,tD2)*tD2
-
-# print(sol.nodes)
-# print(sol.radii)
-# print(sol.deltar)
-# print(sol.skin)
-
-# for key,value in sol.transvec.items():
-# 	print(key,value)
 
 line1 = plt.loglog(tD/CD,pwD,label="R -> inf, CD = 1000")[0]
 plt.loglog(tD/CD,pwDD,color=line1.get_color())

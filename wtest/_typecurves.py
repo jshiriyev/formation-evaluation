@@ -474,16 +474,18 @@ class finite():
         self.radii_grid = self.setradii()
         self.radii_node = self.setnodes()
 
-        self.alpha_grid = self.setalpha()
+        self.alpha_grid = self.gridalpha()
+        self.alpha_node = self.nodealpha()
+
+        self.betaL,self.betaR = self.betas()
+
+        self.delta1,self.delta2 = self.deltas()
 
     def pressure(self,tD,CD=0):
         """
         tD        : times to calculate well pressure
         CD        : dimensionless storage
         """
-        
-        #static part of transmissibility
-        beta_inner,beta_outer = self.betas()
 
         #creating time steps
         timesteps = tD[1:]-tD[:-1]
@@ -497,28 +499,28 @@ class finite():
 
         for index,timestep in enumerate(timesteps,start=1):
 
-            BetaL = beta_inner*timestep
-            BetaR = beta_outer*timestep
-            BetaC = 1+BetaL+BetaR
+            betaC = self.betaL+self.betaR+1/timestep
 
             theta1,theta2 = self.thetas(CD,timestep,pwell[index-1])
 
-            BetaC[0] = 1+BetaR[0] # inner boundary correction
-            BetaC[-1] = 1+BetaL[-1] # outer boundary correction
+            betaC[0] -= theta2*self.betaL[0] # inner boundary correction
+            betaC[-1] -= self.betaR[-1] # outer boundary correction
 
             Tmat = csr((N,N))
             
-            Tmat += csr((BetaC,(indices,indices)),shape=(N,N))
-            Tmat += csr((-BetaL[1:],(indices[1:],indices[:-1])),shape=(N,N))
-            Tmat += csr((-BetaR[:-1],(indices[:-1],indices[1:])),shape=(N,N))
+            Tmat += csr((betaC,(indices,indices)),shape=(N,N))
+            Tmat += csr((-self.betaL[1:],(indices[1:],indices[:-1])),shape=(N,N))
+            Tmat += csr((-self.betaR[:-1],(indices[:-1],indices[1:])),shape=(N,N))
 
-            press[0] += theta1
+            boundary = press/timestep
 
-            press = sps(Tmat,press)
+            boundary[0] += self.betaL[0]*theta1
 
-            # pimag = theta1+(1-theta2)*press[0]
+            press = sps(Tmat,boundary)
 
-            pwell[index] = press[0]
+            pimag = theta1+theta2*press[0]
+
+            pwell[index] = self.delta1*press[0]+self.delta2*pimag
 
         return pwell[1:]
 
@@ -549,7 +551,7 @@ class finite():
 
         return self.logmean(self.radii_grid)
 
-    def setalpha(self):
+    def gridalpha(self):
 
         array = numpy.ones(self.radii_grid.size)
 
@@ -557,39 +559,47 @@ class finite():
 
         return array
 
+    def nodealpha(self):
+
+        radrad = numpy.log(self.radii_grid[1:]/self.radii_grid[:-1])
+        nodrad = numpy.log(self.radii_node/self.radii_grid[:-1])/self.alpha_grid[:-1]
+        radnod = numpy.log(self.radii_grid[1:]/self.radii_node)/self.alpha_grid[1:]
+
+        return radrad/(nodrad+radnod)
+
     def betas(self):
 
-        nwidth = self.nodewidth()
-        nalpha = self.nodealpha()
+        nwidth = self.width(self.radii_grid)
+        gwidth = self.width(self.radii_node)
 
-        nbeta = self.radii_node*nalpha/nwidth
+        nbeta = self.alpha_node*self.radii_node/nwidth
 
-        betaL = nbeta[:-1]/self.radii_grid/self.width_grid
-        betaR = nbeta[1:]/self.radii_grid/self.width_grid
+        betaL = nbeta[:-1]/self.radii_grid[1:-1]/gwidth
+        betaR = nbeta[1:]/self.radii_grid[1:-1]/gwidth
 
         return betaL,betaR
 
+    def deltas(self):
+
+        nwidth = self.radii_grid[1]-self.radii_grid[0]
+
+        delta1 = (1-self.radii_grid[0])/nwidth
+        delta2 = (self.radii_grid[1]-1)/nwidth
+
+        return delta1,delta2
+
     def thetas(self,storage,timestep,pwell):
 
-        term1 = self.alpha_grid[0]/self.width_grid[0]
-        term2 = storage/timestep
+        term1 = storage/timestep
 
-        term3 = term1+term2/2
+        gwidth = self.radii_node[1]-self.radii_node[0]
 
-        return timestep/(self.width_grid[0]*self.radii_grid[0]),term2/term3
+        term2 = self.betaL[0]*self.radii_grid[1]*gwidth
 
-    def nodealpha(self):
+        theta1 = (1+term1*pwell)/(term2+term1*self.delta2)
+        theta2 = (term2-term1*self.delta1)/(term2+term1*self.delta2)
 
-        center = self.radii_grid
-        galpha = self.alpha_grid
-
-        node = self.radii_node
-
-        radrad = numpy.log(center[1:]/center[:-1])
-        nodrad = numpy.log(node/center[:-1])/galpha[:-1]
-        radnod = numpy.log(center[1:]/node)/galpha[1:]
-
-        return radrad/(nodrad+radnod)
+        return theta1,theta2
 
     @property
     def skin(self):
