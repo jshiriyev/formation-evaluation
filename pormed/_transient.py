@@ -1,10 +1,8 @@
-import matplotlib.pyplot as plt
-
 import numpy as np
 
-from scipy.sparse import csr_matrix as csr
+from scipy.special import expi
 
-class SinglePhaseLinear():
+class Linear():
 
     def __init__(self,length:float,pinit:float):
         """
@@ -167,173 +165,92 @@ class SinglePhaseLinear():
 
         return psum*4/np.pi
 
-class MiscibleDisplacement():
+class Radial():
 
-    def obj(XX,v,L):
+    # Line source solution based on exponential integral
 
-        data = np.loadtxt('Lecture_08_dispersion.txt',skiprows=1)
+    def __init__(self,flow_rate):
 
-        time = data[:,0]*3600   # seconds
+        super().__init__(flow_rate)
 
-        cc0_c = concentration(XX,v,L,time)
+    def set_tmin(self):
 
-        cc0 = data[:,1]         # dimensionless
+        # setting mimimum time limit because of the wellbore size
 
-        return np.sum((cc0-cc0_c)**2)
+        self.tmin = 100*self.Well.radii[0]**2/self.diffusivity
 
-    def concentration(XX,v,L,time):
+        return self.tmin
 
-        DL = 10**(-XX)
+    def set_tmax(self,tmax=None):
 
-        term1 = erfc((L-v*time)/(2*np.sqrt(DL*time)))
-        term2 = erfc((L+v*time)/(2*np.sqrt(DL*time)))
+        # setting maximum time limit because of the external flow radius
+        # if the tmax is provided, new external radius will be calculated 
 
-        if not np.any(term2):
-            return 1/2*(term1)
+        if tmax is None:
+            tmax = 0.25*self.PorRock.radii[0]**2/self.diffusivity
         else:
-            term3 = np.exp(v*L/DL)
-            return 1/2*(term1+term2*term3)
+            tmax_radius = float(np.sqrt(tmax*self.diffusivity/0.25))
+            self.PorRock.set_radii(tmax_radius)
 
-class BuckleyLeverett():
-    
-    """
-    based on Buckley-Leverett solution
-    """
+        self.tmax = tmax
 
-    def __init__(self,Sor,Swr,muo,muw):
+        return self.tmax
 
-        self.Sor = Sor
-        self.Swr = Swr
-        self.muo = muo
-        self.muw = muw
+    def set_times(self,times=None,timespace="linear"):
 
-    def k_model(self):
+        if not hasattr(self,"tmin"):
+            self.set_tmin()
 
-        N = 1000
+        if not hasattr(self,"tmax"):
+            self.set_tmax()
 
-        self.Sw = np.linspace(self.Swr,1-self.Sor,N)
+        if times is None:
+            if timespace=="linear":
+                times = np.linspace(self.tmin,self.tmax,1000)
+            elif timespace=="log":
+                times = np.logspace(np.log10(self.tmin),np.log10(self.tmax),1000)
+        else:
+            bound_int = times>=self.tmin
+            bound_ext = times<=self.tmax
 
-        self.kro = 2*(1-self.Sw-self.Sor)**2
-        self.krw = (self.Sw-self.Swr)**3
+            if np.any(~bound_int):
+                raise Warning("Not all times satisfy the early time limits!")
 
-    def coreymodel(self,koro,korw,m,n):
+            if np.any(~bound_ext):
+                raise Warning("Not all times satisfy the late time limits!")
 
-        N = 1000
+            validtimes = np.logical_and(bound_int,bound_ext)
 
-        self.Sw = np.linspace(self.Swr,1-self.Sor,N)
+            times = times[validtimes]
 
-        S = (self.Sw-self.Swr)/(1-self.Swr-self.Sor)
+        self.times = times.reshape((1,-1))
 
-        self.kro = koro*(1-S)**m
-        self.krw = korw*S**n
+    def set_observers(self,observers=None,number=50):
 
-        ## end-point mobility ratio calculation
-        self.Mo = (korw/self.muw)/(koro/self.muo)
+        if observers is not None:
+            self.observers = observers
+        else:
+            inner = self.Well.radii[0]
+            if self.shape == "circular":
+                outer = self.PorRock.radii[0]
+            elif self.shape == "square":
+                outer = self.PorRock.lengths[0]
+            self.observers = np.linspace(inner,outer,number)
 
-    def fractionalflow(self):
+        self.observers = self.observers.reshape((-1,1))
 
-        self.fw = (self.krw*self.muo)/(self.krw*self.muo+self.kro*self.muw)
-        
-        N = self.fw.size
+    def solve(self):
 
-        one = np.ones(N-1)
+        if not hasattr(self,"times"):
+            self.set_times()
 
-        idx = np.array(list(range(N)))
+        rateNumer = self.Well.limits*self.Fluids.viscosity[0]
+        rateDenom = self.PorRock.permeability*self.PorRock.thickness
 
-        row = np.concatenate(((idx[0],idx[-1]),idx[:-1],idx[1:]))
-        col = np.concatenate(((idx[0],idx[-1]),idx[1:],idx[:-1]))
+        constRate = (rateNumer)/(2*np.pi*rateDenom)
 
-        val = np.concatenate(((-1,1),one,-one))
+        Ei = expi(-(self.observers**2)/(4*self.diffusivity*self.times))
 
-        G = csr((val,(row,col)),shape=(N,N))
+        self.deltap = -1/2*constRate*Ei
 
-        fw_diff = G*self.fw
-        Sw_diff = G*self.Sw
-
-        self.fw_der = fw_diff/Sw_diff
-        
-    def shockfront(self,Swi):
-
-        self.Swi = Swi
-
-        IC = self.Sw>=self.Swi
-
-        ## loosing some data in fw, Sw and fw_der for the saturations below the initial value
-        self.fw_IC = self.fw[IC]
-        self.Sw_IC = self.Sw[IC]
-        ## fw_der_IC is the fw_der corrected for the shock front as well
-        self.fw_der_IC = self.fw_der[IC]
-        
-        self.fwi = self.fw_IC[0]
-        
-        idx = np.argmax(self.fw_der_IC)
-
-        fw_dh = self.fw_IC[idx:]
-        Sw_dh = self.Sw_IC[idx:]
-
-        pseudo_fw_der = (fw_dh-self.fwi)/(Sw_dh-self.Swi)
-
-        self.fwf = fw_dh[np.argmin(np.abs(self.fw_der_IC[idx:]-pseudo_fw_der))]
-        self.Swf = Sw_dh[np.argmin(np.abs(self.fw_der_IC[idx:]-pseudo_fw_der))]
-
-        self.Sw_avg = self.Swi+(1-self.fwi)/(self.fwf-self.fwi)*(self.Swf-self.Swi)
-
-        fw_der_corrected = np.empty_like(self.fw_der_IC)
-
-        fw_der_corrected[self.Sw_IC>=self.Swf] = self.fw_der_IC[self.Sw_IC>=self.Swf]
-        fw_der_corrected[self.Sw_IC<self.Swf] = self.fw_der_IC[self.Sw_IC==self.Swf]
-
-        self.fw_der_IC = fw_der_corrected
-
-        self.fwf_der = self.fw_der_IC[0]
-
-    def production(self,q,A,L,phi):
-
-        """
-        given that L is "ft", A is "ft2", and q is "ft3/day", tp will be in days.
-        phi is porosity and is a dimensionless value.
-        calculated volumes are normalized with respect to pore volume Vp,
-        both produced oil Np and injected water Wi
-        """
-
-        v = q/(phi*A)
-
-        self.v = v
-
-        self.Vp = A*L*phi
-        
-        self.tbt = L/(v*self.fwf_der)
-
-        self.Nbt = v/L*(1-self.fwi)*self.tbt
-
-        self.tp = L/(v*self.fw_der_IC)
-        self.Np = (1-self.fw_IC)/(self.fw_der_IC)+self.Sw_IC-self.Swi
-
-        idx = self.tp<=self.tbt
-
-        N = np.count_nonzero(idx)
-
-        self.tp[idx] = np.linspace(0,self.tbt,N)
-        self.Np[idx] = v/L*(1-self.fwi)*self.tp[idx]
-        
-        self.Wi = v/L*self.tp
-
-    def profile(self,q,A,phi,t):
-
-        """
-        time is in days assuming that L is "ft", A is "ft2", and q is "ft3/day".
-        phi is porosity and is a dimensionless value.
-        calculated x_Sw for a saturation profile will be in "ft".
-        """
-
-        v = q/(phi*A)        
-
-        self.x_Sw = v*t*self.fw_der_IC
-
-if __name__ == "__main__":
-
-    import unittest
-
-    from flow.pormed.tests import linear
-
-    unittest.main(linear)
+        self.pressure = self.pressure0-self.deltap
