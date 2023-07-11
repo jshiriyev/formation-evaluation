@@ -434,7 +434,7 @@ class RectRectGrid():
 
         return self.delta[:,2]
 
-class Hexahedral():
+class Hexahedron():
 
     def __init__(self,origin=(0,0,0),dimens=(1,1,1),azimuth=0.,dx=10.,dy=10.,dz=1.0,zcorn=None):
         """
