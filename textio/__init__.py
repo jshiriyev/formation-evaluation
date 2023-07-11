@@ -5,6 +5,8 @@ from .directory._browser import Browser
 from ._txtfile import TxtFile, loadtxt
 from ._lasfile import LasFile, loadlas
 
+from ._grdecl import GridFile, loadgrid
+
 from ._xlbook import XlBook, loadxl
 
 from ._schedule import Schedule, loadsched
