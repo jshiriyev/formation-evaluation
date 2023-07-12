@@ -16,6 +16,14 @@ class GridFile(Browser):
 
         self.sections = {}
 
+    def __getattr__(self,key):
+
+        return getattr(self.sections,key)
+
+    def __getitem__(self,key):
+
+        return self.sections[key]
+
 def loadgrid(*args,**kwargs):
     """
     Returns an instance of GridFile. If a filepath is specified, the instance
