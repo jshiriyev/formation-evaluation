@@ -2,59 +2,21 @@
 
 BorePy contains a set of modules used in integrated formation evaluation and reservoir performance monitoring. Test the commitments (python -m unittest discover -v).
 
-SComp \# scientific computing
+**DATA ANALYSIS**
 
-- interpolate: 
-- integrate: Gauss
-- optimize: Root Find, Scalar (Univariate), Local (Multivariate), Global
-- regression: Linear, Correlation
-- mlearn: Linear Regression, Logistic Regression, Decision Tree,
-	K Nearest Neighbour, K means, Support Vector Machine, Principal Component Analysis,
-	Naive Bayes, ANN, Adaboost
+Petrophysics \# Core Analysis and Well Logging Interpretations
 
-TextIO \# Text Input and Output
+- Core Analysis
+- Well log Analysis
 
-- Array: Special, Curve, Frame
-- Datum: Binary, Header, Raster
-- Browser: 
-- TxtFile: 
-- XlBook: 
-- LasFile: 
-- Schedule: 
-- vtk file format
+Production \# Well Diary
 
-DataBase Management
+- Well Test Analysis
+- Decline Curve Analysis
 
-Diary \# Well Diary
+**RESERVOIR MODELING**
 
-- Completion
-- Production
-- TimeView
-- WorkFlow: allocate
-
-PetroPhysics \# Core Analysis and Well Logging Interpretations
-
-- LasBrief
-- LasBatch
-- BulkModel
-- DepthView
-- CorrView
-- WorkFlow
-
-WellTest \#
-
-- WorkFlow
-
-FluidModel \# Reference: Tarek Ahmed chapter 2
-
-- Compositional Fluid Model
-- Modified Black Oil
-- Black Oil
-- Dead Oil
-- Dry Gas
-- Water
-
-GeoModel \# Elements of GeoModel:
+GModel \# Geomodeling and Geostatistical Calculations:
 
 - Items: Slot, Zone, Fault, Fracture, Segment
 - Survey: 
@@ -69,22 +31,26 @@ GeoModel \# Elements of GeoModel:
 - Mesh: line, rectangle, ellipse, cuboid, cylinder, sphere
 - Gstats: heterogeneity, variogram, kriging, simulation
 
-Flow \# Fluid FLow Modeling:
+FModel \# Fluid Modeling Reference: Tarek Ahmed chapter 2
 
-- **Plates:** flow including plates, falling film, parallel plates with stationary plates, parallel plates with one moving plate
-- **Orifice:** flow through orifice, nozzle
-- **Pipes:** one and two phase flow
-- **PorScale:** pore scale flow
-- **PorMed:** OnePhase, TwoPhase, ThreePhase. Reference: Balhoff's book
+- Compositional Fluid Model
+- Modified Black Oil
+- Black Oil
+- Dead Oil
+- Dry Gas
+- Water
 
-GMech \# Geomechanical Modeling:
+PorMed \# Reservoir Simulation:
 
-- **ppest:** Pore Pressure Estimation
+- OnePhase, TwoPhase, ThreePhase Simulators. Reference: Balhoff's book
+
+**BOREHOLE MODELING**
+
+Geomechanical Modeling \# Geomechanical Modeling:
+
 - **wstab:** Wellbore stability
-- **sandprod:** Sand Production
-- **hfprop:** Hydraulic Fracture Propagation
 
-EMW \# Electomagnetic Waves Modeling, conductivity measurements with induction logging tools:
+Electromagnetic Modeling \# Electomagnetic Waves Modeling, conductivity measurements with induction logging tools:
 
 - **AHM:** 2D wellbore conductivity simulation with axial hybrid method
 - **SIE:** 2D plane simulation with surface integral equations
