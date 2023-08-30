@@ -11,7 +11,7 @@ BorePy contains a set of modules used in integrated formation evaluation and res
 
 - GModel \# Geomodeling and Geostatistical Calculations:
 - FModel \# Fluid Modeling Reference: Tarek Ahmed chapter 2
-- MBal \# Material Balance Calculations
+- MatBal \# Material Balance Calculations
 - PorMed \# Reservoir Simulation Reference: Balhoff's book
 
 **BOREHOLE MODELING**
