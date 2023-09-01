@@ -123,3 +123,9 @@ class gammaray():
             return 0.083*(2**(3.7*index)-1)
         elif index is None:
             return numpy.log2(volume/0.083+1)/3.7
+
+class spotential():
+
+    def __init__(self):
+
+        pass

@@ -1,3 +1,9 @@
+class nmr():
+
+    def dollmodel():
+
+        pass
+
 def set_perm(self,PHI,method=None):
 
     PHIE = self[PHI].vals

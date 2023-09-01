@@ -12,3 +12,9 @@ core measurements of CEC and other log measurements (e.g., GR, phiN, phiD). Howe
 means exists to use this method if only well log data are available. Modifications of the Waxman-
 Smits method by Juhász (1979) have made it more directly applicable to measurements from logs.
 """
+
+class waxman():
+
+	def saturation():
+
+		pass

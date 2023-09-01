@@ -100,3 +100,15 @@ class neutron():
         total = 10**((a-curve.vals)/b)
 
         return total
+
+class density():
+
+    def __init__(self):
+
+        pass
+
+class sonic():
+
+    def __init__(self):
+
+        pass

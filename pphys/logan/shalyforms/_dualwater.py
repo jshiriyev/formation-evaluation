@@ -7,3 +7,9 @@ bound water and is free to move in the pores. The model suggests that the amount
 bound water is directly related to the clay content of the formation. Therefore,
 as clay volume increases, the portion of the total porosity occupied by bound water increases.
 """
+
+class dualwater():
+
+	def saturation():
+
+		pass

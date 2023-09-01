@@ -30,4 +30,4 @@ from . import fmodel
 from . import gmodel
 
 from . import pormed
-from . import wstab
+# from . import wstab
