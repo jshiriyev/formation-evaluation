@@ -1,33 +1,26 @@
+import numpy
+
 class neutron():
 
-    def __init__(self,NGL=None,VSH=None):
-        """Initialization of output signals."""
+    def __init__(self,values,depths=None):
+        """Initializes neutron porosity values and depths for porosity calculations.
+        If depths values are provided, they must be the same size as values."""
+        self.values = values
+        self.depths = depths
 
-        self.NGL = NGL
-        self.VSH = VSH
+    def phin(self):
+        return self.values
 
-    def config(self,observer):
-        """Setting tool configuration."""
+    def phincorr(self,phin,vshale,phinsh=0.35):
+        """Calculates shale corrected neutron porosity based on shale volume (vshale) and
+        phinsh (neutron porosity at shale).
+        """
+        phin_corrected = phin-vshale*phinsh
 
-        self.observer = observer  # gamma capture rate or neutron count
+        phin_corrected[phin_corrected>1] = 1
+        phin_corrected[phin_corrected<0] = 0
 
-    def phit(self,*args,**kwargs):
-
-        if self.observer.lower() == "gamma":
-            func = getattr(self,"_gamma_capture_total")
-        elif self.observer.lower() == "neutron":
-            func = getattr(self,"_neutron_count_total")
-
-        return func(*args,**kwargs)
-
-    def phie(self,*args,**kwargs):
-
-        if self.observer.lower() == "gamma":
-            func = getattr(self,"_gamma_capture_effective")
-        elif self.observer.lower() == "neutron":
-            func = getattr(self,"_neutron_count_effective")
-
-        return func(*args,**kwargs)
+        return phin_corrected
 
     def _gamma_capture_total(self,phi_clean,phi_shale,ngl_clean=None,ngl_shale=None):
         """The porosity based on gamma detection:
@@ -103,12 +96,46 @@ class neutron():
 
 class density():
 
-    def __init__(self):
+    def __init__(self,values,depths=None):
+        """Initializes bulk density values and depths for porosity calculations.
+        If depths values are provided, they must be the same size as values."""
+        self.values = values
+        self.depths = depths
 
-        pass
+    def phid(self,rhomat=2.65,rhofluid=1.0):
+        """Calculates porosity based on bulk density, matrix density (rhomat), and fluid density (rhofluid)."""
+        phi_density = (rhomat-self.values)/(rhomat-rhofluid)
+
+        phi_density[phi_density>1] = 1
+        phi_density[phi_density<0] = 0
+
+        return phi_density
+
+    def phidcorr(self,phid,vshale,phidsh=0.1):
+        """Calculates shale corrected density porosity based on shale volume (vshale) and
+        phidsh (density porosity at shale).
+        """
+        phid_corrected = phid-vshale*phidsh
+
+        phid_corrected[phid_corrected>1] = 1
+        phid_corrected[phid_corrected<0] = 0
+
+        return phid_corrected
 
 class sonic():
 
-    def __init__(self):
+    def __init__(self,values,depths):
+        """Initializes sonic transit times and depths for porosity calculations.
+        If depths values are provided, they must be the same size as values."""
+        self.values = values
+        self.depths = depths
 
-        pass
+    def phis(self,dtmat,dtfluid,dtshale=100):
+        """Calculates porosity based on transit times, matrix transit time (dtmat),
+        fluid transit time (dtfluid), and (optional) adjacent shale transit time (dtshale)."""
+        phi_sonic = (self.values-dtmat)/(dtfluid-dtmat)*(100/dtshale)
+
+        phi_sonic[phi_sonic>1] = 1
+        phi_sonic[phi_sonic<0] = 0
+
+        return phi_sonic

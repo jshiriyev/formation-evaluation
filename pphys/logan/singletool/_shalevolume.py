@@ -1,124 +1,97 @@
+import numpy
+
 class gammaray():
 
-    def __init__(self,total,potassium=None,thorium=None,uranium=None):
+    def __init__(self,values,depths=None,grmin=None,grmax=None):
+        """Initializes gamma-ray values and depths for shale volume calculations.
+        If depths values are provided, they must be the same size as values."""
+        self.values = values
+        self.depths = depths
 
-        self.total = total
+        self.grmin = numpy.nanmin(values) if grmin is None else grmin
+        self.grmax = numpy.nanmax(values) if grmax is None else grmax
 
-        if potassium is not None:
-            self.potassium = potassium
+    def value2index(self,value):
+        """Calculates shale index based on the gamma-ray values."""
+        index = (value-self.grmin)/(self.grmax-self.grmin)
 
-        if thorium is not None:
-            self.thorium = thorium
+        index[index>1] = 1
+        index[index<0] = 0
+        
+        return index
 
-        if uranium is not None:
-            self.uranium = utanium
+    def index2value(self,index):
+        """Calculates gamma-ray values based on the shale index."""
+        return index*(self.grmax-self.grmin)+self.grmin
 
-    def config(self):
+    def shalevolume(self,model="linear",factor=None):
+        """Calculates shale volume based on gamma ray values and selected model."""
+        return getattr(self,f"{model}")(self.value2index(self.values),factor=factor)
 
-        pass
+    def cut(self,percent=40,model="linear",factor=None):
+        """Calculates gamma ray values based on the given volume percent and model."""
+        return self.index2value(getattr(self,f"{model}")(None,volume=percent/100,factor=factor))
 
-    def shaleindex(values,grmin=None,grmax=None):
+    def netthickness(self,**kwargs):
+        """Calculates net-thickness where gamma-ray values are less than cut values.
+        Cut values are calculated based on given percent and model."""
 
-        if grmin is None:
-            grmin = numpy.nanmin(values)
+        node_above = numpy.roll(self.depths,1)
+        node_below = numpy.roll(self.depths,-1)
 
-        if grmax is None:
-            grmax = numpy.nanmax(values)
+        thickness = (node_below-node_above)/2
 
-        return (values-grmin)/(grmax-grmin)
+        thickness[0] = (self.depths[1]-self.depths[0])/2
+        thickness[-1] = (self.depths[-1]-self.depths[-2])/2
 
-    def shalevolume(values,model="linear",factor=None,grmin=None,grmax=None):
+        return numpy.sum(thickness[self.values<self.cut(**kwargs)])
 
-        if grmin is None:
-            grmin = numpy.nanmin(values)
+    def netgrossratio(self,**kwargs):
+        """Calculates net-to-gross-ratio based on given percent and model."""
+        return self.netthickness(**kwargs)/self.height
 
-        if grmax is None:
-            grmax = numpy.nanmax(values)
+    @property
+    def height(self):
+        """Calculates the total height of gamma ray logged section."""
+        return max(self.depths)-min(self.depths)
 
-        index = (values-grmin)/(grmax-grmin)
+    @staticmethod
+    def linear(index,volume=None,**kwargs):
+        if volume is None:
+            return index
+        elif index is None:
+            return volume
 
-        if model == "linear":
-            volume = index
-        elif factor is None:
-            volume = getattr(gammaray,f"{model}")(index)
-        else:
-            volume = getattr(gammaray,f"{model}")(index,factor=factor)
-
-        return volume
-
-    def cut(values,percent=40,model="linear",factor=None,grmin=None,grmax=None):
-
-        if model == "linear":
-            index = percent/100
-        elif factor is None:
-            index = getattr(gammaray,f"_{model}")(None,volume=percent/100)
-        else:
-            index = getattr(gammaray,f"_{model}")(None,volume=percent/100,factor=factor)
-
-        if grmin is None:
-            grmin = numpy.nanmin(values)
-
-        if grmax is None:
-            grmax = numpy.nanmax(values)
-
-        return index*(grmax-grmin)+grmin
-
-    def netthickness(depth,values,percent,**kwargs):
-
-        grcut = gammaray.get_cut(percent,**kwargs)
-
-        node_top = numpy.roll(depth,1)
-        node_bottom = numpy.roll(depth,-1)
-
-        thickness = (node_bottom-node_top)/2
-
-        thickness[0] = (depth[1]-depth[0])/2
-        thickness[-1] = (depth[-1]-depth[-2])/2
-
-        return numpy.sum(thickness[values<grcut])
-
-    def netgrossratio(depth,*args,**kwargs):
-
-        height = max(depth)-min(depth)
-
-        return gammaray.netthickness(depth,*args,**kwargs)/height
-
-    def set_axis(self,axis=None):
-
-        if axis is None:
-            figure,axis = pyplot.subplots(nrows=1,ncols=1)
-
-        self.axis = axis
-
-    def show(self):
-
-        pyplot.show()
-
-    def larionov_oldrocks(index,volume=None):
+    @staticmethod
+    def larionov_oldrocks(index,volume=None,**kwargs):
         if volume is None:
             return 0.33*(2**(2*index)-1)
         elif index is None:
             return numpy.log2(volume/0.33+1)/2
 
-    def clavier(index,volume=None):
+    @staticmethod
+    def clavier(index,volume=None,**kwargs):
         if volume is None:
             return 1.7-numpy.sqrt(3.38-(0.7+index)**2)
         elif index is None:
             return numpy.sqrt(3.38-(1.7-volume)**2)-0.7
 
+    @staticmethod
     def bateman(index,volume=None,factor=1.2):
         if volume is None:
             return index**(index+factor)
         elif index is None:
             return #could not calculate inverse yet
 
+    @staticmethod
     def stieber(index,volume=None,factor=3):
         if volume is None:
             return index/(index+factor*(1-index))
         elif index is None:
             return volume*factor/(1+volume*(factor-1))
 
-    def larionov_tertiary(index,volume=None):
+    @staticmethod
+    def larionov_tertiary(index,volume=None,**kwargs):
         if volume is None:
             return 0.083*(2**(3.7*index)-1)
         elif index is None:

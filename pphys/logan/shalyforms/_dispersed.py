@@ -3,185 +3,73 @@ import numpy
 class dispersed():
 	"""Dispersed shaly sand model for calculation of effective and total properties."""
 
-	def __init__(self):
-		"""
-		Requirements:
+	def __init__(self,archie,phinsh=0.35,phidsh=0.1):
 
-		input 1	: Gamma-ray or shale volume
-		input 2	: Bulk density or density porosity
-		input 3	: Neutron porosity
-		input 4	: Acoustic transit time
-		input 5	: True resistivity of the formation
-		
-		"""
-		pass
-
-	def shalevolume(self,gamma=None,vsh=None,gmin=None,gmax=None):
-		"""Calculates shale volume, vsh. If vsh is not None, it skips the calculations.
-		
-		vsh 	: pre calculated shale volume
-		gamma 	: Gamma-Ray Log response
-		gmin 	: Gamma-Ray value in clean formations
-		gmax 	: Gamma-Ray value in shales
-		"""
-
-		if vsh is not None:
-			self.vsh = vsh
-		
-		else:
-			self.gamma = gamma
-
-			if gmin is None:
-				gmin = numpy.nanmin(self.gamma)
-
-			if gmax is None:
-				gmax = numpy.nanmax(self.gamma)
-
-			self.vsh = (self.gamma-gmin)/(gmax-gmin)
-
-		self.vsh[self.vsh>1] = 1
-		self.vsh[self.vsh<0] = 0
-
-	def densityporosity(self,rhob=None,phid=None,rhom=2.65,rhof=1.0,phidsh=0.1):
-		"""Sets density porosity and calculates shale corrected density porosity.
-
-		phid 	: Density Porosity
-		rhob 	: Bulk Density
-		rhom 	: Matrix Density
-		rhof 	: Fluid Density
-		phidsh 	: density porosity at shale
-
-		phidcor : shale corrected density porosity
-		
-		"""
-
-		if phid is None:
-			self.rhob = rhob
-			self.phid = (rhom-self.rhob)/(rhom-rhof)
-		else:
-			self.phid = phid
-
-		self.phid[self.phid>1] = 1
-		self.phid[self.phid<0] = 0
-
-		self.phidsh = phidsh
-
-		self.phidcor = self.phid-self.vsh*phidsh
-
-		self.phidcor[self.phidcor>1] = 1
-		self.phidcor[self.phidcor<0] = 0
-
-	def neutronporosity(self,phin,phinsh=0.35):
-		"""Sets the neutron porosity and calculates shale corrected neutron porosity.
-		
-		phin 	: neutron porosity
-		phinsh 	: neutron porosity at shale
-
-		phincor : shale corrected neutron porosity
-
-		"""
-
-		self.phin = phin
-
-		self.phin[self.phin>1] = 1
-		self.phin[self.phin<0] = 0
+		self.archie = archie
 
 		self.phinsh = phinsh
+		self.phidsh = phidsh
 
-		self.phincor = self.phin-self.vsh*self.phinsh
+	def phie(self,phin,phid,phincorr,phidcorr,vshale=None):
+		"""Calculates the effective porosity (phie) and recalculates shale volume for shaly zones."""
 
-		self.phincor[self.phincor>1] = 1
-		self.phincor[self.phincor<0] = 0
+		phi_effective = ((phincorr**2+phidcorr**2)/2)**(1/2)
 
-	def sonicporosity(self,dt,dtf=189,dtm=55.5):
-		"""Sets the acoustic transit time and calculates sonic porosity.
-		
-		dt 		: acoustic transit time
-		dtf 	: acoustic transit time for fluids
-		dtm 	: acoustic transit time for matrix
+		shalypoints = phincorr>phidcorr
 
-		phis 	: sonic porosity
+		phi_effective[shalypoints] = 
+			(phidcorr[shalypoints]*self.phinsh-phincorr[shalypoints]*self.phidsh)/(self.phinsh-self.phidsh)
 
-		"""
+		phi_effective[phi_effective>1] = 1
+		phi_effective[phi_effective<0] = 0
 
-		self.dt = dt
+		if vshale is None:
+			return phi_effective
 
-		self.phis = (self.dt-dtm)/(dtf-dtm)
+		vshale[shalypoints] = (phin[shalypoints]-phid[shalypoints])/(self.phinsh-self.phidsh)
 
-		self.phis[self.phis>1] = 1
-		self.phis[self.phis<0] = 0
+		vshale[shalypoints][vshale[shalypoints]>1] = 1
+		vshale[shalypoints][vshale[shalypoints]<0] = 0
 
-	def effectiveporosity(self):
-		"""Calculates the effective porosity for all depths and recalculates shale volume for shaly zones.
-		
-		phie 	: effective porosity
+		return phi_effective,vshale
 
-		"""
+	def phit(self,phin,phid):
+		"""Calculates the total porosity (phit)."""
+		return (phin+phid)/2
 
-		self.phie = ((self.phincor**2+self.phidcor**2)/2)**(1/2)
-
-		shalypoints = self.phincor>self.phidcor
-
-		phidcor = self.phidcor[shalypoints]
-		phincor = self.phincor[shalypoints]
-
-		self.phie[shalypoints] = (phidcor*self.phinsh-phincor*self.phidsh)/(self.phinsh-self.phidsh)
-
-		self.phie[self.phie>1] = 1
-		self.phie[self.phie<0] = 0
-
-		phid = self.phid[shalypoints]
-		phin = self.phin[shalypoints]
-
-		self.vsh[shalypoints] = (phin-phid)/(self.phinsh-self.phidsh)
-
-		self.vsh[self.vsh>1] = 1
-		self.vsh[self.vsh<0] = 0
-
-	def totalporosity(self):
-		"""Calculates the total porosity.
-		
-		phit 	: total porosity
-
-		"""
-
-		self.phit = (self.phin+self.phid)/2
-
-	def effectivesaturation(self,rt,rw,a=1):
+	def swe(self,phid,phis,phidcorr,phiim,rtotal,rwater):
 		"""Calculates the effective saturation assuming that the resistivity of
 		dispersed shale is much larger than the formation water resistivity."""
 
-		phiim = self.phis.copy()
-
 		phiim[phiim==0] = 0.0001
 
-		phidcor = self.phidcor.copy()
+		phidcorr[phidcorr==0] = 0.0001
 
-		phidcor[phidcor==0] = 0.0001
-
-		q = (self.phid-self.phis)/phidcor
+		q = (phid-phis)/phidcorr
 
 		q[q==1] = 0.9999
 
-		self.swe = (((a*rw)/(phiim**2*rt)+q**2/4)**(1/2)-q/2)/(1-q)
+		sw_effective = (((self.archie.a*rwater)/(phiim**2*rtotal)+q**2/4)**(1/2)-q/2)/(1-q)
 
-		self.swe[self.swe>1] = 1
-		self.swe[self.swe<0] = 0
+		sw_effective[sw_effective>1] = 1
+		sw_effective[sw_effective<0] = 0
 
-	def totalsaturation(self):
+		return sw_effective
+
+	def swt(self,phie,phit,swe):
 		"""Calculates total porosity from effective saturation."""
 
-		self.swt = 1-self.phie/self.phit*(1-self.swe)
+		sw_total = 1-phie/phit*(1-swe)
 
-		self.swt[self.swt>1] = 1
-		self.swt[self.swt<0] = 0
+		sw_total[sw_total>1] = 1
+		sw_total[sw_total<0] = 0
 
-	def bulkwatertotal(self):
-		"""Calculates bulk water volume"""
+		return sw_total
 
-		self.bwt = self.phit*self.swt
+	def bwt(self,phit,swt):
+		"""Calculates bulk water total volume"""
+		return phit*swt
 
-	def bulkwaterbound(self):
-		"""Calculates bound water volume"""
-
-		self.bwb = self.phit-self.phie
+	def bwb(self,phit,phie):
+		"""Calculates bulk water bound"""
+		return phit-phie
