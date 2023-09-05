@@ -9,6 +9,8 @@ with open(filepath,"r") as jsonfile:
 
 from dataclasses import dataclass
 
+import numpy
+
 from ._lasbrief import NanView
 from ._lasbrief import TableView
 
@@ -22,18 +24,36 @@ from ._depthview import DepthViewLasio #must be depreciated later once I fully p
 from ._corrview import CorrView
 
 from . import logan
+# from . import corean
 
 @dataclass
-class Archie:
-    """It is an Archie's parameter dictionary."""
+class archie:
+    """It is the implementation of Archie's equation."""
     a  : float = 1.00 # tortuosity constant
     m  : float = 2.00 # cementation exponent
     n  : float = 2.00 # saturation exponent
 
-    def ffactor(self,porosity):
+    def ff(self,porosity):
         """Calculates formation factor based on Archie's equation."""
         return self.a/(porosity**self.m)
 
-    def saturation(self,porosity,rwater,rtotal):
+    def swn(self,porosity,rwater,rtotal):
+        """Calculates water saturation to the power n based on Archie's equation."""
+        return self.ff(porosity)*rwater/rtotal
+
+    def sw(self,porosity,rwater,rtotal):
         """Calculates water saturation based on Archie's equation."""
-        return self.ffactor(porosity)*rwater/rtotal
+        return numpy.power(self.swn(porosity,rwater,rtotal),1/self.n)
+
+    @property
+    def formation_factor(self):
+        return self.ff
+
+    @property
+    def water_saturation_to_n(self):
+        return self.swn
+    
+    @property
+    def water_saturation(self):
+        return self.sw
+    

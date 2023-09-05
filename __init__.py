@@ -20,14 +20,13 @@ from .textio.datum.frame._raster import Raster
 from .textio.datum.frame._bundle import Bundle
 from .textio.datum.frame._spatial import Spatial
 
-from . import diary
-
+from . import prodn
 from . import pphys
-from . import wtest
-
-from . import fmodel
 
 from . import gmodel
 
+from . import fmodel
+from . import matbal
 from . import pormed
-# from . import wstab
+
+from . import bhole

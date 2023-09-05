@@ -1,14 +1,26 @@
 import numpy
 
-class laminated():
+class laminated_shale():
 
 	def __init__(self,archie):
 
-		self.archie = archie
+		self._archie = archie
 
-	def saturation(self,phie,vshale,rwater,rshale,rtotal):
+	def sw(self,phie,vshale,rwater,rshale,rtotal):
+		"""Calculates water saturation based on laminated shale model."""
 
-		sw_clean = self.archie.saturation(phie,rwater,rtotal)
-		sw_shale = self.archie.saturation(phie,rwater,rshale)
+		swn_clean = self._archie.swn(phie,rwater,rtotal)
+		swn_shale = self._archie.swn(phie,rwater,rshale)
 
-		return (sw_clean-sw_shale*vshale)/(1-vshale)
+		swn_laminated = (swn_clean-swn_shale*vshale)/(1-vshale)
+
+		return numpy.power(swn_laminated,1/self._archie.n)
+
+	@property
+	def archie(self):
+		return self._archie
+
+	@property
+	def water_saturation(self):
+		return self.sw
+	

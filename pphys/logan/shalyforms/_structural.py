@@ -1,14 +1,26 @@
 import numpy
 
-class structural():
+class structural_shale():
 
 	def __init__(self,archie):
 
-		self.archie = archie
+		self._archie = archie
 	
-	def saturation(self,phie,vshale,rshale,rtotal):
+	def sw(self,phie,vshale,rwater,rshale,rtotal):
+		"""Calculates water saturation based on structural shale model."""
 
-		sw_clean = self.archie.saturation(phie,rwater,rtotal)
-		sw_shale = self.archie.saturation(phie,rwater,rtotal)
+		swn_clean = self._archie.swn(phie,rwater,rtotal)
+		swn_shale = self._archie.swn(phie,rwater,rtotal)
 
-		return sw_clean-sw_shale*vshale
+		swn_structural = swn_clean-swn_shale*vshale
+
+		return numpy.power(swn_structural,1/self._archie.n)
+
+	@property
+	def archie(self):
+		return self._archie
+
+	@property
+	def water_saturation(self):
+		return self.sw
+	
