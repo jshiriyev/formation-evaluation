@@ -69,14 +69,14 @@ class dualwater():
 	@staticmethod
 	def swt_forward(swt,port,sb,rb,rw,rt,a,m,n):
 		"""Implementing forward saturation equation for each depth point
-		based on the dual-water model, A*(Swt)**n+B*(Swt)+C = 0"""
-		return swt**n-sb*(1-a*rw/rb)*swt-(a*rw)/(rt*port**m)
+		based on the dual-water model, A*(Swt)**n+B*(Swt)**(n-1)+C = 0"""
+		return swt**n-sb*(1-rw/rb)*swt**(n-1)-(a/port**m)*(rw/rt)
 		
 	@staticmethod
-	def swt_derivative(sw,port,sb,rb,rw,rt,a,m,n):
+	def swt_derivative(swt,port,sb,rb,rw,rt,a,m,n):
 		"""Implementing derivative of forward saturation equation for each
 		depth point based on the dual-water model"""
-		return n*swt**(n-1)-sb*(1-a*rw/rb)
+		return n*swt**(n-1)-(n-1)*sb*(1-rw/rb)*swt**(n-2)
 
 	@property
 	def archie(self):
