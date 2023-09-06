@@ -5,6 +5,17 @@ class structural_shale():
 	def __init__(self,archie):
 
 		self._archie = archie
+
+		self.phinsh = phinsh 	# 
+		self.phidsh = phidsh 	# apparent density porosity in the shale
+
+	def phie(self,phin,phid):
+		"""Calculates the effective porosity."""
+		return (self.phinsh*phid-self.phidsh*phin)/(self.phinsh-self.phidsh)
+
+	def vshale(self,phin,phid):
+		"""Calculates the shale content in a structural shale model."""
+		return (phin-phid)/(self.phinsh*(1-phid)-self.phidsh*(1-phin))
 	
 	def sw(self,phie,vshale,rwater,rshale,rtotal):
 		"""Calculates water saturation based on structural shale model."""
@@ -19,6 +30,14 @@ class structural_shale():
 	@property
 	def archie(self):
 		return self._archie
+
+	@property
+	def effective_porosity(self):
+		return self.phie
+	
+	@property
+	def shale_volume(self):
+		return self.vshale
 
 	@property
 	def water_saturation(self):

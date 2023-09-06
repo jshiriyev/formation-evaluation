@@ -1,31 +1,38 @@
-"""
-The dual water model proposes that two distinct waters can be found in the pore space.
-Close to the surface of the grains, bound water of resistivity RwB is encountered. This
-water is fresher (more resistive) than the remaining water farther away from the grain
-surface. This far water of resistivity RwF is more saline (less resistive) than the
-bound water and is free to move in the pores. The model suggests that the amount of
-bound water is directly related to the clay content of the formation. Therefore,
-as clay volume increases, the portion of the total porosity occupied by bound water increases.
-"""
 import numpy
 
 from scipy.optimize import root_scalar
 
 class dualwater():
+	"""The dual water model proposes that two distinct waters can be found in the pore space.
+	Close to the surface of the grains, bound water of resistivity RwB is encountered. This
+	water is fresher (more resistive) than the remaining water farther away from the grain surface.
+	
+	This far water of resistivity RwF is more saline (less resistive) than the bound water
+	and is free to move in the pores. The model suggests that the amount of bound water is
+	directly related to the clay content of the formation. Therefore, as clay volume increases,
+	the portion of the total porosity occupied by bound water increases."""
 
 	def __init__(self,archie):
 
 		self._archie = archie
 
-	def rwbound(self,rshale,phishale):
-		"""Calculates bound water resistivity based on shale resistivity, rshale, and
-		shale porosity, phishale (some weighted average of the neutron and density porosity of shale)."""
-		return rshale*phishale**2
+	def phie(self,phin,phid):
+		"""Calculates the effective porosity."""
+		return (self.phinsh*phid-self.phidsh*phin)/(self.phinsh-self.phidsh)
+
+	def vshale(self,phin,phid):
+		"""Calculates the shale volume."""
+		return (phin-phid)/(self.phinsh-self.phidsh)
 
 	def phit(self,phie,vshale,phishale):
 		"""Calculates total porosity based on effective porosity, phie, shale volume, vshale, and
 		shale porosity, phishale (some weighted average of the neutron and density porosity of shale)."""
 		return phie+vshale*phishale
+
+	def rwbound(self,rshale,phishale):
+		"""Calculates bound water resistivity based on shale resistivity, rshale, and
+		shale porosity, phishale (some weighted average of the neutron and density porosity of shale)."""
+		return rshale*phishale**2
 
 	def swbound(self,phit,vshale,phishale):
 		"""Calculates bound water saturation based on total porosity, phit, shale volume, vshale, and

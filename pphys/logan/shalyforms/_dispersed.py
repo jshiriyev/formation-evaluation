@@ -3,16 +3,22 @@ import numpy
 from scipy.optimize import root_scalar
 
 class dispersed_shale():
-	"""Dispersed shaly sand model for calculation of effective and total properties."""
-
+	"""Dispersed shale is an inexact term used to describe clay overgrowths on the
+	matrix material (for example, sand grains). These clay particles reduce porosity
+	and permeability within the pore structure of the sandstone."""
+	
 	def __init__(self,archie,phinsh=0.35,phidsh=0.1):
-
+		"""Dispersed shaly sand model for calculation of effective and total properties."""
 		self._archie = archie
 
-		self.phinsh = phinsh
-		self.phidsh = phidsh
+		self.phinsh = phinsh	#
+		self.phidsh = phidsh 	# apparent density porosity in the shale
 
-	def phie(self,phin,phid,phincorr,phidcorr,vshale=None):
+	def phie(self,phin,phid):
+		"""Calculates the effective porosity."""
+		return (self.phinsh*phid-self.phidsh*phin)/(self.phinsh-self.phidsh)
+
+	def phie_practical(self,phin,phid,phincorr,phidcorr,vshale=None):
 		"""Calculates the effective porosity (phie) and recalculates shale volume for shaly zones."""
 
 		phi_effective = ((phincorr**2+phidcorr**2)/2)**(1/2)
@@ -22,22 +28,20 @@ class dispersed_shale():
 		phi_effective[shalypoints] = 
 			(phidcorr[shalypoints]*self.phinsh-phincorr[shalypoints]*self.phidsh)/(self.phinsh-self.phidsh)
 
-		phi_effective[phi_effective>1] = 1
-		phi_effective[phi_effective<0] = 0
-
 		if vshale is None:
 			return phi_effective
 
 		vshale[shalypoints] = (phin[shalypoints]-phid[shalypoints])/(self.phinsh-self.phidsh)
 
-		vshale[shalypoints][vshale[shalypoints]>1] = 1
-		vshale[shalypoints][vshale[shalypoints]<0] = 0
-
 		return phi_effective,vshale
 
-	def phit(self,phin,phid):
+	def phit_practical(self,phin,phid):
 		"""Calculates the total porosity (phit)."""
 		return (phin+phid)/2
+
+	def vshale(self,phin,phid):
+		"""Calculates the shale content in a dispersed shale model."""
+		return (phin-phid)/(self.phinsh-self.phidsh)
 
 	def swt(self,phit,vshale,rwater,rshale,rtotal):
 		"""Calculates total water saturation based on dispersed shale model."""
@@ -62,13 +66,7 @@ class dispersed_shale():
 
 	def swe(self,phie,phit,swe):
 		"""Calculates effective porosity from total saturation."""
-
-		sw_effective = 1-phit/phie*(1-swt)
-
-		sw_effective[sw_effective>1] = 1
-		sw_effective[sw_effective<0] = 0
-
-		return sw_effective
+		return 1-phit/phie*(1-swt)
 
 	def bwt(self,phit,swt):
 		"""Calculates bulk water total volume"""
@@ -77,6 +75,22 @@ class dispersed_shale():
 	def bwb(self,phit,phie):
 		"""Calculates bulk water bound"""
 		return phit-phie
+
+	@property
+	def effective_porosity(self):
+		return self.phie
+	
+	@property
+	def shale_volume(self):
+		return self.vshale
+
+	@property
+	def total_water_saturation(self):
+		return self.swt
+
+	@property
+	def effective_water_saturation(self):
+		return self.swe
 
 	@staticmethod
 	def swt_forward(swt,port,vsh,rw,rsh,rt,a,m,n):
@@ -119,12 +133,7 @@ class dispersed_clay():
 		term1 = (qvalue*(rshale-rwater)/(2*rshale))**2
 		term2 = qvalue*(rshale+rwater)/(2*rshale)
 
-		saturation = ((swn_clean+term1)**(1/2)-term2)/(1-qvalue)
-
-		saturation[saturation>1] = 1
-		saturation[saturation<0] = 0
-
-		return saturation
+		return ((swn_clean+term1)**(1/2)-term2)/(1-qvalue)
 
 	def sw_simplified(self,phiim,qvalue,rwater,rshale,rtotal):
 		"""Calculates the water saturation assuming that the resistivity of
@@ -140,12 +149,7 @@ class dispersed_clay():
 		"""
 		swn_clean = (self._archie.a*rwater)/(phiim**self._archie.m*rtotal)
 
-		saturation = ((swn_clean+(qvalue/2)**2)**(1/2)-qvalue/2)/(1-qvalue)
-
-		saturation[saturation>1] = 1
-		saturation[saturation<0] = 0
-
-		return saturation
+		return ((swn_clean+(qvalue/2)**2)**(1/2)-qvalue/2)/(1-qvalue)
 
 	@property
 	def archie(self):

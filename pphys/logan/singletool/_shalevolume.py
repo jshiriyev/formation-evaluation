@@ -13,12 +13,7 @@ class gammaray():
 
     def value2index(self,value):
         """Calculates shale index based on the gamma-ray values."""
-        index = (value-self.grmin)/(self.grmax-self.grmin)
-
-        index[index>1] = 1
-        index[index<0] = 0
-        
-        return index
+        return (value-self.grmin)/(self.grmax-self.grmin)
 
     def index2value(self,index):
         """Calculates gamma-ray values based on the shale index."""

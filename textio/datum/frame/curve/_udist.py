@@ -24,14 +24,14 @@ class udist(curve):
             raise f"depth.size and vals.size does not match!"
 
     @property
-    def depth(self):
+    def depths(self):
 
         return numpy.linspace(self.start,self.stop,self.array.size)
     
     @property
     def height(self):
 
-        depth = self.depth
+        depth = self.depths
 
         total = depth.max()-depth.min()
 
