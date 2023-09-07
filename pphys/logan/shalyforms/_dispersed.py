@@ -11,26 +11,16 @@ class dispersed():
 		"""Dispersed shaly sand model for calculation of effective and total properties."""
 		self._archie = archie
 
-		self.phinsh = phinsh	#
+		self.phinsh = phinsh	# apparent neutron porosity in the shale
 		self.phidsh = phidsh 	# apparent density porosity in the shale
 
-	def phie(self,phin,phid):
-		"""Calculates the effective porosity."""
-		return (self.phinsh*phid-self.phidsh*phin)/(self.phinsh-self.phidsh)
-
-	def vshale(self,phin,phid):
-		"""Calculates the shale content in a dispersed shale model."""
-		return (phin-phid)/(self.phinsh-self.phidsh)
-
-	def qvalue(self,phis,phid):
+	def qvalue_dewitte(self,phis,phid):
 		"""Calculates integranular space filled with clay"""
 		return (phis-phid)/phis
 
-	def phit(self,phie,qvalue):
-		return
-
-	def swe_dewitte(self,phiim,qvalue,rwater,rshale,rtotal):
-		""" Calculates water saturation based on de Witte's (1950) model, full equation.
+	def sw_dewitte(self,phiim,qvalue,rwater,rshale,rtotal):
+		"""Calculates water saturation (equivalent of Swe) based on de Witte's (1950) model,
+		full equation.
 
 		phiim 	: intermatrix porosity, which includes all the space occupied by fluids and
 				  dispersed shale, can be obtained directly from a sonic log
@@ -48,10 +38,10 @@ class dispersed():
 
 		return ((swn_clean+term1)**(1/2)-term2)/(1-qvalue)
 
-	def swe_dewitte_simplified(self,phiim,qvalue,rwater,rtotal):
-		"""Calculates water saturation based on de Witte's (1950) model assuming that the
-		resistivity of dispersed shale is much larger than the formation water resistivity
-		simplifying the equation to neglect it.
+	def sw_dewitte_simplified(self,phiim,qvalue,rwater,rtotal):
+		"""Calculates water saturation (equivalent of Swe) based on de Witte's (1950) model
+		assuming that the resistivity of dispersed shale is much larger than the formation
+		water resistivity simplifying the equation to neglect it.
 
 		phiim 	: intermatrix porosity, which includes all the space occupied by fluids and
 				  dispersed shale, can be obtained directly from a sonic log
@@ -64,6 +54,23 @@ class dispersed():
 		swn_clean = (self._archie.a*rwater)/(phiim**self._archie.m*rtotal)
 
 		return ((swn_clean+(qvalue/2)**2)**(1/2)-qvalue/2)/(1-qvalue)
+
+	def sim_dewitte(self,sw_dewitte,qvalue):
+		"""Calculates the fraction of the intermatrix porosity occupied by the formation-water,
+		dispersed-shale mixture."""
+		return qvalue+sw_dewitte*(1-qvalue)
+
+	def phit_bateman(self,phin,phid):
+		"""Calculates the total porosity."""
+		return (phin+phid)/2
+
+	def phie_bateman(self,phin,phid):
+		"""Calculates the effective porosity."""
+		return (self.phinsh*phid-self.phidsh*phin)/(self.phinsh-self.phidsh)
+
+	def vshale_bateman(self,phin,phid):
+		"""Calculates the shale content in a dispersed shale model."""
+		return (phin-phid)/(self.phinsh-self.phidsh)
 
 	def swt_bateman(self,phit,vshale,rwater,rshale,rtotal):
 		"""Calculates total water saturation based on dispersed shale model."""
@@ -86,29 +93,17 @@ class dispersed():
 
 		return saturation
 
-	def swt2swe(self,swt,phie,phit):
+	def swe_bateman(self,swt,phie,phit):
 		"""Calculates effective saturation from total saturation."""
 		return 1-phit/phie*(1-swt)
 
-	def swe2swt(self,swe,phie,phit):
-		"""Calculates total saturation from effective saturation."""
-		return 1-phie/phit*(1-swe)
-
-	def bwt(self,phit,swt):
+	def bwt_bateman(self,phit,swt):
 		"""Calculates bulk water total volume"""
 		return phit*swt
 
-	def bwb(self,phit,phie):
+	def bwb_bateman(self,phit,phie):
 		"""Calculates bulk water bound"""
 		return phit-phie
-
-	@property
-	def effective_porosity(self):
-		return self.phie
-	
-	@property
-	def shale_volume(self):
-		return self.vshale
 
 	@staticmethod
 	def swt_bateman_forward(swt,port,vsh,rw,rsh,rt,a,m,n):
