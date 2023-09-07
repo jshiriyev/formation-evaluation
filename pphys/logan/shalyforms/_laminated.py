@@ -1,6 +1,6 @@
 import numpy
 
-class laminated_shale():
+class laminated():
 	"""The model for analysis of laminated shale proposes a multilayer
 	sandwich of alternating layers of clean sand and shale (lithified clay materials).
 	The thickness of each layer is small in relation to the vertical resolution of the

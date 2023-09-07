@@ -1,7 +1,6 @@
-from ._laminated import laminated_shale
-from ._dispersed import dispersed_shale
-from ._dispersed import dispersed_clay
-from ._structural import structural_shale
+from ._laminated import laminated
+from ._dispersed import dispersed
+from ._structural import structural
 
 from ._indonesia import indonesia
 from ._simandoux import simandoux

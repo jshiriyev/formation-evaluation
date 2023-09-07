@@ -16,28 +16,27 @@ class dualwater():
 
 		self._archie = archie
 
-	def phie(self,phin,phid):
-		"""Calculates the effective porosity."""
-		return (self.phinsh*phid-self.phidsh*phin)/(self.phinsh-self.phidsh)
+	def phit(self,phin,phid):
+		"""Calculates total porosity based on netron-density data."""
+		return (phin+phid)/2
 
 	def vshale(self,phin,phid):
 		"""Calculates the shale volume."""
 		return (phin-phid)/(self.phinsh-self.phidsh)
 
-	def phit(self,phie,vshale,phishale):
-		"""Calculates total porosity based on effective porosity, phie, shale volume, vshale, and
+	def swbound(self,phit,vshale,phishale):
+		"""Calculates bound water saturation based on total porosity, phit, shale volume, vshale, and
 		shale porosity, phishale (some weighted average of the neutron and density porosity of shale)."""
-		return phie+vshale*phishale
+		return vshale*phishale/phit
+
+	def phie(self,phit,swbound):
+		"""Calculates the effective porosity."""
+		return phit*(1-swbound)
 
 	def rwbound(self,rshale,phishale):
 		"""Calculates bound water resistivity based on shale resistivity, rshale, and
 		shale porosity, phishale (some weighted average of the neutron and density porosity of shale)."""
 		return rshale*phishale**2
-
-	def swbound(self,phit,vshale,phishale):
-		"""Calculates bound water saturation based on total porosity, phit, shale volume, vshale, and
-		shale porosity, phishale (some weighted average of the neutron and density porosity of shale)."""
-		return vshale*phishale/phit
 
 	def swt(self,phit,swbound,rwbound,rwater,rtotal):
 		"""Calculates total water saturation based on dual-water model.
@@ -69,9 +68,9 @@ class dualwater():
 
 		return saturation
 
-	def swe(self,swt,swb):
+	def swe(self,swt,swbound):
 		"""Calculates effective water saturation."""
-		return swt-swb
+		return (swt-swbound)/(1-swbound)
 
 	@staticmethod
 	def swt_forward(swt,port,sb,rb,rw,rt,a,m,n):

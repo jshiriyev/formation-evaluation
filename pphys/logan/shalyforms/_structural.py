@@ -1,6 +1,6 @@
 import numpy
 
-class structural_shale():
+class structural():
 
 	def __init__(self,archie):
 
