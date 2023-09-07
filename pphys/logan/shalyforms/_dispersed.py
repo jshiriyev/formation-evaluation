@@ -14,10 +14,6 @@ class dispersed():
 		self.phinsh = phinsh	#
 		self.phidsh = phidsh 	# apparent density porosity in the shale
 
-	def phit(self,phin,phid):
-		"""Calculates the total porosity (phit)."""
-		return (phin+phid)/2
-
 	def phie(self,phin,phid):
 		"""Calculates the effective porosity."""
 		return (self.phinsh*phid-self.phidsh*phin)/(self.phinsh-self.phidsh)
@@ -30,9 +26,14 @@ class dispersed():
 		"""Calculates integranular space filled with clay"""
 		return (phis-phid)/phis
 
+	def phit(self,phie,qvalue):
+		return
+
 	def swe_dewitte(self,phiim,qvalue,rwater,rshale,rtotal):
 		""" Calculates water saturation based on de Witte's (1950) model, full equation.
-		phiim 	: intermatrix porosity, which includes all the space occupied by fluids and dispersed shale
+
+		phiim 	: intermatrix porosity, which includes all the space occupied by fluids and
+				  dispersed shale, can be obtained directly from a sonic log
 		qvalue 	: the fraction of the intermatrix porosity occupied by the dispersed shale
 		rwater 	: formation water resistivity
 		rshale 	: the resistivity of the dispersed shale
@@ -47,14 +48,15 @@ class dispersed():
 
 		return ((swn_clean+term1)**(1/2)-term2)/(1-qvalue)
 
-	def swe_dewitte_simplified(self,phiim,qvalue,rwater,rshale,rtotal):
+	def swe_dewitte_simplified(self,phiim,qvalue,rwater,rtotal):
 		"""Calculates water saturation based on de Witte's (1950) model assuming that the
-		resistivity of dispersed shale is much larger than the formation water resistivity.
+		resistivity of dispersed shale is much larger than the formation water resistivity
+		simplifying the equation to neglect it.
 
-		phiim 	: intermatrix porosity, which includes all the space occupied by fluids and dispersed shale
+		phiim 	: intermatrix porosity, which includes all the space occupied by fluids and
+				  dispersed shale, can be obtained directly from a sonic log
 		qvalue 	: the fraction of the intermatrix porosity occupied by the dispersed shale
 		rwater 	: formation water resistivity
-		rshale 	: the resistivity of the dispersed shale
 		rtotal 	: true formation resistivity
 
 		sw 		: the water saturation in the fraction of true effective formation porosity
