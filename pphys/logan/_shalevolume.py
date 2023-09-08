@@ -50,6 +50,10 @@ class gammaray():
         """Calculates the total height of gamma ray logged section."""
         return max(self.depths)-min(self.depths)
 
+    @property
+    def vsh(self):
+        return self.shalevolume
+
     @staticmethod
     def linear(index,volume=None,**kwargs):
         if volume is None:

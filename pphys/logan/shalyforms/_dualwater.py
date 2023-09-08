@@ -16,14 +16,17 @@ class dualwater():
 
 		self._archie = archie
 
-	def vshale(self,phin,phid):
+	def vshale(self,phin,phid,phinsh=0.35,phidsh=0.1):
 		"""Calculates the shale volume."""
-		return (phin-phid)/(self.phinsh-self.phidsh)
+		return (phin-phid)/(phinsh-phidsh)
 
-	def swbound(self,phit,vshale,phishale):
-		"""Calculates bound water saturation based on total porosity, phit, shale volume, vshale, and
-		shale porosity, phishale (some weighted average of the neutron and density porosity of shale)."""
-		return vshale*phishale/phit
+	def swbound(self,gammaray,phit,M=0.0015,B=-0.1):
+		return M*(gammaray/phit)+B
+
+	# def swbound(self,phit,vshale,phishale):
+	# 	"""Calculates bound water saturation based on total porosity, phit, shale volume, vshale, and
+	# 	shale porosity, phishale (some weighted average of the neutron and density porosity of shale)."""
+	# 	return vshale*phishale/phit
 
 	def phie(self,phit,swbound):
 		"""Calculates the effective porosity."""
@@ -45,14 +48,23 @@ class dualwater():
 		rtotal	: true formation resistivity
 
 		"""
-		saturation = numpy.zeros(phit.shape)
+		size = phit.size
 
-		for index,(port,sb,rb,rw,rt) in enumerate(zip(phit,swbound,rwbound,rwater,rtotal)):
+		saturation = numpy.zeros(size)
+
+		swbound = set_value_iterable(swbound,size)
+		rwbound = set_value_iterable(rwbound,size)
+		rwater = set_value_iterable(rwater,size)
+		rtotal = set_value_iterable(rtotal,size)
+
+		zipped = zip(phit,swbound,rwbound,rwater,rtotal)
+
+		for index,(port,sb,rb,rw,rt) in enumerate(zipped):
 
 			solver = root_scalar(
-				dispersed_shale.swt_forward,
+				dualwater.swt_forward,
 				method = 'newton', x0 = 1,
-				fprime = dispersed_shale.swt_derivative,
+				fprime = dualwater.swt_derivative,
 				args = (port,sb,rb,rw,rt,
 					self._archie.a,
 					self._archie.m,
@@ -67,6 +79,14 @@ class dualwater():
 	def swe(self,swt,swbound):
 		"""Calculates effective water saturation."""
 		return (swt-swbound)/(1-swbound)
+
+	def bwt(self,phit,swt):
+		"""Calculates bulk water total volume."""
+		return phit*swt
+
+	def bwb(self,phit,swbound):
+		"""Calculates bulk water bound"""
+		return phit*swbound
 
 	@staticmethod
 	def swt_forward(swt,port,sb,rb,rw,rt,a,m,n):
@@ -83,4 +103,12 @@ class dualwater():
 	@property
 	def archie(self):
 		return self._archie
-	
+
+def set_value_iterable(entry,size):
+
+	try:
+		iter(entry)
+	except TypeError:
+		entry = [entry for _ in range(size)]
+
+	return entry	

@@ -15,14 +15,8 @@ class neutron():
 
     def phincorr(self,phin,vshale,phinsh=0.35):
         """Calculates shale corrected neutron porosity based on shale volume (vshale) and
-        phinsh (neutron porosity at shale).
-        """
-        phin_corrected = phin-vshale*phinsh
-
-        phin_corrected[phin_corrected>1] = 1
-        phin_corrected[phin_corrected<0] = 0
-
-        return phin_corrected
+        phinsh (neutron porosity at shale)."""
+        return phin-vshale*phinsh
 
     def _gamma_capture_total(self,phi_clean,phi_shale,ngl_clean=None,ngl_shale=None):
         """The porosity based on gamma detection:
@@ -108,41 +102,25 @@ class density():
 
     def phid(self,rhomat=2.65,rhofluid=1.0):
         """Calculates porosity based on bulk density, matrix density (rhomat), and fluid density (rhofluid)."""
-        phi_density = (rhomat-self.values)/(rhomat-rhofluid)
-
-        phi_density[phi_density>1] = 1
-        phi_density[phi_density<0] = 0
-
-        return phi_density
+        return (rhomat-self.values)/(rhomat-rhofluid)
 
     def phidcorr(self,phid,vshale,phidsh=0.1):
         """Calculates shale corrected density porosity based on shale volume (vshale) and
-        phidsh (density porosity at shale).
-        """
-        phid_corrected = phid-vshale*phidsh
-
-        phid_corrected[phid_corrected>1] = 1
-        phid_corrected[phid_corrected<0] = 0
-
-        return phid_corrected
+        phidsh (density porosity at shale)."""
+        return phid-vshale*phidsh
 
 class sonic():
 
-    def __init__(self,values,depths):
+    def __init__(self,values,depths=None):
         """Initializes sonic transit times and depths for porosity calculations.
         If depths values are provided, they must be the same size as values."""
         self.values = values
         self.depths = depths
 
-    def phis(self,dtmat,dtfluid,dtshale=100):
+    def phis(self,dtmat=55.6,dtfluid=189,dtshale=100):
         """Calculates porosity based on transit times, matrix transit time (dtmat),
         fluid transit time (dtfluid), and (optional) adjacent shale transit time (dtshale)."""
-        phi_sonic = (self.values-dtmat)/(dtfluid-dtmat)*(100/dtshale)
-
-        phi_sonic[phi_sonic>1] = 1
-        phi_sonic[phi_sonic<0] = 0
-
-        return phi_sonic
+        return (self.values-dtmat)/(dtfluid-dtmat)*(100/dtshale)
 
 class neuden():
 

@@ -14,6 +14,14 @@ class dispersed():
 		self.phinsh = phinsh	# apparent neutron porosity in the shale
 		self.phidsh = phidsh 	# apparent density porosity in the shale
 
+	def phie_bateman(self,phin,phid):
+		"""Calculates the effective porosity."""
+		return (self.phinsh*phid-self.phidsh*phin)/(self.phinsh-self.phidsh)
+
+	def vshale_bateman(self,phin,phid):
+		"""Calculates the shale content in a dispersed shale model."""
+		return (phin-phid)/(self.phinsh-self.phidsh)
+
 	def qvalue_dewitte(self,phis,phid):
 		"""Calculates integranular space filled with clay"""
 		return (phis-phid)/phis
@@ -60,19 +68,21 @@ class dispersed():
 		dispersed-shale mixture."""
 		return qvalue+sw_dewitte*(1-qvalue)
 
-	def phie_bateman(self,phin,phid):
-		"""Calculates the effective porosity."""
-		return (self.phinsh*phid-self.phidsh*phin)/(self.phinsh-self.phidsh)
-
-	def vshale_bateman(self,phin,phid):
-		"""Calculates the shale content in a dispersed shale model."""
-		return (phin-phid)/(self.phinsh-self.phidsh)
-
 	def swt_bateman(self,phit,vshale,rwater,rshale,rtotal):
 		"""Calculates total water saturation based on dispersed shale model."""
-		saturation = numpy.zeros(phie.shape)
 
-		for index,(port,vsh,rw,rsh,rt) in enumerate(zip(phit,vshale,rwater,rshale,rtotal)):
+		size = phit.size
+
+		saturation = numpy.zeros(size)
+
+		vshale = set_value_iterable(vshale,size)
+		rwater = set_value_iterable(rwater,size)
+		rshale = set_value_iterable(rshale,size)
+		rtotal = set_value_iterable(rtotal,size)
+
+		zipped = zip(phit,vshale,rwater,rshale,rtotal)
+
+		for index,(port,vsh,rw,rsh,rt) in enumerate(zipped):
 
 			solver = root_scalar(
 				dispersed.swt_bateman_forward,
@@ -108,7 +118,7 @@ class dispersed():
 		return (port**m)/(a*rw)*swt**n+port*vsh/a*(1/rsh-1/rw)*swt-1/rt
 
 	@staticmethod
-	def swt_bateman_derivative(sw,port,vsh,rw,rsh,rt,a,m,n):
+	def swt_bateman_derivative(swt,port,vsh,rw,rsh,rt,a,m,n):
 		"""Implementing derivative of forward saturation equation for each
 		depth point based on the dispersed shale model"""
 		return n*(port**m)/(a*rw)*swt**(n-1)+port*vsh/a*(1/rsh-1/rw)
@@ -116,3 +126,12 @@ class dispersed():
 	@property
 	def archie(self):
 		return self._archie
+
+def set_value_iterable(entry,size):
+
+	try:
+		iter(entry)
+	except TypeError:
+		entry = [entry for _ in range(size)]
+
+	return entry
