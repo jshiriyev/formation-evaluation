@@ -60,10 +60,6 @@ class dispersed():
 		dispersed-shale mixture."""
 		return qvalue+sw_dewitte*(1-qvalue)
 
-	def phit_bateman(self,phin,phid):
-		"""Calculates the total porosity."""
-		return (phin+phid)/2
-
 	def phie_bateman(self,phin,phid):
 		"""Calculates the effective porosity."""
 		return (self.phinsh*phid-self.phidsh*phin)/(self.phinsh-self.phidsh)

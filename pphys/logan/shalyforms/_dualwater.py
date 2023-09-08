@@ -16,10 +16,6 @@ class dualwater():
 
 		self._archie = archie
 
-	def phit(self,phin,phid):
-		"""Calculates total porosity based on netron-density data."""
-		return (phin+phid)/2
-
 	def vshale(self,phin,phid):
 		"""Calculates the shale volume."""
 		return (phin-phid)/(self.phinsh-self.phidsh)

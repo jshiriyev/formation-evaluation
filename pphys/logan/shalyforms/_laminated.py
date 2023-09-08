@@ -19,7 +19,6 @@ class laminated():
 		"""Calculates the true porosity in the clean sand."""
 		upper = (self.phinsh*phid-self.phidsh*phin)
 		lower = (self.phinsh-self.phidsh)-(phin-phid)
-
 		return upper/lower
 
 	def vshale(self,phin,phid):
