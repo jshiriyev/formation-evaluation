@@ -2,17 +2,30 @@ import numpy
 
 from scipy.optimize import root_scalar
 
+from borepy.pphys.logan._wrappers import trim
+
 class simandoux():
 
 	def __init__(self,archie):
 
 		self._archie = archie
 
+	@trim
 	def sw(self,porosity,vshale,rwater,rshale,rtotal):
 		"""Calculates water saturation based on simandoux model."""
-		saturation = numpy.zeros(porosity.shape)
 
-		for index,(por,vsh,rw,rsh,rt) in enumerate(zip(porosity,vshale,rwater,rshale,rtotal)):
+		size = porosity.size
+
+		saturation = numpy.zeros(size)
+
+		vshale = set_value_iterable(vshale,size)
+		rwater = set_value_iterable(rwater,size)
+		rshale = set_value_iterable(rshale,size)
+		rtotal = set_value_iterable(rtotal,size)
+
+		zipped = zip(porosity,vshale,rwater,rshale,rtotal)
+
+		for index,(por,vsh,rw,rsh,rt) in enumerate(zipped):
 
 			solver = root_scalar(
 				simandoux.sw_forward,
@@ -28,6 +41,10 @@ class simandoux():
 			saturation[index] = solver.root
 
 		return saturation
+
+	def bwv(self,porosity,swater):
+		"""Calculates bulk water volume."""
+		return porosity*swater
 
 	@staticmethod
 	def sw_forward(sw,por,vsh,rw,rsh,rt,a,m,n):
@@ -49,18 +66,32 @@ class simandoux():
 	def water_saturation(self):
 		return self.sw
 
+	@property
+	def bulk_water_volume(self):
+		return self.bwv
+
 class totalshale():
 
-	def __init__(self,arhcie):
+	def __init__(self,archie):
 		"""It is a modified Simandoux model for the saturation calculations in shaly formations."""
 
 		self._archie = archie
 
+	@trim
 	def sw(self,phie,vshale,rwater,rshale,rtotal):
 		"""Calculates water saturation based on total shale model."""
-		saturation = numpy.zeros(phie.shape)
+		size = phie.size
 
-		for index,(por,vsh,rw,rsh,rt) in enumerate(zip(phie,vshale,rwater,rshale,rtotal)):
+		saturation = numpy.zeros(size)
+
+		vshale = set_value_iterable(vshale,size)
+		rwater = set_value_iterable(rwater,size)
+		rshale = set_value_iterable(rshale,size)
+		rtotal = set_value_iterable(rtotal,size)
+
+		zipped = zip(phie,vshale,rwater,rshale,rtotal)
+
+		for index,(por,vsh,rw,rsh,rt) in enumerate(zipped):
 
 			solver = root_scalar(
 				totalshale.sw_forward,
@@ -76,6 +107,10 @@ class totalshale():
 			saturation[index] = solver.root
 
 		return saturation
+
+	def bwv(self,porosity,swater):
+		"""Calculates bulk water volume."""
+		return porosity*swater
 
 	@staticmethod
 	def sw_forward(sw,por,vsh,rw,rsh,rt,a,m,n):
@@ -96,6 +131,19 @@ class totalshale():
 	@property
 	def water_saturation(self):
 		return self.sw
+
+	@property
+	def bulk_water_volume(self):
+		return self.bwv
+
+def set_value_iterable(entry,size):
+
+	try:
+		iter(entry)
+	except TypeError:
+		entry = [entry for _ in range(size)]
+
+	return entry
 
 if __name__ == "__main__":
 

@@ -1,5 +1,7 @@
 import numpy
 
+from ._wrappers import trim
+
 class gammaray():
 
     def __init__(self,values,depths=None,grmin=None,grmax=None):
@@ -19,6 +21,7 @@ class gammaray():
         """Calculates gamma-ray values based on the shale index."""
         return index*(self.grmax-self.grmin)+self.grmin
 
+    @trim
     def shalevolume(self,model="linear",factor=None):
         """Calculates shale volume based on gamma ray values and selected model."""
         return getattr(self,f"{model}")(self.value2index(self.values),factor=factor)
