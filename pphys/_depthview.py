@@ -1189,6 +1189,10 @@ class DepthViewLasio():
 
             row = len(curve_axis.lines)
 
+            # if curve.row is False:
+            #     curve.row = row
+            #     return
+
             if curve.row is None:
                 curve.row = row
 
@@ -1208,8 +1212,12 @@ class DepthViewLasio():
 
             lines = curve_axis.lines
 
-            xvals = lines[module['left']].get_xdata()
-            yvals = lines[module['left']].get_ydata()
+            if module['left'] is None:
+                yvals = lines[0].get_ydata()
+                xvals = numpy.ones(yvals.shape)
+            else:
+                yvals = lines[module['left']].get_ydata()
+                xvals = lines[module['left']].get_xdata()
 
             if module['right'] is None:
                 x2 = 0
@@ -1223,6 +1231,8 @@ class DepthViewLasio():
 
             if module.get('where') is None:
                 where = (xvals>x2)
+            elif module.get('where') is True:
+                where = (xvals<x2)
             else:
                 where = module['where']
 
@@ -1489,6 +1499,9 @@ class DepthViewLasio():
 
     @staticmethod
     def set_labelcurve(axis,curve):
+
+        if curve.row is False:
+            return
 
         axis.plot((0,1),(curve.row-0.6,curve.row-0.6),
             color=curve.color,linestyle=curve.style,linewidth=curve.width)
