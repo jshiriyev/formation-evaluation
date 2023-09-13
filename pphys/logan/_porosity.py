@@ -13,11 +13,11 @@ class neutron():
         self.phinfluid = phinfluid
 
     @trim
-    def phin(self):
+    def phi(self):
         return self.values
 
     @trim
-    def phincorr(self,phin,vshale,phinsh=0.35):
+    def phie(self,phin,vshale,phinsh=0.35):
         """Calculates shale corrected neutron porosity based on shale volume (vshale) and
         phinsh (neutron porosity at shale)."""
         return phin-vshale*phinsh
@@ -105,12 +105,12 @@ class density():
         self.rhofluid = rhofluid
 
     @trim
-    def phid(self,rhomat=2.65,rhofluid=1.0):
+    def phi(self,rhomat=2.65,rhofluid=1.0):
         """Calculates porosity based on bulk density, matrix density (rhomat), and fluid density (rhofluid)."""
         return (rhomat-self.values)/(rhomat-rhofluid)
 
     @trim
-    def phidcorr(self,phid,vshale,phidsh=0.1):
+    def phie(self,phid,vshale,phidsh=0.1):
         """Calculates shale corrected density porosity based on shale volume (vshale) and
         phidsh (density porosity at shale)."""
         return phid-vshale*phidsh
@@ -124,7 +124,7 @@ class sonic():
         self.depths = depths
 
     @trim
-    def phis(self,dtmat=55.6,dtfluid=189,dtshale=100):
+    def phi(self,dtmat=55.6,dtfluid=189,dtshale=100):
         """Calculates porosity based on transit times, matrix transit time (dtmat),
         fluid transit time (dtfluid), and (optional) adjacent shale transit time (dtshale)."""
         return (self.values-dtmat)/(dtfluid-dtmat)*(100/dtshale)

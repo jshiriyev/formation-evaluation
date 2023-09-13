@@ -73,14 +73,15 @@ class simandoux():
 class totalshale():
 
 	def __init__(self,archie):
-		"""It is a modified Simandoux model for the saturation calculations in shaly formations."""
+		"""It is a modified Simandoux model for the saturation
+		calculations in shaly formations."""
 
 		self._archie = archie
 
 	@trim
-	def sw(self,phie,vshale,rwater,rshale,rtotal):
+	def sw(self,porosity,vshale,rwater,rshale,rtotal):
 		"""Calculates water saturation based on total shale model."""
-		size = phie.size
+		size = porosity.size
 
 		saturation = numpy.zeros(size)
 
@@ -89,7 +90,7 @@ class totalshale():
 		rshale = set_value_iterable(rshale,size)
 		rtotal = set_value_iterable(rtotal,size)
 
-		zipped = zip(phie,vshale,rwater,rshale,rtotal)
+		zipped = zip(porosity,vshale,rwater,rshale,rtotal)
 
 		for index,(por,vsh,rw,rsh,rt) in enumerate(zipped):
 

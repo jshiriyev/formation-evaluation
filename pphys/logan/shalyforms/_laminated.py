@@ -1,5 +1,7 @@
 import numpy
 
+from borepy.pphys.logan._wrappers import trim
+
 class laminated():
 	"""The model for analysis of laminated shale proposes a multilayer
 	sandwich of alternating layers of clean sand and shale (lithified clay materials).
@@ -8,45 +10,38 @@ class laminated():
 	resistivity devices “see” an “average” that is not a true indicator of the
 	properties of either the clean-sand laminae or the intervening shales."""
 
-	def __init__(self,archie,phinsh=0.35,phidsh=0.1):
+	def __init__(self,archie):
 
 		self._archie = archie
 
-		self.phinsh = phinsh 	# 
-		self.phidsh = phidsh 	# apparent density porosity in the shale
+	@trim
+	def phisd(self,porosity,vshale):
+		"""Returns sand-streak porosity based on measured bulk formation porosity"""
+		return porosity/(1-vshale)
 
-	def phie(self,phin,phid):
-		"""Calculates the true porosity in the clean sand."""
-		upper = (self.phinsh*phid-self.phidsh*phin)
-		lower = (self.phinsh-self.phidsh)-(phin-phid)
-		return upper/lower
+	def swn(self,porosity,vshale,rwater,rshale,rtotal):
 
-	def vshale(self,phin,phid):
-		"""Calculates the shale content in a laminated shale."""
-		return (phin-phid)/(self.phinsh-self.phidsh)
+		term1 = (rwater/rtotal)-vshale*(rwater/rshale)
 
-	def sw(self,phie,vshale,rwater,rshale,rtotal):
+		formfact = self._archie.a/(porosity**self._archie.m)
+
+		term2 = formfact*(1-vshale)**(self._archie.m-1)
+
+		return term1*term2
+
+	@trim
+	def sw(self,porosity,vshale,rwater,rshale,rtotal):
 		"""Calculates water saturation based on laminated shale model."""
-
-		swn_clean = self._archie.swn(phie,rwater,rtotal)
-		swn_shale = self._archie.swn(phie,rwater,rshale)
-
-		swn_laminated = (swn_clean-swn_shale*vshale)/(1-vshale)
-
-		return numpy.power(swn_laminated,1/self._archie.n)
+		return self.swn(porosity,vshale,rwater,rshale,rtotal)**(1/self._archie.n)
 
 	@property
 	def archie(self):
 		return self._archie
 
 	@property
-	def effective_porosity(self):
-		return self.phie
+	def sand_streak_porosity(self):
+		return self.phisd
 	
-	@property
-	def shale_volume(self):
-		return self.vshale
-
 	@property
 	def water_saturation(self):
 		return self.sw

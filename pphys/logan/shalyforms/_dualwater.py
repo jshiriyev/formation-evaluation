@@ -2,6 +2,8 @@ import numpy
 
 from scipy.optimize import root_scalar
 
+from borepy.pphys.logan._wrappers import trim
+
 class dualwater():
 	"""The dual water model proposes that two distinct waters can be found in the pore space.
 	Close to the surface of the grains, bound water of resistivity RwB is encountered. This
@@ -16,27 +18,51 @@ class dualwater():
 
 		self._archie = archie
 
-	def vshale(self,phin,phid,phinsh=0.35,phidsh=0.1):
-		"""Calculates the shale volume."""
-		return (phin-phid)/(phinsh-phidsh)
+	@trim
+	def swbound_woodhouse(self,phit,vshale,phishale):
+		"""Returns bound water saturation based on:
 
-	def swbound(self,gammaray,phit,M=0.0015,B=-0.1):
+		phit 		: total porosity,
+		vshale 		: shale volume
+		phishale 	: shale porosity, some weighted average of the
+					  neutron and density porosity of shale"""
+
+		return vshale*phishale/phit
+
+	@trim
+	def swbound_gr(self,gammaray,phit,M=0.0015,B=-0.1):
+		"""Returns bound water saturation based Gamma-Ray logs."""
 		return M*(gammaray/phit)+B
 
-	# def swbound(self,phit,vshale,phishale):
-	# 	"""Calculates bound water saturation based on total porosity, phit, shale volume, vshale, and
-	# 	shale porosity, phishale (some weighted average of the neutron and density porosity of shale)."""
-	# 	return vshale*phishale/phit
+	@trim
+	def swbound_dn(self,phit,phit_CL,vdc,vdc_CL):
+		"""Returns bound water saturation based on Density-Neutron cross-plot.
+		dry clay (DC), wet clay (CL)"""
+		return (phit_CL/phit)*(vdc/vdc_CL)
 
-	def phie(self,phit,swbound):
-		"""Calculates the effective porosity."""
-		return phit*(1-swbound)
+	@trim
+	def swbound_sp(self):
+		"""Returns bound water saturation based on Spontaneous Potential log."""
+		return
+
+	@trim
+	def swbound_res(self):
+		"""Returns bound water saturation based on resistivity log."""
+		return
+
+	@trim
+	def swbound_sd(self):
+		"""Returns bound water saturation based on Sonic-Density cross-plot."""
+		return 
 
 	def rwbound(self,rshale,phishale):
-		"""Calculates bound water resistivity based on shale resistivity, rshale, and
-		shale porosity, phishale (some weighted average of the neutron and density porosity of shale)."""
+		"""Calculates bound water resistivity based on:
+		rshale 		: shale resistivity, and
+		phishale 	: shale porosity, some weighted average of the
+					  neutron and density porosity of shale"""
 		return rshale*phishale**2
 
+	@trim
 	def swt(self,phit,swbound,rwbound,rwater,rtotal):
 		"""Calculates total water saturation based on dual-water model.
 		
@@ -59,13 +85,13 @@ class dualwater():
 
 		zipped = zip(phit,swbound,rwbound,rwater,rtotal)
 
-		for index,(port,sb,rb,rw,rt) in enumerate(zipped):
+		for index,(por,swb,rwb,rw,rt) in enumerate(zipped):
 
 			solver = root_scalar(
 				dualwater.swt_forward,
 				method = 'newton', x0 = 1,
 				fprime = dualwater.swt_derivative,
-				args = (port,sb,rb,rw,rt,
+				args = (por,swb,rwb,rw,rt,
 					self._archie.a,
 					self._archie.m,
 					self._archie.n,
@@ -76,29 +102,35 @@ class dualwater():
 
 		return saturation
 
+	@trim
 	def swe(self,swt,swbound):
 		"""Calculates effective water saturation."""
 		return (swt-swbound)/(1-swbound)
 
-	def bwt(self,phit,swt):
-		"""Calculates bulk water total volume."""
-		return phit*swt
+	@trim
+	def phie(self,phit,swbound):
+		"""Calculates the effective porosity."""
+		return phit*(1-swbound)
 
 	def bwb(self,phit,swbound):
 		"""Calculates bulk water bound"""
 		return phit*swbound
 
+	def bwt(self,phit,swt):
+		"""Calculates bulk water total volume."""
+		return phit*swt
+
 	@staticmethod
-	def swt_forward(swt,port,sb,rb,rw,rt,a,m,n):
+	def swt_forward(swt,por,swb,rwb,rw,rt,a,m,n):
 		"""Implementing forward saturation equation for each depth point
 		based on the dual-water model, A*(Swt)**n+B*(Swt)**(n-1)+C = 0"""
-		return swt**n-sb*(1-rw/rb)*swt**(n-1)-(a/port**m)*(rw/rt)
+		return swt**n-swb*(1-rw/rwb)*swt**(n-1)-(a/por**m)*(rw/rt)
 		
 	@staticmethod
-	def swt_derivative(swt,port,sb,rb,rw,rt,a,m,n):
+	def swt_derivative(swt,por,swb,rwb,rw,rt,a,m,n):
 		"""Implementing derivative of forward saturation equation for each
 		depth point based on the dual-water model"""
-		return n*swt**(n-1)-(n-1)*sb*(1-rw/rb)*swt**(n-2)
+		return n*swt**(n-1)-(n-1)*swb*(1-rw/rwb)*swt**(n-2)
 
 	@property
 	def archie(self):

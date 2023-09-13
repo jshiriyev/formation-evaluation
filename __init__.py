@@ -30,3 +30,6 @@ from . import matbal
 from . import pormed
 
 from . import bhole
+
+from .bhole import resistivity
+from .bhole import stability

@@ -8,16 +8,25 @@ class indonesia():
 
 		self._archie = archie
 
+	def swn(self,porosity,vshale,rwater,rshale,rtotal,shalepower):
+		"""Calculates water saturation to the power n based on Poupon-Leveaux Indonesia model"""
+		formfact = self._archie.a/(porosity**self._archie.m)
+
+		swnclean = formfact*(rwater/rtotal)
+		swnshale = vshale**(-2*shalepower)*(rshale/rtotal)
+		
+		return (swnclean**(-1/2)+swnshale**(-1/2))**(-2)
+
 	@trim
-	def sw(self,phie,vshale,rwater,rshale,rtotal):
+	def sw(self,porosity,vshale,rwater,rshale,rtotal,shalepower=None):
 		"""Calculates water saturation based on Poupon-Leveaux Indonesia model"""
 
-		term1 = (vshale**(2-vshale)/rshale)**(1/2)
-		term2 = ((phie**self._archie.m)/(self._archie.a*rwater))**(1/2)
+		if shalepower is None:
+			shalepower = 1-vshale/2
 
-		swn_indonesia = 1/rtotal/(term1+term2)**2
+		swntotal = self.swn(porosity,vshale,rwater,rshale,rtotal,shalepower)
 
-		return numpy.power(swn_indonesia,1/self._archie.n)
+		return numpy.power(swntotal,1/self._archie.n)
 
 	def bwv(self,porosity,swater):
 		"""Calculates bulk water volume."""
