@@ -1,6 +1,6 @@
 import numpy
 
-from borepy.pphys.logan._wrappers import trim
+from borepy.bhole.pphys.logan._wrappers import trim
 
 class indonesia():
 

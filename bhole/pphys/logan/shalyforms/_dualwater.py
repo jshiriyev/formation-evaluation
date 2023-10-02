@@ -2,7 +2,7 @@ import numpy
 
 from scipy.optimize import root_scalar
 
-from borepy.pphys.logan._wrappers import trim
+from borepy.bhole.pphys.logan._wrappers import trim
 
 class dualwater():
 	"""The dual water model proposes that two distinct waters can be found in the pore space.

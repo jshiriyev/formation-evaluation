@@ -20,13 +20,15 @@ from matplotlib.ticker import ScalarFormatter
 
 import numpy
 
-from .gradient import gradient_fill
+from ._lascurve import LasCurve
+
+from ._depthview_gradient import gradient_fill
 
 class DepthView():
 
-    def __init__(self,lasfile,**kwargs):
+    def __init__(self,lasfile,top,bottom):
 
-        super().__init__(homedir=pop(kwargs,"homedir"))
+        self.lasfile = lasfile
 
         self.depths = {}
         self.axes = {}
@@ -36,16 +38,9 @@ class DepthView():
         self.perfs = []
         self.casings = []
 
-        if lasfile is None:
-            self.lasfile = LasFile(**kwargs)
-        if isinstance(lasfile,str):
-            self.lasfile = loadlas(lasfile,**kwargs)
-        elif isinstance(lasfile,LasFile):
-            self.lasfile = lasfile
+        self.set_depths(top,bottom)
 
-        self.set_depths()
-
-    def set_depths(self,base=10,subs=1,subskip=None,subskip_top=0,subskip_bottom=0):
+    def set_depths(self,top,bottom,base=10,subs=1,subskip=None,subskip_top=0,subskip_bottom=0):
         """It sets the depth interval for which log data will be shown.
         
         top             : top of interval
@@ -58,8 +53,8 @@ class DepthView():
 
         """
 
-        top = self.lasfile.depth.min()
-        bottom = self.lasfile.depth.max()
+        # top = self.lasfile.depth.min()
+        # bottom = self.lasfile.depth.max()
 
         top = numpy.floor(top/base)*base
         bottom = top+numpy.ceil((bottom-top)/base)*base
@@ -1561,7 +1556,6 @@ class DepthViewLasio():
         nrows = 3 if max(rows)<3 else max(rows)
 
         return nrows
-
 
 def pop(kwargs,key,default=None):
 
