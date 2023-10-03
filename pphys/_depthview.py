@@ -1556,10 +1556,3 @@ class DepthViewLasio():
         nrows = 3 if max(rows)<3 else max(rows)
 
         return nrows
-
-def pop(kwargs,key,default=None):
-
-    try:
-        return kwargs.pop(key)
-    except KeyError:
-        return default
