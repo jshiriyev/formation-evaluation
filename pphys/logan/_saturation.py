@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import numpy
 
-from ._wrappers import trim
+from borepy.utils._wrappers import trim
 
 @dataclass
 class archie:

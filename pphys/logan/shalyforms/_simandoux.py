@@ -2,7 +2,7 @@ import numpy
 
 from scipy.optimize import root_scalar
 
-from borepy.bhole.pphys.logan._wrappers import trim
+from borepy.utils._wrappers import trim
 
 class simandoux():
 

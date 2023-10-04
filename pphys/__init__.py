@@ -7,7 +7,7 @@ filepath = os.path.join(filedir,"_pphys.json")
 with open(filepath,"r") as jsonfile:
     library = json.load(jsonfile)
 
-from ._lascurve import LasCurve
+# from ._lascurve import LasCurve
 
 from ._lasbrief import NanView
 from ._lasbrief import TableView

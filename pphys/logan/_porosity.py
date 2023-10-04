@@ -1,6 +1,6 @@
 import numpy
 
-from ._wrappers import trim
+from borepy.utils._wrappers import trim
 
 class neutron():
 

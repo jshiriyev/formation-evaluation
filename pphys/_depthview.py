@@ -20,8 +20,9 @@ from matplotlib.ticker import ScalarFormatter
 
 import numpy
 
-from ._lascurve import LasCurve
+# from ._lascurve import LasCurve
 
+from borepy.utils._popdict import popdict
 from ._depthview_gradient import gradient_fill
 
 class DepthView():
@@ -77,9 +78,9 @@ class DepthView():
     def set_curve(self,col,curve,row=None,vmin=None,vmax=None,multp=None,**kwargs):
         """It adds LasCurve[head] to the axes[col]."""
 
-        kwargs['color'] = pop(kwargs,"color","black")
-        kwargs['style'] = pop(kwargs,"style","solid")
-        kwargs['width'] = pop(kwargs,"width",0.75)
+        kwargs['color'] = popdict(kwargs,"color","black")
+        kwargs['style'] = popdict(kwargs,"style","solid")
+        kwargs['width'] = popdict(kwargs,"width",0.75)
 
         if isinstance(curve,str):
             curve = self.lasfile[curve]
@@ -294,13 +295,13 @@ class DepthView():
     def set_page(self,**kwargs):
         """It sets the format of page for printing."""
 
-        depths = pop(kwargs,"depths")
+        depths = popdict(kwargs,"depths")
 
         self.page = {}
 
-        self.page['fmt'] = pop(kwargs,"fmt","A4").lower()
+        self.page['fmt'] = popdict(kwargs,"fmt","A4").lower()
 
-        self.page['orientation'] = pop(kwargs,"orientation","portrait").lower()
+        self.page['orientation'] = popdict(kwargs,"orientation","portrait").lower()
 
         size = self.get_pagesize(self.page['orientation'])
 
@@ -310,7 +311,7 @@ class DepthView():
 
         self.page['size'] = (size['width'],size['height'])
 
-        self.page['dpi'] = pop(kwargs,"dpi",100)
+        self.page['dpi'] = popdict(kwargs,"dpi",100)
 
         grids = self.get_pagegrid(self.page['orientation'])
 
@@ -815,9 +816,9 @@ class DepthViewLasio():
     def set_curve(self,col,head,row=None,vmin=None,vmax=None,multp=None,**kwargs):
         """It adds LasCurve[head] to the axes[col]."""
 
-        kwargs['color'] = pop(kwargs,"color","black")
-        kwargs['style'] = pop(kwargs,"style","solid")
-        kwargs['width'] = pop(kwargs,"width",0.75)
+        kwargs['color'] = popdict(kwargs,"color","black")
+        kwargs['style'] = popdict(kwargs,"style","solid")
+        kwargs['width'] = popdict(kwargs,"width",0.75)
 
         class curve: pass
 
@@ -1039,13 +1040,13 @@ class DepthViewLasio():
     def set_page(self,**kwargs):
         """It sets the format of page for printing."""
 
-        depths = pop(kwargs,"depths")
+        depths = popdict(kwargs,"depths")
 
         self.page = {}
 
-        self.page['fmt'] = pop(kwargs,"fmt","A4").lower()
+        self.page['fmt'] = popdict(kwargs,"fmt","A4").lower()
 
-        self.page['orientation'] = pop(kwargs,"orientation","portrait").lower()
+        self.page['orientation'] = popdict(kwargs,"orientation","portrait").lower()
 
         size = self.get_pagesize(self.page['orientation'])
 
@@ -1055,7 +1056,7 @@ class DepthViewLasio():
 
         self.page['size'] = (size['width'],size['height'])
 
-        self.page['dpi'] = pop(kwargs,"dpi",100)
+        self.page['dpi'] = popdict(kwargs,"dpi",100)
 
         grids = self.get_pagegrid(self.page['orientation'])
 
