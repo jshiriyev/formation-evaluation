@@ -910,6 +910,10 @@ class DepthViewLasio():
         width_ratio = [width]*self.axes["ncols"]
         width_ratio[depthloc] = depth
 
+        # width_ratio[3] = 30
+
+        # print(width_ratio)
+
         self.axes["width_ratio"] = tuple(width_ratio)
 
         if self.axes['labelloc'] == 'none':
@@ -1015,7 +1019,7 @@ class DepthViewLasio():
             self.set_axes()
 
         if kwargs.get("figsize") is None:
-            kwargs["figsize"] = (self.columns*1.5,6.5)
+            kwargs["figsize"] = ((self.columns)*1.5,6.5)
 
         self.add_figure(**kwargs)
 
