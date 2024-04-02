@@ -1,0 +1,132 @@
+{
+	"rock-matrix" : {
+		"color"			: "gray",
+		"hatch"			: "xx"
+	},
+
+	"shale" : {
+		"color"			: "gray",
+		"hatch"			: "--"
+	},
+
+	"shale-free" : {
+		"color"			: "navajowhite",
+		"hatch"			: "||"
+	},
+
+	"shaly-sandstone" : {
+		"color"			: "gold",
+		"hatch"			: "..--"
+	},
+
+	"sandstone" : {
+		"marker"		: "2",
+		"markercolor"	: "red",
+		"color"			: "gold",
+		"hatch"			: "..",
+	},
+
+	"limestone" : {
+		"color"			: "tan",
+		"hatch"			: "\\\\",
+		"marker"		: "2",
+		"markercolor"	: "blue",
+	},
+
+	"dolomite" : {
+		"color"			: "darkkhaki",
+		"hatch"			: "//",
+		"marker"		: "2",
+		"markercolor"	: "green",
+	},
+
+	"anhydrite" : {
+		"marker"		: "2",
+		"markercolor"	: "cyan",
+	},
+
+	"salt" : {
+		"marker"		: "2",
+		"markercolor"	: "black",
+	},
+
+	"pore-volume" : {
+		"color"			: "white",
+		"hatch"			: "OO"
+	},
+
+	"liquid" : {
+		"color"			: "blue",
+		"hatch"			: "OO"
+	},
+
+	"water" : {
+		"color"			: "steelblue",
+		"hatch"			: "OO"
+	},
+
+	"water-clay-bound" : {
+		"color"			: "lightskyblue",
+		"hatch"			: "XX"
+	},
+
+	"water-capillary-bound" : {
+		"color"			: "lightsteelblue",
+		"hatch"			: "XX"
+	},
+
+	"water-irreducible" : {
+		"color"			: "lightblue",
+		"hatch"			: "XX"
+	},
+
+	"water-movable" : {
+		"color"			: "aqua",
+		"hatch"			: ".."
+	},
+
+	"fluid-movable" : {
+		"color"			: "teal",
+		"hatch"			: ".."
+	},
+
+	"hydrocarbon" : {
+		"color"			: "green",
+		"hatch"			: "OO"
+	},
+
+	"gas" : {
+		"color"			: "lightcoral",
+		"hatch"			: "OO"
+	},
+
+	"gas-residual" : {
+		"color"			: "indianred",
+		"hatch"			: "XX"
+	},
+
+	"gas-movable" : {
+		"color"			: "red",
+		"hatch"			: ".."
+	},
+
+	"gas-condensate" : {
+		"color"			: "firebrick",
+		"hatch"			: "OO."
+	},
+
+	"oil" : {
+		"color"			: "seagreen",
+		"hatch"			: "oo"
+	},
+
+	"oil-residual" : {
+		"color"			: "forestgreen",
+		"hatch"			: "XX"
+	},
+
+	"oil-movable" : {
+		"color"			: "limegreen",
+		"hatch"			: ".."
+	}
+}

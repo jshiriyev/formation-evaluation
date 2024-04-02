@@ -1,0 +1,69 @@
+{
+	"sandstone" : [
+		{
+			"detail"		: "Porosity > 10%",
+			"DTma"			: 55.5,
+			"rhoma"			: 2.65,
+			"phima_SNP"		: -0.035,
+			"phima_CNL"		: -0.05
+		},
+		{
+			"detail"		: "Porosity < 10%",
+			"DTma"			: 51.2,
+			"rhoma"			: 2.65,
+			"phima_SNP"		: -0.035,
+			"phima_CNL"		: -0.005
+		}
+	],
+
+	"limestone" : [
+		{
+			"DTma"			: 47.5,
+			"rhoma"			: 2.71,
+			"phima_SNP"		: 0,
+			"phima_CNL"		: 0
+		}
+	],
+
+	"dolomite" : [
+		{
+			"detail"		: "5.5% < Porosity < 30%",
+			"DTma"			: 43.5,
+			"rhoma"			: 2.87,
+			"phima_SNP"		: 0.035,
+			"phima_CNL"		: 0.085
+		},
+		{
+			"detail"		: "1.5% < Porosity < 5.5% && Porosity>30%",
+			"DTma"			: 43.5,
+			"rhoma"			: 2.87,
+			"phima_SNP"		: 0.02,
+			"phima_CNL"		: 0.065
+		},
+		{
+		  "detail"			: "0% < Porosity < 1.5%",
+		  "DTma"			: 43.5,
+		  "rhoma"			: 2.87,
+		  "phima_SNP"		: 0.005,
+		  "phima_CNL"		: 0.04
+		}
+	],
+
+	"anhydrite" : [
+		{
+			"DTma"			: 50.0,
+			"rhoma"			: 2.98,
+			"phima_SNP"		: -0.005,
+			"phima_CNL"		: -0.002
+		}
+	],
+
+	"salt" : [
+		{
+			"DTma"			: 67.0,
+			"rhoma"			: 2.03,
+			"phima_SNP"		: 0.04,
+			"phima_CNL"		: -0.01
+		}
+	]
+}
