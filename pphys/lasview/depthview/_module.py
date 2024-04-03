@@ -1,10 +1,10 @@
-class module():
+class Module():
 
-    def __init__(self,**kwargs):
+    def __init__(self,column,left=0,right=None):
 
-        super().__init__(**kwargs)
+        self._column = column
 
-        object.__setattr__(self,"library",library)
+        self._left,self._right = left,right
 
     def set_colors(self,**kwargs):
 

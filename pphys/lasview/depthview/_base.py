@@ -1,19 +1,26 @@
-class Axes():
+class GSpecs():
 
-	def __init__(self,ncols=None,nrows=None,depthloc=None,labelloc="top",depth=6,label=6,width=15,height=70):
+	def __init__(self,*,ncols:int=None,nrows:int=None,depthloc=None,labelloc="top",depth=6,label=6,width=15,height=70):
 	    """
 	    It sets grid number for different elements in the axes:
 
 	    ncols       : number of column axis including depth axis in the figure, integer
 	    nrows       : number of curves in the axes, integer, nrows*label defines
 	                  grid number in the height of labels
+	                  
 	    depthloc    : location of depth axis, integer
 	    labelloc    : location of label axis, top, bottom or None
+
 	    depth       : grid number in the width of depth xaxis, integer
 	    label       : grid number in the height of individual label, integer
 	    width       : grid number in the width of curve individual xaxis, integer
 	    height      : grid number in the height of curve yaxis, integer
 	    """
+
+	    self._ncols = ncols
+	    self._nrows = nrows
+
+	def setup(self):
 
 	    if ncols is None:
 	        ncols = self.columns+1

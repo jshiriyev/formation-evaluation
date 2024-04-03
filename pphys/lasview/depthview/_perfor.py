@@ -1,4 +1,4 @@
-class perforation:
+class Perfor():
 
 	def __init__(self):
 

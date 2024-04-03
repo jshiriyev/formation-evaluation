@@ -1,4 +1,4 @@
-class casing:
+class Casing():
 
 	def __init__(self):
 

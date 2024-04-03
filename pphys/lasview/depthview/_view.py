@@ -10,52 +10,30 @@ from matplotlib import transforms
 
 import numpy
 
-from _xdirection import xdirection
-from _ydirection import ydirection
-
-##from _curve import Curve
-##from _module import module
-##from _perforation import perforation
-##from _casing import casing
-
 from utils._popdict import popdict
 
-from ._colors import gradient
+from ._depths import Depths
+from ._axes import Axes
+from ._curve import Curve
+from ._module import Module
+from ._perfor import Perfor
+from ._casing import Casing
+
+from ._gradient import gradient
 
 class DepthView():
 
-    def __init__(self,lasfile,top=None,bottom=None):
+    def __init__(self,lasfile:lasio.LASFile,*args,**kwargs):
 
-        self.lasfile = self.set_lasfile(lasfile)
+        self.lasfile = lasfile
 
-        self.depths = {}    # depth interval for which log data will be shown
-        self.axes = {}      # grid number for different elements in the axes
+        self.depths  = Depths(*args,**kwargs)
+        self.axes    = {}
 
-        self.curves = {}    # 
-        self.modules = []   # 
-        self.perfs = []     # 
-        self.casings = []   # 
-
-        self.set_depths(top,bottom)
-
-    def set_lasfile(self,lasfile):
-        """
-        lasfile.LASFile
-        lasfile.SectionItems
-        lasfile.HeaderItem
-        lasfile.CurveItem
-        """
-
-        if isinstance(lasfile,lasio.LASFile):
-            return lasfile
-        elif isinstance(lasfile,str):
-            return lasio.read(lasfile)
-
-        raise ValueError("It should be either lasio.las.LASFile or path.")
-
-    def set_depths(self):
-
-        pass
+        self.curves  = {}
+        self.modules = []
+        self.perfors = []
+        self.casings = []
 
     def set_axes(self):
 
@@ -82,53 +60,17 @@ class DepthView():
 
         curve.depth = depth[conds]
 
-        curve.unit = self.lasfile.curves[head]['unit']
-        curve.descr = self.lasfile.curves[head]['descr']
-
-        for key,value in kwargs.items():
-            setattr(curve,key,value)
-        
-        curve.col = col
-        curve.row = row
-
-        if vmin is None:
-            vmin = numpy.nanmin(curve.data)
-        
-        if vmax is None:
-            vmax = numpy.nanmax(curve.data)
-
-        curve.vmin = vmin
-        curve.vmax = vmax
-
-        curve.limit = (vmin,vmax)
-
-        curve.multp = multp
-
         self.curves[curve.mnemonic] = curve
 
-    def set_xaxis(self,col,cycles=2,scale='linear',subs=None,subskip=None,subskip_left=0,subskip_right=0):
+    def set_xaxis(self,col,**kwargs):
 
         if len(self.axes)==0:
             self.set_axes()
 
-        if subskip is not None:
-            subskip_left,subskip_right = subskip,subskip
-
         if col==self.axes['depthloc']:
-            subs = 1
-            limit = (0,10)
-        elif scale=="linear":
-            subs = 1 if subs is None else subs
-            limit = (0+subskip_left,cycles*10+subskip_right)
-        elif scale=="log":
-            subs = range(1,10) if subs is None else subs
-            limit = ((1+subskip_left)*10**0,(1+subskip_right)*10**cycles)
-        else:
-            raise ValueError(f"{scale} has not been defined! options: {{linear,log}}")
+            subs,limit = 1,(0,10)
 
-        self.axes['xaxis'][col]['subs'] = subs
-        self.axes['xaxis'][col]['limit'] = limit
-        self.axes['xaxis'][col]['scale'] = scale
+        self.axes['xaxis'][col] = xaxis = XAxis(**kwargs)
 
     def __getitem__(self,head):
 
@@ -141,8 +83,6 @@ class DepthView():
 
         _module['col'] = col
         _module['module'] = module
-        _module['left'] = left
-        _module['right'] = right
 
         for key,value in kwargs.items():
             _module[key] = value
