@@ -3,8 +3,8 @@ class Module():
     def __init__(self,column,left=0,right=None):
 
         self._column = column
-
-        self._left,self._right = left,right
+        self._left   = left
+        self._right  = right
 
     def set_colors(self,**kwargs):
 

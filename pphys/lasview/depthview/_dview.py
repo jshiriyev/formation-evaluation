@@ -13,7 +13,7 @@ import numpy
 from utils._popdict import popdict
 
 from ._depths import Depths
-from ._axes import Axes
+from ._layout import Layout
 from ._curve import Curve
 from ._module import Module
 from ._perfor import Perfor
@@ -27,15 +27,14 @@ class DepthView():
 
         self.lasfile = lasfile
 
-        self.depths  = Depths(*args,**kwargs)
-        self.axes    = {}
+        self.layout  = Layout() # head, body, depth, xaxis
 
-        self.curves  = {}
-        self.modules = []
-        self.perfors = []
-        self.casings = []
+        self.curves  = ()
+        self.modules = ()
+        self.perfors = ()
+        self.casings = ()
 
-    def set_axes(self):
+    def set_layout(self):
 
         pass
 
@@ -405,83 +404,6 @@ class DepthView():
         pass
 
     @staticmethod
-    def set_linxaxis(curve,xaxis):
-
-        amin,amax = xaxis["limit"]
-
-        vmin,vmax = curve.limit
-
-        if vmin>vmax:
-            vmin,vmax = vmax,vmin
-            reverse = True
-        else:
-            reverse = False
-
-        # print(f"{amin=},",f"{amax=}")
-        # print(f"given_{vmin=},",f"given_{vmax=}")
-
-        delta_axis = numpy.abs(amax-amin)
-        delta_vals = numpy.abs(vmax-vmin)
-
-        # print(f"{delta_vals=}")
-
-        # delta_powr = -numpy.floor(numpy.log10(delta_vals))
-
-        # print(f"{delta_powr=}")
-
-        # vmin = numpy.floor(vmin*10**delta_powr)/10**delta_powr
-
-        # vmax_temp = numpy.ceil(vmax*10**delta_powr)/10**delta_powr
-
-        # print(f"{vmin=},",f"{vmax_temp=}")
-
-        if curve.multp is None:
-
-            # multp_temp = (vmax_temp-vmin)/(delta_axis)
-            multp_temp = (vmax-vmin)/(delta_axis)
-            multp_powr = -numpy.log10(multp_temp)
-            # multp_powr = -numpy.floor(numpy.log10(multp_temp))
-
-            # print(f"{multp_temp=},")
-
-            # curve.multp = numpy.ceil(multp_temp*10**multp_powr)/10**multp_powr
-            curve.multp = multp_temp
-
-            # print(f"{curve.multp=},")
-        
-        axis_vals = amin+(curve.data-vmin)/curve.multp
-
-        vmax = delta_axis*curve.multp+vmin
-        
-        # print(f"normalized_{vmin=},",f"normalized_{vmax=}")
-
-        if reverse:
-            curve.xaxis = amax-axis_vals
-        else:
-            curve.xaxis = axis_vals
-
-        if reverse:
-            curve.limit = (vmax,vmin)
-        else:
-            curve.limit = (vmin,vmax)
-
-    @staticmethod
-    def set_logxaxis(curve,xaxis):
-
-        vmin,_ = curve.limit
-
-        if curve.multp is None:
-            curve.multp = numpy.ceil(numpy.log10(1/vmin))
-
-        axis_vals = curve.data*10**curve.multp
-
-        vmin = min(xaxis["limit"])/10**curve.multp
-        vmax = max(xaxis["limit"])/10**curve.multp
-
-        curve.xaxis = axis_vals
-        curve.limit = (vmin,vmax)
-
-    @staticmethod
     def get_pagesize(fmt="A4",orientation="portrait",unit="in"):
 
         fmt = fmt.lower()
@@ -530,95 +452,6 @@ class DepthView():
         _grid['a4'],_grid['letter'] = a4,letter
 
         return {'width': _grid[fmt][0], 'height': _grid[fmt][1]}
-
-    @staticmethod
-    def set_axislabel(axis,xlim,ylim):
-
-        axis.set_xlim(xlim)
-
-        pyplot.setp(axis.get_xticklabels(),visible=False)
-        pyplot.setp(axis.get_xticklines(),visible=False)
-
-        axis.set_ylim(ylim)
-
-        pyplot.setp(axis.get_yticklabels(),visible=False)
-        pyplot.setp(axis.get_yticklines(),visible=False)
-
-    @staticmethod
-    def set_axisdepth(axis,xaxis,yaxis):
-
-        axis.set_ylim(yaxis['limit'])
-        axis.set_xlim(xaxis['limit'])
-
-        pyplot.setp(axis.get_xticklabels(),visible=False)
-        pyplot.setp(axis.get_xticklines(),visible=False)
-
-        axis.yaxis.set_minor_locator(ticker.MultipleLocator(yaxis['subs']))
-        axis.yaxis.set_major_locator(ticker.MultipleLocator(yaxis['base']))
-        
-        axis.tick_params(
-            axis="y",which="both",direction="in",right=True,pad=-40)
-
-        pyplot.setp(axis.get_yticklabels(),visible=False)
-
-        xmin,xmax = xaxis['limit']
-
-        for ytick in yaxis['ticks']:
-
-            axis.annotate(f"{ytick:4.0f}",xy=((xmin+xmax)/2,ytick),
-                horizontalalignment='center',
-                verticalalignment='center',
-                backgroundcolor='white',)
-
-    @staticmethod
-    def set_yaxiscurve(axis,yaxis):
-        """It staticly sets y-axis of the given axis. Required keywords in yaxis:
-        
-        limit:  defines the ylim
-        base:   sets the frequency of major ticks
-        subs:   sets the frequency of minor ticks
-        """
-
-        axis.set_ylim(yaxis['limit'])
-
-        axis.yaxis.set_minor_locator(ticker.MultipleLocator(yaxis['subs']))
-        axis.yaxis.set_major_locator(ticker.MultipleLocator(yaxis['base']))
-
-        pyplot.setp(axis.get_yticklabels(),visible=False)
-        pyplot.setp(axis.get_yticklines(),visible=False)
-
-        axis.tick_params(axis="y",which="minor",left=False)
-
-        axis.grid(axis="y",which='minor',color='k',alpha=0.4)
-        axis.grid(axis="y",which='major',color='k',alpha=0.9)
-
-    @staticmethod
-    def set_xaxiscurve(axis,xaxis):
-        """It staticly sets x-axis of the given axis. Required keywords in xaxis:
-        
-        limit:  defines the xlim
-        scale:  linear or log
-        subs:   sets the frequency of minor ticks
-        """
-
-        axis.set_xlim(xaxis['limit'])
-
-        axis.set_xscale(xaxis['scale'])
-
-        if xaxis['scale']=="linear":
-            axis.xaxis.set_minor_locator(ticker.MultipleLocator(xaxis['subs']))
-            axis.xaxis.set_major_locator(ticker.MultipleLocator(10))
-        elif xaxis['scale']=="log":
-            axis.xaxis.set_minor_locator(ticker.LogLocator(base=10,subs=xaxis['subs'],numticks=12))
-            axis.xaxis.set_major_locator(ticker.LogLocator(base=10,numticks=12))
-
-        pyplot.setp(axis.get_xticklabels(),visible=False)
-        pyplot.setp(axis.get_xticklines(),visible=False)
-
-        axis.tick_params(axis="x",which="minor",bottom=False)
-
-        axis.grid(axis="x",which='minor',color='k',alpha=0.4)
-        axis.grid(axis="x",which='major',color='k',alpha=0.9)
 
     @staticmethod
     def set_labelcurve(axis,curve):

@@ -5,12 +5,11 @@ import numpy
 class Curve(lasio.CurveItem):
 	"""It is Curve Item with additional plotting properties."""
 
-	def __init__(self,column:int,depth:numpy.ndarray,*,row:int=None,xmin:float=None,xmax:float=None,multp:float=None,**kwargs):
+	def __init__(self,column:int,*,row:int=None,xmin:float=None,xmax:float=None,multp:float=None,**kwargs):
 
 		super().__init__(**kwargs)
 
 		self._column = column
-		self._depth	 = depth
 		self._row 	 = row
 		self._xmin 	 = xmin
 		self._xmax 	 = xmax	
@@ -19,10 +18,6 @@ class Curve(lasio.CurveItem):
 	@property
 	def column(self):
 		return self._column
-
-	@property
-	def depth(self):
-		return self._depth
 	
 	@property
 	def row(self):
