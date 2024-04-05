@@ -2,52 +2,59 @@ from dataclasses import dataclass
 
 from matplotlib import pyplot
 
-@dataclass
-class Head:
-
-	height  : float = None  	# height per row of head
-	spot 	: str   = "top" 	# spot of head: top, bottom or None
-	nrows 	: int   = 3 		# maximum number of curves in all columns
-
-@dataclass
-class Body:
-
-	height 	: float = None 		# heigth per unit distance
-
 class Layout():
 
-	def __init__(self,*,ncols:int=None,width:tuple=None,height:tuple=None,depth:int=1,spot:str="top",nrows:int=None):
+	def __init__(self,*,ncols:int=None,nrows:int=3,width:tuple=None,height:tuple=None,depth:int=1,label:str="top"):
 		"""
 		It sets grid number for different elements in the axes:
 
 		ncols       : number of column axis including depth axis in the figure, integer
-		width       : width of columns, len(width) must be equal to ncols
-		
-		height      : height per row and height per unit distance, (float,)*2
+
+		width       : width of curve track and width of depth track,
+					  len(width) must be equal to either one, two or ncols.
+					  tuple of floats
+
+		height      : height per row and height per unit distance,
+					  len(height) must be equal to either one or two.
+					  tuple of floats
 	
 		depth       : location of depth axis, integer
 
-		spot 		: spot of label plots
+		label 		: label of label plots
 
 		nrows 		: maximum number of curves in all columns
 		"""
 
-		self._ncols = ncols
+		self._ncols  = ncols
+		self._nrows  = nrows
+
+		self._width  = self.get_width(width)
+		self._height = self.get_height(height)
+
+		self._depth  = depth
+		self._label  = label 	# label of head: top, bottom or None
+
+		self._tracks = ()
+
+	def get_width(width):
 
 		if len(width)==1:
-			self._width = width*ncols
-		elif len(width)==ncols:
-			self._width = width
-		else:
-			raise Warning("Length of width and number of columns does not match")
+			return width*ncols
 
-		self._depth = depth
+		if len(width)==2:
+			return width[0]+width[1]*(ncols-1)
+
+		if len(width)==ncols:
+			return width
+
+		raise Warning("Length of width and number of columns does not match")
+
+	def get_height(height):
 
 		if height is None:
 			height = (1.,0.5)
 
-		self._head = Head(height[0],spot,nrows)
-		self._body = Body(height[1])
+		return height
 
 	@property
 	def ncols(self):
@@ -62,13 +69,9 @@ class Layout():
 		return self._depth
 
 	@property
-	def head(self):
-		return self._head
-
-	@property
-	def body(self):
-		return self._body
-
+	def label(self):
+		return self._label
+	
 	def boot(self,axis):
 
         axis.set_xlim((0,1))
@@ -85,7 +88,7 @@ class Layout():
 
 if __name__ == "__main__":
 
-	layout = Layout(ncols=5,width=(2,),spot="top",nrows=3)
+	layout = Layout(ncols=5,width=(2,),label="top",nrows=3)
 
 	print(layout.width)
 
