@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+import numpy
+
 @dataclass
 class Skip:
 	lower : int
@@ -7,11 +9,11 @@ class Skip:
 
 class Axis():
 
-	def __init__(self,*,major=2,minor=None,scale='linear',skip:tuple=None):
+	def __init__(self,*,cycle=2,minor=None,scale='linear',skip:tuple=None):
 		"""
 		It initializes axis of box in track plot:
 
-		major 	: sets the number of major units in the axis
+		cycle 	: sets the number of cycles in the axis
 		minor 	: sets the frequency of minor ticks
 
         scale   : axis scale: linear or logarithmic
@@ -19,7 +21,7 @@ class Axis():
 				  upper side, tuple of two integers
 		"""
 
-		self._major = major
+		self._cycle = cycle
 		self._minor = range(1,10) if minor is None else minor
 
         self._scale = scale
@@ -29,9 +31,9 @@ class Axis():
 		self._skip = Skip(*skip)
 
 	@property
-	def major(self):
-		return self._major
-
+	def cycle(self):
+		return self._cycle
+	
 	@property
 	def minor(self):
 		return self._minor
@@ -43,23 +45,37 @@ class Axis():
 	@property
 	def skip(self):
 		return self._skip
-	
-	@property
-	def limits(self):
 
+	@property
+	def lower(self):
+		"""Returns the lower end value of axis."""
 		if self.scale == "linear":
-			return (0+self.skip.lower,self.major*10+self.skip.upper)
+			return 0+self.skip.lower
 
 		if self.scale == "log":
-			return (1+self.skip.lower,(1+self.skip.upper)*10**self.major)
+			return 1+self.skip.lower
+	
+	@property
+	def upper(self):
+		"""Returns the upper end value of axis."""
+		if self.scale == "linear":
+			return self.cycle*10+self.skip.upper
 
-		raise ValueError(f"{self.scale} has not been defined! options: {{linear,log}}")
+		if self.scale == "log":
+			return (1+self.skip.upper)*10**self.cycle
+	
+	@property
+	def limit(self):
+		return (self.lower,self.upper)
 
-    def __call__(self,curve):
+    def __call__(self,data,lower=None,upper=None):
 
-        amin,amax = self.limits
+    	lower = numpy.nanmin(data) if lower is None else lower
+    	upper = numpy.nanmax(data) if upper is None else upper
 
-        vmin,vmax,reverse = self.get_limits(curve.limit)
+        amin,amax = self.limit
+
+        vmin,vmax,reverse = self.get_limits(lower,upper)
 
         delta_axis = numpy.abs(amax-amin)
         delta_vals = numpy.abs(vmax-vmin)
@@ -88,13 +104,14 @@ class Axis():
 
         vmin,_ = curve.limit
 
-        if curve.multp is None:
-            curve.multp = numpy.ceil(numpy.log10(1/vmin))
+        multp = numpy.ceil(numpy.log10(1/vmin))
 
-        axis_vals = curve.data*10**curve.multp
+        axis_vals = curve.data*10**multp
 
-        vmin = min(self.limits)/10**curve.multp
-        vmax = max(self.limits)/10**curve.multp
+        vmin = self.lower/10**curve.multp
+        vmax = self.upper/10**curve.multp
+
+        return axis_vals,(vmin,vmax)
 
         if reverse:
             return amax-axis_vals,(vmax,vmin)
@@ -103,12 +120,12 @@ class Axis():
 
     @staticmethod
     def get_limits(limits:tuple):
-        """Returns Min, Max, and Reverse Flag based on axis limits."""
+        """Returns Min, Max, and Reverse Flag based on limits."""
         return min(limits),max(limits),True if limits[0]>limits[-1] else False
 
     @staticmethod
     def get_length(limits:tuple):
-        """Returns the length based on axis limits."""
+        """Returns the length based on limits."""
         return max(limits)-min(limits)
 
 if __name__ == "__main__":
