@@ -25,7 +25,7 @@ class Box():
 		pyplot.setp(axis.get_yticklabels(),visible=False)
         pyplot.setp(axis.get_yticklines(),visible=False)
 
-        if self.scale=="linear":
+        if self.xaxis.scale=="linear":
 
             axis.xaxis.set_minor_locator(
             	ticker.MultipleLocator(self.minor))
@@ -33,7 +33,7 @@ class Box():
             axis.xaxis.set_major_locator(
             	ticker.MultipleLocator(10))
 
-        elif self.scale=="log":
+        elif self.xaxis.scale=="log":
 
             axis.xaxis.set_minor_locator(
             	ticker.LogLocator(base=10,subs=self.minor,numticks=12))

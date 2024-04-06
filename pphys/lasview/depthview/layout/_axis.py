@@ -14,9 +14,10 @@ class Axis():
 		It initializes axis of box in track plot:
 
 		cycle 	: sets the number of cycles in the axis
+		scale   : axis scale: linear or logarithmic
+
 		minor 	: sets the frequency of minor ticks
 
-        scale   : axis scale: linear or logarithmic
 		skip 	: how many minor units to skip from lower and
 				  upper side, tuple of two integers
 		"""
@@ -24,7 +25,7 @@ class Axis():
 		self._cycle = cycle
 		self._minor = range(1,10) if minor is None else minor
 
-        self._scale = scale
+		self._scale = scale
 
 		skip = (0,0) if skip is None else skip
 
@@ -33,14 +34,14 @@ class Axis():
 	@property
 	def cycle(self):
 		return self._cycle
-	
+
+	@property
+	def scale(self):
+		return self._scale
+
 	@property
 	def minor(self):
 		return self._minor
-
-    @property
-    def scale(self):
-        return self._scale
 
 	@property
 	def skip(self):
@@ -68,72 +69,86 @@ class Axis():
 	def limit(self):
 		return (self.lower,self.upper)
 
-    def __call__(self,data,lower=None,upper=None):
+	@property
+	def length(self):
+		return self.get_length(self.limit)
+	
+	def __call__(self,data:numpy.ndarray,limit:tuple=None,reverse:bool=False):
 
-    	lower = numpy.nanmin(data) if lower is None else lower
-    	upper = numpy.nanmax(data) if upper is None else upper
+		multp = self.get_multp(limit)
 
-        amin,amax = self.limit
+		if reverse:
+			return self.upper-data*multp,numpy.flip(numpy.array(self.limit)/multp)
 
-        vmin,vmax,reverse = self.get_limits(lower,upper)
+		return data*multp,numpy.array(self.limit)/multp
 
-        delta_axis = numpy.abs(amax-amin)
-        delta_vals = numpy.abs(vmax-vmin)
+	def get_sorted(self,data:numpy.ndarray=None,limit:tuple=None):
 
-        # delta_powr = -numpy.floor(numpy.log10(delta_vals))
+		if limit is None:
 
-        # vmin = numpy.floor(vmin*10**delta_powr)/10**delta_powr
+			lower = self.floor(numpy.nanmin(data))
+			upper = self.ceil(numpy.nanmax(data))
+			
+			return (upper,lower) if reverse else (lower,upper)
 
-        # vmax_temp = numpy.ceil(vmax*10**delta_powr)/10**delta_powr
+		return self.get_limit(limit)
 
-        if curve.multp is None:
+	def get_multp(self,limit:tuple):
 
-            # multp_temp = (vmax_temp-vmin)/(delta_axis)
-            multp_temp = (vmax-vmin)/(delta_axis)
-            multp_powr = -numpy.log10(multp_temp)
-            # multp_powr = -numpy.floor(numpy.log10(multp_temp))
+		if self.scale == "linear":
+			return self.floor(self.length/self.get_length(limit))
 
-            # curve.multp = numpy.ceil(multp_temp*10**multp_powr)/10**multp_powr
-            curve.multp = multp_temp
-        
-        axis_vals = amin+(curve.data-vmin)/curve.multp
+		if self.scale == "log":
+			return 10**self.ceil(-numpy.log10(min(limit)))
 
-        vmax = delta_axis*curve.multp+vmin
+	@staticmethod
+	def get_length(limit:tuple):
+		"""Returns the length based on limits."""
+		return max(limit)-min(limit)
 
-        # def set_logxaxis(self,curve):
+	@staticmethod
+	def isreverse(limit:tuple):
+		"""Returns flag based on the limit values order."""
+		return True if limit[0]>limit[-1] else False
 
-        vmin,_ = curve.limit
+	@staticmethod
+	def power(x):
+		"""Returns the tenth power that brings float point next to the first significant digit."""
+		return -int(numpy.floor(numpy.log10(abs(x))))
 
-        multp = numpy.ceil(numpy.log10(1/vmin))
+	@staticmethod
+	def ceil(x):
+		"""Returns the ceil value for the first significant digit."""
+		return numpy.ceil(x*10**Axis.power(x))/10**Axis.power(x)
 
-        axis_vals = curve.data*10**multp
+	@staticmethod
+	def floor(x):
+		"""Returns the floor value for the first significant digit."""
+		return numpy.floor(x*10**Axis.power(x))/10**Axis.power(x)
 
-        vmin = self.lower/10**curve.multp
-        vmax = self.upper/10**curve.multp
-
-        return axis_vals,(vmin,vmax)
-
-        if reverse:
-            return amax-axis_vals,(vmax,vmin)
-
-        return axis_vals,(vmin,vmax)
-
-    @staticmethod
-    def get_limits(limits:tuple):
-        """Returns Min, Max, and Reverse Flag based on limits."""
-        return min(limits),max(limits),True if limits[0]>limits[-1] else False
-
-    @staticmethod
-    def get_length(limits:tuple):
-        """Returns the length based on limits."""
-        return max(limits)-min(limits)
+	@staticmethod
+	def round(x):
+		"""Returns the rounded value for the first significant digit."""
+		return numpy.round(x*10**Axis.power(x))/10**Axis.power(x)
 
 if __name__ == "__main__":
 
-	xaxis = XAxis(subs=2,scale="log",skip=(1,3))
+	xaxis = Axis(scale="log",skip=(1,3))
 
-	print(xaxis.skip.xmax)
+	# print(xaxis.skip.upper)
 
-	print(xaxis.limit)
+	# print(xaxis.limit)
+
+	# print(Axis.ceil(0.03573465))
+	# print(Axis.floor(0.03573465))
+	# print(Axis.round(0.03573465))
+
+	# print(Axis.ceil(3459))
+	# print(Axis.floor(3459))
+	# print(Axis.round(3459))
+
+	print(Axis(cycle=2).get_multp((0.1,0.4)))
+	print(Axis(cycle=3).get_multp((0.1,0.5)))
+	print(Axis(cycle=1,skip=(6,0)).get_multp((0.1,0.4)))
 
 
