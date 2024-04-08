@@ -11,7 +11,7 @@ class Axis():
 
 	def __init__(self,*,cycle=2,minor=None,scale='linear',skip:tuple=None):
 		"""
-		It initializes axis of box in track plot:
+		It initializes the axis of box in a track plot:
 
 		cycle 	: sets the number of cycles in the axis
 		scale   : axis scale: linear or logarithmic
@@ -19,7 +19,8 @@ class Axis():
 		minor 	: sets the frequency of minor ticks
 
 		skip 	: how many minor units to skip from lower and
-				  upper side, tuple of two integers
+				  upper side, tuple of two integers, values may
+				  change in between (0-9), 0 means no skip.
 		"""
 
 		self._cycle = cycle
@@ -67,33 +68,36 @@ class Axis():
 	
 	@property
 	def limit(self):
+		"""Returns the lower and upper end of axis."""
 		return (self.lower,self.upper)
 
 	@property
 	def length(self):
-		return self.get_length(self.limit)
+		"""Returns the length of axis."""
+		return self.upper-self.lower
 	
-	def __call__(self,data:numpy.ndarray,limit:tuple=None,reverse:bool=False):
-
-		multp = self.get_multp(limit)
-
-		if reverse:
-			return self.upper-data*multp,numpy.flip(numpy.array(self.limit)/multp)
-
-		return data*multp,numpy.array(self.limit)/multp
-
-	def get_sorted(self,data:numpy.ndarray=None,limit:tuple=None):
+	def __call__(self,data:numpy.ndarray,limit:tuple=None):
 
 		if limit is None:
 
-			lower = self.floor(numpy.nanmin(data))
-			upper = self.ceil(numpy.nanmax(data))
-			
-			return (upper,lower) if reverse else (lower,upper)
+			limit = self.get_limit((numpy.nanmin(data),numpy.nanmax(data)))
 
-		return self.get_limit(limit)
+		multp = self.get_multp(limit)
+
+		if self.scale == "linear":
+			
+			if limit == tuple(sorted(limit)):
+
+				return self.lower+(data-min(limit))*multp,limit
+
+			return self.lower+(max(limit)-data)*multp,limit
+
+		if self.scale == "log":
+
+			return data*multp,tuple([limit/multp for limit in self.limit])
 
 	def get_multp(self,limit:tuple):
+		"""Returns the multiplication factor that will bring the limit to the axis scale."""
 
 		if self.scale == "linear":
 			return self.floor(self.length/self.get_length(limit))
@@ -102,14 +106,26 @@ class Axis():
 			return 10**self.ceil(-numpy.log10(min(limit)))
 
 	@staticmethod
+	def get_limit(limit:tuple):
+		"""Returns the limit by using the same power for lower and upper values."""
+
+		power = Axis.get_power(limit)
+
+		lower = Axis.floor(lower,power)
+		upper = Axis.ceil(upper,power)
+		
+		return (lower,upper)
+
+	@staticmethod
+	def get_power(limit:tuple):
+		"""Returns the tenth power that brings float point next to the first significant digit
+		based on the absolutely largest value in the limit."""
+		return min([Axis.power(x) for x in limit])
+
+	@staticmethod
 	def get_length(limit:tuple):
 		"""Returns the length based on limits."""
 		return max(limit)-min(limit)
-
-	@staticmethod
-	def isreverse(limit:tuple):
-		"""Returns flag based on the limit values order."""
-		return True if limit[0]>limit[-1] else False
 
 	@staticmethod
 	def power(x):
@@ -117,19 +133,22 @@ class Axis():
 		return -int(numpy.floor(numpy.log10(abs(x))))
 
 	@staticmethod
-	def ceil(x):
+	def ceil(x,power=None):
 		"""Returns the ceil value for the first significant digit."""
-		return numpy.ceil(x*10**Axis.power(x))/10**Axis.power(x)
+		power = Axis.power(x) if power is None else power
+		return numpy.ceil(x*10**power)/10**power
 
 	@staticmethod
-	def floor(x):
+	def floor(x,power=None):
 		"""Returns the floor value for the first significant digit."""
-		return numpy.floor(x*10**Axis.power(x))/10**Axis.power(x)
+		power = Axis.power(x) if power is None else power
+		return numpy.floor(x*10**power)/10**power
 
 	@staticmethod
-	def round(x):
+	def round(x,power=None):
 		"""Returns the rounded value for the first significant digit."""
-		return numpy.round(x*10**Axis.power(x))/10**Axis.power(x)
+		power = Axis.power(x) if power is None else power
+		return numpy.round(x*10**power)/10**power
 
 if __name__ == "__main__":
 
@@ -147,8 +166,17 @@ if __name__ == "__main__":
 	# print(Axis.floor(3459))
 	# print(Axis.round(3459))
 
-	print(Axis(cycle=2).get_multp((0.1,0.4)))
-	print(Axis(cycle=3).get_multp((0.1,0.5)))
-	print(Axis(cycle=1,skip=(6,0)).get_multp((0.1,0.4)))
+	# print(Axis(cycle=2).get_multp((0.1,0.4)))
+	# print(Axis(cycle=3).get_multp((0.1,0.5)))
+
+	xaxis = Axis(cycle=1,skip=(6,0))
+
+	data = numpy.array([0.61,0.7,0.8,0.9,0.99])
+
+	data,limit = xaxis(data,limit=(1,0.6))
+
+	print(data,limit)
+
+	# print(Axis(cycle=1,skip=(6,0)).get_multp((0.1,0.4)))
 
 
