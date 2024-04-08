@@ -1,16 +1,15 @@
-from dataclasses import dataclass
-
-from matplotlib import pyplot
+from ._trail import Trail
 
 class Layout():
 
-	def __init__(self,*,ncols:int=None,nrows:int=3,width:tuple=None,height:tuple=None,depth:int=1,label:str="top"):
+	def __init__(self,*,ncols:int=3,nrows:int=3,width:tuple=None,height:tuple=None,depth:int=1,label:str="top"):
 		"""
 		It sets grid number for different elements in the axes:
 
 		ncols       : number of column axis including depth axis in the figure, integer
+		nrows 		: number of curves in columns, integer
 
-		width       : width of curve track and width of depth track,
+		width       : width of curve trail and width of depth trail,
 					  len(width) must be equal to either one, two or ncols.
 					  tuple of floats
 
@@ -20,9 +19,7 @@ class Layout():
 	
 		depth       : location of depth axis, integer
 
-		label 		: label of label plots
-
-		nrows 		: maximum number of curves in all columns
+		label 		: location of label plots, top, bottom or None
 		"""
 
 		self._ncols  = ncols
@@ -32,29 +29,15 @@ class Layout():
 		self._height = self.get_height(height)
 
 		self._depth  = depth
-		self._label  = label 	# label of head: top, bottom or None
+		self._label  = label
 
-		self._tracks = ()
+		self._trails = tuple([Trail() for _ in ncols])
 
-	def get_width(width):
+	def __setitem__(self,index,trail:Trail):
+		self._trails[index] = trail
 
-		if len(width)==1:
-			return width*ncols
-
-		if len(width)==2:
-			return width[0]+width[1]*(ncols-1)
-
-		if len(width)==ncols:
-			return width
-
-		raise Warning("Length of width and number of columns does not match")
-
-	def get_height(height):
-
-		if height is None:
-			height = (1.,0.5)
-
-		return height
+	def __getitem__(self,index):
+		return self._trails[index]
 
 	@property
 	def ncols(self):
@@ -71,20 +54,26 @@ class Layout():
 	@property
 	def label(self):
 		return self._label
-	
-	def boot(self,axis):
 
-        axis.set_xlim((0,1))
+	def get_width(self,width):
 
-        pyplot.setp(axis.get_xticklabels(),visible=False)
-        pyplot.setp(axis.get_xticklines(),visible=False)
+		if len(width)==1:
+			return width*self.ncols
 
-        axis.set_ylim((0,self.head.nrows))
+		if len(width)==2:
+			return width[0]+width[1]*(self.ncols-1)
 
-        pyplot.setp(axis.get_yticklabels(),visible=False)
-        pyplot.setp(axis.get_yticklines(),visible=False)
+		if len(width)==self.ncols:
+			return width
 
-        return axis
+		raise Warning("Length of width and number of columns does not match")
+
+	def get_height(self,height):
+
+		if height is None:
+			height = (1.,0.5)
+
+		return height
 
 if __name__ == "__main__":
 

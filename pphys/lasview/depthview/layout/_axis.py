@@ -77,6 +77,7 @@ class Axis():
 		return self.upper-self.lower
 	
 	def __call__(self,data:numpy.ndarray,limit:tuple=None):
+		"""Returns the axis values and limit (left,right) for the data."""
 
 		if limit is None:
 
