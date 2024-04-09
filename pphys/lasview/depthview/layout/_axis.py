@@ -9,7 +9,7 @@ class Skip:
 
 class Axis():
 
-	def __init__(self,*,cycle=2,minor=None,scale='linear',skip:tuple=None):
+	def __init__(self,*,cycle=2,minor=None,scale='linear',skip:tuple=None,flip=False):
 		"""
 		It initializes the axis of box in a track plot:
 
@@ -30,7 +30,9 @@ class Axis():
 
 		skip = (0,0) if skip is None else skip
 
-		self._skip = Skip(*skip)
+		self._skip  = Skip(*skip)
+
+		self._flip  = flip
 
 	@property
 	def cycle(self):
@@ -47,6 +49,10 @@ class Axis():
 	@property
 	def skip(self):
 		return self._skip
+
+	@property
+	def flip(self):
+		return self._flip
 
 	@property
 	def lower(self):
@@ -69,6 +75,9 @@ class Axis():
 	@property
 	def limit(self):
 		"""Returns the lower and upper end of axis."""
+		if self._flip:
+			return (self.upper,self.lower)
+			
 		return (self.lower,self.upper)
 
 	@property

@@ -1,51 +1,68 @@
-from ._trail import Trail
+from ._axis import Axis
 
 class Layout():
 
-	def __init__(self,*,ncols:int=3,nrows:int=3,width:tuple=None,height:tuple=None,depth:int=1,label:str="top"):
+	def __init__(self,*,ntrail:int=3,ncurve:int=3,ldepth:int=1,llabel:str="top",width:tuple=None,height:tuple=None):
 		"""
-		It sets grid number for different elements in the axes:
+		It sets elements for different trails in the axes:
 
-		ncols       : number of column axis including depth axis in the figure, integer
-		nrows 		: number of curves in columns, integer
+		ntrail      : number of trails including depth trail in the figure, integer
+		ncurve 		: maximum number of curves in trails, integer
 
-		width       : width of curve trail and width of depth trail,
-					  len(width) must be equal to either one, two or ncols.
-					  tuple of floats
+		ldepth      : location of depth trail, integer
+		llabel 		: location of label head, top, bottom or None
 
-		height      : height per row and height per unit distance,
-					  len(height) must be equal to either one or two.
-					  tuple of floats
+		width       : width of trail, len(width) must be equal to either one,
+					  two or the number of trails; tuple of floats
+
+		height      : height per label row and height per unit distance,
+					  len(height) must be equal to two; tuple of floats
 	
-		depth       : location of depth axis, integer
-
-		label 		: location of label plots, top, bottom or None
 		"""
 
-		self._ncols  = ncols
-		self._nrows  = nrows
+		self._ntrail = ntrail
+		self._ncurve = ncurve
+
+		self._ldepth = ldepth
+		self._llabel = llabel
 
 		self._width  = self.get_width(width)
 		self._height = self.get_height(height)
 
-		self._depth  = depth
-		self._label  = label
+		self._xaxes  = tuple([Axis() for _ in range(ntrail)])
+		
+		self._depth  = Axis(flip=True)
+		self._label  = Axis(cycle=ncurve)
 
-		self._trails = tuple([Trail() for _ in ncols])
-
-	def __setitem__(self,index,trail:Trail):
-		self._trails[index] = trail
+	def __setitem__(self,index,xaxis:Axis):
+		self._xaxes[index] = xaxis
 
 	def __getitem__(self,index):
-		return self._trails[index]
+		return self._xaxes[index]
 
 	@property
-	def ncols(self):
-		return self._ncols
+	def ntrail(self):
+		return self._ntrail
+
+	@property
+	def ncurve(self):
+		return self._ncurve
+
+	@property
+	def ldepth(self):
+		return self._ldepth
+
+	@property
+	def llabel(self):
+		return self._llabel
 
 	@property
 	def width(self):
 		return self._width
+
+	@property
+	def height(self):
+		return self._height
 
 	@property
 	def depth(self):
@@ -55,15 +72,25 @@ class Layout():
 	def label(self):
 		return self._label
 
+	@property
+	def figsize(self):
+
+		return (sum(self._width),sum([h*g for h,g in zip(self.height,(self.ncurve,self.depth.length))]))
+	
 	def get_width(self,width):
 
+		if width is None:
+			return self.get_width((2,4))
+
 		if len(width)==1:
-			return width*self.ncols
+			return width*self.ntrail
 
 		if len(width)==2:
-			return width[0]+width[1]*(self.ncols-1)
+			_width = list((width[1],)*self.ntrail)
+			_width[self.ldepth] = width[0]
+			return tuple(_width)
 
-		if len(width)==self.ncols:
+		if len(width)==self.ntrail:
 			return width
 
 		raise Warning("Length of width and number of columns does not match")
@@ -77,10 +104,10 @@ class Layout():
 
 if __name__ == "__main__":
 
-	layout = Layout(ncols=5,width=(2,),label="top",nrows=3)
+	layout = Layout(ntrail=5,width=(2,),llabel="top",ncurve=3)
 
 	print(layout.width)
 
-	print(layout.head.nrows)
+	print(layout.head.ncurve)
 	print(layout.head.height)
 	print(layout.body.height)
