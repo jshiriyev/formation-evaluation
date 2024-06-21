@@ -1,15 +1,8 @@
-from . import lasview
+from ._temp import Temp
+
 from . import lithology
 from . import wanalysis
 from . import saturation
-from . import productivity
+from . import permeability
 
-# from ._shalevolume import gammaray, spotential
-# from ._porosity import neutron, density, sonic, neuden, sonneu, sonden
-# from ._waterres import spotential
-# from ._saturation import archie, pickett, hingle
-# from ._permeability import conventional, nmr
-
-# from . import shalyforms
-# from . import multimineral
-# from . import unconventional
+from ._trim import trim

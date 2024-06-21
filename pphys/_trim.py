@@ -12,3 +12,17 @@ def trim(function):
         return values
 
     return wrap
+
+if __name__ == "__main__":
+
+    import numpy as np
+
+    @trim
+    def sw(res):
+        return res/100
+
+    res = np.linspace(0,130)
+
+    sat = sw(res,lower=0.1,upper=0.7)
+
+    print(sat)
