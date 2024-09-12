@@ -1,4 +1,4 @@
-def trim(function):
+def trimprop(function):
 
     def wrap(*args,lower=0,upper=1,**kwargs):
         values = function(*args,**kwargs)
@@ -17,12 +17,14 @@ if __name__ == "__main__":
 
     import numpy as np
 
-    @trim
-    def sw(res):
+    @trimprop
+    def saturation(res):
         return res/100
 
     res = np.linspace(0,130)
 
-    sat = sw(res,lower=0.1,upper=0.7)
+    print(res/100)
+
+    sat = saturation(res,lower=0.1,upper=0.7)
 
     print(sat)

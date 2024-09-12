@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 @dataclass
-class Temp:
+class Temperature:
     """Returns temperature parameters for field and international units.
 
     surf    : The average temperature of the sea Tsurf is about 20°C (68°F),
