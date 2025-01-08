@@ -72,7 +72,6 @@ class Temperature:
     @staticmethod
     def settings(unit="field",Tsurf=None,Tgrad=None):
 
-
         temp = {}
 
         temp['unit'] = unit
@@ -88,3 +87,15 @@ class Temperature:
         temp['Tgrad'] = Tgrad
 
         return temp
+
+def Horner():
+
+    pass
+
+def Resistivity():
+
+    pass
+
+if __name__ == "__main__":
+
+    pass
