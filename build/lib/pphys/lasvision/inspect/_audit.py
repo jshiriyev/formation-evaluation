@@ -2,7 +2,7 @@ import numpy
 
 import lasio
 
-class LasMender():
+class LasAudit():
 
 	def __init__(self):
 
@@ -137,3 +137,7 @@ class LasMender():
 		curve.vals = values
 
 		return curve
+
+if __name__ == "__main__":
+
+	pass

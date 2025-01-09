@@ -24,7 +24,7 @@ from matplotlib.ticker import ScalarFormatter
 
 import numpy
 
-class Nulls():
+class Analyse():
 
     def __init__(self,lasfile,zonedepths=None,zonenames=None,ignorenansteps=None):
 
