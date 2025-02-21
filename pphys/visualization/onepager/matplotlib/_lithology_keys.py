@@ -1,51 +1,3 @@
-##import matplotlib.pyplot as plt
-##import matplotlib.patches as mpatches
-##
-##def draw_lithology_key():
-##    fig, ax = plt.subplots(figsize=(8, 10))
-##    ax.set_xlim(0, 10)
-##    ax.set_ylim(0, 12)
-##    ax.set_xticks([])
-##    ax.set_yticks([])
-##    ax.set_frame_on(False)
-##    
-##    lithologies = [
-##        ("Limestone", "cyan", "-", 9, 11),
-##        ("Dolomite", "violet", "-", 6, 11),
-##        ("Chert", "white", "^", 3, 11),
-##        ("Dolomitic Limestone", "cyan", "-", 9, 10, "violet"),
-##        ("Cherty Dolomite", "violet", "^-", 6, 10),
-##        ("Cherty Limestone", "cyan", "^-", 3, 10),
-##        ("Shaly Limestone", "cyan", "-", 9, 9, "gray"),
-##        ("Shaly Dolomite", "violet", "-", 6, 9, "gray"),
-##        ("Cherty Dolomitic Limestone", "cyan", "^-", 3, 9, "violet"),
-##        ("Shale", "gray", "-", 9, 8),
-##        ("Calcareous Shale", "gray", "-", 6, 8, "black"),
-##        ("Dolomitic Shale", "gray", "-", 3, 8, "violet"),
-##        ("Sandstone", "orange", ".", 9, 7),
-##        ("Shaly Sandstone", "orange", ".", 6, 7, "gray"),
-##        ("Sandy Shale", "brown", "-", 3, 7, "orange"),
-##        ("Ironstone", "gray", "o", 9, 6, "red"),
-##        ("Coal", "black", "", 6, 6),
-##        ("Gypsum", "purple", "\\", 9, 5),
-##        ("Anhydrite", "yellow", "x", 6, 5),
-##        ("Halite", "green", "+", 3, 5)
-##    ]
-##    
-##    for name, color, hatch, x, y, overlay_color in lithologies:
-##        rect = mpatches.Rectangle((x, y), 2, 1, edgecolor="black", facecolor=color, hatch=hatch, lw=1.5)
-##        ax.add_patch(rect)
-##        if overlay_color:
-##            overlay = mpatches.Rectangle((x, y), 2, 1, edgecolor="black", facecolor=overlay_color, alpha=0.5)
-##            ax.add_patch(overlay)
-##        ax.text(x + 1, y - 0.3, name, ha='center', fontsize=9, fontweight='bold')
-##    
-##    ax.text(5, 12, "GRAPHIC LITHOLOGY KEY", ha='center', fontsize=14, fontweight='bold')
-##    
-##    plt.show()
-##
-##draw_lithology_key()
-
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -98,4 +50,3 @@ for lithology, props in lithology_dict.items():
 
 plt.title("Graphic Lithology Key", fontsize=14, fontweight='bold')
 plt.show()
-
