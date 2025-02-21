@@ -4,7 +4,7 @@ from matplotlib.patches import PathPatch
 from matplotlib.path import Path
 from matplotlib.collections import PatchCollection
 
-import numpy as np
+import numpy
 
 def brick_pattern(x_min,x_max,y_min,y_max,brick_width=1,brick_height=0.5,offset_ratio=0.5):
     """Creates individual brick patches within a bounded region.
@@ -25,32 +25,36 @@ def brick_pattern(x_min,x_max,y_min,y_max,brick_width=1,brick_height=0.5,offset_
 
     cols = int((x_max-x_min)/brick_width)+1
     rows = int((y_max-y_min)/brick_height)+1
-    
-    for row in range(rows):
-        y_start = y_min+row*brick_height
-        x_start = x_min+(row%2)*brick_width*offset_ratio  # Offset every other row
-        
-        for col in range(cols):
-            x = x_start+col*brick_width
 
-            if x+brick_width/2>x_max or y_start+brick_height/2>y_max:
-                continue  # Skip bricks outside bounds
-            
-            # Create a rectangular brick as a PathPatch
-            brick = PathPatch(Path([
+    x_starts = numpy.tile([x_min,x_min+brick_width*offset_ratio],(rows+1)//2)[:rows]
+    y_starts = numpy.arange(y_min,y_max+brick_height/2,brick_height)
+
+    x_lower = numpy.arange(x_min,x_max+brick_width/2,brick_width)
+    x_upper = numpy.arange(x_min+brick_width/2,x_max+brick_width/2,brick_width)
+    
+    for index,(x_start,y_start) in enumerate(zip(x_starts,y_starts)):
+        
+        for idx,col in enumerate(range(cols)):
+
+            x = x_lower[idx] if index%2==0 else x_upper[idx]
+
+            vertices = [
                 (x,y_start), 
                 (x+brick_width,y_start), 
                 (x+brick_width,y_start+brick_height), 
                 (x,y_start+brick_height), 
                 (x,y_start)
-            ], [Path.MOVETO]+[Path.LINETO]*3+[Path.CLOSEPOLY]), 
-            facecolor='none',edgecolor='brown',lw=1.2)
+            ]
+
+            brick = PathPatch(Path(vertices),facecolor='none',edgecolor='brown',lw=1.2)
             
             patches.append(brick)
     
     return patches
 
 if __name__ == "__main__":
+
+    import numpy as np
 
     # Generate sample data
     x = np.linspace(0, 10, 100)
@@ -63,14 +67,14 @@ if __name__ == "__main__":
     fill = ax.fill_between(x, y1, y2, color="tan", alpha=0.5)
 
     # Create and clip the brick pattern
-    brick_patches = brick_pattern(x.min(), x.max(), y2.min(), y1.max(), brick_width=0.8, brick_height=0.4)
+    brick_patches = brick_pattern(0,10,4,10,brick_width=0.8,brick_height=0.4)
 
     for brick in brick_patches:
         brick.set_clip_path(fill.get_paths()[0], transform=ax.transData)  # Clip each brick to the filled region
         ax.add_patch(brick)
 
     # Adjust limits and labels
-    ax.set_xlim(x.min(), x.max())
+    # ax.set_xlim(x.min(), x.max())
     ax.set_ylim(y2.min(), y1.max() + 0.2)  # Extra space for visibility
     ax.set_xlabel("X-axis")
     ax.set_ylabel("Y-axis")
