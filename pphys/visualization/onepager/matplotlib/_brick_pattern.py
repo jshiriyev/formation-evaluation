@@ -22,7 +22,7 @@ def fill_pattern(axis,x:numpy.ndarray,y1:numpy.ndarray,y2:numpy.ndarray,pattern:
 
     return axis
 
-def brick_patches(x_min:float,x_max:float,y_min:float,y_max:float,brick_width:float=1,brick_height:float=0.5,offset_ratio:float=0.5,**kwargs):
+def brick_patches(x_min:float,x_max:float,y_min:float,y_max:float,brick_width:float=1,brick_height:float=0.5,offset_ratio:float=0.5,tilt_ratio=0.,**kwargs):
     """Creates individual brick patches within a bounded region.
     
     Parameters:
@@ -55,12 +55,12 @@ def brick_patches(x_min:float,x_max:float,y_min:float,y_max:float,brick_width:fl
             vertices = Path([
                 (x_nodes[x_index],y_nodes[y_index]), 
                 (x_nodes[x_index+1],y_nodes[y_index]), 
-                (x_nodes[x_index+1],y_nodes[y_index+1]), 
-                (x_nodes[x_index],y_nodes[y_index+1]), 
+                (x_nodes[x_index+1]+brick_width*tilt_ratio,y_nodes[y_index+1]), 
+                (x_nodes[x_index]+brick_width*tilt_ratio,y_nodes[y_index+1]), 
                 (x_nodes[x_index],y_nodes[y_index])
             ])
             
-            patches.append(PathPatch(vertices,**kwargs))
+            patches.append(PathPatch(vertices,fill=False,**kwargs))
     
     return patches
 
