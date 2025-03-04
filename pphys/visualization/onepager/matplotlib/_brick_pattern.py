@@ -22,17 +22,17 @@ def fill_pattern(axis,x:numpy.ndarray,y1:numpy.ndarray,y2:numpy.ndarray,pattern:
 
     return axis
 
-def brick_patches(x_min:float,x_max:float,y_min:float,y_max:float,brick_width:float=1,brick_height:float=0.5,offset_ratio:float=0.5,tilt_ratio=0.,**kwargs):
+def brick_patches(x_min:float,x_max:float,y_min:float,y_max:float,brick_length:float=1,brick_height:float=0.5,offset_ratio:float=0.5,tilt_ratio=0.,**kwargs):
     """Creates individual brick patches within a bounded region.
     
     Parameters:
     - x_min,x_max   : horizontal boundaries where bricks should be drawn.
     - y_min,y_max   : vertical boundaries where bricks should be drawn.
 
-    - brick_width   : width of each brick.
+    - brick_length  : length of each brick.
     - brick_height  : height of each brick.
     
-    - offset_ratio  : how much to horizontally shift every other row (0 = no shift, 0.5 = half a brick width).
+    - offset_ratio  : how much to horizontally shift every other row (0 = no shift, 0.5 = half a brick length).
     
     Returns:
     - List of PathPatch objects representing bricks.
@@ -41,10 +41,10 @@ def brick_patches(x_min:float,x_max:float,y_min:float,y_max:float,brick_width:fl
 
     y_nodes = numpy.arange(y_min,y_max+0.01*brick_height,brick_height)
 
-    offset = offset_ratio*brick_width
+    offset = offset_ratio*brick_length
 
-    x_lower = numpy.arange(x_min,x_max+0.01*brick_width,brick_width)
-    x_upper = numpy.arange(x_min+offset,x_max+1.01*offset,brick_width)
+    x_lower = numpy.arange(x_min,x_max+0.01*brick_length,brick_length)
+    x_upper = numpy.arange(x_min+offset,x_max+1.01*offset,brick_length)
     
     for y_index in range(len(y_nodes)-1):
 
@@ -55,8 +55,8 @@ def brick_patches(x_min:float,x_max:float,y_min:float,y_max:float,brick_width:fl
             vertices = Path([
                 (x_nodes[x_index],y_nodes[y_index]), 
                 (x_nodes[x_index+1],y_nodes[y_index]), 
-                (x_nodes[x_index+1]+brick_width*tilt_ratio,y_nodes[y_index+1]), 
-                (x_nodes[x_index]+brick_width*tilt_ratio,y_nodes[y_index+1]), 
+                (x_nodes[x_index+1]+brick_length*tilt_ratio,y_nodes[y_index+1]), 
+                (x_nodes[x_index]+brick_length*tilt_ratio,y_nodes[y_index+1]), 
                 (x_nodes[x_index],y_nodes[y_index])
             ])
             
@@ -77,7 +77,7 @@ if __name__ == "__main__":
 
     ax = fill_pattern(ax,x,y1,y2,color="tan",alpha=0.5,
         pattern=dict(
-            brick_width=0.8,brick_height=0.4,offset_ratio=0.5,facecolor='none',edgecolor='black',lw=1.2
+            brick_length=0.8,brick_height=0.4,offset_ratio=0.5,facecolor='none',edgecolor='black',lw=1.2
         ))
 
     # Adjust limits and labels
