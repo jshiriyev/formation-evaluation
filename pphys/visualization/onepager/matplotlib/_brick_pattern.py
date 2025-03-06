@@ -5,6 +5,27 @@ from matplotlib.path import Path
 
 import numpy
 
+class CustomPattern():
+
+    def __init__(self,pattern:str):
+        self.pattern = pattern
+
+    def path(self,x_node,y_node,*args,**kwargs):
+        x_func,y_func = getattr(self,self.pattern)(*args,**kwargs)
+        return Path([(x,y) for x,y in zip(x_func(x_node),y_func(y_node))])
+
+    @staticmethod
+    def triangle(length,height,tilt_ratio=0.):
+        x_func = lambda x: [x, x+length, x+length/2*tilt_ratio]
+        y_func = lambda y: [y, y, y+height]
+        return x_func,y_func
+
+    @staticmethod
+    def brick(length,height,tilt_ratio=0.):
+        x_func = lambda x: [x, x+length, x+length+length*tilt_ratio, x+length*tilt_ratio]
+        y_func = lambda y: [y, y, y+height, y+height]
+        return x_func,y_func
+
 def fill_pattern(axis,x:numpy.ndarray,y1:numpy.ndarray,y2:numpy.ndarray,pattern:dict=None,**kwargs):
 
     # Fill between the curves
@@ -22,45 +43,44 @@ def fill_pattern(axis,x:numpy.ndarray,y1:numpy.ndarray,y2:numpy.ndarray,pattern:
 
     return axis
 
-def brick_patches(x_min:float,x_max:float,y_min:float,y_max:float,brick_length:float=1,brick_height:float=0.5,offset_ratio:float=0.5,tilt_ratio=0.,**kwargs):
+def brick_patches(x_min:float,x_max:float,y_min:float,y_max:float,length:float=1,height:float=0.5,offset_ratio:float=0.5,tilt_ratio=0.,**kwargs):
     """Creates individual brick patches within a bounded region.
     
     Parameters:
     - x_min,x_max   : horizontal boundaries where bricks should be drawn.
     - y_min,y_max   : vertical boundaries where bricks should be drawn.
 
-    - brick_length  : length of each brick.
-    - brick_height  : height of each brick.
+    - length  : length of each brick.
+    - height  : height of each brick.
     
     - offset_ratio  : how much to horizontally shift every other row (0 = no shift, 0.5 = half a brick length).
     
     Returns:
     - List of PathPatch objects representing bricks.
     """
+    y_nodes = numpy.arange(y_min,y_max,height)
+
+    offset = offset_ratio*length
+
+    x_lower = numpy.arange(x_min,x_max,length)
+    x_upper = numpy.arange(x_min-offset,x_max,length)
+
+    x_func = lambda x: [x, x+length, x+length+length*tilt_ratio, x+length*tilt_ratio]
+    y_func = lambda y: [y, y, y+height, y+height]
+
     patches = []
 
-    y_nodes = numpy.arange(y_min,y_max+0.01*brick_height,brick_height)
-
-    offset = offset_ratio*brick_length
-
-    x_lower = numpy.arange(x_min,x_max+0.01*brick_length,brick_length)
-    x_upper = numpy.arange(x_min+offset,x_max+1.01*offset,brick_length)
+    pattern = CustomPattern("brick")
     
-    for y_index in range(len(y_nodes)-1):
+    for y_index,y_node in enumerate(y_nodes):
 
         x_nodes = x_lower if y_index%2==0 else x_upper
         
-        for x_index in range(len(x_nodes)-1):
+        for x_node in x_nodes:
 
-            vertices = Path([
-                (x_nodes[x_index],y_nodes[y_index]), 
-                (x_nodes[x_index+1],y_nodes[y_index]), 
-                (x_nodes[x_index+1]+brick_length*tilt_ratio,y_nodes[y_index+1]), 
-                (x_nodes[x_index]+brick_length*tilt_ratio,y_nodes[y_index+1]), 
-                (x_nodes[x_index],y_nodes[y_index])
-            ])
+            path = pattern.path(x_node,y_node,length=length,height=height,tilt_ratio=0.)
             
-            patches.append(PathPatch(vertices,fill=False,**kwargs))
+            patches.append(PathPatch(path,fill=False,**kwargs))
     
     return patches
 
@@ -77,7 +97,7 @@ if __name__ == "__main__":
 
     ax = fill_pattern(ax,x,y1,y2,color="tan",alpha=0.5,
         pattern=dict(
-            brick_length=0.8,brick_height=0.4,offset_ratio=0.5,facecolor='none',edgecolor='black',lw=1.2
+            length=0.8,height=0.4,offset_ratio=0.5,facecolor='none',edgecolor='black',lw=1.2
         ))
 
     # Adjust limits and labels
