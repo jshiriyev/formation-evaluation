@@ -1,69 +1,94 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from _brick_pattern import brick_patches
+from _pattern import Pattern
 
-def draw_rectangle(axis,xy,width,height,facecolor,edgecolor='black',hatch=None):
+def draw_rectangle(axis,xy,width,height,facecolor,edgecolor='black',hatch=None,pattern_dict:dict=None,**kwargs):
 
-    if hatch=="brick":
+    if hatch in ("brick","triangle"):
 
-        rect = plt.Rectangle(xy,width,height,fill=False,edgecolor=edgecolor,lw=1.5)
+        # rect = plt.Rectangle(xy,width,height,edgecolor=edgecolor,lw=2.0,
+        #     fill=False)
 
-        fill = axis.fill_between((xy[0],xy[0]+width),(xy[1],xy[1]),(xy[1]+height,xy[1]+height),facecolor=facecolor)
+        # axis.add_patch(rect)
 
-        patches = brick_patches(xy[0],xy[0]+2*0.8,xy[1],xy[1]+2*0.2,brick_width=0.8,brick_height=0.2,offset_ratio=0.5)
+        pattern = Pattern(hatch)
 
-        for patch in patches:
-            patch.set_clip_path(fill.get_paths()[0],transform=axis.transData)
-            axis.add_patch(patch)
+        x = np.array((xy[0],xy[0]+width))
 
-        axis.add_patch(rect)
+        y_min = np.array((xy[1],xy[1]))
+        y_max = np.array((xy[1]+height,xy[1]+height))
 
-    elif hatch=="baklava":
-
-        rect = plt.Rectangle(xy,width,height,fill=None,edgecolor=edgecolor,lw=1.5)
-
-        fill = axis.fill_between((xy[0],xy[0]+width),(xy[1],xy[1]),(xy[1]+height,xy[1]+height),facecolor=facecolor)
-
-        patches = brick_patches(xy[0]-0.8,xy[0]+3*0.8,xy[1],xy[1]+2*0.2,brick_width=0.8,brick_height=0.2,offset_ratio=0.7,tilt_ratio=0.25)
-
-        for patch in patches:
-            patch.set_clip_path(fill.get_paths()[0],transform=axis.transData)
-            axis.add_patch(patch)
-
-        axis.add_patch(rect)
+        axis = pattern(axis,x,y_min,y_max,facecolor=facecolor,
+            pattern_dict=pattern_dict,**kwargs)
 
     else:
 
-        rect = plt.Rectangle(xy,width,height,
-            facecolor=facecolor,edgecolor=edgecolor,hatch=hatch,lw=1.5)
+        rect = plt.Rectangle(xy,width,height,edgecolor=edgecolor,lw=1.5,
+            facecolor=facecolor,hatch=hatch)
 
         axis.add_patch(rect)
 
     return axis
 
+limestone = dict(
+    color="#2BFFFF",hatch="brick",length=0.8,height=0.2,offset_ratio=0.5,tilting_ratio=0.,
+    spacing_ratio=1.,facecolor='none',edgecolor='black',lw=1.2
+    )
+
+dolomite = dict(
+    color="#E277E3",hatch="brick",length=0.8,height=0.2,offset_ratio=0.5,tilting_ratio=0.25,
+    spacing_ratio=1.,facecolor='none',edgecolor='black',lw=1.2
+    )
+
+chert = dict(
+    color="white",hatch="triangle",length=0.6/4,height=0.3/4,offset_ratio=0.5,tilting_ratio=0.,
+    spacing_ratio=2.,facecolor='none',edgecolor='black',lw=1.0
+    )
+
+dolomitic_limestone = dict(color="#2BFFFF",hatch=None)
+
+cherty_dolomite = dict(color="#E277E3", hatch="brick",length=0.8,height=0.2)
+cherty_limestone = dict(color="#2BFFFF", hatch="brick",length=0.8,height=0.2)
+shaly_limestone = dict(color="#2BFFFF", hatch="brick",length=0.8,height=0.2)
+shaly_dolomite = dict(color="#E277E3", hatch="brick",length=0.8,height=0.2)
+
+cherty_dolomitic_limestone = dict(color="#E277E3",hatch=None)
+shale = dict(color="gray", hatch= None)
+calcareous_shale = dict(color="gray", hatch= None)
+dolomitic_shale = dict(color="gray", hatch= None)
+sandstone = dict(color="#F4A460", hatch= "...")
+shaly_sandstone = dict(color="#F4A460", hatch= "...")
+sandy_shale = dict(color="brown", hatch= None)
+ironstone = dict(color="gray", hatch= 'O')
+coal = dict(color="black", hatch= None)
+null = dict()
+gypsum = dict(color="#9370DB", hatch= "\\\\")
+anhydrite = dict(color="#DAA520", hatch= "xx")
+halite = dict(color="#00FF00", hatch= "+")
+
 lithology_dict = {
-    "limestone": {"color": "#2BFFFF", "hatch": "brick"},
-    "dolomite": {"color": "#E277E3", "hatch": "baklava"},
-    "chert": {"color": "white", "hatch": None},
-    "dolomitic limestone": {"color": "#2BFFFF", "hatch": None},
-    "cherty dolomite": {"color": "#E277E3", "hatch": "baklava"},
-    "cherty limestone": {"color": "#2BFFFF", "hatch": "brick"},
-    "shaly limestone": {"color": "#2BFFFF", "hatch": "brick"},
-    "shaly dolomite": {"color": "#E277E3", "hatch": "baklava"},
-    "cherty dolomitic limestone": {"color": "#E277E3","hatch":None},
-    "shale": {"color": "gray", "hatch": None},
-    "calcareous shale": {"color": "gray", "hatch": None},
-    "dolomitic shale": {"color": "gray", "hatch": None},
-    "sandstone": {"color": "#F4A460", "hatch": "..."},
-    "shaly sandstone": {"color": "#F4A460", "hatch": "..."},
-    "sandy shale": {"color": "brown", "hatch": None},
-    "ironstone": {"color": "gray", "hatch": 'O'},
-    "coal": {"color": "black", "hatch": None},
-    "null": {},
-    "gypsum": {"color": "#9370DB", "hatch": "\\\\"},
-    "anhydrite": {"color": "#DAA520", "hatch": "xx"},
-    "halite": {"color": "#00FF00", "hatch": "+"}
+    "limestone": limestone,
+    "dolomite": dolomite,
+    "chert": chert,
+    "dolomitic limestone": dolomitic_limestone,
+    "cherty dolomite": cherty_dolomite,
+    "cherty limestone": cherty_limestone,
+    "shaly limestone": shaly_limestone,
+    "shaly dolomite": shaly_dolomite,
+    "cherty dolomitic limestone": cherty_dolomitic_limestone,
+    "shale": shale,
+    "calcareous shale": calcareous_shale,
+    "dolomitic shale": dolomitic_shale,
+    "sandstone": sandstone,
+    "shaly sandstone": shaly_sandstone,
+    "sandy shale": sandy_shale,
+    "ironstone": ironstone,
+    "coal": coal,
+    "null": null,
+    "gypsum": gypsum,
+    "anhydrite": anhydrite,
+    "halite": halite
 }
 
 fig, ax = plt.subplots(figsize=(8, 10))
@@ -86,9 +111,7 @@ for index,(lithology,props) in enumerate(lithology_dict.items()):
     else:
         x = (3*(index%cols)+1.0)/2*width
 
-    ax = draw_rectangle(ax,(x,y),width,height,facecolor=props['color'],hatch=props['hatch'])
-        # overlay_color=props['overlay_color'],
-        # overlay_pattern=props['overlay_pattern']
+    ax = draw_rectangle(ax,(x,y),width,height,facecolor=props.pop('color'),hatch=props.pop('hatch'),lw=1.5,pattern_dict=props)
 
     ax.text(x+width/2,y-0.2,lithology,
         fontweight='bold',fontsize=10,verticalalignment='center',horizontalalignment='center')
