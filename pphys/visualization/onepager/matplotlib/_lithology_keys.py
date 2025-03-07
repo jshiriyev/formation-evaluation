@@ -2,15 +2,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from _pattern import PatternBuilder
+from _templix import Lithology
 
-def draw_rectangle(axis,xy,width,height,patch:dict=None):
+def draw_rectangle(axis,xy,width,height,props:dict=None):
 
     x = np.array((xy[0],xy[0]+width))
 
     y_min = np.array((xy[1],xy[1]))
     y_max = np.array((xy[1]+height,xy[1]+height))
 
-    axis = PatternBuilder.fill_between(axis,x,y_min,y_max,patch=patch)
+    axis = PatternBuilder.fill_between(axis,x,y_min,y_max,props)
 
     rect = plt.Rectangle(xy,width,height,lw=1.2,edgecolor='black',fill=None)
 
@@ -19,27 +20,27 @@ def draw_rectangle(axis,xy,width,height,patch:dict=None):
     return axis
 
 lithology_dict = {
-    "limestone": limestone,
-    "dolomite": dolomite,
-    "chert": chert,
-    "dolomitic limestone": dolomitic_limestone,
-    "cherty dolomite": cherty_dolomite,
-    "cherty limestone": cherty_limestone,
-    "shaly limestone": shaly_limestone,
-    "shaly dolomite": shaly_dolomite,
-    "cherty dolomitic limestone": cherty_dolomitic_limestone,
-    "shale": shale,
-    "calcareous shale": calcareous_shale,
-    "dolomitic shale": dolomitic_shale,
-    "sandstone": sandstone,
-    "shaly sandstone": shaly_sandstone,
-    "sandy shale": sandy_shale,
-    "ironstone": ironstone,
-    "coal": coal,
+    "limestone": Lithology.limestone,
+    "dolomite": Lithology.dolomite,
+    "chert": Lithology.chert,
+    "dolomitic limestone": Lithology.dolomitic_limestone,
+    "cherty dolomite": Lithology.cherty_dolomite,
+    "cherty limestone": Lithology.cherty_limestone,
+    "shaly limestone": Lithology.shaly_limestone,
+    "shaly dolomite": Lithology.shaly_dolomite,
+    "cherty dolomitic limestone": Lithology.cherty_dolomitic_limestone,
+    "shale": Lithology.shale,
+    "calcareous shale": Lithology.calcareous_shale,
+    "dolomitic shale": Lithology.dolomitic_shale,
+    "sandstone": Lithology.sandstone,
+    "shaly sandstone": Lithology.shaly_sandstone,
+    "sandy shale": Lithology.sandy_shale,
+    "ironstone": Lithology.ironstone,
+    "coal": Lithology.coal,
     "null": dict(),
-    "gypsum": gypsum,
-    "anhydrite": anhydrite,
-    "halite": halite
+    "gypsum": Lithology.gypsum,
+    "anhydrite": Lithology.anhydrite,
+    "halite": Lithology.halite
 }
 
 fig, ax = plt.subplots(figsize=(8, 10))
@@ -62,10 +63,7 @@ for index,(lithology,props) in enumerate(lithology_dict.items()):
     else:
         x = (3*(index%cols)+1.0)/2*width
 
-    ax = draw_rectangle(ax,(x,y),width,height,patch=props)
-
-    # if index==5:
-    #     ax = draw_rectangle(ax,(x,y),width,height,patch=lithology_dict['chert'])
+    ax = draw_rectangle(ax,(x,y),width,height,props=props)
 
     ax.text(x+width/2,y-0.2,lithology,
         fontweight='bold',fontsize=10,verticalalignment='center',horizontalalignment='center')

@@ -1,93 +1,36 @@
-from dataclasses import dataclass, field
-
 from matplotlib import pyplot as plt
 
 from matplotlib.patches import PathPatch
 from matplotlib.path import Path
 
 import numpy
-
-@dataclass
-class PatchPattern:
-    """
-    A class representing a repetitive patch pattern with customizable dimensions and spacing.
-
-    Attributes:
-    ----------
-    motive (str): The shape used for the pattern.
-
-    length (float): Length of each pattern figure. Must be positive.
-    height (float): Height of each pattern figure. Must be positive.
-
-    length_ratio (float): Spacing multiplier between patterns along the length.
-    height_ratio (float): Spacing multiplier between patterns along the height.
-
-    offset_ratio (float): Horizontal shift for every other row (0 = no shift, 0.5 = half length).
-    tilted_ratio (float): Tilt applied to the ceiling of the figure (0 = no tilt, 1 = full length).
-    """
-    motive : str = None
-
-    length : float = 0.8
-    height : float = 0.4
-
-    length_ratio  : float = 1.
-    height_ratio  : float = 1.
-
-    offset_ratio  : float = 0.5
-    tilted_ratio  : float = 0.
-
-    params : field(default_factory=dict) = None
-
-    def __post_init__(self):
-        """Validates input parameters and stores additional keyword arguments."""
-        self.params = {} if self.params is None else self.params
-
-    @property
-    def extern_length(self):
-        """Returns the effective external length, including spacing."""
-        return self.length*self.length_ratio
-
-    @property
-    def extern_height(self):
-        """Returns the effective external height, including spacing."""
-        return self.height*self.height_ratio
-
-    @property
-    def tilted_length(self):
-        """Returns the effective tilted length based on the tilt ratio."""
-        return self.length*self.tilted_ratio
     
 class PatternBuilder():
 
     @staticmethod
-    def fill_between(axis:plt.Axes,x:numpy.ndarray,y1:numpy.ndarray,y2:numpy.ndarray,patch:dict=None,**kwargs:dict):
+    def fill_between(axis:plt.Axes,x:numpy.ndarray,y1:numpy.ndarray,y2:numpy.ndarray,props):
 
         # Fill between the curves
-        fill = axis.fill_between(x,y1,y2,**kwargs)
+        fill = axis.fill_between(x,y1,y2,facecolor=props.facecolor,hatch=props.hatch)
 
-        # Create the pattern object if `patch` is provided
-        pattern = PatchPattern(**patch) if patch else PatchPattern()
+        for motive in props.motives:
+            # Create the pattern patches
+            patches = PatternBuilder.patches(
+                x.min(),x.max(),y1.min(),y2.max(),motive
+                )
 
-        if pattern.motive is None:
-            return axis # No pattern applied, return early
+            # Clip the pattern patches
+            for patch in patches:
+                patch.set_clip_path(
+                    fill.get_paths()[0],transform=axis.transData
+                    )  # Clip each brick to the filled region
 
-        # Create the pattern patches
-        patches = PatternBuilder.patches(
-            x.min(),x.max(),y1.min(),y2.max(),pattern
-            )
-
-        # Clip the pattern patches
-        for patch in patches:
-            patch.set_clip_path(
-                fill.get_paths()[0],transform=axis.transData
-                )  # Clip each brick to the filled region
-
-            axis.add_patch(patch)
+                axis.add_patch(patch)
 
         return axis
 
     @staticmethod
-    def patches(x_min,x_max,y_min,y_max,pattern:PatchPattern):
+    def patches(x_min,x_max,y_min,y_max,pattern):
         """Creates individual patches within a bounded region. Returns list of PathPatch objects representing bricks."""
         offsety = pattern.height*(pattern.height_ratio-1)/2.
 
