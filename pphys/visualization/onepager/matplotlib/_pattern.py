@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from matplotlib import pyplot as plt
 
@@ -9,13 +9,54 @@ import numpy
 
 @dataclass
 class PatchPattern:
-    motive : str = None
-    length : float = 0.8        # length of each pattern figure.
-    height : float = 0.4        # height of each pattern figure.
-    bottom_ratio  : float = 1.  # how much spacing to put between the figures.
-    offset_ratio  : float = 0.5 # how much to horizontally shift every other row (0 = no shift, 0.5 = half length).
-    tilting_ratio : float = 0.  # how much tilting to use for the ceiling of the figure.
+    """
+    A class representing a repetitive patch pattern with customizable dimensions and spacing.
 
+    Attributes:
+    ----------
+    motive (str): The shape used for the pattern.
+
+    length (float): Length of each pattern figure. Must be positive.
+    height (float): Height of each pattern figure. Must be positive.
+
+    length_ratio (float): Spacing multiplier between patterns along the length.
+    height_ratio (float): Spacing multiplier between patterns along the height.
+
+    offset_ratio (float): Horizontal shift for every other row (0 = no shift, 0.5 = half length).
+    tilted_ratio (float): Tilt applied to the ceiling of the figure (0 = no tilt, 1 = full length).
+    """
+    motive : str = None
+
+    length : float = 0.8
+    height : float = 0.4
+
+    length_ratio  : float = 1.
+    height_ratio  : float = 1.
+
+    offset_ratio  : float = 0.5
+    tilted_ratio  : float = 0.
+
+    params : field(default_factory=dict) = None
+
+    def __post_init__(self):
+        """Validates input parameters and stores additional keyword arguments."""
+        self.params = {} if self.params is None else self.params
+
+    @property
+    def extern_length(self):
+        """Returns the effective external length, including spacing."""
+        return self.length*self.length_ratio
+
+    @property
+    def extern_height(self):
+        """Returns the effective external height, including spacing."""
+        return self.height*self.height_ratio
+
+    @property
+    def tilted_length(self):
+        """Returns the effective tilted length based on the tilt ratio."""
+        return self.length*self.tilted_ratio
+    
 class PatternBuilder():
 
     @staticmethod
@@ -24,14 +65,18 @@ class PatternBuilder():
         # Fill between the curves
         fill = axis.fill_between(x,y1,y2,**kwargs)
 
-        pattern = PatchPattern(**patch)
+        # Create the pattern object if `patch` is provided
+        pattern = PatchPattern(**patch) if patch else PatchPattern()
 
         if pattern.motive is None:
-            return axis
+            return axis # No pattern applied, return early
 
-        # Create and clip the brick pattern
-        patches = PatternBuilder.patches(x.min(),x.max(),y1.min(),y2.max(),pattern)
+        # Create the pattern patches
+        patches = PatternBuilder.patches(
+            x.min(),x.max(),y1.min(),y2.max(),pattern
+            )
 
+        # Clip the pattern patches
         for patch in patches:
             patch.set_clip_path(
                 fill.get_paths()[0],transform=axis.transData
@@ -42,19 +87,17 @@ class PatternBuilder():
         return axis
 
     @staticmethod
-    def patches(x_min,x_max,y_min,y_max,pattern:PatchPattern,**kwargs):
+    def patches(x_min,x_max,y_min,y_max,pattern:PatchPattern):
         """Creates individual patches within a bounded region. Returns list of PathPatch objects representing bricks."""
-        y_nodes = numpy.arange(
-            y_min-pattern.height*(pattern.bottom_ratio-1)/2.,
-            y_max+pattern.height*(pattern.bottom_ratio-1)/2.,
-            pattern.height*pattern.bottom_ratio
-            )
+        offsety = pattern.height*(pattern.height_ratio-1)/2.
 
-        offset1 = pattern.length*(pattern.bottom_ratio-1)/2.
-        offset2 = pattern.length*(pattern.bottom_ratio-1)/2.+pattern.offset_ratio*pattern.length*pattern.bottom_ratio
+        y_nodes = numpy.arange(y_min+offsety,y_max,pattern.extern_height)
 
-        x_lower = numpy.arange(x_min+offset1,x_max,pattern.length*pattern.bottom_ratio)
-        x_upper = numpy.arange(x_min+offset2,x_max,pattern.length*pattern.bottom_ratio)
+        offset1 = pattern.length*(pattern.length_ratio-1)/2.
+        offset2 = pattern.length*pattern.offset_ratio
+
+        x_lower = numpy.arange(x_min+offset1,x_max,pattern.extern_length)
+        x_upper = numpy.arange(x_min-offset2,x_max,pattern.extern_length)
 
         patches = []
         
@@ -66,7 +109,7 @@ class PatternBuilder():
 
                 path = PatternBuilder.path(x_node,y_node,pattern)
                 
-                patches.append(PathPatch(path,**kwargs))
+                patches.append(PathPatch(path,**pattern.params))
         
         return patches
 
@@ -75,23 +118,23 @@ class PatternBuilder():
         x_func,y_func = getattr(PatternBuilder,pattern.motive)(
             pattern.length,
             pattern.height,
-            pattern.tilting_ratio
+            pattern.tilted_ratio
             )
 
         return Path([(x,y) for x,y in zip(x_func(x_node),y_func(y_node))])
 
     @staticmethod
-    def triangle(length=0.2,height=0.1,tilting_ratio=0.):
+    def triangle(length=0.2,height=0.1,tilted_ratio=0.):
         """Returns functions that calculates triangle vertex coordinates for the given lower left corner."""
-        x_func = lambda x: [x, x+length, x+length/2+length*tilting_ratio, x]
+        x_func = lambda x: [x, x+length, x+length/2+length*tilted_ratio, x]
         y_func = lambda y: [y, y, y+height, y]
 
         return x_func,y_func
 
     @staticmethod
-    def brick(length=0.8,height=0.4,tilting_ratio=0.):
+    def brick(length=0.8,height=0.4,tilted_ratio=0.):
         """Returns functions that calculates brick node coordinates for the given lower left corner."""
-        x_func = lambda x: [x, x+length, x+length+length*tilting_ratio, x+length*tilting_ratio, x]
+        x_func = lambda x: [x, x+length, x+length+length*tilted_ratio, x+length*tilted_ratio, x]
         y_func = lambda y: [y, y, y+height, y+height, y]
 
         return x_func,y_func
@@ -109,7 +152,7 @@ if __name__ == "__main__":
 
     ax = PatternBuilder.fill_between(ax,x,y1,y2,color="tan",alpha=0.5,facecolor='none',edgecolor='black',lw=1.2,
         patch=dict(
-            motive="triangle",length=0.8,height=0.4,offset_ratio=0.5,tilting_ratio=0.,bottom_ratio=3.,
+            motive="triangle",length=0.4,height=0.3,offset_ratio=0.5,tilted_ratio=0.,length_ratio=4., height_ratio=2,
         ))
 
     # Adjust limits and labels

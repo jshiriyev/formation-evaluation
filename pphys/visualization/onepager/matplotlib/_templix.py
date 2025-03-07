@@ -4,9 +4,10 @@ matrix = dict(
 	)
 
 shale = dict(
-	color = "gray",
-	hatch = "--",
-	)
+    facecolor="gray",
+    hatch='--',
+    motives=(),
+    )
 
 shale_free = dict(
 	color = "navajowhite",
@@ -14,40 +15,122 @@ shale_free = dict(
 	)
 
 shaly_sandstone = dict(
-	color =  "gold",
-	hatch =  "..--",
-	)
+    facecolor="#F4A460",
+    hatch="...",
+    motives=(),
+    )
+
+calcareous_shale = dict(
+    facecolor="gray",
+    hatch=None,
+    motives=(),
+    )
 
 sandstone = dict(
-	marker = "2",
-	markercolor = "red",
-	color = "gold",
-	hatch = "..",
-	)
+    facecolor="#F4A460",
+    hatch="...",
+    motives=(),
+    )
+
+sandy_shale = dict(
+    facecolor="brown",
+    hatch=None,
+    motives=(),
+    )
 
 limestone = dict(
-	color = "tan",
-	hatch = "\\\\",
-	marker = "2",
-	markercolor = "blue",
-	)
+    facecolor="#2BFFFF",
+    hatch=None,
+    motives=("brick",),
+    )
 
 dolomite = dict(
-	color = "darkkhaki",
-	hatch = "//",
-	marker = "2",
-	markercolor = "green",
-	)
+    facecolor="#E277E3",
+    hatch=None,
+    motives=("rhomb",),
+    )
+
+chert = dict(
+    facecolor="white",
+    hatch=None,
+    motives=("chert",),
+    )
+
+dolomitic_limestone = dict(
+    facecolor="#2BFFFF",
+    hatch=None,
+    motives=("brick"),
+    )
+
+shaly_limestone = dict(
+    facecolor="#2BFFFF",
+    hatch=None, # it is not None
+    motives=("brick",),
+    )
+
+cherty_dolomite = dict(
+    facecolor="#E277E3",
+    hatch=None,
+    motives=("rhomb","chert"),
+    )
+
+shaly_dolomite = dict(
+    facecolor="#E277E3",
+    hatch=None,
+    motives=("rhomb",),
+    )
+
+dolomitic_shale = dict(
+    facecolor="gray",
+    hatch=None,
+    motives=(),
+    )
+
+cherty_limestone = dict(
+    facecolor="#2BFFFF",
+    hatch=None,
+    motives=("brick","chert"),
+    )
+
+cherty_dolomitic_limestone = dict(
+    facecolor="#E277E3",
+    hatch=None,
+    motives=(brick,chert),
+    )
 
 anhydrite = dict(
-	marker = "2",
-	markercolor = "cyan",
-	)
+    facecolor="#DAA520",
+    hatch="xx",
+    motives=(),
+    )
 
-salt = dict(
-	marker = "",
-	markercolor = "black",
-	)
+halite = dict(
+    facecolor="#00FF00",
+    hatch= "+",
+    motives=(),
+    )
+
+salt = halite
+
+gypsum = dict(
+    facecolor="#9370DB",
+    hatch="\\\\",
+    motives=(),
+    )
+
+ironstone = dict(
+    facecolor="gray",
+    hatch='O',
+    motives=(),
+    )
+
+coal = dict(
+    facecolor="black",
+    hatch=None,
+    motives=(),
+    )
+
+## PORE SPACE
 
 pore_volume = dict(
 	color = "white",
@@ -128,3 +211,38 @@ oil_movable = dict(
 	color = "limegreen",
 	hatch = "..",
 	)
+
+## PATTERNS
+
+brick = dict(
+    motive="brick",
+    length=0.8,
+    height=0.2,
+    length_ratio=1.,
+    height_ratio=1.,
+    offset_ratio=0.5,
+    tilted_ratio=0.,
+    params = dict(edgecolor='black',facecolor=None,),
+    )
+
+rhomb = dict(
+    motive="brick",
+    length=0.8,
+    height=0.2,
+    length_ratio=1.,
+    height_ratio=1.,
+    offset_ratio=0.5,
+    tilted_ratio=0.25,
+    params = dict(edgecolor='black',facecolor=None,),
+    )
+
+chert = dict(
+    motive="triangle",
+    length=0.8/3,
+    height=0.2/1.5,
+    length_ratio=3.,
+    height_ratio=1.5,
+    offset_ratio=0.5,
+    tilted_ratio=0.,
+    params = dict(edgecolor='black',facecolor="white",),
+    )

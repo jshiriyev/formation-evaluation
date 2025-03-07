@@ -1,71 +1,22 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from _pattern import Pattern
+from _pattern import PatternBuilder
 
-def draw_rectangle(axis,xy,width,height,facecolor,edgecolor='black',hatch=None,pattern_dict:dict=None,**kwargs):
+def draw_rectangle(axis,xy,width,height,patch:dict=None):
 
-    if hatch in ("brick","triangle"):
+    x = np.array((xy[0],xy[0]+width))
 
-        # rect = plt.Rectangle(xy,width,height,edgecolor=edgecolor,lw=2.0,
-        #     fill=False)
+    y_min = np.array((xy[1],xy[1]))
+    y_max = np.array((xy[1]+height,xy[1]+height))
 
-        # axis.add_patch(rect)
+    axis = PatternBuilder.fill_between(axis,x,y_min,y_max,patch=patch)
 
-        pattern = Pattern(hatch)
+    rect = plt.Rectangle(xy,width,height,lw=1.2,edgecolor='black',fill=None)
 
-        x = np.array((xy[0],xy[0]+width))
-
-        y_min = np.array((xy[1],xy[1]))
-        y_max = np.array((xy[1]+height,xy[1]+height))
-
-        axis = pattern(axis,x,y_min,y_max,facecolor=facecolor,
-            pattern_dict=pattern_dict,**kwargs)
-
-    else:
-
-        rect = plt.Rectangle(xy,width,height,edgecolor=edgecolor,lw=1.5,
-            facecolor=facecolor,hatch=hatch)
-
-        axis.add_patch(rect)
+    axis.add_patch(rect)
 
     return axis
-
-limestone = dict(
-    color="#2BFFFF",hatch="brick",length=0.8,height=0.2,offset_ratio=0.5,tilting_ratio=0.,
-    spacing_ratio=1.,facecolor='none',edgecolor='black',lw=1.2
-    )
-
-dolomite = dict(
-    color="#E277E3",hatch="brick",length=0.8,height=0.2,offset_ratio=0.5,tilting_ratio=0.25,
-    spacing_ratio=1.,facecolor='none',edgecolor='black',lw=1.2
-    )
-
-chert = dict(
-    color="white",hatch="triangle",length=0.6/4,height=0.3/4,offset_ratio=0.5,tilting_ratio=0.,
-    spacing_ratio=2.,facecolor='none',edgecolor='black',lw=1.0
-    )
-
-dolomitic_limestone = dict(color="#2BFFFF",hatch=None)
-
-cherty_dolomite = dict(color="#E277E3", hatch="brick",length=0.8,height=0.2)
-cherty_limestone = dict(color="#2BFFFF", hatch="brick",length=0.8,height=0.2)
-shaly_limestone = dict(color="#2BFFFF", hatch="brick",length=0.8,height=0.2)
-shaly_dolomite = dict(color="#E277E3", hatch="brick",length=0.8,height=0.2)
-
-cherty_dolomitic_limestone = dict(color="#E277E3",hatch=None)
-shale = dict(color="gray", hatch= None)
-calcareous_shale = dict(color="gray", hatch= None)
-dolomitic_shale = dict(color="gray", hatch= None)
-sandstone = dict(color="#F4A460", hatch= "...")
-shaly_sandstone = dict(color="#F4A460", hatch= "...")
-sandy_shale = dict(color="brown", hatch= None)
-ironstone = dict(color="gray", hatch= 'O')
-coal = dict(color="black", hatch= None)
-null = dict()
-gypsum = dict(color="#9370DB", hatch= "\\\\")
-anhydrite = dict(color="#DAA520", hatch= "xx")
-halite = dict(color="#00FF00", hatch= "+")
 
 lithology_dict = {
     "limestone": limestone,
@@ -85,7 +36,7 @@ lithology_dict = {
     "sandy shale": sandy_shale,
     "ironstone": ironstone,
     "coal": coal,
-    "null": null,
+    "null": dict(),
     "gypsum": gypsum,
     "anhydrite": anhydrite,
     "halite": halite
@@ -111,7 +62,10 @@ for index,(lithology,props) in enumerate(lithology_dict.items()):
     else:
         x = (3*(index%cols)+1.0)/2*width
 
-    ax = draw_rectangle(ax,(x,y),width,height,facecolor=props.pop('color'),hatch=props.pop('hatch'),lw=1.5,pattern_dict=props)
+    ax = draw_rectangle(ax,(x,y),width,height,patch=props)
+
+    # if index==5:
+    #     ax = draw_rectangle(ax,(x,y),width,height,patch=lithology_dict['chert'])
 
     ax.text(x+width/2,y-0.2,lithology,
         fontweight='bold',fontsize=10,verticalalignment='center',horizontalalignment='center')
