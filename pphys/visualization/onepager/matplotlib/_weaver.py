@@ -64,16 +64,26 @@ class Weaver():
 
         x_func,y_func = element(length=motif.length,height=motif.height,tilted_ratio=motif.tilted_ratio)
 
+        if motif.element == "circle":
+            return Path.circle((x_func(x_node),y_func(y_node)),radius=motif.radius)
+        
         return Path([(x,y) for x,y in zip(x_func(x_node),y_func(y_node))])
+
+    @staticmethod
+    def circle(length=0.2,height=0.2,**kwargs):
+        """Returns functions that calculates center coordinates for the given lower left corner."""
+        x_func = lambda x: x+numpy.sqrt(length*height)/2
+        y_func = lambda y: y+numpy.sqrt(length*height)/2
+
+        return x_func,y_func
 
     @staticmethod
     def fissure(length=0.2,**kwargs):
         """Returns functions that calculates line vertex coordinates for the given lower left corner."""
-        x_func = lambda x: [x, x+length, x]
-        y_func = lambda y: [y, y, y]
+        x_func = lambda x: [x, x+length]
+        y_func = lambda y: [y, y]
 
         return x_func,y_func
-
 
     @staticmethod
     def triangle(length=0.2,height=0.1,tilted_ratio=0.):

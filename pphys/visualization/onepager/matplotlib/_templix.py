@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
 
+import numpy
+
 class PropDict:
     """It is a class representation of petrophysical property dictionary."""
     def __init__(self,**data):
@@ -61,7 +63,24 @@ class MotifPattern:
         """Returns the effective tilted length based on the tilt ratio."""
         return self.length*self.tilted_ratio
 
+    @property
+    def radius(self):
+        """Returns the effective radius based on length and height."""
+        return numpy.sqrt(self.length*self.height)/2
+    
+
 class Motifs:
+
+    irons = MotifPattern(**{
+        "element" : "circle",
+        "length" : 0.2/1.5,
+        "height" : 0.2/1.5,
+        "length_ratio" : 6.,
+        "height_ratio" : 1.5,
+        "offset_ratio" : 0.5,
+        "tilted_ratio" : None,
+        "params" : dict(edgecolor='black',facecolor="red"),
+        })
 
     shale = MotifPattern(**{
         "element" : "fissure",
@@ -73,7 +92,6 @@ class Motifs:
         "tilted_ratio" : None,
         "params" : dict(edgecolor='black',fill=None,),
         })
-
 
     chert = MotifPattern(**{
         "element" : "triangle",
@@ -117,7 +135,7 @@ class Lithology:
         shaly_sandstone = PropDict(**{"facecolor":"#F4A460","hatch":"...","motifs":(Motifs.shale,)}),
         calcareous_shale = PropDict(**{"facecolor":"gray","hatch":None,"motifs":()}),
         sandstone = PropDict(**{"facecolor":"#F4A460","hatch":"...","motifs":()}),
-        sandy_shale = PropDict(**{"facecolor":"brown","hatch":None,"motifs":()}),
+        sandy_shale = PropDict(**{"facecolor":"#CD9967","hatch":None,"motifs":()}),
         limestone = PropDict(**{"facecolor":"#2BFFFF","hatch":None,"motifs":(Motifs.brick,)}),
         dolomite = PropDict(**{"facecolor":"#E277E3","hatch":None,"motifs":(Motifs.rhomb,)}),
         chert = PropDict(**{"facecolor":"white","hatch":None,"motifs":(Motifs.chert,)}),
@@ -132,7 +150,7 @@ class Lithology:
         halite = PropDict(**{"facecolor":"#00FF00","hatch": "+","motifs":()}),
         salt = PropDict(**{"facecolor":"#00FF00","hatch": "+","motifs":()}),
         gypsum = PropDict(**{"facecolor":"#9370DB","hatch":"\\\\","motifs":()}),
-        ironstone = PropDict(**{"facecolor":"gray","hatch":'O',"motifs":()}),
+        ironstone = PropDict(**{"facecolor":"gray","hatch":None,"motifs":(Motifs.irons,)}),
         coal = PropDict(**{"facecolor":"black","hatch":None,"motifs":()}),
     )
 
