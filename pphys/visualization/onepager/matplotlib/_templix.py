@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 
-class AttrDict:
+class PropDict:
+    """It is a class representation of petrophysical property dictionary."""
     def __init__(self,**data):
         self.__dict__.update(**data)  # Store dictionary keys as attributes
 
@@ -11,13 +12,13 @@ class AttrDict:
         return f"{self.__class__.__name__}({self.__dict__})"
 
 @dataclass
-class PatchPattern:
+class MotifPattern:
     """
     A class representing a repetitive patch pattern with customizable dimensions and spacing.
 
     Attributes:
     ----------
-    motive (str): The shape used for the pattern.
+    element (str): The shape used for the pattern.
 
     length (float): Length of each pattern figure. Must be positive.
     height (float): Height of each pattern figure. Must be positive.
@@ -28,7 +29,7 @@ class PatchPattern:
     offset_ratio (float): Horizontal shift for every other row (0 = no shift, 0.5 = half length).
     tilted_ratio (float): Tilt applied to the ceiling of the figure (0 = no tilt, 1 = full length).
     """
-    motive : str = None
+    element : str = None
 
     length : float = 0.8
     height : float = 0.4
@@ -60,32 +61,22 @@ class PatchPattern:
         """Returns the effective tilted length based on the tilt ratio."""
         return self.length*self.tilted_ratio
 
-class Motives:
+class Motifs:
 
-    brick = PatchPattern(**{
-        "motive" : "brick",
-        "length" : 0.8,
-        "height" : 0.2,
-        "length_ratio" : 1.,
-        "height_ratio" : 1.,
+    shale = MotifPattern(**{
+        "element" : "fissure",
+        "length" : 0.8/2,
+        "height" : 0.2/20.,
+        "length_ratio" : 2.,
+        "height_ratio" : 20.,
         "offset_ratio" : 0.5,
-        "tilted_ratio" : 0.,
-        "params" : dict(edgecolor='black',facecolor=None,),
+        "tilted_ratio" : None,
+        "params" : dict(edgecolor='black',fill=None,),
         })
 
-    rhomb = PatchPattern(**{
-        "motive" : "brick",
-        "length" : 0.8,
-        "height" : 0.2,
-        "length_ratio" : 1.,
-        "height_ratio" : 1.,
-        "offset_ratio" : 0.5,
-        "tilted_ratio" : 0.25,
-        "params" : dict(edgecolor='black',facecolor=None,),
-        })
 
-    chert = PatchPattern(**{
-        "motive" : "triangle",
+    chert = MotifPattern(**{
+        "element" : "triangle",
         "length" : 0.8/3,
         "height" : 0.2/1.5,
         "length_ratio" : 3.,
@@ -95,53 +86,112 @@ class Motives:
         "params" : dict(edgecolor='black',facecolor="white",),
         })
 
+    brick = MotifPattern(**{
+        "element" : "quadrupe",
+        "length" : 0.8,
+        "height" : 0.2,
+        "length_ratio" : 1.,
+        "height_ratio" : 1.,
+        "offset_ratio" : 0.5,
+        "tilted_ratio" : 0.,
+        "params" : dict(edgecolor='black',fill=None,),
+        })
+
+    rhomb = MotifPattern(**{
+        "element" : "quadrupe",
+        "length" : 0.8,
+        "height" : 0.2,
+        "length_ratio" : 1.,
+        "height_ratio" : 1.,
+        "offset_ratio" : 0.5,
+        "tilted_ratio" : 0.25,
+        "params" : dict(edgecolor='black',fill=None,),
+        })
+
 class Lithology:
 
-    matrix = AttrDict(**{"facecolor":"gray","hatch":"xx","motives":()})
-    shale = AttrDict(**{"facecolor":"gray","hatch":"--","motives":()})
-    shale_free = AttrDict(**{"facecolor":"navajowhite","hatch":"||","motives":()})
-    shaly_sandstone = AttrDict(**{"facecolor":"#F4A460","hatch":"...","motives":()})
-    calcareous_shale = AttrDict(**{"facecolor":"gray","hatch":None,"motives":()})
-    sandstone = AttrDict(**{"facecolor":"#F4A460","hatch":"...","motives":()})
-    sandy_shale = AttrDict(**{"facecolor":"brown","hatch":None,"motives":()})
-    limestone = AttrDict(**{"facecolor":"#2BFFFF","hatch":None,"motives":(Motives.brick,)})
-    dolomite = AttrDict(**{"facecolor":"#E277E3","hatch":None,"motives":(Motives.rhomb,)})
-    chert = AttrDict(**{"facecolor":"white","hatch":None,"motives":(Motives.chert,)})
-    dolomitic_limestone = AttrDict(**{"facecolor":"#2BFFFF","hatch":None,"motives":(Motives.brick,)})
-    shaly_limestone = AttrDict(**{"facecolor":"#2BFFFF","hatch":None,"motives":(Motives.brick,)})
-    cherty_dolomite = AttrDict(**{"facecolor":"#E277E3","hatch":None,"motives":(Motives.rhomb,Motives.chert)})
-    shaly_dolomite = AttrDict(**{"facecolor":"#E277E3","hatch":None,"motives":(Motives.rhomb,)})
-    dolomitic_shale = AttrDict(**{"facecolor":"gray","hatch":None,"motives":()})
-    cherty_limestone = AttrDict(**{"facecolor":"#2BFFFF","hatch":None,"motives":(Motives.brick,Motives.chert)})
-    cherty_dolomitic_limestone = AttrDict(**{"facecolor":"#E277E3","hatch":None,"motives":(Motives.brick,Motives.chert)})
-    anhydrite = AttrDict(**{"facecolor":"#DAA520","hatch":"xx","motives":(),})
-    halite = AttrDict(**{"facecolor":"#00FF00","hatch": "+","motives":(),})
-    salt = halite
-    gypsum = AttrDict(**{"facecolor":"#9370DB","hatch":"\\\\","motives":(),})
-    ironstone = AttrDict(**{"facecolor":"gray","hatch":'O',"motives":(),})
-    coal = AttrDict(**{"facecolor":"black","hatch":None,"motives":(),})
+    _dict = dict(
+        matrix = PropDict(**{"facecolor":"gray","hatch":"xx","motifs":()}),
+        shale = PropDict(**{"facecolor":"gray","hatch":"--","motifs":()}),
+        shale_free = PropDict(**{"facecolor":"navajowhite","hatch":"||","motifs":()}),
+        shaly_sandstone = PropDict(**{"facecolor":"#F4A460","hatch":"...","motifs":(Motifs.shale,)}),
+        calcareous_shale = PropDict(**{"facecolor":"gray","hatch":None,"motifs":()}),
+        sandstone = PropDict(**{"facecolor":"#F4A460","hatch":"...","motifs":()}),
+        sandy_shale = PropDict(**{"facecolor":"brown","hatch":None,"motifs":()}),
+        limestone = PropDict(**{"facecolor":"#2BFFFF","hatch":None,"motifs":(Motifs.brick,)}),
+        dolomite = PropDict(**{"facecolor":"#E277E3","hatch":None,"motifs":(Motifs.rhomb,)}),
+        chert = PropDict(**{"facecolor":"white","hatch":None,"motifs":(Motifs.chert,)}),
+        dolomitic_limestone = PropDict(**{"facecolor":"#2BFFFF","hatch":None,"motifs":(Motifs.brick,)}),
+        shaly_limestone = PropDict(**{"facecolor":"#2BFFFF","hatch":None,"motifs":(Motifs.brick,Motifs.shale)}),
+        cherty_dolomite = PropDict(**{"facecolor":"#E277E3","hatch":None,"motifs":(Motifs.rhomb,Motifs.chert)}),
+        shaly_dolomite = PropDict(**{"facecolor":"#E277E3","hatch":None,"motifs":(Motifs.rhomb,Motifs.shale)}),
+        dolomitic_shale = PropDict(**{"facecolor":"gray","hatch":None,"motifs":()}),
+        cherty_limestone = PropDict(**{"facecolor":"#2BFFFF","hatch":None,"motifs":(Motifs.brick,Motifs.chert)}),
+        cherty_dolomitic_limestone = PropDict(**{"facecolor":"#E277E3","hatch":None,"motifs":(Motifs.brick,Motifs.chert)}),
+        anhydrite = PropDict(**{"facecolor":"#DAA520","hatch":"xx","motifs":()}),
+        halite = PropDict(**{"facecolor":"#00FF00","hatch": "+","motifs":()}),
+        salt = PropDict(**{"facecolor":"#00FF00","hatch": "+","motifs":()}),
+        gypsum = PropDict(**{"facecolor":"#9370DB","hatch":"\\\\","motifs":()}),
+        ironstone = PropDict(**{"facecolor":"gray","hatch":'O',"motifs":()}),
+        coal = PropDict(**{"facecolor":"black","hatch":None,"motifs":()}),
+    )
+
+    @classmethod
+    def get(cls,key):
+        return cls._dict[key]
+
+    @classmethod
+    @property
+    def len(cls):
+        return len(cls._dict)
+
+    @classmethod
+    def items(cls):
+        for key,value in cls._dict.items():
+            yield key,value
 
 class Porespace:
 
-    total = AttrDict(**dict(facecolor="white",hatch="OO"))
-    liquid = AttrDict(**dict(facecolor="blue",hatch="OO"))
-    water = AttrDict(**dict(facecolor="steelb",hatch="OO"))
-    water_clay_bound = AttrDict(**dict(facecolor="lightskyblue",hatch="XX"))
-    water_capillary_bound = AttrDict(**dict(facecolor="lightsteelblue",hatch="XX"))
-    water_irreducible = AttrDict(**dict(facecolor="lightblue",hatch="XX"))
-    water_movable = AttrDict(**dict(facecolor="aqua",hatch=".."))
-    fluid_movable = AttrDict(**dict(facecolor="teal",hatch=".."))
-    hydrocarbon = AttrDict(**dict(facecolor="green",hatch="OO"))
-    gas = AttrDict(**dict(facecolor="lightco",hatch="OO"))
-    gas_residual = AttrDict(**dict(facecolor="indianred",hatch="XX"))
-    gas_movable = AttrDict(**dict(facecolor="red",hatch=".."))
-    gas_condensate = AttrDict(**dict(facecolor="firebrick",hatch="OO."))
-    oil = AttrDict(**dict(facecolor="seagr",hatch="oo"))
-    oil_residual = AttrDict(**dict(facecolor="forestgreen",hatch="XX"))
-    oil_movable = AttrDict(**dict(facecolor="limegreen",hatch=".."))
+    _dict = dict(
+        total = PropDict(**dict(facecolor="white",hatch="OO")),
+        liquid = PropDict(**dict(facecolor="blue",hatch="OO")),
+        water = PropDict(**dict(facecolor="steelb",hatch="OO")),
+        water_clay_bound = PropDict(**dict(facecolor="lightskyblue",hatch="XX")),
+        water_capillary_bound = PropDict(**dict(facecolor="lightsteelblue",hatch="XX")),
+        water_irreducible = PropDict(**dict(facecolor="lightblue",hatch="XX")),
+        water_movable = PropDict(**dict(facecolor="aqua",hatch="..")),
+        fluid_movable = PropDict(**dict(facecolor="teal",hatch="..")),
+        hydrocarbon = PropDict(**dict(facecolor="green",hatch="OO")),
+        gas = PropDict(**dict(facecolor="lightco",hatch="OO")),
+        gas_residual = PropDict(**dict(facecolor="indianred",hatch="XX")),
+        gas_movable = PropDict(**dict(facecolor="red",hatch="..")),
+        gas_condensate = PropDict(**dict(facecolor="firebrick",hatch="OO.")),
+        oil = PropDict(**dict(facecolor="seagr",hatch="oo")),
+        oil_residual = PropDict(**dict(facecolor="forestgreen",hatch="XX")),
+        oil_movable = PropDict(**dict(facecolor="limegreen",hatch="..")),
+    )
+
+    @classmethod
+    def get(cls,key):
+        return cls._dict[key]
+
+    @classmethod
+    @property
+    def len(cls):
+        return len(cls._dict)
+
+    @classmethod
+    def items(cls):
+        for key,value in cls._dict.items():
+            yield key,value
 
 if __name__ == "__main__":
 
-    print(Lithology.cherty_dolomitic_limestone.motives)
-    # print(Motives.rhomb)
+    print(Lithology.get("cherty_dolomitic_limestone").facecolor)
+    # print(Motifs.rhomb)
     # print(Porespace.total)
+
+    print(Lithology.len)
+
+    # for key,value in Lithology.items():
+    #     print(key)
