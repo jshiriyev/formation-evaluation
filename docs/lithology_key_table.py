@@ -1,8 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from _weaver import Weaver
-from _templix import Lithology
+from pphys.visualization import Lithology, Weaver
 
 def draw_rectangle(axis,xy,width,height,prop):
 
