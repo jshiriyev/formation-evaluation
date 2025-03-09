@@ -1,7 +1,5 @@
 from dataclasses import dataclass, field
 
-from ._unary import Unary
-
 @dataclass(frozen=True)
 class Label:
 	"""
@@ -46,10 +44,6 @@ class Label:
 	@property
 	def length(self):
 		return self.upper-self.lower
-
-	@property
-	def unary(self):
-		return Unary
 
 if __name__ == "__main__":
 

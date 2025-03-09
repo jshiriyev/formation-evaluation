@@ -1,7 +1,5 @@
 from dataclasses import dataclass, field
 
-from ._unary import Unary
-
 @dataclass(frozen=True)
 class Depth:
 	"""
@@ -46,9 +44,4 @@ class Depth:
 
 	@property
 	def length(self):
-		return self.upper-self.lower
-
-	@property
-	def unary(self):
-		return Unary
-	
+		return self.upper-self.lower	

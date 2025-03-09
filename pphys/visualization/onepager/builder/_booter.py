@@ -1,6 +1,6 @@
 from matplotlib import pyplot
 
-class Boot():
+class Booter():
 
 	@staticmethod
 	def init(axis):

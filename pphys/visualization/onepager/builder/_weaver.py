@@ -1,6 +1,8 @@
 from matplotlib import pyplot as plt
 
-from matplotlib.patches import PathPatch
+from matplotlib import colors as mcolors
+
+from matplotlib.patches import PathPatch, Polygon
 from matplotlib.path import Path
 
 import numpy
@@ -32,17 +34,82 @@ class Weaver():
         return axis
 
     @staticmethod
+    def gradient(axis:plt.Axes,x:numpy.ndarray,y:numpy.ndarray,fill_color=None,alpha=None,**kwargs):
+        """
+        Plot a line with a linear alpha gradient filled beneath it.
+
+        Parameters
+        ----------
+        x, y : array-like
+            The data values of the line.
+        fill_color : a matplotlib color specifier (string, tuple) or None
+            The color for the fill. If None, the color of the line will be used.
+        axis : a matplotlib Axes instance
+            The axes to plot on. If None, the current pyplot axes will be used.
+        Additional arguments are passed on to matplotlib's ``plot`` function.
+
+        Returns
+        -------
+        line : a Line2D instance
+            The line plotted.
+        im : an AxesImage instance
+            The transparent gradient clipped to just the area beneath the curve.
+        """
+        line, = axis.plot(x,y,**kwargs)
+
+        if fill_color is None:
+            fill_color = line.get_color()
+
+        zorder = line.get_zorder()
+
+        # z = numpy.empty((y.size,1,3),dtype='float64')
+
+        rgb = mcolors.colorConverter.to_rgb(fill_color)
+        rgb = numpy.array([rgb]).repeat(y.size,axis=0)
+
+        z = rgb[:,:,numpy.newaxis].transpose((0,2,1))
+
+        xmin,xmax = numpy.nanmin(x),numpy.nanmax(x)
+
+        nondim = (x-xmin)/(xmax-xmin)
+
+        z[:,0,1] = 1-nondim #numpy.vstack((nondim,nondim,nondim)).transpose()
+
+        xmin,xmax = numpy.nanmin(x),numpy.nanmax(x)
+        ymin,ymax = numpy.nanmin(y),numpy.nanmax(y)
+
+        image = axis.imshow(z,
+            aspect = 'auto',
+            extent = [0,xmax,ymin,ymax],
+            origin = 'lower',
+            zorder = zorder
+            )
+
+        xy = numpy.column_stack([x,y])
+        xy = numpy.vstack([[0,ymin],xy,[0,ymax],[0,ymin]])
+
+        clip = Polygon(xy,facecolor='none',edgecolor='none',closed=True)
+
+        axis.add_patch(clip)
+
+        image.set_clip_path(clip)
+
+        # axis.fill_betweenx(y,0,x2=x,hatch='..',zorder=3)
+
+        return axis
+
+    @staticmethod
     def patches(x_min,x_max,y_min,y_max,motif):
         """Creates individual patches within a bounded region. Returns list of PathPatch objects."""
-        offsety = motif.height*(motif.height_ratio-1)/2.
+        offsety = (motif.height_extern-motif.height)/2.
 
-        y_nodes = numpy.arange(y_min+offsety,y_max,motif.extern_height)
+        y_nodes = numpy.arange(y_min+offsety,y_max,motif.height_extern)
 
         offset1 = motif.length*(motif.length_ratio-1)/2.
         offset2 = motif.length*motif.offset_ratio
 
-        x_lower = numpy.arange(x_min+offset1,x_max,motif.extern_length)
-        x_upper = numpy.arange(x_min-offset2,x_max,motif.extern_length)
+        x_lower = numpy.arange(x_min+offset1,x_max,motif.length_extern)
+        x_upper = numpy.arange(x_min-offset2,x_max,motif.length_extern)
 
         patches = []
         
