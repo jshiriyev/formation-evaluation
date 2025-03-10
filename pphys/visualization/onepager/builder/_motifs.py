@@ -126,7 +126,7 @@ class Motifs:
         })
 
     shale = MotifPattern(**{
-        "element" : "fissure",
+        "element" : "line",
         "length" : 0.8/2,
         "height" : 0.,
         "length_ratio" : 2.0,
