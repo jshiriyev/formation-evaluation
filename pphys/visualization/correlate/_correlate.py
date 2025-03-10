@@ -1,26 +1,44 @@
-from matplotlib import colors as mcolors
-from matplotlib import gridspec
-from matplotlib import pyplot
-from matplotlib import transforms
+import matplotlib.pyplot as plt
 
-from matplotlib.backend_bases import MouseButton
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
-from matplotlib.backends.backend_pdf import PdfPages
+import numpy as np
 
-from matplotlib.patches import Rectangle
+depth1 = np.linspace(1000,3000,100)
+depth2 = np.linspace(800,2800,100)
 
-from matplotlib.ticker import AutoMinorLocator
-from matplotlib.ticker import LogFormatter
-from matplotlib.ticker import LogFormatterExponent
-from matplotlib.ticker import LogFormatterMathtext
-from matplotlib.ticker import LogLocator
-from matplotlib.ticker import MultipleLocator
-from matplotlib.ticker import NullLocator
-from matplotlib.ticker import ScalarFormatter
+xvalues1 = np.random.rand(100)*100
+xvalues2 = np.random.rand(100)*80
 
-class CorrView():
-    """It creates correlation based on multiple las files from different wells."""
+fig,ax = plt.subplots(figsize=[10,12])
 
-    def __init__(self):
+axin1 = ax.inset_axes([0.1,0.1,0.35,0.8])
+axin2 = ax.inset_axes([0.6,0.1,0.35,0.8])
 
-        pass
+axin1.plot(xvalues1,depth1)
+axin2.plot(xvalues2,depth2)
+
+axin1.yaxis.set_inverted(True)
+axin2.yaxis.set_inverted(True)
+
+axin1.set_xlim((-20,120))
+axin2.set_xlim((-40,140))
+
+# ax.set_xticks([])
+# ax.set_yticks([])
+
+# ax.hlines(0.5,-0.2,1.2)
+
+ax.fill_between([0.,0.45,0.6,1.],[0.5,0.5,0.45,0.45],y2=[0.7,0.7,0.8,0.8],alpha=0.2,color='red')
+
+ax.set_xlim([0.,1.])
+ax.set_ylim([0.,1.])
+
+ax.set_zorder(1)
+
+axin1.set_zorder(-1)
+axin2.set_zorder(-1)
+
+plt.tight_layout()
+
+plt.show()
