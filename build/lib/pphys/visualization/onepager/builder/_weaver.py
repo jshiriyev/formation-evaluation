@@ -145,10 +145,10 @@ class Weaver():
         return x_func,y_func
 
     @staticmethod
-    def fissure(length=0.2,**kwargs):
+    def line(length=0.2,height=0.1,**kwargs):
         """Returns functions that calculates line vertex coordinates for the given lower left corner."""
         x_func = lambda x: [x, x+length]
-        y_func = lambda y: [y, y]
+        y_func = lambda y: [y, y+height]
 
         return x_func,y_func
 
