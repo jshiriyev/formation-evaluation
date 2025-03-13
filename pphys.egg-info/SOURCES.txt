@@ -11,7 +11,6 @@ pphys/auxiliary/_temperature.py
 pphys/visualization/__init__.py
 pphys/visualization/correlate/__init__.py
 pphys/visualization/correlate/_booter.py
-pphys/visualization/correlate/_correlate.py
 pphys/visualization/correlate/_formation.py
 pphys/visualization/correlate/_layout.py
 pphys/visualization/correlate/_section.py
