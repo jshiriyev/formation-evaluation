@@ -82,20 +82,20 @@ class LasIO():
 
 	def copy(self):
 		"""Create a new LAS object with the cropped data"""
-	    cropped_las = lasio.LASFile()
+	    las = lasio.LASFile()
 
-	    cropped_las.index = cropped_data.index  # Set the new depth index
+	    las.index = cropped_data.index  # Set the new depth index
 
 	    for curve in self.las.curves:
 	        if curve.mnemonic in cropped_data.columns:
-	            cropped_las.add_curve(
+	            las.add_curve(
 	                curve.mnemonic,
 	                cropped_data[curve.mnemonic].values,
 	                unit=curve.unit,
 	                descr=curve.descr,
 	            )
 
-	    return cropped_las
+	    return las
 
 	@staticmethod
 	def is_valid(values:numpy.ndarray):
