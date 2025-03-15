@@ -5,29 +5,22 @@ import numpy
 
 class LasIO():
 
-	def __init__(self,filepath:str):
+	def __init__(self,file_ref,**kwargs):
 
-		self.las = filepath
+		logging.info("Attempting to read las file by using lasio module.")
+
+		try:
+			self._las = lasio.read(file_ref,**kwargs)
+		except Exception as e:
+			logging.error(f"Error reading LAS file: {e}")
+			self._las = lasio.LASFile()
+		else:
+			logging.info(f"LAS file '{file_ref}' loaded successfully.")
 	
 	@property
 	def las(self):
 		"""Getter for the LAS file object."""
 		return self._las
-	
-	@las.setter
-	def las(self,filepath:str):
-		"""Setter to read a LAS file using lasio."""
-
-		logging.info("Attempting to read las file by using lasio module.")
-
-		try:
-			self._las = lasio.read(filepath)
-		except Exception as e:
-			logging.error(f"Error reading LAS file: {e}")
-		else:
-			logging.info(f"LAS file '{filepath}' loaded successfully.")
-
-		return
 
 	def __getattr__(self,key):
 		"""Directing attribute access to self.las."""
@@ -53,30 +46,37 @@ class LasIO():
 
 		return numpy.logical_and(self.las.index>=dmin,self.las.index<=dmax)
 
-	def crop(self,key:str=None,dmin:float=None,dmax:float=None):
+	def crop(self,dmin:float=None,dmax:float=None,key:str=None):
 		"""
 		Crops a LAS frame (or curve if key is provided) to include only data
 		within a specified depth range.
 
 		Parameters:
+		----------
 	    dmin (float): Minimum depth for cropping.
 	    dmax (float): Maximum depth for cropping.
-
+	    key (str): Name of the curve to crop.
+		
+		Returns:
+		-------
+		numpy.ndarray or pandas.DataFrame: Cropped curve values.
 		"""
 		mask = self.mask(dmin,dmax)
 
 		return self.las.df[mask] if key is None else self.las[key].values[mask]
 
-	def resample(self,key:str,depths:numpy.ndarray):
+	def resample(self,depths:numpy.ndarray,key:str=None):
 		"""
         Resample a curve's values based on new depth values.
 
         Parameters:
-        key (str): Name of the curve to resample.
+        ----------
         depths (array-like): New depth values for resampling.
+        key (str): Name of the curve to resample.
 
         Returns:
-        numpy.ndarray: Resampled curve values as a numpy array.
+        -------
+        numpy.ndarray or pandas.DataFrame: Resampled curve values.
         """
 		return numpy.interp(depths,self.las.index,self.las[key])
 
