@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
 	name = 'pphys',
-	version = '0.0.3',
+	version = '0.0.13',
 	packages = find_packages(),
 	install_requires = [
 		'numpy>=1.26.4',
@@ -13,7 +13,7 @@ setup(
 
 # python setup.py sdist bdist_wheel
 
-# pip install dist/lasview-{version}-py3-none-any.whl
+# pip install dist/pphys-{version}-py3-none-any.whl
 
 # Run the followings from the command line to upload to pypi:
 
