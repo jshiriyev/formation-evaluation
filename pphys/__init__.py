@@ -1,7 +1,7 @@
 from . import auxiliary
-from . import modeling
+from . import model
 from . import interpret
-from . import streamer
+from . import stream
 
 from ._read import read
 from ._load import load

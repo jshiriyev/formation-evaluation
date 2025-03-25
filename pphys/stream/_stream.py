@@ -53,7 +53,7 @@ class Frame:
 		object.__setattr__(
 			self,"hrange",(self.head_xrange,self.head_yrange))
 
-class Display():
+class Stream():
 
 	def __init__(self,filename:str,htmlname:str=None,mindepth:float=None,maxdepth:float=None,mnemonics:list=None,**kwargs):
 
