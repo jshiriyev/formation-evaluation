@@ -1,18 +1,18 @@
-from matplotlib import pyplot
+from matplotlib import pyplot as plt
 
 from matplotlib.gridspec import GridSpec
 from matplotlib.ticker import MaxNLocator
 
-from .section._booter import Booter
+from .crossview._booter import Booter
 
-from ._weaver import Weaver
+from ._pigment import Pigment
 
-class Correlation():
+class CrossView():
 
 	def __init__(self,*args,**kwargs):
 
 		self._wells = list(args)
-		self.figure = pyplot.figure(**kwargs)
+		self.figure = plt.figure(**kwargs)
 
 	@property
 	def wells(self):
@@ -93,7 +93,7 @@ class Correlation():
 		axis.yaxis.set_tick_params(**tick_params)
 	
 	def __call__(self,*args,**kwargs):
-		"""Initializes the main scene of Correlation instance."""
+		"""Initializes the main scene of CrossView instance."""
 		self.scene = Booter(*args,**kwargs)
 		
 		self.scene(self.scene_axis)
@@ -113,7 +113,7 @@ class Correlation():
 
 	def add_gradient(self,index,xvals,depth,ylabel,key=None,xmin=None,xmax=None,left=False,**kwargs):
 
-		Weaver.fill_gradient(self.scene[index],xvals,depth,**kwargs)
+		Pigment.fill_gradient(self.scene[index],xvals,depth,**kwargs)
 
 		self.scene.axis.plot(self.scene.xloc(index),[ylabel,]*2,**kwargs)
 

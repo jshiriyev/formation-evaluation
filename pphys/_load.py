@@ -15,6 +15,7 @@ def load(path:str,cache:str) -> dict:
 	Returns:
 	-------
 	dict: A dictionary with filenames (without extension) as keys and LAS data as values.
+	
 	"""
 
 	# Ensure cache directory exists

@@ -13,20 +13,9 @@ class Label:
 			top, bottom, or None
 
 	"""
-	limit	: tuple[float] = (0,30)
+	limit	: tuple[float]
 
 	major 	: int = 10
-	minor 	: range = field(
-		init = False,
-		repr = False,
-		default = None,
-		)
-
-	scale 	: str = field(
-		init = False,
-		repr = False,
-		default = "linear",
-		)
 
 	spot 	: str = field(
 		repr = False,

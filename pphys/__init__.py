@@ -1,7 +1,4 @@
-from . import auxiliary
-from . import model
-from . import interpret
-from . import stream
+from . import onepage
 
 from ._read import read
 from ._load import load

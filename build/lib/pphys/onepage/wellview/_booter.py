@@ -57,15 +57,7 @@ class Boot(Layout):
 
 	def body_depth(self,axis,xaxis):
 
-		# axis = self.body_curve(axis,xaxis)
-		axis.set_xlim(xaxis.limit)
-		axis.set_ylim(self.depth.limit)
-
-		plt.setp(axis.get_xticklabels(),visible=False)
-		plt.setp(axis.get_xticklines(),visible=False)
-
-		plt.setp(axis.get_yticklabels(),visible=False)
-		plt.setp(axis.get_yticklines(),visible=False)
+		axis = self.body_curve(axis,xaxis)
 
 		axis.tick_params(
 			axis="y",which="both",direction="in",right=True,pad=-40)
@@ -91,8 +83,8 @@ class Boot(Layout):
 
 		axis.set_xscale(xaxis.scale)
 
-		plt.setp(axis.get_xticklabels(),visible=False)
-		plt.setp(axis.get_xticklines(),visible=False)
+		# plt.setp(axis.get_xticklabels(),visible=False)
+		# plt.setp(axis.get_xticklines(),visible=False)
 
 		plt.setp(axis.get_yticklabels(),visible=False)
 		plt.setp(axis.get_yticklines(),visible=False)

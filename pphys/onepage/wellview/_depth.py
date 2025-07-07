@@ -17,13 +17,7 @@ class Depth:
 	limit 	: tuple[float] = (0,100)
 
 	major 	: int = 10
-	minor 	: range = range(1,10)
-
-	scale 	: str = field(
-		init = False,
-		repr = False,
-		default = "linear",
-		)
+	minor 	: int = 1
 
 	spot 	: int = field(
 		repr = False,
@@ -44,4 +38,12 @@ class Depth:
 
 	@property
 	def length(self):
-		return self.upper-self.lower	
+		return self.upper-self.lower
+
+if __name__ == "__main__":
+
+	depth=dict(limit=(3200,3310),major=10,minor=range(2,10,2),spot=1)
+
+	d = Depth(**depth)
+
+	print(d.length)

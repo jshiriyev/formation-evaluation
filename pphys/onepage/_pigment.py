@@ -5,16 +5,14 @@ from matplotlib import colors as mcolors
 from matplotlib.patches import PathPatch, Polygon
 from matplotlib.path import Path
 
-import numpy
-
-from numpy import ndarray
+import numpy as np
 
 from ._templix import PropDict
     
-class Weaver():
+class Pigment():
 
     @staticmethod
-    def fill_solid(axis:plt.Axes,y:ndarray,x1:ndarray,x2:ndarray,prop:PropDict):
+    def fill_solid(axis:plt.Axes,y:np.ndarray,x1:np.ndarray,x2:np.ndarray,prop:PropDict):
         """Fill between the log curves with a solid facecolor, hatches, and motifs.
 
         For color specification, please check:
@@ -28,7 +26,7 @@ class Weaver():
 
         for motif in prop.motifs:
             # Create the pattern patches
-            patches = Weaver.patches(
+            patches = Pigment.patches(
                 x1.min(),x2.max(),y.min(),y.max(),motif
                 )
 
@@ -43,25 +41,25 @@ class Weaver():
         return axis
 
     @staticmethod
-    def fill_colormap(axis:plt.Axes,y:ndarray,x1:ndarray,x2:float=0,colormap='Reds',vmin=None,vmax=None):
+    def fill_colormap(axis:plt.Axes,y:np.ndarray,x1:np.ndarray,x2:float=0,colormap='Reds',vmin=None,vmax=None):
         """Fill between the log curves with a given colormap.
 
         For list of colormaps, please check:
         - https://matplotlib.org/stable/users/explain/colors/colormaps.html
 
         """
-        vmin = numpy.nanmin(x1) if vmin is None else vmin
-        vmax = numpy.nanmax(x1) if vmax is None else vmax
+        vmin = np.nanmin(x1) if vmin is None else vmin
+        vmax = np.nanmax(x1) if vmax is None else vmax
 
         x_normalized = mcolors.Normalize(vmin=vmin,vmax=vmax)(x1)
 
         z = plt.get_cmap(colormap)(x_normalized)
-        z = z[:,:,numpy.newaxis].transpose((0,2,1))
+        z = z[:,:,np.newaxis].transpose((0,2,1))
 
-        xmin = numpy.nanmin(x1) if numpy.nanmin(x1)<x2 else x2
-        xmax = numpy.nanmax(x1) if numpy.nanmax(x1)>x2 else x2
+        xmin = np.nanmin(x1) if np.nanmin(x1)<x2 else x2
+        xmax = np.nanmax(x1) if np.nanmax(x1)>x2 else x2
 
-        ymin,ymax = numpy.nanmin(y),numpy.nanmax(y)
+        ymin,ymax = np.nanmin(y),np.nanmax(y)
 
         img = axis.imshow(z,
             aspect = 'auto',
@@ -70,9 +68,9 @@ class Weaver():
             # zorder = line.get_zorder()
             )
 
-        xy = numpy.column_stack([x1,y])
-        xy = numpy.vstack([[x2,ymin],xy,[x2,ymax],[x2,ymin]])
-        xy = xy[~numpy.isnan(xy).any(axis=1)]
+        xy = np.column_stack([x1,y])
+        xy = np.vstack([[x2,ymin],xy,[x2,ymax],[x2,ymin]])
+        xy = xy[~np.isnan(xy).any(axis=1)]
 
         clip = Polygon(xy,facecolor='none',edgecolor='none',closed=True)
         axis.add_patch(clip)
@@ -86,13 +84,13 @@ class Weaver():
         """Creates individual patches within a bounded region. Returns list of PathPatch objects."""
         offsety = (motif.height_extern-motif.height)/2.
 
-        y_nodes = numpy.arange(y_min+offsety,y_max,motif.height_extern)
+        y_nodes = np.arange(y_min+offsety,y_max,motif.height_extern)
 
         offset1 = motif.length*(motif.length_ratio-1)/2.
         offset2 = motif.length*motif.offset_ratio
 
-        x_lower = numpy.arange(x_min+offset1,x_max,motif.length_extern)
-        x_upper = numpy.arange(x_min-offset2,x_max,motif.length_extern)
+        x_lower = np.arange(x_min+offset1,x_max,motif.length_extern)
+        x_upper = np.arange(x_min-offset2,x_max,motif.length_extern)
 
         patches = []
         
@@ -102,7 +100,7 @@ class Weaver():
             
             for x_node in x_nodes:
 
-                path = Weaver.path(x_node,y_node,motif)
+                path = Pigment.path(x_node,y_node,motif)
                 
                 patches.append(PathPatch(path,**motif.params))
         
@@ -110,7 +108,7 @@ class Weaver():
 
     def path(x_node,y_node,motif):
         """Returns path for the instance figure."""
-        element = getattr(Weaver,motif.element)
+        element = getattr(Pigment,motif.element)
 
         x_func,y_func = element(length=motif.length,height=motif.height,tilted_ratio=motif.tilted_ratio)
 
@@ -122,8 +120,8 @@ class Weaver():
     @staticmethod
     def circle(length=0.2,height=0.2,**kwargs):
         """Returns functions that calculates center coordinates for the given lower left corner."""
-        x_func = lambda x: x+numpy.sqrt(length*height)/2
-        y_func = lambda y: y+numpy.sqrt(length*height)/2
+        x_func = lambda x: x+np.sqrt(length*height)/2
+        y_func = lambda y: y+np.sqrt(length*height)/2
 
         return x_func,y_func
 
@@ -153,7 +151,7 @@ class Weaver():
 
 if __name__ == "__main__":
 
-    import numpy as np
+    import np as np
 
     from _templix import PropDict
     from _motifs import MotifPattern
@@ -173,7 +171,7 @@ if __name__ == "__main__":
     prop = PropDict(**{"facecolor":"tan","hatch":None,"motifs":(motif,)})
 
     # alpha=0.5,edgecolor='black',lw=1.2,
-    ax = Weaver.fill_between(ax,x,y1,y2,prop=prop)
+    ax = Pigment.fill_between(ax,x,y1,y2,prop=prop)
 
     # Adjust limits and labels
     # ax.set_xlim(x.min(),x.max())
