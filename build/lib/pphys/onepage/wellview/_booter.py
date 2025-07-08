@@ -57,7 +57,21 @@ class Boot(Layout):
 
 	def body_depth(self,axis,xaxis):
 
-		axis = self.body_curve(axis,xaxis)
+		# axis = self.body_curve(axis,xaxis)
+		axis.set_xlim(xaxis.limit)
+		axis.set_ylim(self.depth.limit)
+
+		plt.setp(axis.get_xticklabels(),visible=False)
+		plt.setp(axis.get_xticklines(),visible=False)
+
+		plt.setp(axis.get_yticklabels(),visible=False)
+		plt.setp(axis.get_yticklines(),visible=False)
+
+		axis.yaxis.set_minor_locator(
+			ticker.MultipleLocator(self.depth.minor))
+
+		axis.yaxis.set_major_locator(
+			ticker.MultipleLocator(self.depth.major))
 
 		axis.tick_params(
 			axis="y",which="both",direction="in",right=True,pad=-40)
@@ -83,8 +97,8 @@ class Boot(Layout):
 
 		axis.set_xscale(xaxis.scale)
 
-		# plt.setp(axis.get_xticklabels(),visible=False)
-		# plt.setp(axis.get_xticklines(),visible=False)
+		plt.setp(axis.get_xticklabels(),visible=False)
+		plt.setp(axis.get_xticklines(),visible=False)
 
 		plt.setp(axis.get_yticklabels(),visible=False)
 		plt.setp(axis.get_yticklines(),visible=False)
@@ -114,11 +128,11 @@ class Boot(Layout):
 		axis.tick_params(axis="x",which="minor",bottom=False)
 		axis.tick_params(axis="y",which="minor",left=False)
 
-		axis.grid(axis="x",which='minor',color='k',alpha=0.4)
-		axis.grid(axis="x",which='major',color='k',alpha=0.9)
+		axis.grid(axis="x",which='minor',color='lightgray',alpha=0.4)
+		axis.grid(axis="x",which='major',color='lightgray',alpha=0.9)
 
-		axis.grid(axis="y",which='minor',color='k',alpha=0.4)
-		axis.grid(axis="y",which='major',color='k',alpha=0.9)
+		axis.grid(axis="y",which='minor',color='lightgray',alpha=0.4)
+		axis.grid(axis="y",which='major',color='lightgray',alpha=0.9)
 
 		return axis
 
