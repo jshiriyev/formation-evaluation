@@ -10,7 +10,7 @@ class Boot(Layout):
 		"""Initializes the Boot class by calling the Layout constructor"""
 		super().__init__(*args,**kwargs)
 
-	def __call__(self,figure,**kwargs):
+	def __call__(self,figure):
 
 		nrows = 1 if self.label.spot is None else 2
 
@@ -19,9 +19,9 @@ class Boot(Layout):
 			figure = figure,
 			width_ratios = self.widths,
 			height_ratios = self.heights,
-			**kwargs
+			wspace = 0, hspace = 0,
 			)
-
+		
 		for index,xaxis in enumerate(self._xaxes):
 
 			if self.label.spot is None:
@@ -36,10 +36,12 @@ class Boot(Layout):
 			if self.label.spot is not None:
 				self.head(head_axis,xaxis)
 
-			if index == self.depth.spot-1:
+			if index == self.depth.spot:
 				self.body_depth(body_axis,xaxis)
 			else:
 				self.body_curve(body_axis,xaxis)
+
+		return figure.get_axes()
 
 	def head(self,axis,xaxis):
 

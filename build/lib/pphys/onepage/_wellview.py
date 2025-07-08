@@ -4,76 +4,106 @@ from matplotlib import backends
 from matplotlib import patches
 from matplotlib import pyplot as plt
 
-import numpy
+import numpy as np
 
 from .wellview._booter import Boot
 
-class WellView():
+class WellView(Boot):
 
-    def __init__(self,**kwargs):
+    def __init__(self,las,**kwargs):
 
-        self.figure = plt.figure(**kwargs)
+        self._las = las
 
-    def __call__(self,*args,**kwargs):
+        super().__init__(**kwargs)
 
-        self.scene = Boot(*args,**kwargs)
+    def __call__(self,figure):
 
-        self.scene(self.figure)
+        self.axes = super().__call__(figure)
 
-    def add_curve(self):
+    def axis_label(self,index):
+        return self.axes[index*2+0]
 
-        label_axes = self.figure.axes[self.axes['label_indices']]
-        curve_axes = self.figure.axes[self.axes['curve_indices']]
+    def axis_curve(self,index):
+        return self.axes[index*2+1]
 
-        for _,curve in self.curves.items():
+    def add_curve(self,index,mnem):
 
-            label_axis = label_axes[curve.col]
-            curve_axis = curve_axes[curve.col]
+        label_axis = label_axes[curve.col]
+        curve_axis = curve_axes[curve.col]
 
-            xaxis = self.axes['xaxis'][curve.col]
+        xaxis = self.axes['xaxis'][curve.col]
 
-            getattr(self,f"set_{xaxis['scale'][:3]}xaxis")(curve,xaxis)
+        getattr(self,f"set_{xaxis['scale'][:3]}xaxis")(curve,xaxis)
 
-            if hasattr(curve,'gradalpha'):
-                gradient(curve.xaxis,curve.depth,axis=curve_axis,
-                    color = curve.color,
-                    fill_color = curve.myfill_color,
-                    linestyle = curve.style,
-                    linewidth = curve.width,
-                    alpha = curve.gradalpha)
-            else:
-                curve_axis.plot(curve.xaxis,curve.depth,
-                    color = curve.color,
-                    linestyle = curve.style,
-                    linewidth = curve.width,)
+        if hasattr(curve,'gradalpha'):
+            gradient(curve.xaxis,curve.depth,axis=curve_axis,
+                color = curve.color,
+                fill_color = curve.myfill_color,
+                linestyle = curve.style,
+                linewidth = curve.width,
+                alpha = curve.gradalpha)
+        else:
+            curve_axis.plot(curve.xaxis,curve.depth,
+                color = curve.color,
+                linestyle = curve.style,
+                linewidth = curve.width,)
 
-            row = len(curve_axis.lines)
+        row = len(curve_axis.lines)
 
-            # if curve.row is False:
-            #     curve.row = row
-            #     return
+        # if curve.row is False:
+        #     curve.row = row
+        #     return
 
-            if curve.row is None:
-                curve.row = row
+        if curve.row is None:
+            curve.row = row
 
-            if curve.row is False:
-                return
+        if curve.row is False:
+            return
 
-            label_axis.plot((0,1),(curve.row-0.6,curve.row-0.6),
-                color=curve.color,linestyle=curve.style,linewidth=curve.width)
+        label_axis.plot((0,1),(curve.row-0.6,curve.row-0.6),
+            color=curve.color,linestyle=curve.style,linewidth=curve.width)
 
-            label_axis.text(0.5,curve.row-0.5,f"{curve.mnemonic}",
-                horizontalalignment='center',
-                # verticalalignment='bottom',
-                fontsize='small',)
+        label_axis.text(0.5,curve.row-0.5,f"{curve.mnemonic}",
+            horizontalalignment='center',
+            # verticalalignment='bottom',
+            fontsize='small',)
 
-            label_axis.text(0.5,curve.row-0.9,f"[{curve.unit}]",
-                horizontalalignment='center',
-                # verticalalignment='bottom',
-                fontsize='small',)
+        label_axis.text(0.5,curve.row-0.9,f"[{curve.unit}]",
+            horizontalalignment='center',
+            # verticalalignment='bottom',
+            fontsize='small',)
 
-            label_axis.text(0.02,curve.row-0.5,f"{curve.limit[0]:.5g}",horizontalalignment='left')
-            label_axis.text(0.98,curve.row-0.5,f"{curve.limit[1]:.5g}",horizontalalignment='right')
+        label_axis.text(0.02,curve.row-0.5,f"{curve.limit[0]:.5g}",horizontalalignment='left')
+        label_axis.text(0.98,curve.row-0.5,f"{curve.limit[1]:.5g}",horizontalalignment='right')
+
+    def set_curve_label(self,index,mnem,cmin,cmax,nrow,**kwargs):
+
+        axis = self.axis_label(index)
+
+        xlim = self[index].limit
+
+        row = nrow*self.label.major
+
+        xmin,xmax = xlim
+
+        xlen = xmax-xmin
+
+        axis.plot(xlim,(row-6,row-6),**kwargs)
+
+        curve = self._las.curves[mnem]
+
+        axis.text(np.mean(xlim),row-5,f"{mnem}",
+            horizontalalignment='center',
+            # verticalalignment='bottom',
+            fontsize='small',)
+
+        axis.text(np.mean(xlim),row-8,f"{curve.unit}",
+            horizontalalignment='center',
+            # verticalalignment='bottom',
+            fontsize='small',)
+
+        axis.text(xmin+xlen*2/100,row-5,f"{cmin:.5g}",horizontalalignment='left')
+        axis.text(xmax-xlen*2/100,row-5,f"{cmax:.5g}",horizontalalignment='right')
 
     def add_module(self):
 
@@ -91,7 +121,7 @@ class WellView():
 
             if module['left'] is None:
                 yvals = lines[0].get_ydata()
-                xvals = numpy.ones(yvals.shape)
+                xvals = np.ones(yvals.shape)
             else:
                 yvals = lines[module['left']].get_ydata()
                 xvals = lines[module['left']].get_xdata()
@@ -129,7 +159,7 @@ class WellView():
                 backgroundcolor='white',
                 fontsize='small',)
 
-    def add_perfs(self):
+    def add_perf(self):
         """It includes perforated depth."""
 
         curve_axes = self.figure.axes[self.axes['curve_indices']]
@@ -138,11 +168,11 @@ class WellView():
 
             curve_axis = curve_axes[perf['col']]
 
-            depth = numpy.array(perf['depth'],dtype=float)
+            depth = np.array(perf['depth'],dtype=float)
 
-            yvals = numpy.arange(depth.min(),depth.max()+0.5,1.0)
+            yvals = np.arange(depth.min(),depth.max()+0.5,1.0)
 
-            xvals = numpy.zeros(yvals.shape)
+            xvals = np.zeros(yvals.shape)
 
             curve_axis.plot(xvals[0],yvals[0],
                 marker=11,
@@ -162,9 +192,8 @@ class WellView():
                 markersize=10,
                 markerfacecolor='black')
 
-    def add_casings(self):
+    def add_casing(self):
         """It includes casing set depth."""
-
         pass
 
     def view(self,top,wspace=0.0,hspace=0.0,height=30,**kwargs):
