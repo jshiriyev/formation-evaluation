@@ -41,10 +41,6 @@ class Pigment():
         return axis
 
     @staticmethod
-    def fill_category(axis):
-        pass
-
-    @staticmethod
     def fill_colormap(axis:plt.Axes,y:np.ndarray,x1:np.ndarray,x2:float=0,colormap='Reds',vmin=None,vmax=None,**kwargs):
         """Fill between the log curves with a given colormap.
 
@@ -67,8 +63,8 @@ class Pigment():
 
         img = axis.imshow(z,
             aspect = 'auto',
-            extent = [xmin,xmax,ymin,ymax],
-            origin = 'lower',
+            extent = [xmin,xmax,ymin,ymax],  
+            origin = 'lower',**kwargs
             # zorder = line.get_zorder()
             )
 
@@ -76,7 +72,7 @@ class Pigment():
         xy = np.vstack([[x2,ymin],xy,[x2,ymax],[x2,ymin]])
         xy = xy[~np.isnan(xy).any(axis=1)]
 
-        clip = Polygon(xy,facecolor='none',edgecolor='none',closed=True,**kwargs)
+        clip = Polygon(xy,facecolor='none',edgecolor='none',closed=True)
         axis.add_patch(clip)
 
         img.set_clip_path(clip)

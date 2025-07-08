@@ -57,7 +57,6 @@ class Boot(Layout):
 
 	def body_depth(self,axis,xaxis):
 
-		# axis = self.body_curve(axis,xaxis)
 		axis.set_xlim(xaxis.limit)
 		axis.set_ylim(self.depth.limit)
 
@@ -65,7 +64,6 @@ class Boot(Layout):
 		plt.setp(axis.get_xticklines(),visible=False)
 
 		plt.setp(axis.get_yticklabels(),visible=False)
-		plt.setp(axis.get_yticklines(),visible=False)
 
 		axis.yaxis.set_minor_locator(
 			ticker.MultipleLocator(self.depth.minor))
@@ -78,7 +76,7 @@ class Boot(Layout):
 
 		yticks = ticker.MultipleLocator(self.depth.major).tick_values(*self.depth.limit)
 
-		for ytick in yticks:
+		for ytick in yticks[2:-2]:
 
 			axis.annotate(
 				f"{ytick:4.0f}",
@@ -86,6 +84,7 @@ class Boot(Layout):
 				horizontalalignment='center',
 				verticalalignment='center',
 				backgroundcolor='white',
+				zorder=-1,
 				)
 
 		return axis

@@ -65,7 +65,7 @@ class Boot(Layout):
 		plt.setp(axis.get_xticklines(),visible=False)
 
 		plt.setp(axis.get_yticklabels(),visible=False)
-		plt.setp(axis.get_yticklines(),visible=False)
+		# plt.setp(axis.get_yticklines(),visible=False)
 
 		axis.yaxis.set_minor_locator(
 			ticker.MultipleLocator(self.depth.minor))
@@ -78,7 +78,7 @@ class Boot(Layout):
 
 		yticks = ticker.MultipleLocator(self.depth.major).tick_values(*self.depth.limit)
 
-		for ytick in yticks:
+		for ytick in yticks[2:-2]:
 
 			axis.annotate(
 				f"{ytick:4.0f}",
@@ -86,6 +86,7 @@ class Boot(Layout):
 				horizontalalignment='center',
 				verticalalignment='center',
 				backgroundcolor='white',
+				zorder=-1,
 				)
 
 		return axis
@@ -128,11 +129,11 @@ class Boot(Layout):
 		axis.tick_params(axis="x",which="minor",bottom=False)
 		axis.tick_params(axis="y",which="minor",left=False)
 
-		axis.grid(axis="x",which='minor',color='lightgray',alpha=0.4)
-		axis.grid(axis="x",which='major',color='lightgray',alpha=0.9)
+		axis.grid(axis="x",which='minor',color='lightgray',alpha=0.4,zorder=-1)
+		axis.grid(axis="x",which='major',color='lightgray',alpha=0.9,zorder=-1)
 
-		axis.grid(axis="y",which='minor',color='lightgray',alpha=0.4)
-		axis.grid(axis="y",which='major',color='lightgray',alpha=0.9)
+		axis.grid(axis="y",which='minor',color='lightgray',alpha=0.4,zorder=-1)
+		axis.grid(axis="y",which='major',color='lightgray',alpha=0.9,zorder=-1)
 
 		return axis
 

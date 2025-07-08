@@ -56,29 +56,24 @@ class WellView():
             if curve.row is None:
                 curve.row = row
 
-            self.set_labelcurve(label_axis,curve)
+            if curve.row is False:
+                return
 
-    @staticmethod
-    def set_labelcurve(axis,curve):
+            label_axis.plot((0,1),(curve.row-0.6,curve.row-0.6),
+                color=curve.color,linestyle=curve.style,linewidth=curve.width)
 
-        if curve.row is False:
-            return
+            label_axis.text(0.5,curve.row-0.5,f"{curve.mnemonic}",
+                horizontalalignment='center',
+                # verticalalignment='bottom',
+                fontsize='small',)
 
-        axis.plot((0,1),(curve.row-0.6,curve.row-0.6),
-            color=curve.color,linestyle=curve.style,linewidth=curve.width)
+            label_axis.text(0.5,curve.row-0.9,f"[{curve.unit}]",
+                horizontalalignment='center',
+                # verticalalignment='bottom',
+                fontsize='small',)
 
-        axis.text(0.5,curve.row-0.5,f"{curve.mnemonic}",
-            horizontalalignment='center',
-            # verticalalignment='bottom',
-            fontsize='small',)
-
-        axis.text(0.5,curve.row-0.9,f"[{curve.unit}]",
-            horizontalalignment='center',
-            # verticalalignment='bottom',
-            fontsize='small',)
-
-        axis.text(0.02,curve.row-0.5,f"{curve.limit[0]:.5g}",horizontalalignment='left')
-        axis.text(0.98,curve.row-0.5,f"{curve.limit[1]:.5g}",horizontalalignment='right')
+            label_axis.text(0.02,curve.row-0.5,f"{curve.limit[0]:.5g}",horizontalalignment='left')
+            label_axis.text(0.98,curve.row-0.5,f"{curve.limit[1]:.5g}",horizontalalignment='right')
 
     def add_module(self):
 
@@ -123,21 +118,16 @@ class WellView():
             if module.get('row') is None:
                 module['row'] = len(lines)
 
-            self.set_labelmodule(label_axis,module)
+            rect = patches.Rectangle((0,module['row']),1,1,
+                fill=True,facecolor=module['module']['fillcolor'],hatch=module['module']['hatch'])
 
-    @staticmethod
-    def set_labelmodule(axis,module):
-
-        rect = patches.Rectangle((0,module['row']),1,1,
-            fill=True,facecolor=module['module']['fillcolor'],hatch=module['module']['hatch'])
-
-        axis.add_patch(rect)
-        
-        axis.text(0.5,module['row']+0.5,module['module']['detail'],
-            horizontalalignment='center',
-            verticalalignment='center',
-            backgroundcolor='white',
-            fontsize='small',)
+            label_axis.add_patch(rect)
+            
+            label_axis.text(0.5,module['row']+0.5,module['module']['detail'],
+                horizontalalignment='center',
+                verticalalignment='center',
+                backgroundcolor='white',
+                fontsize='small',)
 
     def add_perfs(self):
         """It includes perforated depth."""
