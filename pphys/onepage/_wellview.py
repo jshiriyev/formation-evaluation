@@ -1,10 +1,13 @@
-import lasio
-
-from matplotlib import backends
-from matplotlib import patches
 from matplotlib import pyplot as plt
 
+from matplotlib import backends
+
+from matplotlib import ticker
+from matplotlib import patches
+
 import numpy as np
+
+from scipy.interpolate import interp1d
 
 from .wellview._booter import Boot
 
@@ -25,6 +28,45 @@ class WellView(Boot):
 
     def axis_curve(self,index):
         return self.axes[index*2+1]
+
+    def add_depth_md(self,index):
+
+        yticks = ticker.MultipleLocator(self.depth.major).tick_values(*self.depth.limit)
+
+        xmid = (self[index].lower+self[1].upper)/2
+
+        for ytick in yticks[2:-2]:
+            self.axes[index].annotate(
+                f"{ytick:4.0f}",xy=(xmid,ytick),ha='center',va='center')
+
+    def add_depth_tvd(self,index:int,md:np.ndarray,tvd:np.ndarray):
+
+        # self.axes[index].tick_params(which='minor',length=0)
+
+        # md = survey['MD'].to_numpy()
+        # tvd = survey['TVD'].to_numpy()
+
+        tvd_min = tvd.min()
+        tvd_max = tvd.max()
+
+        yticks_tvd_major = ticker.MultipleLocator(self.depth.major).tick_values(tvd_min,tvd_max)
+        yticks_tvd_minor = ticker.MultipleLocator(self.depth.minor).tick_values(tvd_min,tvd_max)
+        yticks_tvd_major = yticks_tvd_major[np.logical_and(yticks_tvd_major>=tvd_min,yticks_tvd_major<=tvd_max)]
+        yticks_tvd_minor = yticks_tvd_minor[np.logical_and(yticks_tvd_minor>=tvd_min,yticks_tvd_minor<=tvd_max)]
+
+        yticks_md_major = interp1d(tvd,md,kind='linear',fill_value="extrapolate")(yticks_tvd_major)
+        yticks_md_minor = interp1d(tvd,md,kind='linear',fill_value="extrapolate")(yticks_tvd_minor)
+
+        self.axes[index].set_yticks(yticks_md_minor,minor=True)
+        self.axes[index].set_yticks(yticks_md_major,minor=False)
+
+        xmid = (self[index].lower+self[index].upper)/2
+
+        for ytick_md,ytick_tvd in zip(yticks_md_major,yticks_tvd_major):
+            self.axes[index].annotate(
+                f"{ytick_tvd:4.0f}",xy=(xmid,ytick_md),ha='center',va='center')
+
+        # self.axes[3].set_yticklabels(yticks_tvd_major)
 
     def add_curve(self,index,mnem):
 

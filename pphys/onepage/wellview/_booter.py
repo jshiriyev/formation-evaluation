@@ -36,7 +36,7 @@ class Boot(Layout):
 			if self.label.spot is not None:
 				self.head(head_axis,xaxis)
 
-			if index == self.depth.spot:
+			if index in self.depth.spot:
 				self.body_depth(body_axis,xaxis)
 			else:
 				self.body_curve(body_axis,xaxis)
@@ -60,10 +60,11 @@ class Boot(Layout):
 	def body_depth(self,axis,xaxis):
 
 		axis.set_xlim(xaxis.limit)
-		axis.set_ylim(self.depth.limit)
 
 		plt.setp(axis.get_xticklabels(),visible=False)
 		plt.setp(axis.get_xticklines(),visible=False)
+
+		axis.set_ylim(self.depth.limit)
 
 		plt.setp(axis.get_yticklabels(),visible=False)
 
@@ -76,31 +77,19 @@ class Boot(Layout):
 		axis.tick_params(
 			axis="y",which="both",direction="in",right=True,pad=-40)
 
-		yticks = ticker.MultipleLocator(self.depth.major).tick_values(*self.depth.limit)
-
-		for ytick in yticks[2:-2]:
-
-			axis.annotate(
-				f"{ytick:4.0f}",
-				xy=((xaxis.lower+xaxis.upper)/2,ytick),
-				horizontalalignment='center',
-				verticalalignment='center',
-				backgroundcolor='white',
-				zorder=-1,
-				)
-
 		return axis
 
 	def body_curve(self,axis,xaxis):
 
 		axis.set_xlim(xaxis.limit)
-		axis.set_ylim(self.depth.limit)
 
 		axis.set_xscale(xaxis.scale)
 
 		plt.setp(axis.get_xticklabels(),visible=False)
 		plt.setp(axis.get_xticklines(),visible=False)
 
+		axis.set_ylim(self.depth.limit)
+		
 		plt.setp(axis.get_yticklabels(),visible=False)
 		plt.setp(axis.get_yticklines(),visible=False)
 

@@ -19,9 +19,9 @@ class Depth:
 	major 	: int = 10
 	minor 	: int = 1
 
-	spot 	: int = field(
+	spot 	: tuple = field(
 		repr = False,
-		default = 1,
+		default = (0,),
 		)
 
 	def __post_init__(self):
@@ -42,8 +42,12 @@ class Depth:
 
 if __name__ == "__main__":
 
-	depth=dict(limit=(3200,3310),major=10,minor=range(2,10,2),spot=1)
+	depth=dict(limit=(3200,3310),major=10,minor=range(2,10,2),spot=(1,))
 
 	d = Depth(**depth)
 
+	print(d)
+
 	print(d.length)
+
+	print(d.spot)
