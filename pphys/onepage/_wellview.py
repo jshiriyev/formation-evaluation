@@ -1,72 +1,94 @@
-from matplotlib import pyplot as plt
+import lasio
 
 from matplotlib import backends
-
-from matplotlib import ticker
 from matplotlib import patches
+from matplotlib import pyplot as plt
+from matplotlib import ticker
+
+from matplotlib.figure import Figure
 
 import numpy as np
+import pandas as pd
 
 from scipy.interpolate import interp1d
 
-from .wellview._booter import Boot
+from .wellview._builder import Builder
 
-class WellView(Boot):
+class WellView(Builder):
+    """
+    A plotting class for rendering well log data using a layout defined in Builder.
+    """
 
-    def __init__(self,las,**kwargs):
+    def __init__(self,las:lasio.LASFile,**kwargs):
+        """
+        Initialize the WellView instance.
 
+        Args:
+            las: LAS file object (e.g., loaded using `lasio`).
+            **kwargs: Additional keyword arguments forwarded to Builder.
+
+        """
         self._las = las
 
         super().__init__(**kwargs)
 
-    def __call__(self,figure):
-
+    @property
+    def las(self):
+        """Return the internal LAS object representing well log data."""
+        return self._las
+    
+    def __call__(self,figure:Figure):
+        """
+        This method calls the parent 'Builder.__call__' method to construct the layout 
+        on the given matplotlib figure, and stores the resulting axes.
+        """
         self.axes = super().__call__(figure)
 
-    def axis_label(self,index):
+    def axis_label(self,index:int):
+        """Return the axis used for the label (head) of the given track index."""
         return self.axes[index*2+0]
 
-    def axis_curve(self,index):
+    def axis_curve(self,index:int):
+        """Return the axis used for the curve (body) of the given track index."""
         return self.axes[index*2+1]
 
-    def add_depth_md(self,index):
+    def add_depths(self,index:int,survey:pd.DataFrame=None,md_and_tvd_keys:list[str]=['MD','TVD']):
+        """Add depth annotations or MD-transformed ticks to the specified axis."""
 
-        yticks = ticker.MultipleLocator(self.depth.major).tick_values(*self.depth.limit)
+        x_mid = (self[index].lower+self[index].upper)/2
 
-        xmid = (self[index].lower+self[1].upper)/2
+        limit = self.depth.limit if survey is None else (tvd.min(),tvd.max())
 
-        for ytick in yticks[2:-2]:
-            self.axes[index].annotate(
-                f"{ytick:4.0f}",xy=(xmid,ytick),ha='center',va='center')
+        yticks_major = ticker.MultipleLocator(self.depth.major).tick_values(*limit)
 
-    def add_depth_tvd(self,index:int,md:np.ndarray,tvd:np.ndarray):
+        if survey is None:
+            # If no survey is provided, annotate MD ticks directly
+            for ytick in yticks_major[2:-2]:
+                self.axes[index].annotate(f"{ytick:4.0f}",
+                    xy=(x_mid,ytick),ha='center',va='center'
+                )
+            return
+
+        yticks_minor = ticker.MultipleLocator(self.depth.minor).tick_values(*limit)
+
+        md,tvd = survey[md_and_tvd_keys].to_numpy().T
 
         # self.axes[index].tick_params(which='minor',length=0)
 
-        # md = survey['MD'].to_numpy()
-        # tvd = survey['TVD'].to_numpy()
+        yticks_major = yticks_major[np.logical_and(yticks_major>=limit[0],yticks_major<=limit[1])]
+        yticks_minor = yticks_minor[np.logical_and(yticks_minor>=limit[0],yticks_minor<=limit[1])]
 
-        tvd_min = tvd.min()
-        tvd_max = tvd.max()
+        yticks_major_md = interp1d(tvd,md,kind='linear',fill_value="extrapolate")(yticks_major)
+        yticks_minor_md = interp1d(tvd,md,kind='linear',fill_value="extrapolate")(yticks_minor)
 
-        yticks_tvd_major = ticker.MultipleLocator(self.depth.major).tick_values(tvd_min,tvd_max)
-        yticks_tvd_minor = ticker.MultipleLocator(self.depth.minor).tick_values(tvd_min,tvd_max)
-        yticks_tvd_major = yticks_tvd_major[np.logical_and(yticks_tvd_major>=tvd_min,yticks_tvd_major<=tvd_max)]
-        yticks_tvd_minor = yticks_tvd_minor[np.logical_and(yticks_tvd_minor>=tvd_min,yticks_tvd_minor<=tvd_max)]
+        self.axes[index].set_yticks(yticks_major_md,minor=False)
+        self.axes[index].set_yticks(yticks_minor_md,minor=True)
 
-        yticks_md_major = interp1d(tvd,md,kind='linear',fill_value="extrapolate")(yticks_tvd_major)
-        yticks_md_minor = interp1d(tvd,md,kind='linear',fill_value="extrapolate")(yticks_tvd_minor)
-
-        self.axes[index].set_yticks(yticks_md_minor,minor=True)
-        self.axes[index].set_yticks(yticks_md_major,minor=False)
-
-        xmid = (self[index].lower+self[index].upper)/2
-
-        for ytick_md,ytick_tvd in zip(yticks_md_major,yticks_tvd_major):
+        for ytick_md,ytick in zip(yticks_major_md,yticks_major):
             self.axes[index].annotate(
-                f"{ytick_tvd:4.0f}",xy=(xmid,ytick_md),ha='center',va='center')
+                f"{ytick:4.0f}",xy=(x_mid,ytick_md),ha='center',va='center')
 
-        # self.axes[3].set_yticklabels(yticks_tvd_major)
+        # self.axes[index].set_yticklabels(yticks_major)
 
     def add_curve(self,index,mnem):
 

@@ -5,25 +5,25 @@ from ._unary import Unary
 @dataclass(frozen=True)
 class Xaxis:
 	"""
-	It initializes the axis of plane in a track:
+	A frozen dataclass representing the X-axis of a plane in a track layout.
 
-	limit 	: lower and upper values of the axis
+	limit 	: Range of the axis (lower, upper). If not provided, a default is
+			chosen based on the `scale`
 	
-	major 	: sets the frequency of major ticks
-	minor 	: sets the frequency of minor ticks
+	major 	: interval between major ticks on the axis.
+	minor 	: Interval between minor ticks on the axis.
 
-	scale	: axis scale: linear or log10, check the link below
+	scale	: axis scale: either 'linear' or 'log10', check the link below
 			https://matplotlib.org/stable/users/explain/axes/axes_scales.html
 			for the available scales in matplotlib.
 
-	spot 	: location of axis in the layout, int
-			index of trail in the layout
+	spot 	: Index in the layout for axis positioning.
 
 	"""
-	limit 	: tuple[float] = None
+	limit 	: tuple[float, float] = None
 
 	major 	: int = 10
-	minor 	: int = 1
+	minor 	: int|range = 1
 
 	scale 	: str = "linear"
 
@@ -41,22 +41,27 @@ class Xaxis:
 
 	@property
 	def lower(self):
+		"""Return the lower bound of the axis range."""
 		return min(self.limit)
 
 	@property
 	def upper(self):
+		"""Return the upper bound of the axis range."""
 		return max(self.limit)
 
 	@property
 	def length(self):
+		"""Return the total span of the axis (upper - lower)."""
 		return self.upper-self.lower
 	
 	@property
-	def flip(self):
+	def flipped(self):
+		"""Return True if axis values are decreasing (flipped direction)."""
 		return self.limit != tuple(sorted(self.limit))
 
 	@property
 	def unary(self):
+		"""Return the Unary class for external operations involving this axis."""
 		return Unary
 
 if __name__ == "__main__":
