@@ -21,6 +21,8 @@ class Layout():
 
 		"""
 		self.ntrail  = ntrail
+		self.xaxes   = None
+
 		self.ncycle  = ncycle
 
 		self.label   = label or {}
@@ -29,18 +31,33 @@ class Layout():
 		self.widths  = widths
 		self.heights = heights
 
-		self._xaxes  = [Xaxis() for _ in range(self.ntrail)]
-
 	@property
 	def ntrail(self):
 		return self._ntrail
 
 	@ntrail.setter
-	def ntrail(self,value):
+	def ntrail(self,value:int):
 		self._ntrail = value
 
 	def __len__(self):
 		return self._ntrail
+
+	@property
+	def xaxes(self):
+		return self._xaxes
+
+	@xaxes.setter
+	def xaxes(self,value):
+		self._xaxes  = [Xaxis() for _ in range(self.ntrail)]
+
+	def set(self,index:int,**kwargs):
+		self[index] = Xaxis(**kwargs)
+
+	def __setitem__(self,index:int,xaxis:Xaxis):
+		self._xaxes[index] = xaxis
+
+	def __getitem__(self,index):
+		return self._xaxes[index]
 
 	@property
 	def ncycle(self):
@@ -60,10 +77,6 @@ class Layout():
 
 	@label.setter
 	def label(self,value:dict):
-
-		if value.get("limit") is None:
-			value["limit"] = (0,10*self.ncycle)
-
 		self._label = Label(**value)
 
 	@property
@@ -82,7 +95,7 @@ class Layout():
 	def widths(self,value:tuple[int]):
 
 		if value is None:
-			self.widths = (2,4)
+			self._widths = (2,4)
 
 		elif len(value)==1:
 			self._widths = value*self.ntrail
@@ -99,7 +112,7 @@ class Layout():
 			self._widths = value
 
 		else:
-			raise Warning("Length of widths and number of columns does not match")
+			raise Warning("Length of widths and number of columns does not match.")
 
 	@property
 	def heights(self):
@@ -116,19 +129,6 @@ class Layout():
 	@property
 	def size(self):
 		return (sum(self.widths),sum(self.heights))
-
-	@property
-	def xaxes(self):
-		return self._xaxes
-
-	def set(self,index:int,**kwargs):
-		self[index] = Xaxis(**kwargs)
-
-	def __setitem__(self,index:int,xaxis:Xaxis):
-		self._xaxes[index] = xaxis
-
-	def __getitem__(self,index):
-		return self._xaxes[index]
 
 if __name__ == "__main__":
 

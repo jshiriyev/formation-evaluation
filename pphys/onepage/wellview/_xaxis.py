@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
 
+import numpy as np
+
 from ._unary import Unary
 
 @dataclass(frozen=True)
@@ -53,7 +55,14 @@ class Xaxis:
 	def length(self):
 		"""Return the total span of the axis (upper - lower)."""
 		return self.upper-self.lower
-	
+
+	@property
+	def middle(self):
+		if self.scale=="linear"
+            return np.mean(self.limit)
+        elif self.scale=="log10":
+            return np.power(10,np.mean(np.log10(self.limit)))
+
 	@property
 	def flipped(self):
 		"""Return True if axis values are decreasing (flipped direction)."""

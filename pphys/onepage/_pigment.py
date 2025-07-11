@@ -6,39 +6,8 @@ from matplotlib.patches import PathPatch, Polygon
 from matplotlib.path import Path
 
 import numpy as np
-
-from ._templix import PropDict
     
 class Pigment():
-
-    @staticmethod
-    def fill_solid(axis:plt.Axes,y:np.ndarray,x1:np.ndarray,x2:np.ndarray,prop:PropDict):
-        """Fill between the log curves with a solid facecolor, hatches, and motifs.
-
-        For color specification, please check:
-        - https://matplotlib.org/stable/tutorials/colors/colors.html
-
-        For list of hatches, please check:
-        - https://matplotlib.org/stable/gallery/shapes_and_collections/hatch_style_reference.html
-
-        """
-        fill = axis.fill_betweenx(y,x1,x2,facecolor=prop.facecolor,hatch=prop.hatch)
-
-        for motif in prop.motifs:
-            # Create the pattern patches
-            patches = Pigment.patches(
-                x1.min(),x2.max(),y.min(),y.max(),motif
-                )
-
-            # Clip the pattern patches
-            for patch in patches:
-                patch.set_clip_path(
-                    fill.get_paths()[0],transform=axis.transData
-                    )  # Clip each patch to the filled region
-
-                axis.add_patch(patch)
-
-        return axis
 
     @staticmethod
     def fill_colormap(axis:plt.Axes,y:np.ndarray,x1:np.ndarray,x2:float=0,colormap='Reds',vmin=None,vmax=None,**kwargs):
@@ -61,8 +30,7 @@ class Pigment():
 
         ymin,ymax = np.nanmin(y),np.nanmax(y)
 
-        img = axis.imshow(z,
-            aspect = 'auto',
+        img = axis.imshow(z,aspect='auto',
             extent = [xmin,xmax,ymin,ymax],  
             origin = 'lower',**kwargs
             # zorder = line.get_zorder()
@@ -76,6 +44,35 @@ class Pigment():
         axis.add_patch(clip)
 
         img.set_clip_path(clip)
+
+        return axis
+
+    @staticmethod
+    def fill_solid(axis:plt.Axes,y:np.ndarray,x1:np.ndarray,x2:float|np.ndarray=0,**kwargs):
+        """Fill between the log curves with a solid facecolor, hatches, and motifs.
+
+        For color specification, please check:
+        - https://matplotlib.org/stable/tutorials/colors/colors.html
+
+        For list of hatches, please check:
+        - https://matplotlib.org/stable/gallery/shapes_and_collections/hatch_style_reference.html
+
+        """
+        fill = axis.fill_betweenx(y,x1,x2,facecolor=kwargs['facecolor'],hatch=kwargs['hatch'])
+
+        for motif in kwargs['motifs']:
+            # Create the pattern patches
+            patches = Pigment.patches(
+                x1.min(),x2.max(),y.min(),y.max(),motif
+                )
+
+            # Clip the pattern patches
+            for patch in patches:
+                patch.set_clip_path(
+                    fill.get_paths()[0],transform=axis.transData
+                    )  # Clip each patch to the filled region
+
+                axis.add_patch(patch)
 
         return axis
 

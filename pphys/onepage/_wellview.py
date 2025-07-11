@@ -12,6 +12,8 @@ import pandas as pd
 
 from scipy.interpolate import interp1d
 
+from ._pigment import Pigment
+
 from .wellview._builder import Builder
 
 class WellView(Builder):
@@ -55,8 +57,6 @@ class WellView(Builder):
     def add_depths(self,index:int,survey:pd.DataFrame=None,md_and_tvd_keys:list[str]=['MD','TVD']):
         """Add depth annotations or MD-transformed ticks to the specified axis."""
 
-        x_mid = (self[index].lower+self[index].upper)/2
-
         limit = self.depth.limit if survey is None else (tvd.min(),tvd.max())
 
         yticks_major = ticker.MultipleLocator(self.depth.major).tick_values(*limit)
@@ -65,7 +65,7 @@ class WellView(Builder):
             # If no survey is provided, annotate MD ticks directly
             for ytick in yticks_major[2:-2]:
                 self.axes[index].annotate(f"{ytick:4.0f}",
-                    xy=(x_mid,ytick),ha='center',va='center'
+                    xy=(self[index].middle,ytick),ha='center',va='center'
                 )
             return
 
@@ -86,142 +86,97 @@ class WellView(Builder):
 
         for ytick_md,ytick in zip(yticks_major_md,yticks_major):
             self.axes[index].annotate(
-                f"{ytick:4.0f}",xy=(x_mid,ytick_md),ha='center',va='center')
+                f"{ytick:4.0f}",xy=(self[index].middle,ytick_md),ha='center',va='center')
 
         # self.axes[index].set_yticklabels(yticks_major)
 
-    def add_curve(self,index,mnem):
+    def add_curve(self,index:int,mnemo:str,multp:float=1.,shift:float=0.,cycle:int|bool=True,**kwargs):
 
-        label_axis = label_axes[curve.col]
-        curve_axis = curve_axes[curve.col]
+        axis_curve = self.axis_curve(index)
 
-        xaxis = self.axes['xaxis'][curve.col]
+        curve = self.las.curves[mnemo]
+        xvals = curve.data*multp+shift
 
-        getattr(self,f"set_{xaxis['scale'][:3]}xaxis")(curve,xaxis)
+        axis_curve.plot(xvals,self.las.index,**kwargs)
 
-        if hasattr(curve,'gradalpha'):
-            gradient(curve.xaxis,curve.depth,axis=curve_axis,
-                color = curve.color,
-                fill_color = curve.myfill_color,
-                linestyle = curve.style,
-                linewidth = curve.width,
-                alpha = curve.gradalpha)
-        else:
-            curve_axis.plot(curve.xaxis,curve.depth,
-                color = curve.color,
-                linestyle = curve.style,
-                linewidth = curve.width,)
-
-        row = len(curve_axis.lines)
-
-        # if curve.row is False:
-        #     curve.row = row
-        #     return
-
-        if curve.row is None:
-            curve.row = row
-
-        if curve.row is False:
+        if cycle is False:
             return
 
-        label_axis.plot((0,1),(curve.row-0.6,curve.row-0.6),
-            color=curve.color,linestyle=curve.style,linewidth=curve.width)
+        self.add_label(index,mnemo,multp,shift,cycle,**kwargs)
 
-        label_axis.text(0.5,curve.row-0.5,f"{curve.mnemonic}",
-            horizontalalignment='center',
-            # verticalalignment='bottom',
-            fontsize='small',)
+    def add_colormap(self,index:int,mnemo:str,x2:float=0,multp:float=1.,shift:float=0.,cycle:int|bool=True,colormap='Reds',vmin=None,vmax=None,**kwargs):
 
-        label_axis.text(0.5,curve.row-0.9,f"[{curve.unit}]",
-            horizontalalignment='center',
-            # verticalalignment='bottom',
-            fontsize='small',)
+        axis_curve = self.axis_curve(index)
 
-        label_axis.text(0.02,curve.row-0.5,f"{curve.limit[0]:.5g}",horizontalalignment='left')
-        label_axis.text(0.98,curve.row-0.5,f"{curve.limit[1]:.5g}",horizontalalignment='right')
+        x1,x2 = self.las.curves[mnemo].data*multp+shift,x2*multp+shift
 
-    def set_curve_label(self,index,mnem,cmin,cmax,nrow,**kwargs):
+        Pigment.fill_colormap(axis_curve,self.las.index,x1,x2,colormap,vmin,vmax,**kwargs)
 
-        axis = self.axis_label(index)
+        if cycle is False:
+            return
 
-        xlim = self[index].limit
+        self.add_label(index,mnemo,multp,shift,cycle,**kwargs)
 
-        row = nrow*self.label.major
+    def add_label(self,index:int,mnemo:str,multp:float=1.,shift:float=0.,cycle:int|bool=True,**kwargs):
 
-        xmin,xmax = xlim
+        axis_curve = self.axis_curve(index)
 
-        xlen = xmax-xmin
+        curve = self.las.curves[mnemo]
 
-        axis.plot(xlim,(row-6,row-6),**kwargs)
+        axis_label = self.axis_label(index)
 
-        curve = self._las.curves[mnem]
+        row = (len(axis_curve.lines) if cycle is True else cycle)*self.label.major
 
-        axis.text(np.mean(xlim),row-5,f"{mnem}",
-            horizontalalignment='center',
-            # verticalalignment='bottom',
-            fontsize='small',)
+        axis_label.plot(self[index].limit,(row-0.6*self.label.major,)*2,**kwargs)
 
-        axis.text(np.mean(xlim),row-8,f"{curve.unit}",
-            horizontalalignment='center',
-            # verticalalignment='bottom',
-            fontsize='small',)
+        axis_label.text(self[index].middle,row-0.5*self.label.major,f":int{mnemo:str,}",
+            ha='center',fontsize='small',)
 
-        axis.text(xmin+xlen*2/100,row-5,f"{cmin:.5g}",horizontalalignment='left')
-        axis.text(xmax-xlen*2/100,row-5,f"{cmax:.5g}",horizontalalignment='right')
+        axis_label.text(self[index].middle,row-0.8*self.label.major,f"{curve.unit}",
+            ha='center',fontsize='small',)
 
-    def add_module(self):
+        xmin,xmax = self[index].limit
+        cmin,cmax = (xmin-shift)/multp,(xmax-shift)/multp
 
-        label_axes = self.figure.axes[self.axes['label_indices']]
-        curve_axes = self.figure.axes[self.axes['curve_indices']]
+        axis_label.text(xmin+self[index].length*0.02,row-0.5*self.label.major,f"{cmin:.5g}",ha='left')
+        axis_label.text(xmax-self[index].length*0.02,row-0.5*self.label.major,f"{cmax:.5g}",ha='right')
 
-        for module in self.modules:
+    def add_module(self,index,left:int=None,right:int=None,cycle:int|bool=True,**kwargs):
 
-            label_axis = label_axes[module['col']]
-            curve_axis = curve_axes[module['col']]
+        axis_module = self.axis_curve(index)
 
-            xlim = curve_axis.get_xlim()
+        lines = axis_module.lines
 
-            lines = curve_axis.lines
+        if left is None:
+            yvals = lines[0].get_ydata()
+            xvals = np.ones(yvals.shape)
+        else:
+            yvals = lines[left].get_ydata()
+            xvals = lines[left].get_xdata()
 
-            if module['left'] is None:
-                yvals = lines[0].get_ydata()
-                xvals = np.ones(yvals.shape)
-            else:
-                yvals = lines[module['left']].get_ydata()
-                xvals = lines[module['left']].get_xdata()
+        if right is None:
+            x2 = 0
+        elif right>=len(lines):
+            x2 = max(axis_module.get_xlim())
+        else:
+            x2 = lines[right].get_xdata()
 
-            if module['right'] is None:
-                x2 = 0
-            elif module['right']>=len(lines):
-                x2 = max(xlim)
-            else:
-                x2 = lines[module['right']].get_xdata()
+        Pigment.fill_solid(axis_module,yvals,xvals,x2,**kwargs)
 
-            if module.get('leftnum') is not None:
-                x2 = module['leftnum']
+        if cycle is False:
+            return
 
-            if module.get('where') is None:
-                where = (xvals>x2)
-            elif module.get('where') is True:
-                where = (xvals<x2)
-            else:
-                where = module['where']
+        axis_label = self.axis_label(index)
 
-            curve_axis.fill_betweenx(yvals,xvals,x2=x2,where=where,facecolor=module['module']['fillcolor'],hatch=module['module']["hatch"])
+        row = (len(axis_curve.lines) if cycle is True else cycle)*self.label.major
 
-            if module.get('row') is None:
-                module['row'] = len(lines)
+        rect = patches.Rectangle((self[index].lower,row),self[index].length,self.label.major,
+            fill=True,facecolor=kwargs['facecolor'],hatch=kwargs['hatch'])
 
-            rect = patches.Rectangle((0,module['row']),1,1,
-                fill=True,facecolor=module['module']['fillcolor'],hatch=module['module']['hatch'])
-
-            label_axis.add_patch(rect)
-            
-            label_axis.text(0.5,module['row']+0.5,module['module']['detail'],
-                horizontalalignment='center',
-                verticalalignment='center',
-                backgroundcolor='white',
-                fontsize='small',)
+        axis_label.add_patch(rect)
+        
+        axis_label.text(self[index].middle,row+0.5*self.label.major,title,
+            ha='center',va='center',backgroundcolor='white',fontsize='small',)
 
     def add_perf(self):
         """It includes perforated depth."""
@@ -230,7 +185,7 @@ class WellView(Builder):
 
         for perf in self.perfs:
 
-            curve_axis = curve_axes[perf['col']]
+            axis_curve = curve_axes[perf['col']]
 
             depth = np.array(perf['depth'],dtype=float)
 
@@ -238,19 +193,19 @@ class WellView(Builder):
 
             xvals = np.zeros(yvals.shape)
 
-            curve_axis.plot(xvals[0],yvals[0],
+            axis_curve.plot(xvals[0],yvals[0],
                 marker=11,
                 color='orange',
                 markersize=10,
                 markerfacecolor='black')
 
-            curve_axis.plot(xvals[-1],yvals[-1],
+            axis_curve.plot(xvals[-1],yvals[-1],
                 marker=10,
                 color='orange',
                 markersize=10,
                 markerfacecolor='black')
 
-            curve_axis.plot(xvals[1:-1],yvals[1:-1],
+            axis_curve.plot(xvals[1:-1],yvals[1:-1],
                 marker=9,
                 color='orange',
                 markersize=10,
@@ -269,12 +224,6 @@ class WellView(Builder):
             kwargs["figsize"] = ((self.columns)*1.5,6.5)
 
         self.add_figure(**kwargs)
-
-        self.add_axes()
-        self.add_curves()
-        self.add_modules()
-        self.add_perfs()
-        self.add_casings()
 
         self.gspecs.tight_layout(self.figure)
 
@@ -303,12 +252,6 @@ class WellView(Builder):
 
         self.add_figure(**kwargs)
 
-        self.add_axes()
-        self.add_curves()
-        self.add_modules()
-        self.add_perfs()
-        self.add_casings()
-
         self.gspecs.tight_layout(self.figure)
 
         self.gspecs.update(wspace=wspace,hspace=hspace)
@@ -324,32 +267,3 @@ class WellView(Builder):
                         axis.set_ylim(limit)
 
                 pdf.savefig()
-
-    @property
-    def columns(self):
-
-        columns = []
-
-        for _,curve in self.curves.items():
-            columns.append(curve.col)
-
-        return len(set(columns))
-
-    @property
-    def rows(self):
-
-        columns = []
-
-        for _,curve in self.curves.items():
-            columns.append(curve.col)
-
-        columns_unique = set(columns)
-
-        rows = []
-
-        for column in columns_unique:
-            rows.append(columns.count(column))
-
-        nrows = 3 if max(rows)<3 else max(rows)
-
-        return nrows

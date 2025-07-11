@@ -27,7 +27,7 @@ pphys/onepage/crossview/__init__.py
 pphys/onepage/crossview/_booter.py
 pphys/onepage/crossview/_layout.py
 pphys/onepage/wellview/__init__.py
-pphys/onepage/wellview/_booter.py
+pphys/onepage/wellview/_builder.py
 pphys/onepage/wellview/_curve.py
 pphys/onepage/wellview/_depth.py
 pphys/onepage/wellview/_label.py

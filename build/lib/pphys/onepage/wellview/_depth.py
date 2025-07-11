@@ -3,42 +3,52 @@ from dataclasses import dataclass, field
 @dataclass(frozen=True)
 class Depth:
 	"""
-	It initializes the axis of Depth in a body:
+	It represents a vertical axis in a layout or plot.
 
-	limit 	: lower and upper values of the axis
+	limit 	: the depth range (upper and lower) values of the axis
+		This will be automatically reversed to (lower, upper) in __post_init__.
 	
-	major 	: sets the frequency of major ticks
-	minor 	: sets the frequency of minor ticks
+	major 	: the interval between major ticks on the depth axis.
+	minor 	: the interval between minor ticks on the depth axis.
 
-	spot 	: location of axis in the layout, int
-			index of trail in the layout
+	spot 	: A layout index or trail position for the depth axis.
+		This is excluded from representation (__repr__) for cleaner output.
 
 	"""
-	limit 	: tuple[float] = (0,100)
+	limit 	: tuple[float, float] = (0.,100.)
 
 	major 	: int = 10
-	minor 	: int = 1
+	minor 	: int|range = 1
 
-	spot 	: tuple = field(
+	spot 	: tuple[int, ...] = field(
 		repr = False,
 		default = (0,),
 		)
 
 	def __post_init__(self):
-
+		# Reverse the limit to ensure it is ordered from top to bottom
 		object.__setattr__(self,'limit',self.limit[::-1])
 
 	@property
 	def lower(self):
-		return min(self.limit)
-
-	@property
-	def upper(self):
+		"""Return the deeper depth (bottom of the range)."""
 		return max(self.limit)
 
 	@property
+	def upper(self):
+		"""Return the shallower depth (top of the range)."""
+		return min(self.limit)
+
+	@property
 	def length(self):
-		return self.upper-self.lower
+		"""Return the total depth interval (lower - upper)."""
+		return self.lower-self.upper
+
+	@property
+	def scale(self):
+		"""Return the type of scale used for plotting (it is always 'linear')."""
+		return "linear"
+	
 
 if __name__ == "__main__":
 
