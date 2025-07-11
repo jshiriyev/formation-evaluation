@@ -58,10 +58,17 @@ class Xaxis:
 
 	@property
 	def middle(self):
-		if self.scale=="linear"
-            return np.mean(self.limit)
-        elif self.scale=="log10":
-            return np.power(10,np.mean(np.log10(self.limit)))
+		"""Return the midpoint of the 'limit' range depending on the scale."""
+		if self.scale=="linear":
+			return np.mean(self.limit)
+
+		elif self.scale=="log10":
+			if any(val <= 0 for val in self.limit):
+				raise ValueError("All limit values must be positive for log10 scale.")
+			return float(10**np.mean(np.log10(self.limit)))
+
+		else:
+			raise ValueError("scale must be either 'linear' or 'log10'.")
 
 	@property
 	def flipped(self):

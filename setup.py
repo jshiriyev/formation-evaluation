@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
 	name = 'pphys',
-	version = '0.0.44',
+	version = '0.0.60',
 	packages = find_packages(),
 	install_requires = [
 		'numpy>=1.26.4',

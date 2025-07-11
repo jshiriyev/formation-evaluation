@@ -57,23 +57,30 @@ class WellView(Builder):
     def add_depths(self,index:int,survey:pd.DataFrame=None,md_and_tvd_keys:list[str]=['MD','TVD']):
         """Add depth annotations or MD-transformed ticks to the specified axis."""
 
-        limit = self.depth.limit if survey is None else (tvd.min(),tvd.max())
+        axis = self.axis_curve(index)
 
-        yticks_major = ticker.MultipleLocator(self.depth.major).tick_values(*limit)
+        md_min,md_max = np.flip(self.depth.limit).tolist()
+
+        loc_major = ticker.MultipleLocator(self.depth.major)
+        loc_minor = ticker.MultipleLocator(self.depth.minor)
 
         if survey is None:
+            yticks_major = loc_major.tick_values(md_min,md_max)
             # If no survey is provided, annotate MD ticks directly
             for ytick in yticks_major[2:-2]:
-                self.axes[index].annotate(f"{ytick:4.0f}",
+                axis.annotate(f"{ytick:4.0f}",
                     xy=(self[index].middle,ytick),ha='center',va='center'
                 )
             return
 
-        yticks_minor = ticker.MultipleLocator(self.depth.minor).tick_values(*limit)
-
         md,tvd = survey[md_and_tvd_keys].to_numpy().T
 
-        # self.axes[index].tick_params(which='minor',length=0)
+        limit = interp1d(md,tvd,kind='linear',fill_value="extrapolate")((md_min,md_max))
+
+        yticks_major = loc_major.tick_values(*limit)
+        yticks_minor = loc_minor.tick_values(*limit)
+
+        # axis.tick_params(which='minor',length=0)
 
         yticks_major = yticks_major[np.logical_and(yticks_major>=limit[0],yticks_major<=limit[1])]
         yticks_minor = yticks_minor[np.logical_and(yticks_minor>=limit[0],yticks_minor<=limit[1])]
@@ -81,14 +88,14 @@ class WellView(Builder):
         yticks_major_md = interp1d(tvd,md,kind='linear',fill_value="extrapolate")(yticks_major)
         yticks_minor_md = interp1d(tvd,md,kind='linear',fill_value="extrapolate")(yticks_minor)
 
-        self.axes[index].set_yticks(yticks_major_md,minor=False)
-        self.axes[index].set_yticks(yticks_minor_md,minor=True)
+        axis.set_yticks(yticks_major_md,minor=False)
+        axis.set_yticks(yticks_minor_md,minor=True)
 
         for ytick_md,ytick in zip(yticks_major_md,yticks_major):
-            self.axes[index].annotate(
+            axis.annotate(
                 f"{ytick:4.0f}",xy=(self[index].middle,ytick_md),ha='center',va='center')
 
-        # self.axes[index].set_yticklabels(yticks_major)
+        # axis.set_yticklabels(yticks_major)
 
     def add_curve(self,index:int,mnemo:str,multp:float=1.,shift:float=0.,cycle:int|bool=True,**kwargs):
 
@@ -129,7 +136,7 @@ class WellView(Builder):
 
         axis_label.plot(self[index].limit,(row-0.6*self.label.major,)*2,**kwargs)
 
-        axis_label.text(self[index].middle,row-0.5*self.label.major,f":int{mnemo:str,}",
+        axis_label.text(self[index].middle,row-0.5*self.label.major,f"{mnemo}",
             ha='center',fontsize='small',)
 
         axis_label.text(self[index].middle,row-0.8*self.label.major,f"{curve.unit}",
