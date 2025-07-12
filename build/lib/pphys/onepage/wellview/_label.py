@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 
 @dataclass(frozen=True)
-class Label:
+class LabelDict:
 	"""
 	A frozen dataclass representing a labeled axis in a header layout 
     (e.g., top of a log track or plot).
@@ -45,7 +45,7 @@ class Label:
 
 if __name__ == "__main__":
 
-	label = Label((0,100))
+	label = LabelDict((0,100))
 
 	print(label.limit)
 	print(label.major)

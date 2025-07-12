@@ -5,7 +5,7 @@ import numpy as np
 from ._unary import Unary
 
 @dataclass(frozen=True)
-class Xaxis:
+class XAxisDict:
 	"""
 	A frozen dataclass representing the X-axis of a plane in a track layout.
 

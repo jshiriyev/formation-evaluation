@@ -46,23 +46,23 @@ class WellView(Builder):
         """
         self.axes = super().__call__(figure)
 
-    def axis_label(self,index:int):
+    def label(self,index:int):
         """Return the axis used for the label (head) of the given track index."""
         return self.axes[index*2+0]
 
-    def axis_curve(self,index:int):
-        """Return the axis used for the curve (body) of the given track index."""
+    def stage(self,index:int):
+        """Return the axis that is used for adding a curve, shading, and module."""
         return self.axes[index*2+1]
 
     def add_depths(self,index:int,survey:pd.DataFrame=None,md_and_tvd_keys:list[str]=['MD','TVD']):
         """Add depth annotations or MD-transformed ticks to the specified axis."""
 
-        axis = self.axis_curve(index)
+        axis = self.stage(index)
 
-        md_min,md_max = np.flip(self.depth.limit).tolist()
+        md_min,md_max = np.flip(self._depth.limit).tolist()
 
-        loc_major = ticker.MultipleLocator(self.depth.major)
-        loc_minor = ticker.MultipleLocator(self.depth.minor)
+        loc_major = ticker.MultipleLocator(self._depth.major)
+        loc_minor = ticker.MultipleLocator(self._depth.minor)
 
         if survey is None:
             yticks_major = loc_major.tick_values(md_min,md_max)
@@ -99,7 +99,7 @@ class WellView(Builder):
 
     def add_curve(self,index:int,mnemo:str,multp:float=1.,shift:float=0.,cycle:int|bool=True,**kwargs):
 
-        axis_curve = self.axis_curve(index)
+        axis_curve = self.stage(index)
 
         curve = self.las.curves[mnemo]
         xvals = curve.data*multp+shift
@@ -109,11 +109,35 @@ class WellView(Builder):
         if cycle is False:
             return
 
-        self.add_label(index,mnemo,multp,shift,cycle,**kwargs)
+        self.add_curve_legend(index,mnemo,multp,shift,cycle,**kwargs)
 
-    def add_colormap(self,index:int,mnemo:str,x2:float=0,multp:float=1.,shift:float=0.,cycle:int|bool=True,colormap='Reds',vmin=None,vmax=None,**kwargs):
+    def add_curve_legend(self,index:int,mnemo:str,multp:float=1.,shift:float=0.,cycle:int|bool=True,**kwargs):
 
-        axis_curve = self.axis_curve(index)
+        axis_curve = self.stage(index)
+
+        curve = self.las.curves[mnemo]
+
+        axis_label = self.label(index)
+
+        row = (len(axis_curve.lines) if cycle is True else cycle)*self._label.major
+
+        axis_label.plot(self[index].limit,(row-0.6*self._label.major,)*2,**kwargs)
+
+        axis_label.text(self[index].middle,row-0.5*self._label.major,f"{mnemo}",
+            ha='center',fontsize='small',)
+
+        axis_label.text(self[index].middle,row-0.8*self._label.major,f"{curve.unit}",
+            ha='center',fontsize='small',)
+
+        xmin,xmax = self[index].limit
+        cmin,cmax = (xmin-shift)/multp,(xmax-shift)/multp
+
+        axis_label.text(xmin+self[index].length*0.02,row-0.5*self._label.major,f"{cmin:.5g}",ha='left')
+        axis_label.text(xmax-self[index].length*0.02,row-0.5*self._label.major,f"{cmax:.5g}",ha='right')
+
+    def add_shade(self,index:int,mnemo:str,x2:float=0,multp:float=1.,shift:float=0.,cycle:int|bool=True,colormap='Reds',vmin=None,vmax=None,**kwargs):
+
+        axis_curve = self.stage(index)
 
         x1,x2 = self.las.curves[mnemo].data*multp+shift,x2*multp+shift
 
@@ -122,35 +146,15 @@ class WellView(Builder):
         if cycle is False:
             return
 
-        self.add_label(index,mnemo,multp,shift,cycle,**kwargs)
+        self.add_shade_legend(index,mnemo,multp,shift,cycle,**kwargs)
 
-    def add_label(self,index:int,mnemo:str,multp:float=1.,shift:float=0.,cycle:int|bool=True,**kwargs):
+    def add_shade_legend(self):
 
-        axis_curve = self.axis_curve(index)
-
-        curve = self.las.curves[mnemo]
-
-        axis_label = self.axis_label(index)
-
-        row = (len(axis_curve.lines) if cycle is True else cycle)*self.label.major
-
-        axis_label.plot(self[index].limit,(row-0.6*self.label.major,)*2,**kwargs)
-
-        axis_label.text(self[index].middle,row-0.5*self.label.major,f"{mnemo}",
-            ha='center',fontsize='small',)
-
-        axis_label.text(self[index].middle,row-0.8*self.label.major,f"{curve.unit}",
-            ha='center',fontsize='small',)
-
-        xmin,xmax = self[index].limit
-        cmin,cmax = (xmin-shift)/multp,(xmax-shift)/multp
-
-        axis_label.text(xmin+self[index].length*0.02,row-0.5*self.label.major,f"{cmin:.5g}",ha='left')
-        axis_label.text(xmax-self[index].length*0.02,row-0.5*self.label.major,f"{cmax:.5g}",ha='right')
+        pass
 
     def add_module(self,index,left:int=None,right:int=None,cycle:int|bool=True,**kwargs):
 
-        axis_module = self.axis_curve(index)
+        axis_module = self.stage(index)
 
         lines = axis_module.lines
 
@@ -173,16 +177,18 @@ class WellView(Builder):
         if cycle is False:
             return
 
-        axis_label = self.axis_label(index)
+    def add_module_legend(self): #correction is required
 
-        row = (len(axis_curve.lines) if cycle is True else cycle)*self.label.major
+        axis_label = self.label(index)
 
-        rect = patches.Rectangle((self[index].lower,row),self[index].length,self.label.major,
+        row = (len(axis_curve.lines) if cycle is True else cycle)*self._label.major
+
+        rect = patches.Rectangle((self[index].lower,row),self[index].length,self._label.major,
             fill=True,facecolor=kwargs['facecolor'],hatch=kwargs['hatch'])
 
         axis_label.add_patch(rect)
         
-        axis_label.text(self[index].middle,row+0.5*self.label.major,title,
+        axis_label.text(self[index].middle,row+0.5*self._label.major,title,
             ha='center',va='center',backgroundcolor='white',fontsize='small',)
 
     def add_perf(self):

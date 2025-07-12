@@ -1,6 +1,6 @@
-from ._label import Label
-from ._depth import Depth
-from ._xaxis import Xaxis
+from ._label import LabelDict
+from ._depth import DepthDict
+from ._xaxis import XAxisDict
 
 class Layout():
 
@@ -10,8 +10,8 @@ class Layout():
 		ntrail 	: number of trails including depth trail in the figure, integer
 		ncycle 	: maximum number of curves in trails, integer
 
-		label   : defines head axis containing curve labels and units
-		depth 	: defines depth axis containing main depth values
+		label   : defines label axis that contains mnemonics, units, colors, etc.
+		depth 	: defines depth axis that contains main depth values (MD or TVD).
 
 		widths 	: width of trails, len(widths) must be equal to either one,
 				two or the number of trails; tuple of float
@@ -21,12 +21,11 @@ class Layout():
 
 		"""
 		self.ntrail  = ntrail
-		self.xaxes   = None
-
 		self.ncycle  = ncycle
 
-		self.label   = label or {}
-		self.depth   = depth or {}
+		self._xaxes  = [XAxisDict() for _ in range(self.ntrail)]
+		self._label  = LabelDict(**(label or {}))
+		self._depth  = DepthDict(**(depth or {}))
 
 		self.widths  = widths
 		self.heights = heights
@@ -43,23 +42,6 @@ class Layout():
 		return self._ntrail
 
 	@property
-	def xaxes(self):
-		return self._xaxes
-
-	@xaxes.setter
-	def xaxes(self,value):
-		self._xaxes  = [Xaxis() for _ in range(self.ntrail)]
-
-	def set(self,index:int,**kwargs):
-		self[index] = Xaxis(**kwargs)
-
-	def __setitem__(self,index:int,xaxis:Xaxis):
-		self._xaxes[index] = xaxis
-
-	def __getitem__(self,index):
-		return self._xaxes[index]
-
-	@property
 	def ncycle(self):
 		return self._ncycle
 
@@ -71,21 +53,14 @@ class Layout():
 	def shape(self):
 		return (self.ntrail,self.ncycle)
 
-	@property
-	def label(self):
-		return self._label
+	def set(self,index:int,**kwargs):
+		self[index] = XAxisDict(**kwargs)
 
-	@label.setter
-	def label(self,value:dict):
-		self._label = Label(**value)
+	def __setitem__(self,index:int,xaxis:XAxisDict):
+		self._xaxes[index] = xaxis
 
-	@property
-	def depth(self):
-		return self._depth
-
-	@depth.setter
-	def depth(self,value:dict):
-		self._depth = Depth(**value)
+	def __getitem__(self,index):
+		return self._xaxes[index]
 
 	@property
 	def widths(self):
@@ -104,7 +79,7 @@ class Layout():
 
 			wlist = list((value[1],)*self.ntrail)
 
-			wlist[self.depth.spot] = value[0]
+			wlist[self._depth.spot] = value[0]
 
 			self._widths = tuple(wlist)
 
@@ -116,9 +91,8 @@ class Layout():
 
 	@property
 	def heights(self):
-
 		head_height = int(self._heights[0]*self.ncycle)
-		body_height = int(self._heights[1]*self.depth.length)
+		body_height = int(self._heights[1]*self._depth.length)
 
 		return (head_height,body_height)
 
@@ -132,7 +106,7 @@ class Layout():
 
 if __name__ == "__main__":
 
-	layout = Layout(ntrail=5,ncycle=3,widths=(2,),label_loc="top")
+	layout = Layout(ntrail=5,ncycle=3,widths=(2,))
 
 	print(layout.widths)
 

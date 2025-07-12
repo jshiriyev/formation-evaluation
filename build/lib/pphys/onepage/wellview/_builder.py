@@ -29,7 +29,7 @@ class Builder(Layout):
 		based on internal layout settings (x-axes, labels, depths).
 
 		"""
-		nrows = 1 if self.label.spot is None else 2
+		nrows = 1 if self._label.spot is None else 2
 
 		self.gspec = gridspec.GridSpec(
 			nrows = nrows,
@@ -42,27 +42,27 @@ class Builder(Layout):
 			)
 		
 		# Iterate over each trail/xaxis pair to create subplots
-		for index,xaxis in enumerate(self.xaxes):
+		for index,xaxis in enumerate(self._xaxes):
 
 			# Create subplot(s) based on label position
-			if self.label.spot is None:
+			if self._label.spot is None:
 				body_axis = figure.add_subplot(self.gspec[index])
-			elif self.label.spot == "top":
+			elif self._label.spot == "top":
 				head_axis = figure.add_subplot(self.gspec[0,index])
 				body_axis = figure.add_subplot(self.gspec[1,index])
-			elif self.label.spot == "bottom":
+			elif self._label.spot == "bottom":
 				head_axis = figure.add_subplot(self.gspec[1,index])
 				body_axis = figure.add_subplot(self.gspec[0,index])
 			else:
-				raise ValueError(f"Invalid label.spot: {self.label.spot}")
+				raise ValueError(f"Invalid label.spot: {self._label.spot}")
 
 			# Draw head if applicable
-			if self.label.spot is not None:
+			if self._label.spot is not None:
 				self.head(head_axis,xaxis)
 
 			# Draw body, enabling depth on specified trails
-			self.body_x(body_axis,xaxis,depth=index in self.depth.spot)
-			self.body_y(body_axis,xaxis,depth=index in self.depth.spot)
+			self.body_x(body_axis,xaxis,depth=index in self._depth.spot)
+			self.body_y(body_axis,xaxis,depth=index in self._depth.spot)
 
 		return figure.get_axes()
 
@@ -76,7 +76,7 @@ class Builder(Layout):
 		plt.setp(axis.get_xticklines(),visible=False)
 
 		# Set vertical range (y-axis) based on label limits
-		axis.set_ylim(self.label.limit)
+		axis.set_ylim(self._label.limit)
 
 		plt.setp(axis.get_yticklabels(),visible=False)
 		plt.setp(axis.get_yticklines(),visible=False)
@@ -130,14 +130,14 @@ class Builder(Layout):
 
 		"""
 		# Set vertical axis range using depth limits
-		axis.set_ylim(self.depth.limit)
+		axis.set_ylim(self._depth.limit)
 		
 		# Hide y tick labels
 		plt.setp(axis.get_yticklabels(),visible=False)
 
 		# Set major and minor tick locators
-		axis.yaxis.set_major_locator(ticker.MultipleLocator(self.depth.major))
-		axis.yaxis.set_minor_locator(ticker.MultipleLocator(self.depth.minor))
+		axis.yaxis.set_major_locator(ticker.MultipleLocator(self._depth.major))
+		axis.yaxis.set_minor_locator(ticker.MultipleLocator(self._depth.minor))
 		
 		if depth:
 			# For depth tracks (MD or TVD), show inward ticks on the right side

@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 
 @dataclass(frozen=True)
-class Depth:
+class DepthDict:
 	"""
 	It represents a vertical axis in a layout or plot.
 
@@ -54,7 +54,7 @@ if __name__ == "__main__":
 
 	depth=dict(limit=(3200,3310),major=10,minor=range(2,10,2),spot=(1,))
 
-	d = Depth(**depth)
+	d = DepthDict(**depth)
 
 	print(d)
 
