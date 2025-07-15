@@ -105,18 +105,18 @@ class WellView(Builder):
         axis_curve = self.stage(index)
 
         if keys is None:
-            keys = ['name','depth','facecolor','textvisibility']
+            keys = ['formation','depth','facecolor','text_visibility']
 
         tops = tops[keys]
 
         dmap = tops[(tops['depth']>self._depth.upper)&(tops['depth']<self._depth.lower)].index
 
         if dmap[0] == 0:
-            upper_row = pd.DataFrame({'name':"Unknown",'depth':self._depth.upper,'facecolor':None,'textvisibility':False})
+            upper_row = pd.DataFrame({'formation':"Unknown",'depth':self._depth.upper,'facecolor':None,'text_visibility':False})
         else:
             upper_row = tops.iloc[dmap[0]-1,:].copy()
             upper_row['depth'] = self._depth.upper
-            upper_row['textvisibility'] = False
+            upper_row['text_visibility'] = False
 
         tops = tops.iloc[dmap,:].copy()
 
@@ -129,9 +129,9 @@ class WellView(Builder):
             axis_curve.fill_betweenx((row['depth'],lower),
                 (self[index].lower,)*2,self[index].length,facecolor=row['facecolor'],**kwargs)
 
-            if row['textvisibility']:
+            if row['text_visibility']:
                 zorder = None if kwargs.get('zorder') is None else kwargs.get('zorder')+1
-                axis_curve.text(self[index].middle,(row['depth']+lower)/2,row['name'],
+                axis_curve.text(self[index].middle,(row['depth']+lower)/2,row['formation'],
                     rotation=90,ha='center',va='center',zorder=zorder)
 
     def add_curve(self,index:int,mnemo:str,multp:float=1.,shift:float=0.,cycle:int|bool=True,**kwargs):

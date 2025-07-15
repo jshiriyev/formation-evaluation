@@ -54,7 +54,7 @@ class WellView(Builder):
         """Return the axis that is used for adding a curve, shading, and module."""
         return self.axes[index*2+1]
 
-    def add_depths(self,index:int,survey:pd.DataFrame=None,md_and_tvd_keys:list[str]=['MD','TVD']):
+    def add_depths(self,index:int,survey:pd.DataFrame=None,keys:list[str]=None):
         """Add depth annotations or MD-transformed ticks to the specified axis."""
 
         axis = self.stage(index)
@@ -73,7 +73,10 @@ class WellView(Builder):
                 )
             return
 
-        md,tvd = survey[md_and_tvd_keys].to_numpy().T
+        if keys is None:
+            keys = ['MD','TVD']
+
+        md,tvd = survey[keys].to_numpy().T
 
         limit = interp1d(md,tvd,kind='linear',fill_value="extrapolate")((md_min,md_max))
 
@@ -97,18 +100,23 @@ class WellView(Builder):
 
         # axis.set_yticklabels(yticks_major)
 
-    def add_tops(self,index,tops:pd.DataFrame,**kwargs):
+    def add_tops(self,index,tops:pd.DataFrame,keys:list[str]=None,**kwargs):
 
         axis_curve = self.stage(index)
 
-        dmap = tops[(tops['top']>self._depth.upper)&(tops['top']<self._depth.lower)].index
+        if keys is None:
+            keys = ['formation','depth','facecolor','text_visibility']
+
+        tops = tops[keys]
+
+        dmap = tops[(tops['depth']>self._depth.upper)&(tops['depth']<self._depth.lower)].index
 
         if dmap[0] == 0:
-            upper_row = pd.DataFrame({'key':"Unknown",'top':self._depth.upper,'facecolor':None,text_visible:False})
+            upper_row = pd.DataFrame({'formation':"Unknown",'depth':self._depth.upper,'facecolor':None,'text_visibility':False})
         else:
             upper_row = tops.iloc[dmap[0]-1,:].copy()
-            upper_row['top'] = self._depth.upper
-            upper_row['text_visible'] = False
+            upper_row['depth'] = self._depth.upper
+            upper_row['text_visibility'] = False
 
         tops = tops.iloc[dmap,:].copy()
 
@@ -116,14 +124,14 @@ class WellView(Builder):
 
         for i,row in tops.iterrows():
 
-            lower = self._depth.lower if i == tops.shape[0]-1 else tops.iloc[i+1,:]['top']
+            lower = self._depth.lower if i == tops.shape[0]-1 else tops.iloc[i+1,:]['depth']
 
-            axis_curve.fill_betweenx((row['top'],lower),
+            axis_curve.fill_betweenx((row['depth'],lower),
                 (self[index].lower,)*2,self[index].length,facecolor=row['facecolor'],**kwargs)
 
-            if row['text_visible']:
+            if row['text_visibility']:
                 zorder = None if kwargs.get('zorder') is None else kwargs.get('zorder')+1
-                axis_curve.text(self[index].middle,(row['top']+lower)/2,row['key'],
+                axis_curve.text(self[index].middle,(row['depth']+lower)/2,row['formation'],
                     rotation=90,ha='center',va='center',zorder=zorder)
 
     def add_curve(self,index:int,mnemo:str,multp:float=1.,shift:float=0.,cycle:int|bool=True,**kwargs):
@@ -247,7 +255,7 @@ class WellView(Builder):
         axis_label.text(self[index].middle,row+0.5*self._label.major,title,
             ha='center',va='center',backgroundcolor='white',fontsize='small',)
 
-    def add_perf(self):
+    def add_perfs(self,perfs:pd.DataFrame,keys:list[str]):
         """It includes perforated depth."""
 
         curve_axes = self.figure.axes[self.axes['curve_indices']]
@@ -280,7 +288,7 @@ class WellView(Builder):
                 markersize=10,
                 markerfacecolor='black')
 
-    def add_casing(self):
+    def add_casings(self):
         """It includes casing set depth."""
         pass
 
