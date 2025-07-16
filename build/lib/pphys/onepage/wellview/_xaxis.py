@@ -20,6 +20,7 @@ class XAxisDict:
 			for the available scales in matplotlib.
 
 	spot 	: Index in the layout for axis positioning.
+	grid 	: To create major and minor grids or not.
 
 	"""
 	limit 	: tuple[float, float] = None
@@ -30,6 +31,8 @@ class XAxisDict:
 	scale 	: str = "linear"
 
 	spot 	: int = None
+
+	grid 	: bool = True
 
 	def __post_init__(self):
 

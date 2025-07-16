@@ -20,6 +20,10 @@ class DepthDict:
 	major 	: int = 10
 	minor 	: int|range = 1
 
+	grid 	: tuple[int, ...] = field(
+		default = (),
+		)
+
 	spot 	: tuple[int, ...] = field(
 		repr = False,
 		default = (0,),

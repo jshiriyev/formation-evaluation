@@ -5,12 +5,15 @@ from matplotlib import patches
 from matplotlib import pyplot as plt
 from matplotlib import ticker
 
+from matplotlib.colors import to_rgb
 from matplotlib.figure import Figure
 
 import numpy as np
 import pandas as pd
 
 from scipy.interpolate import interp1d
+
+import wellx
 
 from ._pigment import Pigment
 
@@ -54,7 +57,7 @@ class WellView(Builder):
         """Return the axis that is used for adding a curve, shading, and module."""
         return self.axes[index*2+1]
 
-    def add_depths(self,index:int,survey:pd.DataFrame=None,keys:list[str]=None):
+    def add_depths(self,index:int,survey:pd.DataFrame=None):
         """Add depth annotations or MD-transformed ticks to the specified axis."""
 
         axis = self.stage(index)
@@ -73,10 +76,7 @@ class WellView(Builder):
                 )
             return
 
-        if keys is None:
-            keys = ['MD','TVD']
-
-        md,tvd = survey[keys].to_numpy().T
+        md,tvd = survey[['MD','TVD']].to_numpy().T
 
         limit = interp1d(md,tvd,kind='linear',fill_value="extrapolate")((md_min,md_max))
 
@@ -100,39 +100,49 @@ class WellView(Builder):
 
         # axis.set_yticklabels(yticks_major)
 
-    def add_tops(self,index,tops:pd.DataFrame,keys:list[str]=None,**kwargs):
+    def add_tops(self,index,tops:pd.DataFrame,**kwargs):
 
         axis_curve = self.stage(index)
 
-        if keys is None:
-            keys = ['formation','depth','facecolor','text_visibility']
+        if tops['depth'].iloc[0]>self._depth.upper:
+            upper_row = pd.DataFrame({'formation':["Unknown"],'depth':[self._depth.upper],'facecolor':[None]})
+            tops = pd.concat([upper_row,tops]).reset_index(drop=True)
 
-        tops = tops[keys]
+        if tops['depth'].iloc[-1]<self._depth.lower:
+            lower_row = pd.DataFrame({'formation':["Unknown"],'depth':[self._depth.lower],'facecolor':[None]})
+            tops = pd.concat([tops,lower_row]).reset_index(drop=True)
 
-        dmap = tops[(tops['depth']>self._depth.upper)&(tops['depth']<self._depth.lower)].index
+        shortlist = tops[(tops['depth']>self._depth.upper)&(tops['depth']<self._depth.lower)]
 
-        if dmap[0] == 0:
-            upper_row = pd.DataFrame({'formation':"Unknown",'depth':self._depth.upper,'facecolor':None,'text_visibility':False})
-        else:
-            upper_row = tops.iloc[dmap[0]-1,:].copy()
-            upper_row['depth'] = self._depth.upper
-            upper_row['text_visibility'] = False
+        if shortlist.empty:
+            return
 
-        tops = tops.iloc[dmap,:].copy()
+        if shortlist.index[0]>0:
+            top_row = tops.iloc[[shortlist.index[0]-1]]
+            upper_row = pd.DataFrame({'formation':top_row['formation'],'depth':[self._depth.upper],'facecolor':top_row['facecolor']})
+            shortlist = pd.concat([upper_row,shortlist])
 
-        tops = pd.concat([upper_row.to_frame().T,tops]).reset_index(drop=True)
+        for i,row in shortlist.iterrows():
 
-        for i,row in tops.iterrows():
+            upper = row['depth'] if row['depth']>self._depth.upper else self._depth.upper
+            lower = tops.iloc[i+1,:]['depth'] if tops.iloc[i+1,:]['depth']<self._depth.lower else self._depth.lower
 
-            lower = self._depth.lower if i == tops.shape[0]-1 else tops.iloc[i+1,:]['depth']
-
-            axis_curve.fill_betweenx((row['depth'],lower),
+            axis_curve.fill_betweenx((upper,lower),
                 (self[index].lower,)*2,self[index].length,facecolor=row['facecolor'],**kwargs)
 
-            if row['text_visibility']:
+            if len(row['formation'])*1.5<(lower-upper):
+
                 zorder = None if kwargs.get('zorder') is None else kwargs.get('zorder')+1
-                axis_curve.text(self[index].middle,(row['depth']+lower)/2,row['formation'],
-                    rotation=90,ha='center',va='center',zorder=zorder)
+
+                if row['facecolor'] is None:
+                    color = 'black'
+                else:
+                    r,g,b = [x*255 for x in to_rgb(row['facecolor'])]
+                    brightness = 0.299*r+0.587*g+0.114*b
+                    color = "black" if brightness > 128 else "white"
+
+                axis_curve.text(self[index].middle,(upper+lower)/2,row['formation'],
+                    color=color,rotation=90,ha='center',va='center',zorder=zorder)
 
     def add_curve(self,index:int,mnemo:str,multp:float=1.,shift:float=0.,cycle:int|bool=True,**kwargs):
 
@@ -205,6 +215,7 @@ class WellView(Builder):
 
         x1,x2 = self.las.curves[mnemo].data*multp+shift,x2*multp+shift
 
+        # pig.fill_colormap(wv.axes[13],df.index,df['N05M2A'],x2=1,colormap='brg',vmin=2,vmax=15,zorder=5)
         Pigment.fill_colormap(axis_curve,self.las.index,x1,x2,colormap,vmin,vmax,**kwargs)
 
         if cycle is False:
@@ -255,38 +266,25 @@ class WellView(Builder):
         axis_label.text(self[index].middle,row+0.5*self._label.major,title,
             ha='center',va='center',backgroundcolor='white',fontsize='small',)
 
-    def add_perfs(self,perfs:pd.DataFrame,keys:list[str]):
+    def add_perfs(self,perfs:pd.DataFrame,year_axis:dict):
         """It includes perforated depth."""
 
-        curve_axes = self.figure.axes[self.axes['curve_indices']]
+        for _,row in perfs.iterrows():
 
-        for perf in self.perfs:
+            bottom,top = wellx.items.Interval.tolist(row["interval"])
 
-            axis_curve = curve_axes[perf['col']]
+            if bottom<self._depth.upper or top>self._depth.lower:
+                continue
 
-            depth = np.array(perf['depth'],dtype=float)
+            upper = top if top>self._depth.upper else self._depth.upper
+            lower = bottom if bottom<self._depth.lower else self._depth.lower
 
-            yvals = np.arange(depth.min(),depth.max()+0.5,1.0)
+            index = year_axis[row['date'].year]
 
-            xvals = np.zeros(yvals.shape)
+            axis_curve = self.stage(index)
 
-            axis_curve.plot(xvals[0],yvals[0],
-                marker=11,
-                color='orange',
-                markersize=10,
-                markerfacecolor='black')
-
-            axis_curve.plot(xvals[-1],yvals[-1],
-                marker=10,
-                color='orange',
-                markersize=10,
-                markerfacecolor='black')
-
-            axis_curve.plot(xvals[1:-1],yvals[1:-1],
-                marker=9,
-                color='orange',
-                markersize=10,
-                markerfacecolor='black')
+            axis_curve.fill_betweenx((top,bottom),(self[index].lower,)*2,self[index].length,facecolor='gray',zorder=5)
+            axis_curve.plot(self[index].limit,(top,)*2,color='white',linewidth=2,zorder=6)
 
     def add_casings(self):
         """It includes casing set depth."""

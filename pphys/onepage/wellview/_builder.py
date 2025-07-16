@@ -60,9 +60,12 @@ class Builder(Layout):
 			if self._label.spot is not None:
 				self.head(head_axis,xaxis)
 
+			dept = index in self._depth.spot
+			grid = index in self._depth.grid
+
 			# Draw body, enabling depth on specified trails
-			self.body_x(body_axis,xaxis,depth=index in self._depth.spot)
-			self.body_y(body_axis,xaxis,depth=index in self._depth.spot)
+			self.body_x(body_axis,xaxis)
+			self.body_y(body_axis,xaxis,depth=dept,grid=grid)
 
 		return figure.get_axes()
 
@@ -84,7 +87,7 @@ class Builder(Layout):
 
 		return axis
 
-	def body_x(self,axis:Axes,xaxis,depth:bool=False):
+	def body_x(self,axis:Axes,xaxis):
 		"""Configure the body (curve row) x-axis for a given x-axis layout.
 		
 		This includes setting limits, tick locators (major/minor), and grid lines
@@ -102,10 +105,6 @@ class Builder(Layout):
 		# Hide minor ticks visually
 		axis.tick_params(axis="x",which="minor",bottom=False)
 
-		# Skip further configuration if depth track
-		if depth:
-			return
-
 		# Configure tick locators and grids based on scale
 		if xaxis.scale=="linear":
 			axis.xaxis.set_major_locator(ticker.MultipleLocator(xaxis.major))
@@ -118,12 +117,13 @@ class Builder(Layout):
 			raise ValueError(f"Unsupported x-axis scale: {xaxis.scale}")
 
 		# Add gridlines for both major and minor ticks
-		axis.grid(axis="x",which='minor',color='lightgray',alpha=0.4,zorder=-1)
-		axis.grid(axis="x",which='major',color='lightgray',alpha=0.9,zorder=-1)
+		if xaxis.grid:
+			axis.grid(axis="x",which='minor',color='lightgray',alpha=0.4,zorder=-1)
+			axis.grid(axis="x",which='major',color='lightgray',alpha=0.9,zorder=-1)
 
 		return axis
 
-	def body_y(self,axis:Axes,xaxis,depth:bool=False):
+	def body_y(self,axis:Axes,xaxis,depth:bool=False,grid:bool=True):
 		"""Configure the y-axis of the body (curve row) using depth settings.
 		
 		This includes setting y-limits, tick locators, and optionally displaying
@@ -156,8 +156,9 @@ class Builder(Layout):
 		axis.tick_params(axis="y",which="minor",left=False)
 
 		# Add light gray grid lines for both major and minor ticks
-		axis.grid(axis="y",which='minor',color='lightgray',alpha=0.4,zorder=-1)
-		axis.grid(axis="y",which='major',color='lightgray',alpha=0.9,zorder=-1)
+		if grid:
+			axis.grid(axis="y",which='minor',color='lightgray',alpha=0.4,zorder=-1)
+			axis.grid(axis="y",which='major',color='lightgray',alpha=0.9,zorder=-1)
 
 		return axis
 
