@@ -104,33 +104,26 @@ class WellView(Builder):
 
         axis_curve = self.stage(index)
 
-        if tops['depth'].iloc[0]>self._depth.upper:
-            upper_row = pd.DataFrame({'formation':["Unknown"],'depth':[self._depth.upper],'facecolor':[None]})
-            tops = pd.concat([upper_row,tops]).reset_index(drop=True)
+        new_rows = pd.DataFrame([
+            {"formation": None, "depth": self._depth.upper, "facecolor": None},
+            {"formation": None, "depth": self._depth.lower, "facecolor": None}
+        ])
 
-        if tops['depth'].iloc[-1]<self._depth.lower:
-            lower_row = pd.DataFrame({'formation':["Unknown"],'depth':[self._depth.lower],'facecolor':[None]})
-            tops = pd.concat([tops,lower_row]).reset_index(drop=True)
+        tops = pd.concat([tops,new_rows],ignore_index=True)
+        tops = tops.sort_values(by="depth").reset_index(drop=True).ffill()
 
-        shortlist = tops[(tops['depth']>self._depth.upper)&(tops['depth']<self._depth.lower)]
-
-        if shortlist.empty:
-            return
-
-        if shortlist.index[0]>0:
-            top_row = tops.iloc[[shortlist.index[0]-1]]
-            upper_row = pd.DataFrame({'formation':top_row['formation'],'depth':[self._depth.upper],'facecolor':top_row['facecolor']})
-            shortlist = pd.concat([upper_row,shortlist])
+        shortlist = tops[(tops['depth']>=self._depth.upper)&(tops['depth']<self._depth.lower)]
 
         for i,row in shortlist.iterrows():
 
-            upper = row['depth'] if row['depth']>self._depth.upper else self._depth.upper
-            lower = tops.iloc[i+1,:]['depth'] if tops.iloc[i+1,:]['depth']<self._depth.lower else self._depth.lower
+            upper,lower = row['depth'],tops.iloc[i+1,:]['depth']
 
             axis_curve.fill_betweenx((upper,lower),
                 (self[index].lower,)*2,self[index].length,facecolor=row['facecolor'],**kwargs)
 
-            if len(row['formation'])*1.5<(lower-upper):
+            name = "Unknown" if row['formation'] is None else row['formation']
+
+            if len(name)*1.5<(lower-upper):
 
                 zorder = None if kwargs.get('zorder') is None else kwargs.get('zorder')+1
 
@@ -141,7 +134,7 @@ class WellView(Builder):
                     brightness = 0.299*r+0.587*g+0.114*b
                     color = "black" if brightness > 128 else "white"
 
-                axis_curve.text(self[index].middle,(upper+lower)/2,row['formation'],
+                axis_curve.text(self[index].middle,(upper+lower)/2,name,
                     color=color,rotation=90,ha='center',va='center',zorder=zorder)
 
     def add_curve(self,index:int,mnemo:str,multp:float=1.,shift:float=0.,cycle:int|bool=True,**kwargs):
