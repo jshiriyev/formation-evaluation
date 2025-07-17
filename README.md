@@ -6,17 +6,17 @@ Test the commitments (python -m unittest discover -v)
 
 **Stream Module**
 
-The pphys.stream module provides tools for rapid, interactive visualization of LAS files using Bokeh. It is designed to offer a lightweight and efficient way to explore well log data directly in the browser, enabling users to quickly assess data quality, identify key log responses, and interact with depth tracks and curves in real time. This module is particularly useful for petrophysicists and geoscientists who need an immediate visual overview of log datasets without the overhead of full-scale interpretation software.
+The `pphys.stream` module provides tools for rapid, interactive visualization of LAS files using Bokeh. It is designed to offer a lightweight and efficient way to explore well log data directly in the browser, enabling users to quickly assess data quality, identify key log responses, and interact with depth tracks and curves in real time. This module is particularly useful for petrophysicists and geoscientists who need an immediate visual overview of log datasets without the overhead of full-scale interpretation software.
 
 **OnePage Module**
 
-The pphys.onepage.WellView module is designed to generate a compact, one-page summary of well log data that integrates key subsurface information. It visually honors formation tops, casing and liner depths, as well as perforation intervals, providing a comprehensive and structured overview of the wellbore in a single figure. This module is ideal for quick-look evaluations, reporting, and presentation purposes, and can be easily customized to suit project-specific visualization standards. An example output is shown below.
+The `pphys.onepage.WellView` module is designed to generate a compact, one-page summary of well log data that integrates key subsurface information. It visually honors formation tops, casing and liner depths, as well as perforation intervals, providing a comprehensive and structured overview of the wellbore in a single figure. This module is ideal for quick-look evaluations, reporting, and presentation purposes, and can be easily customized to suit project-specific visualization standards. An example output is shown below.
 
 <img src="img/onepage_well_view.png">
 
 *Figure 1: Example output from `WellView` showing log data, formation tops, casing, and perforation intervals.*
 
-The pphys.onepage.CrossView module generates a one-page cross-sectional summary that displays multiple wells aligned along a chosen profile. It enables side-by-side comparison of log responses, formation tops, casing details, and perforation intervals across wells, facilitating structural and stratigraphic interpretation. This visualization is especially useful for reservoir correlation, well planning, and presenting subsurface continuity in a concise, publication-ready format. An example output is shown below.
+The `pphys.onepage.CrossView` module generates a one-page cross-sectional summary that displays multiple wells aligned along a chosen profile. It enables side-by-side comparison of log responses, formation tops, casing details, and perforation intervals across wells, facilitating structural and stratigraphic interpretation. This visualization is especially useful for reservoir correlation, well planning, and presenting subsurface continuity in a concise, publication-ready format. An example output is shown below.
 
 <img src="img/onepage_cross_view.png">
 
@@ -25,7 +25,7 @@ The pphys.onepage.CrossView module generates a one-page cross-sectional summary 
 
 **Insight Module**
 
-The implementation of insight module is shown for a well in a shaly sand formation. The figure below, demonstrated a comparison of porosity measurements by various methods for this case.
+The implementation of `pphys.insight` module is shown for a well in a shaly sand formation. The figure below, demonstrated a comparison of porosity measurements by various methods for this case.
 
 <img src="img/insight_shaly_sand_porosity_measurement.png">
 
@@ -39,7 +39,10 @@ Over the years, many models relating resistivity and fluid saturations have been
 
 Other models are based on Percolation Theory (Herrick and Kennedy 2009) and Connectivity Theory (Montaron 2009 and Lee 2011).
 
-<img src="img/insight_shaly_sand_resistivity_models.png" width="60%">
+<div style="text-align: center;">
+  <img src="img/insight_shaly_sand_resistivity_models.png" width="50%">
+  <p><em>Figure 4: Resistivity models for shaly sand formations, available at `pphys.insight` module.</em></p>
+</div>
 
 Following graph shows implementation of the Insight Module to a gas well from which most of the logging measurements were available.
 
@@ -53,15 +56,15 @@ The saturation interpretation is given on the fifth column, total shale model, w
 
 <img src="img/insight_shaly_sand_results.png">
 
-*Figure 4: Open Hole Log Interpretation of a Well from South Caspian Basin.*
+*Figure 5: Open Hole Log Interpretation of a Well from South Caspian Basin.*
 
 
 **MaxWRes Module**
 
-The pphys.maxwres module provides a modeling toolbox for simulating induction tool responses based on specified formation conductivity profiles. It is particularly useful for reconstructing mud invasion profiles after drilling, enabling more accurate estimates of saturation from induction log measurements.
+The `pphys.maxwres` module provides a modeling toolbox for simulating induction tool responses based on specified formation conductivity profiles. It is particularly useful for reconstructing mud invasion profiles after drilling, enabling more accurate estimates of saturation from induction log measurements.
 
 The underlying computation is based on solving a series of 2D problems derived from a Fourier series expansion. An axial hybrid method is employed, in which the radial component is solved analytically using normalized Bessel and Hankel functions, while the axial (z-axis) direction is treated numerically. Amplitude and slope basis functions are defined along the discretized wellbore axis, allowing the use of a coarse grid even in complex zones such as fractures, eliminating the need for local grid refinement. This approach leads to both computational efficiency and accurate modeling of borehole-conductivity effects. The method is detailed in Wang et al. (2009).
 
 <img src="img/maxwres_axial_hybrid_method.png">
 
-*Figure 5: Simulated induction tool response for a layered formation with mud invasion, generated using the `maxwres` module. The model captures radial and axial conductivity variations using a hybrid analytical-numerical approach.*
+*Figure 6: Simulated induction tool response for a layered formation with mud invasion, generated using the `maxwres` module. The model captures radial and axial conductivity variations using a hybrid analytical-numerical approach.*
