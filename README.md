@@ -39,7 +39,9 @@ Over the years, many models relating resistivity and fluid saturations have been
 
 Other models are based on Percolation Theory (Herrick and Kennedy 2009) and Connectivity Theory (Montaron 2009 and Lee 2011).
 
-<img src="img/insight_shaly_sand_resistivity_models.png" width="50%" text-align="center">
+<div align="center">
+ <img src="img/insight_shaly_sand_resistivity_models.png" width="30%">
+</div>
 
 *Figure 4: Resistivity models for shaly sand formations, available at `pphys.insight` module.*
 
