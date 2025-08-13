@@ -1,4 +1,4 @@
 Metadata-Version: 2.1
 Name: pphys
-Version: 0.0.4
+Version: 0.0.5
 Requires-Dist: numpy>=1.26.4
