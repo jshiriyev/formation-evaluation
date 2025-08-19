@@ -13,8 +13,6 @@ import pandas as pd
 
 from scipy.interpolate import interp1d
 
-import wellx
-
 from ._pigment import Pigment
 
 from .wellview._builder import Builder
@@ -264,7 +262,7 @@ class WellView(Builder):
 
         for _,row in perfs.iterrows():
 
-            bottom,top = wellx.items.Interval.tolist(row["interval"])
+            bottom,top = row['base'],row['top']
 
             if bottom<self._depth.upper or top>self._depth.lower:
                 continue
