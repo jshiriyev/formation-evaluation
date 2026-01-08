@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -23,14 +23,14 @@ class XAxisDict:
 	grid 	: To create major and minor grids or not.
 
 	"""
-	limit 	: tuple[float, float] = None
+	limit 	: tuple[float, float] | None = None
 
-	major 	: int = 10
-	minor 	: int|range = 1
+	major 	: float = 10
+	minor 	: float | range = 1
 
 	scale 	: str = "linear"
 
-	spot 	: int = None
+	spot 	: int | None = None
 
 	grid 	: bool = True
 
@@ -47,10 +47,13 @@ class XAxisDict:
 	@property
 	def lower(self):
 		"""Return the lower bound of the axis range."""
-		return min(self.limit)
+		return float('nan') if self.limit is None else min(self.limit)
 
 	def lower_off(self,perc=2.):
 		"""Return the perc(%) off of the lower bound."""
+		if self.limit is None:
+			return
+		
 		if self.scale=="linear":
 			return self.lower+self.length*perc/100.
 
@@ -60,7 +63,7 @@ class XAxisDict:
 	@property
 	def upper(self):
 		"""Return the upper bound of the axis range."""
-		return max(self.limit)
+		return float('nan') if self.limit is None else max(self.limit)
 
 	def upper_off(self,perc=2.):
 		"""Return the perc(%) off of the upper bound."""
@@ -78,6 +81,9 @@ class XAxisDict:
 	@property
 	def middle(self):
 		"""Return the midpoint of the 'limit' range depending on the scale."""
+		if self.limit is None:
+			return float('nan')
+		
 		if self.scale=="linear":
 			return np.mean(self.limit)
 
@@ -91,7 +97,7 @@ class XAxisDict:
 	@property
 	def flipped(self):
 		"""Return True if axis values are decreasing (flipped direction)."""
-		return self.limit != tuple(sorted(self.limit))
+		return (float('nan'), float('nan')) if self.limit is None else self.limit != tuple(sorted(self.limit))
 
 	@property
 	def unary(self):
@@ -100,7 +106,7 @@ class XAxisDict:
 
 if __name__ == "__main__":
 
-	axis = BaseAxis(scale="log")
+	axis = XAxisDict(scale="log10")
 
 	print(axis.scale)
 	print(axis)

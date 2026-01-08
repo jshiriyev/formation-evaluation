@@ -4,7 +4,15 @@ from ._xaxis import XAxisDict
 
 class Layout():
 
-	def __init__(self,ntrail:int=3,ncycle:int=3,label:dict=None,depth:dict=None,widths:tuple[float]=None,heights:tuple[float]=None):
+	def __init__(
+		self,
+		ntrail : int = 3,
+		ncycle : int = 3,
+		label : dict | None = None,
+		depth : dict | None = None,
+		widths : tuple[float, ...] | None = None,
+		heights : tuple[float, float] | None = None
+		):
 		"""It sets elements for different trails in the axes:
 
 		ntrail 	: number of trails including depth trail in the figure, integer
@@ -67,10 +75,10 @@ class Layout():
 		return self._widths
 
 	@widths.setter
-	def widths(self,value:tuple[int]):
+	def widths(self,value:tuple[float, ...] | None):
 
 		if value is None:
-			self._widths = (2,4)
+			self._widths = (2.0,4.0)
 
 		elif len(value)==1:
 			self._widths = value*self.ntrail
@@ -79,7 +87,8 @@ class Layout():
 
 			wlist = list((value[1],)*self.ntrail)
 
-			wlist[self._depth.spot] = value[0]
+			for spot in self._depth.spot:
+				wlist[spot] = value[0]
 
 			self._widths = tuple(wlist)
 
@@ -97,8 +106,8 @@ class Layout():
 		return (head_height,body_height)
 
 	@heights.setter
-	def heights(self,value:tuple[int]):
-		self._heights = (50,20) if value is None else value
+	def heights(self,value:tuple[float, float] | None):
+		self._heights = (50.0,20.0) if value is None else value
 
 	@property
 	def size(self):
@@ -109,7 +118,3 @@ if __name__ == "__main__":
 	layout = Layout(ntrail=5,ncycle=3,widths=(2,))
 
 	print(layout.widths)
-
-	print(layout.head.curves)
-	print(layout.head.height)
-	print(layout.body.height)

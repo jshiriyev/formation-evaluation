@@ -17,8 +17,8 @@ class DepthDict:
 	"""
 	limit 	: tuple[float, float] = (0.,100.)
 
-	major 	: int = 10
-	minor 	: int|range = 1
+	major 	: float = 10
+	minor 	: float = 1
 
 	grid 	: tuple[int, ...] = field(
 		default = (),
@@ -56,9 +56,7 @@ class DepthDict:
 
 if __name__ == "__main__":
 
-	depth=dict(limit=(3200,3310),major=10,minor=range(2,10,2),spot=(1,))
-
-	d = DepthDict(**depth)
+	d = DepthDict(limit=(3200.,3310.),major=10,minor=2,spot=(1,))
 
 	print(d)
 
