@@ -322,25 +322,75 @@ class WellView(Builder):
         axis_label.text(self[index].middle,row+0.5*self._label.major,title,
             ha='center',va='center',backgroundcolor='white',fontsize='small',)
 
-    def add_perfs(self,perfs:pd.DataFrame,year_axis:dict):
+    def add_perfs(
+        self,
+        index:int,
+        perfs:pd.DataFrame,
+        year_axis:dict|None=None,
+        date_text_dict:dict|None=None,
+        date_text_coeff:float=1.0,
+        sep_line:bool=False,
+        **kwargs
+        ):
         """It includes perforated depth."""
+
+        perfs = perfs.copy(deep=True)
+
+        if 'top' not in perfs.columns:
+            raise Warning("The 'top' column is required in tops DataFrame.")
+        
+        perfs['top'] = perfs['top'].astype(float)
+
+        if 'base' not in perfs.columns:
+            raise Warning("The 'base' column is required in tops DataFrame.")
+        
+        perfs['base'] = perfs['base'].astype(float)
+
+        no_date_info = True if 'date' not in perfs.columns else False
 
         for _,row in perfs.iterrows():
 
-            bottom,top = row['base'],row['top']
+            base,top = row['base'],row['top']
 
-            if bottom<self._depth.upper or top>self._depth.lower:
+            if base<self._depth.upper or top>self._depth.lower:
                 continue
 
             upper = top if top>self._depth.upper else self._depth.upper
-            lower = bottom if bottom<self._depth.lower else self._depth.lower
-
-            index = year_axis[row['date'].year]
+            lower = base if base<self._depth.lower else self._depth.lower
+            
+            if year_axis is not None and not no_date_info:
+                index = year_axis[row['date'].year]
 
             axis_curve = self.stage(index)
 
-            axis_curve.fill_betweenx((top,bottom),(self[index].lower,)*2,self[index].length,facecolor='gray',zorder=5)
-            axis_curve.plot(self[index].limit,(top,)*2,color='white',linewidth=2,zorder=6)
+            axis_curve.fill_betweenx((upper,lower),(self[index].lower,)*2,self[index].length,**kwargs)
+
+            if not no_date_info and not pd.isna(row['date']):
+
+                if (lower-upper)>10*date_text_coeff:
+                    text = f"{row['date'].strftime('%Y-%m-%d')}"
+                elif (lower-upper)>7*date_text_coeff:
+                    text = f"{row['date'].strftime('%Y-%m')}"
+                elif (lower-upper)>4*date_text_coeff:
+                    text = f"{row['date'].strftime('%Y')}"
+                elif (lower-upper)>2*date_text_coeff:
+                    text = f"{row['date'].strftime('%y')}"
+                else:
+                    text = ""
+
+                axis_curve.text(
+                    self[index].middle,(upper+lower)/2.,text,
+                    ha='center',va='center',rotation=90,
+                    **(date_text_dict or {})
+                )
+
+            if sep_line is False:
+                continue
+
+            base_zorder = kwargs.get('zorder')
+            zorder = None if base_zorder is None else base_zorder + 1
+            
+            axis_curve.plot(self[index].limit,(upper,)*2,color='white',linewidth=2,zorder=zorder)
 
     def add_casings(self):
         """It includes casing set depth."""
