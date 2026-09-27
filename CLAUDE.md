@@ -108,6 +108,7 @@ Its sizing rules:
 - It builds a JSON payload that mirrors the WellView API (`layout` including `xaxes`, then `calls` of `{method, args, kwargs}`, then `output`). The contract is documented in the comment at the top of its script.
 - With `API_BASE = ''` it only `console.log`s the payload; setting `API_BASE` POSTs it together with the LAS file.
 - A payload from it has been replayed through WellView successfully, so a backend only needs to resolve `{"style": "Table.name"}`, turn table records into DataFrames and convert `year_axis` keys to int.
+- `.github/workflows/pages.yml` deploys it on pushes to main that touch `pphys/pages/`. The site mirrors the repository paths, with the root redirecting to the page, so the relative sample link `../../notebooks/tutorial_3_graph_2.LAS` works both on Pages and from a local server at the repo root. Every `pphys/pages/*.html` is published, but any other file a page links to must be added to that workflow's "Assemble the site" step.
 
 **Fills** are in `_pigment.Pigment`, static methods that draw in data coordinates with depth on y:
 - `fill_solid(axis, y, x1, x2, motifs=, **kwargs)` passes every other keyword to `fill_betweenx`, so `where=`/`interpolate=` shade crossovers and `label=` reaches the legend. It then calls `add_motifs` and returns the fill.

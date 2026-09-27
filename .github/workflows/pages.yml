@@ -1,0 +1,75 @@
+# Publish the web pages in pphys/pages to GitHub Pages:
+#   https://jshiriyev.github.io/formation-evaluation/  (redirects to the WellView configurator)
+#
+# One-time setup: Settings > Pages > Build and deployment > Source: "GitHub Actions".
+#
+# The site mirrors the repository paths, so the relative links in the pages work the same
+# on Pages as from a local server at the repository root (e.g. the WellView sample log at
+# ../../notebooks/tutorial_3_graph_2.LAS).
+
+name: Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "pphys/pages/**"
+      - "notebooks/tutorial_3_graph_2.LAS"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; a newer push waits instead of cancelling one in progress.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/configure-pages@v6
+
+      - name: Assemble the site
+        run: |
+          mkdir -p _site/pphys/pages _site/notebooks
+          cp pphys/pages/*.html _site/pphys/pages/
+          cp notebooks/tutorial_3_graph_2.LAS _site/notebooks/
+          cat > _site/index.html <<'EOF'
+          <!doctype html>
+          <html lang="en">
+          <head>
+          <meta charset="utf-8">
+          <title>WellView configurator</title>
+          <meta http-equiv="refresh" content="0; url=pphys/pages/onepage-wellview.html">
+          <link rel="canonical" href="pphys/pages/onepage-wellview.html">
+          </head>
+          <body><p><a href="pphys/pages/onepage-wellview.html">WellView configurator</a></p></body>
+          </html>
+          EOF
+
+      - name: Check the sample log link
+        run: |
+          sample=$(grep -oP "SAMPLE_URL = '\K[^']+" pphys/pages/onepage-wellview.html)
+          test -f "_site/pphys/pages/$sample" || { echo "::error::sample log $sample is not in the site"; exit 1; }
+          find _site -type f | sort
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
