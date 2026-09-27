@@ -1,65 +1,58 @@
-from dataclasses import dataclass, field
+"""The depth axis shared by every track."""
+
+from dataclasses import dataclass
+
 
 @dataclass(frozen=True)
 class DepthDict:
-	"""
-	It represents a vertical axis in a layout or plot.
+	"""The vertical (depth) axis shared by every track.
 
-	limit 	: the depth range (upper and lower) values of the axis
-		This will be automatically reversed to (lower, upper) in __post_init__.
-	
-	major 	: the interval between major ticks on the depth axis.
-	minor 	: the interval between minor ticks on the depth axis.
+	limit 	: the depth window, top and base in either order. It is stored as
+			(base, top), the y limits that put depth increasing downwards.
 
-	spot 	: A layout index or trail position for the depth axis.
-		This is excluded from representation (__repr__) for cleaner output.
+	major 	: spacing of the major depth ticks and grid lines.
+	minor 	: spacing of the minor depth ticks and grid lines.
+
+	spot 	: indices of the depth tracks, which show depth ticks instead of
+			grid lines.
+	grid 	: whether the other tracks draw depth grid lines; a track whose
+			own grid is off draws none.
 
 	"""
 	limit 	: tuple[float, float] = (0.,100.)
 
-	major 	: float = 10
-	minor 	: float = 1
+	major 	: float = 10.
+	minor 	: float = 1.
 
-	grid 	: tuple[int, ...] = field(
-		default = (),
-		)
-
-	spot 	: tuple[int, ...] = field(
-		repr = False,
-		default = (0,),
-		)
+	spot 	: tuple[int, ...] = (0,)
+	grid 	: bool = True
 
 	def __post_init__(self):
-		# Reverse the limit to ensure it is ordered from top to bottom
-		object.__setattr__(self,'limit',self.limit[::-1])
+
+		top,base = sorted(float(value) for value in self.limit)
+
+		if top==base:
+			raise ValueError(f"The depth limit needs two different depths, not {self.limit!r}.")
+
+		if self.major<=0 or self.minor<=0:
+			raise ValueError("major and minor must be positive.")
+
+		spot = (self.spot,) if isinstance(self.spot,int) else tuple(self.spot)
+
+		object.__setattr__(self,'limit',(base,top))
+		object.__setattr__(self,'spot',spot)
 
 	@property
-	def lower(self):
-		"""Return the deeper depth (bottom of the range)."""
-		return max(self.limit)
+	def lower(self) -> float:
+		"""Return the deeper depth (base of the window)."""
+		return self.limit[0]
 
 	@property
-	def upper(self):
-		"""Return the shallower depth (top of the range)."""
-		return min(self.limit)
+	def upper(self) -> float:
+		"""Return the shallower depth (top of the window)."""
+		return self.limit[1]
 
 	@property
-	def length(self):
-		"""Return the total depth interval (lower - upper)."""
+	def length(self) -> float:
+		"""Return the depth interval (lower - upper)."""
 		return self.lower-self.upper
-
-	@property
-	def scale(self):
-		"""Return the type of scale used for plotting (it is always 'linear')."""
-		return "linear"
-	
-
-if __name__ == "__main__":
-
-	d = DepthDict(limit=(3200.,3310.),major=10,minor=2,spot=(1,))
-
-	print(d)
-
-	print(d.length)
-
-	print(d.spot)

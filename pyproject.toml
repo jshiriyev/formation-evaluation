@@ -1,15 +1,39 @@
-[build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "pphys"
 version = "0.0.9"
+description = "Well-log visualization, digitization and petrophysical interpretation."
 readme = "README.md"
+requires-python = ">=3.10"
 dependencies = [
+    "lasio>=0.31",
+    "matplotlib>=3.7",
     "numpy>=1.26.4",
+    "pandas>=2.0",
+    "scipy>=1.10",
 ]
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["pphys*"]
+[project.optional-dependencies]
+# pphys.digitize also needs the Tesseract OCR program installed separately.
+digitize = [
+    "opencv-python-headless",
+    "pypdfium2",
+    "pytesseract",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.3.0",
+    "pphys[digitize]",  # develop against every feature
+    "pytest>=9",
+    "ruff>=0.16",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.19,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-root = ""  # flat layout: the package is ./pphys, not ./src/pphys
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

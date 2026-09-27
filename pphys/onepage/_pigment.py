@@ -1,179 +1,288 @@
-from matplotlib import pyplot as plt
+"""Fills for log tracks: colours, hatches, motifs and colour maps.
 
-from matplotlib import colors as mcolors
+:class:`Pigment` gathers static methods that paint on a matplotlib axis in
+data coordinates, with depth on the y axis:
 
-from matplotlib.patches import PathPatch, Polygon
-from matplotlib.path import Path
+- :meth:`Pigment.fill_solid` fills between two curves with a colour, a hatch
+  and motifs, e.g. ``**Lithology.limestone``;
+- :meth:`Pigment.fill_colormap` fills between a curve and a baseline with
+  colours that follow the curve, e.g. a gamma-ray shading;
+- :meth:`Pigment.add_motifs` tiles motifs inside any fill or patch.
+
+Motifs are sized in points and tiled over the visible part of a fill, so set
+the axis limits and the figure layout before filling. The fills are meant for
+static figures.
+"""
+
+from collections.abc import Iterable
 
 import numpy as np
-    
-class Pigment():
+from matplotlib import colormaps
+from matplotlib import colors as mcolors
+from matplotlib.axes import Axes
+from matplotlib.collections import Collection, PolyCollection
+from matplotlib.colors import Colormap
+from matplotlib.image import AxesImage
+from matplotlib.patches import Patch, PathPatch
+from matplotlib.path import Path
+from matplotlib.transforms import Affine2D, Bbox
+from numpy.typing import ArrayLike
+
+from ._motifs import MotifPattern
+
+# The most image rows a colour-map fill is sampled with.
+_MAX_ROWS = 100_000
+
+
+class Pigment:
+    """Static methods that add colours, hatches and motifs to an axis."""
 
     @staticmethod
-    def fill_colormap(axis:plt.Axes,y:np.ndarray,x1:np.ndarray,x2:float=0,colormap='Reds',vmin=None,vmax=None,**kwargs):
-        """Fill between the log curves with a given colormap.
+    def fill_solid(
+        axis: Axes,
+        y: ArrayLike,
+        x1: ArrayLike,
+        x2: ArrayLike = 0.0,
+        motifs: MotifPattern | Iterable[MotifPattern] | None = None,
+        **kwargs,
+    ) -> PolyCollection:
+        """Fill between two curves with a colour, a hatch and motifs.
 
-        For list of colormaps, please check:
-        - https://matplotlib.org/stable/users/explain/colors/colormaps.html
+        Parameters
+        ----------
+        axis : Axes
+            The track to draw on.
+        y : array_like
+            Depths.
+        x1, x2 : array_like or float
+            The curves, or constant values, to fill between. A missing value
+            (NaN) leaves a gap.
+        motifs : MotifPattern or iterable of MotifPattern, optional
+            Motifs tiled inside the fill, see :meth:`add_motifs`.
+        **kwargs
+            Passed to :meth:`~matplotlib.axes.Axes.fill_betweenx`, e.g.
+            ``facecolor``, ``hatch``, ``label``, ``alpha``, ``zorder`` or
+            ``where``. A fill style unpacks into them:
+            ``**Lithology.limestone``. Colours are listed at
+            https://matplotlib.org/stable/users/explain/colors/colors.html
+            and hatches at
+            https://matplotlib.org/stable/gallery/shapes_and_collections/hatch_style_reference.html.
 
+        Returns
+        -------
+        PolyCollection
+            The fill.
+
+        Examples
+        --------
+        Shade the neutron-density crossover, where density porosity exceeds
+        neutron porosity:
+
+        >>> Pigment.fill_solid(
+        ...     axis, depth, nphi, dphi, where=dphi > nphi, interpolate=True,
+        ...     facecolor="gold",
+        ... )
         """
-        vmin = np.nanmin(x1) if vmin is None else vmin
-        vmax = np.nanmax(x1) if vmax is None else vmax
-
-        x_normalized = mcolors.Normalize(vmin=vmin,vmax=vmax)(x1)
-
-        z = plt.get_cmap(colormap)(x_normalized)
-        z = z[:,:,np.newaxis].transpose((0,2,1))
-
-        xmin = np.nanmin(x1) if np.nanmin(x1)<x2 else x2
-        xmax = np.nanmax(x1) if np.nanmax(x1)>x2 else x2
-
-        ymin,ymax = np.nanmin(y),np.nanmax(y)
-
-        img = axis.imshow(z,aspect='auto',
-            extent = [xmin,xmax,ymin,ymax],  
-            origin = 'lower',**kwargs
-            # zorder = line.get_zorder()
-            )
-
-        xy = np.column_stack([x1,y])
-        xy = np.vstack([[x2,ymin],xy,[x2,ymax],[x2,ymin]])
-        xy = xy[~np.isnan(xy).any(axis=1)]
-
-        clip = Polygon(xy,facecolor='none',edgecolor='none',closed=True)
-        axis.add_patch(clip)
-
-        img.set_clip_path(clip)
-
-        return axis
+        fill = axis.fill_betweenx(y, x1, x2, **kwargs)
+        Pigment.add_motifs(axis, fill, motifs)
+        return fill
 
     @staticmethod
-    def fill_solid(axis:plt.Axes,y:np.ndarray,x1:np.ndarray,x2:float|np.ndarray=0,**kwargs):
-        """Fill between the log curves with a solid facecolor, hatches, and motifs.
+    def fill_colormap(
+        axis: Axes,
+        y: ArrayLike,
+        x1: ArrayLike,
+        x2: ArrayLike = 0.0,
+        colormap: str | Colormap = "Reds",
+        vmin: float | None = None,
+        vmax: float | None = None,
+        **kwargs,
+    ) -> AxesImage | None:
+        """Fill between a curve and a baseline with colours that follow the curve.
 
-        For color specification, please check:
-        - https://matplotlib.org/stable/tutorials/colors/colors.html
+        Each depth is coloured by the curve's value there, e.g. a gamma-ray
+        shading from clean to shaly. The colours follow a logarithmic scale
+        on a logarithmic track.
 
-        For list of hatches, please check:
-        - https://matplotlib.org/stable/gallery/shapes_and_collections/hatch_style_reference.html
+        Parameters
+        ----------
+        axis : Axes
+            The track to draw on.
+        y : array_like
+            Depths, in any order and spacing.
+        x1 : array_like
+            The curve, which also sets the colours. A missing value (NaN)
+            leaves a gap.
+        x2 : array_like or float, default 0
+            The baseline: a constant or a second curve.
+        colormap : str or Colormap, default "Reds"
+            The colour map, see
+            https://matplotlib.org/stable/users/explain/colors/colormaps.html.
+        vmin, vmax : float, optional
+            The curve values at the ends of the colour map; by default the
+            curve's range.
+        **kwargs
+            Passed to the :class:`~matplotlib.image.AxesImage`, e.g.
+            ``alpha``, ``zorder`` or ``interpolation``.
 
+        Returns
+        -------
+        AxesImage or None
+            The colour image, clipped to the fill; None if the curve has
+            fewer than two values.
         """
-        fill = axis.fill_betweenx(y,x1,x2,facecolor=kwargs.get('facecolor'),hatch=kwargs.get('hatch'))
+        y = np.asarray(y, dtype=float)
+        x1 = np.asarray(x1, dtype=float)
 
-        for motif in (kwargs.get('motifs') or ()):
-            # Create the pattern patches
-            patches = Pigment.patches(
-                x1.min(),x2.max(),y.min(),y.max(),motif
-                )
+        known = ~(np.isnan(y) | np.isnan(x1))
+        order = np.argsort(y[known], kind="stable")
+        depths, values = y[known][order], x1[known][order]
 
-            # Clip the pattern patches
-            for patch in patches:
-                patch.set_clip_path(
-                    fill.get_paths()[0],transform=axis.transData
-                    )  # Clip each patch to the filled region
+        if depths.size < 2 or depths[0] == depths[-1]:
+            return None
 
-                axis.add_patch(patch)
+        # The outline of the fill, with a gap wherever a value is missing.
+        # fill_betweenx also updates the data limits as a fill would.
+        outline = axis.fill_betweenx(y, x1, x2, facecolor="none", edgecolor="none")
+        region = Path.make_compound_path(*outline.get_paths())
+        outline.remove()
 
-        return axis
+        log = axis.get_xscale() == "log" and bool(np.any(values > 0))
+        scaled = values[values > 0] if log else values
+        norm = (mcolors.LogNorm if log else mcolors.Normalize)(
+            vmin=scaled.min() if vmin is None else vmin,
+            vmax=scaled.max() if vmax is None else vmax,
+        )
 
-    @staticmethod
-    def patches(x_min,x_max,y_min,y_max,motif):
-        """Creates individual patches within a bounded region. Returns list of PathPatch objects."""
-        offsety = (motif.height_extern-motif.height)/2.
+        # One image row per sample at the finest spacing, so that descending
+        # or unevenly sampled depths get their colours in the right place.
+        steps = np.diff(np.unique(depths))
+        rows = int(min(np.ceil((depths[-1] - depths[0]) / steps.min()), _MAX_ROWS)) + 1
+        grid = np.linspace(depths[0], depths[-1], rows)
+        colours = colormaps.get_cmap(colormap)(norm(np.interp(grid, depths, values)))
 
-        y_nodes = np.arange(y_min+offsety,y_max,motif.height_extern)
+        # Rows are centred on the grid depths. The image is built directly,
+        # as imshow would reset the axis limits (undoing an inverted depth
+        # axis) and the aspect ratio.
+        half = (grid[1] - grid[0]) / 2
+        box = region.get_extents()
+        image = AxesImage(
+            axis,
+            origin="lower",
+            extent=(box.x0, box.x1, grid[0] - half, grid[-1] + half),
+            **kwargs,
+        )
+        image.set_data(colours[:, np.newaxis, :])
+        image.set_clip_path(region, transform=axis.transData)
+        image.set_clip_box(axis.bbox)
+        axis.add_image(image)
 
-        offset1 = motif.length*(motif.length_ratio-1)/2.
-        offset2 = motif.length*motif.offset_ratio
-
-        x_lower = np.arange(x_min+offset1,x_max,motif.length_extern)
-        x_upper = np.arange(x_min-offset2,x_max,motif.length_extern)
-
-        patches = []
-        
-        for y_index,y_node in enumerate(y_nodes):
-
-            x_nodes = x_lower if y_index%2==0 else x_upper
-            
-            for x_node in x_nodes:
-
-                path = Pigment.path(x_node,y_node,motif)
-                
-                patches.append(PathPatch(path,**motif.params))
-        
-        return patches
-
-    def path(x_node,y_node,motif):
-        """Returns path for the instance figure."""
-        element = getattr(Pigment,motif.element)
-
-        x_func,y_func = element(length=motif.length,height=motif.height,tilted_ratio=motif.tilted_ratio)
-
-        if motif.element == "circle":
-            return Path.circle((x_func(x_node),y_func(y_node)),radius=motif.radius)
-        
-        return Path([(x,y) for x,y in zip(x_func(x_node),y_func(y_node))])
+        return image
 
     @staticmethod
-    def circle(length=0.2,height=0.2,**kwargs):
-        """Returns functions that calculates center coordinates for the given lower left corner."""
-        x_func = lambda x: x+np.sqrt(length*height)/2
-        y_func = lambda y: y+np.sqrt(length*height)/2
+    def add_motifs(
+        axis: Axes,
+        fill: Collection | Patch,
+        motifs: MotifPattern | Iterable[MotifPattern] | None,
+    ) -> list[PathPatch]:
+        """Tile motifs inside a fill and return the added patches.
 
-        return x_func,y_func
+        Parameters
+        ----------
+        axis : Axes
+            The axis the fill is drawn on.
+        fill : Collection or Patch
+            What ``fill_between``/``fill_betweenx`` returns, or a patch such
+            as a Rectangle or Polygon, in any coordinates of ``axis``.
+        motifs : MotifPattern, iterable of MotifPattern or None
+            The motifs, each drawn as one patch over the fill and at its
+            zorder unless the motif's ``params`` set one.
+
+        Returns
+        -------
+        list of PathPatch
+            The added patches; a motif with no symbol inside the axes adds
+            none.
+
+        Notes
+        -----
+        Motifs are sized in points and tiled over the part of the fill inside
+        the axes, so set the limits before calling. They do not change the
+        data limits.
+        """
+        if motifs is None:
+            return []
+        if isinstance(motifs, MotifPattern):
+            motifs = (motifs,)
+
+        if isinstance(fill, Patch):
+            path = fill.get_path()
+        else:
+            # A NaN in the curves splits a fill into several polygons; the
+            # motifs are clipped to all of them.
+            path = Path.make_compound_path(*fill.get_paths())
+        region = (fill.get_transform() - axis.transData).transform_path(path)
+
+        added = []
+        for motif in motifs:
+            patch = Pigment.motif_patch(axis, region, motif)
+            if patch is None:
+                continue
+            if "zorder" not in motif.params:
+                patch.set_zorder(fill.get_zorder())
+            axis.add_artist(patch)  # add_patch would widen the data limits
+            added.append(patch)
+
+        return added
 
     @staticmethod
-    def line(length=0.2,height=0.1,**kwargs):
-        """Returns functions that calculates line vertex coordinates for the given lower left corner."""
-        x_func = lambda x: [x, x+length]
-        y_func = lambda y: [y, y+height]
+    def motif_patch(axis: Axes, region: Path, motif: MotifPattern) -> PathPatch | None:
+        """Return one patch with a motif tiled over a region, clipped to it.
 
-        return x_func,y_func
+        Parameters
+        ----------
+        axis : Axes
+            The axis the patch is for; it is not added to it.
+        region : Path
+            The area to fill, in data coordinates.
+        motif : MotifPattern
+            The motif to tile.
 
-    @staticmethod
-    def triangle(length=0.2,height=0.1,tilted_ratio=0.):
-        """Returns functions that calculates triangle vertex coordinates for the given lower left corner."""
-        x_func = lambda x: [x, x+length, x+length/2+length*tilted_ratio, x]
-        y_func = lambda y: [y, y, y+height, y]
+        Returns
+        -------
+        PathPatch or None
+            The motif over the part of ``region`` inside the axes, in data
+            coordinates and clipped to the region and the axes; None if no
+            symbol falls there. The grid is aligned to the lower-left corner
+            of the axes, so separate fills line up.
+        """
+        if len(region.vertices) == 0:
+            return None
 
-        return x_func,y_func
+        # Apply pending autoscaling and a fixed aspect ratio, as drawing
+        # would, so that the conversion to points is final.
+        axis.get_xlim()
+        axis.get_position()
 
-    @staticmethod
-    def quadrupe(length=0.8,height=0.4,tilted_ratio=0.):
-        """Returns functions that calculates quadrilateral node coordinates for the given lower left corner."""
-        x_func = lambda x: [x, x+length, x+length+length*tilted_ratio, x+length*tilted_ratio, x]
-        y_func = lambda y: [y, y, y+height, y+height, y]
+        # data -> points (1/72 inch), the unit of the motif sizes
+        points = Affine2D().scale(72.0 / axis.figure.dpi)
+        to_points = axis.transData + points
 
-        return x_func,y_func
+        visible = Bbox.intersection(
+            region.get_extents(to_points), axis.bbox.transformed(points)
+        )
+        if visible is None or visible.width <= 0 or visible.height <= 0:
+            return None
 
-if __name__ == "__main__":
+        anchor = (axis.transAxes + points).transform((0.0, 0.0))
+        pattern = motif.path(
+            visible.x0, visible.x1, visible.y0, visible.y1, anchor=tuple(anchor)
+        )
+        if len(pattern.vertices) == 0:
+            return None
 
-    import np as np
+        patch = PathPatch(pattern.transformed(to_points.inverted()), **motif.params)
+        patch.set_clip_path(region, transform=axis.transData)
+        patch.set_clip_box(axis.bbox)
 
-    from _templix import PropDict
-    from _motifs import MotifPattern
-
-    x = np.linspace(0, 10, 100)
-
-    y1 = np.sin(x) * 2 + 6
-    y2 = np.sin(x) * 2 + 8 # Upper curve
-
-    fig,ax = plt.subplots(figsize=(8,5))
-
-    motif = MotifPattern(**dict(
-            element="triangle",length=0.4,height=0.3,offset_ratio=0.5,tilted_ratio=0.,length_ratio=4.,height_ratio=2,
-            params = dict(edgecolor='black',fill=None)
-            ))
-
-    prop = PropDict(**{"facecolor":"tan","hatch":None,"motifs":(motif,)})
-
-    # alpha=0.5,edgecolor='black',lw=1.2,
-    ax = Pigment.fill_between(ax,x,y1,y2,prop=prop)
-
-    # Adjust limits and labels
-    # ax.set_xlim(x.min(),x.max())
-    ax.set_ylim(y1.min(),y2.max()+0.2)  # Extra space for visibility
-    ax.set_xlabel("X-axis")
-    ax.set_ylabel("Y-axis")
-
-    plt.show()
+        return patch

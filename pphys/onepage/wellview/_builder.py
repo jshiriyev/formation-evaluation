@@ -1,164 +1,124 @@
-from matplotlib import gridspec
-from matplotlib import pyplot as plt
-from matplotlib import ticker
+"""Matplotlib axes of a one-page log, built from its Layout."""
 
+from matplotlib import ticker
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 from ._layout import Layout
+from ._xaxis import XAxisDict
+
 
 class Builder(Layout):
+	"""Builds the axes of a one-page log from its Layout.
+
+	Calling a Builder with a figure adds one body axis per trail (the
+	track itself) and, unless the label spot is None, one head axis above or
+	below it for the header rows. The Builder knows nothing about well data:
+	WellView adds the curves.
+	"""
 
 	def __init__(self,**kwargs):
-		"""
-		Builder class that extends the Layout class to configure and manage 
-		plotting layouts.
-
-		This class can be used as a wrapper to bootstrap and manage visual layouts
-		using matplotlib.
-
-		Parameters:
-		**kwargs: Arbitrary keyword arguments passed to the Layout constructor.
-
-		"""
+		"""Takes the Layout keywords."""
 		super().__init__(**kwargs)
 
-	def __call__(self,figure:Figure):
-		"""
-		Build the full layout by populating a matplotlib figure with subplots
-		based on internal layout settings (x-axes, labels, depths).
+		self.heads:list[Axes] = []
+		self.bodies:list[Axes] = []
 
-		"""
-		nrows = 1 if self._label.spot is None else 2
+	def __call__(self,figure:Figure) -> list[Axes]:
+		"""Add the trails to figure and return their axes, head before body.
 
-		self.gspec = gridspec.GridSpec(
-			nrows = nrows,
+		The head and body axes are also kept in ``heads`` and ``bodies``,
+		one per trail; ``heads`` is empty without a header.
+		"""
+		spot = self._label.spot
+
+		self.gspec = figure.add_gridspec(
+			nrows = 1 if spot is None else 2,
 			ncols = self.ntrail,
-			figure = figure,
 			width_ratios = self.widths,
-			height_ratios = self.heights,
+			height_ratios = self.height_ratios,
 			wspace = 0,
 			hspace = 0,
 			)
-		
-		# Iterate over each trail/xaxis pair to create subplots
+
+		head_row,body_row = (0,1) if spot=="top" else (1,0)
+
+		self.heads,self.bodies = [],[]
+
 		for index,xaxis in enumerate(self._xaxes):
 
-			# Create subplot(s) based on label position
-			if self._label.spot is None:
-				body_axis = figure.add_subplot(self.gspec[index])
-			elif self._label.spot == "top":
-				head_axis = figure.add_subplot(self.gspec[0,index])
-				body_axis = figure.add_subplot(self.gspec[1,index])
-			elif self._label.spot == "bottom":
-				head_axis = figure.add_subplot(self.gspec[1,index])
-				body_axis = figure.add_subplot(self.gspec[0,index])
-			else:
-				raise ValueError(f"Invalid label.spot: {self._label.spot}")
+			if spot is not None:
+				self.heads.append(self.head(figure.add_subplot(self.gspec[head_row,index]),xaxis))
 
-			# Draw head if applicable
-			if self._label.spot is not None:
-				self.head(head_axis,xaxis)
+			body = figure.add_subplot(self.gspec[body_row,index])
 
-			dept = index in self._depth.spot
-			grid = index in self._depth.grid
+			self.body_x(body,xaxis)
+			self.body_y(body,xaxis,depth=index in self._depth.spot)
 
-			# Draw body, enabling depth on specified trails
-			self.body_x(body_axis,xaxis)
-			self.body_y(body_axis,xaxis,depth=dept,grid=grid)
+			self.bodies.append(body)
 
-		return figure.get_axes()
+		if not self.heads:
+			return list(self.bodies)
 
-	def head(self,axis:Axes,xaxis):
-		"""Configure the head (label row) axis for a given x-axis layout."""
+		return [axis for pair in zip(self.heads,self.bodies,strict=True) for axis in pair]
 
-		# Set horizontal range (x-axis)
+	def head(self,axis:Axes,xaxis:XAxisDict) -> Axes:
+		"""Configure the head (header rows) axis of a trail.
+
+		It shares the trail's x range and scale, so header items can be placed
+		at track values, and spans the label limit vertically. Rows count from
+		the track outwards: upwards for a top header, downwards for a bottom one.
+		"""
+		axis.set_xscale("log" if xaxis.scale=="log10" else "linear")
 		axis.set_xlim(xaxis.limit)
-		axis.set_xscale("log" if xaxis.scale=="log10" else xaxis.scale)
 
-		plt.setp(axis.get_xticklabels(),visible=False)
-		plt.setp(axis.get_xticklines(),visible=False)
+		lower,upper = self._label.limit
+		axis.set_ylim((lower,upper) if self._label.spot=="top" else (upper,lower))
 
-		# Set vertical range (y-axis) based on label limits
-		axis.set_ylim(self._label.limit)
-
-		plt.setp(axis.get_yticklabels(),visible=False)
-		plt.setp(axis.get_yticklines(),visible=False)
+		axis.tick_params(which="both",bottom=False,left=False,labelbottom=False,labelleft=False)
 
 		return axis
 
-	def body_x(self,axis:Axes,xaxis):
-		"""Configure the body (curve row) x-axis for a given x-axis layout.
-		
-		This includes setting limits, tick locators (major/minor), and grid lines
-		based on the axis scale ('linear' or 'log10').
-
-		"""
-		# Set x-axis range and scale
+	def body_x(self,axis:Axes,xaxis:XAxisDict) -> Axes:
+		"""Configure the x axis of a trail: range, scale and vertical grid lines."""
+		axis.set_xscale("log" if xaxis.scale=="log10" else "linear")
 		axis.set_xlim(xaxis.limit)
-		axis.set_xscale("log" if xaxis.scale=="log10" else xaxis.scale)
 
-		# Hide tick labels and tick lines by default
-		plt.setp(axis.get_xticklabels(),visible=False)
-		plt.setp(axis.get_xticklines(),visible=False)
-
-		# Hide minor ticks visually
-		axis.tick_params(axis="x",which="minor",bottom=False)
-
-		# Configure tick locators and grids based on scale
-		if xaxis.scale=="linear":
+		if xaxis.scale=="log10":
+			axis.xaxis.set_major_locator(ticker.LogLocator(base=10,numticks=12))
+			axis.xaxis.set_minor_locator(ticker.LogLocator(base=10,subs=xaxis.minor,numticks=12))
+		else:
 			axis.xaxis.set_major_locator(ticker.MultipleLocator(xaxis.major))
 			axis.xaxis.set_minor_locator(ticker.MultipleLocator(xaxis.minor))
-		elif xaxis.scale=="log10":
-			axis.xaxis.set_major_locator(ticker.LogLocator(base=10,numticks=12))
-			axis.xaxis.set_minor_locator(
-				ticker.LogLocator(base=10,subs=xaxis.minor,numticks=12))
-		else:
-			raise ValueError(f"Unsupported x-axis scale: {xaxis.scale}")
 
-		# Add gridlines for both major and minor ticks
+		# The grid marks the values; the tick marks and labels stay hidden.
+		axis.tick_params(axis="x",which="both",bottom=False,labelbottom=False)
+
 		if xaxis.grid:
-			axis.grid(axis="x",which='minor',color='lightgray',alpha=0.4,zorder=-1)
-			axis.grid(axis="x",which='major',color='lightgray',alpha=0.9,zorder=-1)
+			axis.grid(axis="x",which='minor',color='lightgray',alpha=0.4)
+			axis.grid(axis="x",which='major',color='lightgray',alpha=0.9)
 
 		return axis
 
-	def body_y(self,axis:Axes,xaxis,depth:bool=False,grid:bool=True):
-		"""Configure the y-axis of the body (curve row) using depth settings.
-		
-		This includes setting y-limits, tick locators, and optionally displaying
-		ticks inward for depth tracks.
+	def body_y(self,axis:Axes,xaxis:XAxisDict,depth:bool=False) -> Axes:
+		"""Configure the y (depth) axis of a trail.
 
+		Depth trails get inward depth ticks on both sides; the others get
+		depth grid lines when both their own and the depth grid are on.
 		"""
-		# Set vertical axis range using depth limits
 		axis.set_ylim(self._depth.limit)
-		
-		# Hide y tick labels
-		plt.setp(axis.get_yticklabels(),visible=False)
 
-		# Set major and minor tick locators
 		axis.yaxis.set_major_locator(ticker.MultipleLocator(self._depth.major))
 		axis.yaxis.set_minor_locator(ticker.MultipleLocator(self._depth.minor))
-		
+
 		if depth:
-			# For depth tracks (MD or TVD), show inward ticks on the right side
-			axis.tick_params(
-				axis="y",which="both",
-				direction="in",right=True,
-				pad=-40
-				)
+			axis.tick_params(axis="y",which="both",direction="in",left=True,right=True,labelleft=False)
 			return axis
 
-		# Hide y tick lines
-		plt.setp(axis.get_yticklines(),visible=False)
+		axis.tick_params(axis="y",which="both",left=False,labelleft=False)
 
-		# Hide minor ticks on the left
-		axis.tick_params(axis="y",which="minor",left=False)
-
-		# Add light gray grid lines for both major and minor ticks
-		if grid:
-			axis.grid(axis="y",which='minor',color='lightgray',alpha=0.4,zorder=-1)
-			axis.grid(axis="y",which='major',color='lightgray',alpha=0.9,zorder=-1)
+		if xaxis.grid and self._depth.grid:
+			axis.grid(axis="y",which='minor',color='lightgray',alpha=0.4)
+			axis.grid(axis="y",which='major',color='lightgray',alpha=0.9)
 
 		return axis
-

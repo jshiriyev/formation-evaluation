@@ -1,56 +1,35 @@
-from dataclasses import dataclass, field
+"""The header rows that list the curves of each track."""
+
+from dataclasses import dataclass
+
+SPOTS = ("top", "bottom", None)
+
 
 @dataclass(frozen=True)
 class LabelDict:
-	"""
-	A frozen dataclass representing a labeled axis in a header layout 
-    (e.g., top of a log track or plot).
+	"""The header above (or below) the tracks, one row per curve.
 
-	limit 	: the depth range (upper and lower) values of the axis
-	
-	major 	: the interval between major ticks on the depth axis.
+	limit 	: vertical range of the header axes. Defaults to
+			(0, ncycle*major), one row per cycle, set by the Layout.
 
-	spot 	: location of lable in the layout, str
-			top, bottom, or None
+	major 	: height of one row, in the units of limit.
+
+	spot 	: where the header goes: 'top', 'bottom', or None for no header.
 
 	"""
-	limit	: tuple[float, float] = (0,50)
+	limit	: tuple[float, float] | None = None
 
-	major 	: int = 10
+	major 	: float = 10.
 
-	spot 	: str = field(
-		repr = False,
-		default = "top",
-		)
+	spot 	: str | None = "top"
 
-	@property
-	def lower(self):
-		"""Return the deeper depth (bottom of the range)."""
-		return max(self.limit)
+	def __post_init__(self):
 
-	@property
-	def upper(self):
-		"""Return the shallower depth (top of the range)."""
-		return min(self.limit)
+		if self.spot not in SPOTS:
+			raise ValueError(f"spot must be one of {SPOTS}, not {self.spot!r}.")
 
-	@property
-	def length(self):
-		"""Return the total depth interval (lower - upper)."""
-		return self.lower-self.upper
+		if self.major<=0:
+			raise ValueError("major must be positive.")
 
-	@property
-	def scale(self):
-		"""Return the type of scale used for plotting (it is always 'linear')."""
-		return "linear"
-
-if __name__ == "__main__":
-
-	label = LabelDict((0,100))
-
-	print(label.limit)
-	print(label.major)
-	print(label.scale)
-	print(label.spot)
-	print(label.lower)
-	print(label.upper)
-	print(label.length)
+		if self.limit is not None:
+			object.__setattr__(self,'limit',tuple(sorted(float(value) for value in self.limit)))

@@ -1,0 +1,2362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#1B6CA8">
+<title>WellView One-Pager &middot; Thoth</title>
+<meta name="description" content="Configure a pphys WellView one-page well log display from a LAS file, step by step.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231B6CA8'/%3E%3Ctext x='32' y='45' font-family='Georgia,serif' font-size='38' font-weight='700' text-anchor='middle' fill='%23e8c96a'%3ET%3C/text%3E%3C/svg%3E">
+<style>
+  :root {
+    color-scheme: light;
+    --blue: #1B6CA8;
+    --blue-dark: #145289;
+    --gold: #C9A84C;
+    --gold-light: #e8c96a;
+    --bg: #FAF8F4;
+    --surface: #FFFFFF;
+    --text: #1E1E2E;
+    --muted: #6B7280;
+    --border: #E5E0D8;
+    --field: #D8D2C7;
+    --tint: #FDFCF9;
+
+    --nav-h: 64px;
+    --radius: 14px;
+    --shadow: 0 1px 2px rgba(30, 30, 46, .04), 0 4px 16px rgba(30, 30, 46, .06);
+    --shadow-hover: 0 2px 4px rgba(30, 30, 46, .05), 0 12px 28px rgba(30, 30, 46, .10);
+    --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    --font-glyph: "Segoe UI Historic", "Noto Sans Egyptian Hieroglyphs", "Aegyptus", serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { transition: none !important; }
+  }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  a { color: var(--blue); }
+  a:hover { color: var(--blue-dark); }
+  :focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; border-radius: 6px; }
+  code { font-family: var(--font-mono); font-size: .9em; }
+
+  .container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+  .glyph { font-family: var(--font-glyph); font-style: normal; line-height: 1; }
+
+  /* ── Navigation ─────────────────────────────────────────────── */
+  .nav {
+    position: sticky; top: 0; z-index: 100;
+    height: var(--nav-h);
+    background: rgba(255, 255, 255, .92);
+    -webkit-backdrop-filter: saturate(160%) blur(10px);
+    backdrop-filter: saturate(160%) blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav .container { height: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+
+  .brand { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); flex-shrink: 0; }
+  .brand:hover { color: var(--text); }
+  .brand-mark {
+    width: 36px; height: 36px; border-radius: 10px;
+    display: grid; place-items: center;
+    background: var(--blue); color: #fff; font-size: 22px;
+    box-shadow: inset 0 -2px 0 rgba(0, 0, 0, .15);
+  }
+  .brand-name { font-size: 1.25rem; font-weight: 800; letter-spacing: -.01em; }
+  .brand-name span { color: var(--gold); }
+
+  .nav-links { display: flex; gap: 4px; list-style: none; margin: 0; padding: 0; }
+  .nav-links a {
+    display: block; padding: 8px 14px; border-radius: 999px;
+    color: var(--muted); font-size: .95rem; font-weight: 600; text-decoration: none;
+    transition: color .15s, background-color .15s;
+  }
+  .nav-links a:hover { color: var(--blue); background: rgba(27, 108, 168, .06); }
+  .nav-links a.active { color: var(--blue); background: rgba(27, 108, 168, .10); box-shadow: inset 0 -2px 0 var(--gold); }
+
+  /* ── Hero ───────────────────────────────────────────────────── */
+  .hero {
+    position: relative; overflow: hidden;
+    background: linear-gradient(135deg, #336DAA 0%, #1D4070 100%);
+    color: #fff; text-align: center;
+    padding: 64px 0 52px;
+  }
+  .hero-glyph {
+    position: absolute; top: -.095em; right: 4.3vw;
+    font-size: clamp(9rem, 13.2vw, 15rem);
+    color: #fff; opacity: .08;
+    pointer-events: none; user-select: none;
+  }
+  .hero .container { position: relative; }
+  .hero h1 {
+    margin: 0 0 18px;
+    font-size: clamp(2rem, 4.4vw, 3rem);
+    line-height: 1.2; font-weight: 800; letter-spacing: -.025em;
+  }
+  .hero h1 .accent { color: var(--gold-light); }
+  .hero p { margin: 0 auto; max-width: 640px; font-size: clamp(1rem, 1.9vw, 1.12rem); color: rgba(255, 255, 255, .86); }
+  .hero code { padding: 1px 6px; border-radius: 5px; background: rgba(255, 255, 255, .14); color: #fff; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 12px 22px; border-radius: 10px;
+    font: inherit; font-weight: 700; font-size: 1rem; line-height: 1.2;
+    text-decoration: none; cursor: pointer; border: 2px solid transparent;
+    transition: background-color .15s, border-color .15s, color .15s, transform .15s, box-shadow .15s;
+  }
+  .btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+  .btn-gold { background: var(--gold); color: var(--text); border-color: var(--gold); }
+  .btn-gold:hover:not(:disabled) { background: var(--gold-light); border-color: var(--gold-light); color: var(--text); transform: translateY(-1px); }
+  .btn-blue { background: var(--blue); color: #fff; border-color: var(--blue); }
+  .btn-blue:hover:not(:disabled) { background: var(--blue-dark); border-color: var(--blue-dark); color: #fff; transform: translateY(-1px); }
+  .btn-plain { background: var(--surface); color: var(--text); border-color: var(--border); }
+  .btn-plain:hover:not(:disabled) { border-color: var(--blue); color: var(--blue); }
+  .btn-sm { padding: 8px 14px; border-width: 1px; border-radius: 9px; font-size: .9rem; }
+
+  .linkish {
+    padding: 0; border: 0; background: none; cursor: pointer;
+    color: var(--blue); font: inherit; font-weight: 600;
+    text-decoration: underline; text-underline-offset: 3px;
+  }
+  .linkish:hover { color: var(--blue-dark); }
+
+  .icon-btn {
+    display: inline-grid; place-items: center; width: 34px; height: 34px; flex-shrink: 0;
+    border: 1px solid var(--border); border-radius: 9px; background: var(--surface);
+    color: var(--muted); font: inherit; font-size: .95rem; cursor: pointer;
+    transition: border-color .15s, color .15s;
+  }
+  .icon-btn:hover:not(:disabled) { border-color: var(--blue); color: var(--blue); }
+  .icon-btn.danger:hover:not(:disabled) { border-color: #B42318; color: #B42318; }
+  .icon-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* ── Sections & cards ───────────────────────────────────────── */
+  .section { padding: 48px 0 76px; }
+  .card-surface { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+
+  .notice {
+    margin: 0; padding: 16px 18px; border-radius: 12px;
+    border: 2px dashed var(--gold); background: #FFF8E6; color: #6b5210;
+  }
+  .notice code { background: rgba(201, 168, 76, .18); padding: 1px 6px; border-radius: 5px; color: #5a4409; }
+  .notice + .notice, .notice + .group, .group + .notice { margin-top: 16px; }
+  .notice ul { margin: 6px 0 0; padding-left: 20px; }
+  .notice li + li { margin-top: 2px; }
+  .notice.is-error { border: 1px solid #F3B8B2; background: #FEF3F2; color: #912018; }
+  .notice.is-info { border: 1px solid #CFE0EF; background: #EEF5FB; color: var(--blue-dark); }
+  .notice .linkish { color: inherit; }
+
+  .badge {
+    display: inline-block; padding: 3px 10px; border-radius: 999px;
+    background: var(--tone-bg, #F3F1EC); color: var(--tone-fg, var(--muted));
+    font-size: .76rem; font-weight: 700; letter-spacing: .02em; white-space: nowrap;
+  }
+  .tone-eng  { --tone-bg: #E8F1FA; --tone-fg: #145289; }
+  .tone-sci  { --tone-bg: #E6F4EE; --tone-fg: #17694A; }
+  .tone-ml   { --tone-bg: #F0EAFB; --tone-fg: #5B3A99; }
+  .tone-pet  { --tone-bg: #FBF1D9; --tone-fg: #7A5A12; }
+
+  /* ── Drop zone & status (as on the Tools cards) ─────────────── */
+  .dropzone {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    min-height: 160px; padding: 20px 16px; border-radius: 12px;
+    border: 2px dashed #CFC8BB; background: var(--bg);
+    text-align: center; cursor: pointer;
+    transition: border-color .15s, background-color .15s;
+  }
+  .dropzone:hover, .dropzone.is-over { border-color: var(--blue); background: #EEF5FB; }
+  .dropzone.has-file { border-style: solid; border-color: var(--gold); background: #FFFBF0; }
+  .dz-icon { font-size: 30px; line-height: 1; margin-bottom: 4px; }
+  .dz-main { font-weight: 600; }
+  .dz-main u { color: var(--blue); text-underline-offset: 3px; }
+  .dz-hint { color: var(--muted); font-size: .85rem; }
+  .dz-file { margin-top: 6px; max-width: 100%; font-weight: 700; color: var(--text); word-break: break-all; }
+
+  .tool-status { min-height: 1.5em; margin: 10px 0 0; font-size: .92rem; font-weight: 600; }
+  .tool-status.is-warn  { color: #92400E; }
+  .tool-status.is-error { color: #B42318; }
+  .tool-status.is-ok    { color: #17694A; }
+  .tool-status.is-busy  { color: var(--blue); }
+
+  /* ── Wizard ─────────────────────────────────────────────────── */
+  .wizard { overflow: hidden; scroll-margin-top: calc(var(--nav-h) + 16px); }
+
+  .stepper {
+    display: flex; gap: 4px; margin: 0; padding: 12px 16px; list-style: none;
+    overflow-x: auto; border-bottom: 1px solid var(--border); background: var(--tint);
+    scrollbar-width: thin;
+  }
+  .stepper li { flex: 0 0 auto; }
+  .stepper button {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 13px 6px 6px; border: 0; border-radius: 999px;
+    background: transparent; color: var(--muted);
+    font: inherit; font-size: .9rem; font-weight: 600; white-space: nowrap; cursor: pointer;
+    transition: color .15s, background-color .15s;
+  }
+  .stepper button:hover:not(:disabled) { color: var(--blue); background: rgba(27, 108, 168, .06); }
+  .stepper button:disabled { opacity: .5; cursor: not-allowed; }
+  .stepper .num {
+    display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
+    border: 1px solid var(--border); background: var(--surface);
+    font-size: .8rem; font-weight: 700;
+  }
+  .stepper button.done .num { background: var(--gold); border-color: var(--gold); color: var(--text); }
+  .stepper button[aria-current="step"] { color: var(--blue); background: rgba(27, 108, 168, .10); box-shadow: inset 0 -2px 0 var(--gold); }
+  .stepper button[aria-current="step"] .num { background: var(--blue); border-color: var(--blue); color: #fff; }
+
+  .step-body { padding: 28px 28px 8px; }
+  .step-body:focus { outline: none; }
+  .step-head { margin-bottom: 22px; }
+  .step-head h2 {
+    display: flex; align-items: center; gap: 12px;
+    margin: 0 0 8px; font-size: clamp(1.35rem, 2.6vw, 1.7rem); line-height: 1.25; letter-spacing: -.01em;
+  }
+  .step-head h2::before { content: ""; width: 6px; height: 1.05em; border-radius: 3px; background: var(--gold); flex-shrink: 0; }
+  .step-head h2:focus { outline: none; }
+  .step-head p { margin: 0; max-width: 780px; color: var(--muted); }
+
+  .messages { padding: 0 28px 18px; }
+  .messages:empty { display: none; }
+
+  .wizard-nav {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 16px 28px; border-top: 1px solid var(--border); background: var(--tint);
+  }
+  .step-count { color: var(--muted); font-size: .9rem; font-weight: 600; }
+
+  /* ── Form controls ──────────────────────────────────────────── */
+  .group { min-width: 0; margin: 0 0 20px; padding: 18px 20px 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+  .group > legend { padding: 0 6px; font-weight: 700; }
+  .group-lead { margin: -2px 0 14px; color: var(--muted); font-size: .92rem; }
+  h3.group-title { margin: 0 0 12px; font-size: 1.05rem; }
+
+  .fields { display: grid; gap: 14px 16px; grid-template-columns: repeat(auto-fill, minmax(min(170px, 100%), 1fr)); }
+  .fields + .fields, .fields + .hint-block { margin-top: 14px; }
+  .field { min-width: 0; }
+  .field.wide { grid-column: 1 / -1; }
+  .field > label, .field-label { display: block; margin-bottom: 5px; font-size: .84rem; font-weight: 600; color: var(--muted); }
+  .unit { font-weight: 500; color: #9CA3AF; }
+
+  input[type="text"], input[type="number"], input[type="url"], input[type="date"], select, textarea {
+    width: 100%; min-height: 40px; padding: 8px 11px;
+    border: 1px solid var(--field); border-radius: 9px; background: #fff; color: var(--text);
+    font: inherit; font-size: .95rem;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(27, 108, 168, .15); }
+  input:disabled, select:disabled { background: #F3F1EC; color: var(--muted); cursor: not-allowed; }
+  input[type="color"] { width: 100%; min-width: 56px; height: 40px; padding: 3px; border: 1px solid var(--field); border-radius: 9px; background: #fff; cursor: pointer; }
+  input[type="range"] { width: 100%; accent-color: var(--blue); }
+  textarea { min-height: 100px; font-family: var(--font-mono); font-size: .85rem; resize: vertical; }
+
+  .hint { margin: 5px 0 0; color: var(--muted); font-size: .82rem; line-height: 1.45; }
+  .hint-block { margin: 12px 0 0; color: var(--muted); font-size: .9rem; }
+  .check { display: inline-flex; align-items: center; gap: 9px; min-height: 40px; font-size: .93rem; font-weight: 600; cursor: pointer; }
+  .check input { width: 18px; height: 18px; margin: 0; accent-color: var(--blue); }
+  .inline { display: flex; gap: 8px; }
+  .inline > input { flex: 1; min-width: 0; }
+
+  .pills { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pill { position: relative; display: inline-block; }
+  .pill input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+  .pill span {
+    display: inline-block; padding: 8px 14px; border: 1px solid var(--border); border-radius: 999px;
+    background: var(--bg); font-size: .92rem; font-weight: 600;
+    transition: background-color .15s, color .15s, border-color .15s;
+  }
+  .pill:hover span { border-color: var(--blue); color: var(--blue); }
+  .pill input:checked + span { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .pill input:focus-visible + span { outline: 3px solid var(--gold); outline-offset: 2px; }
+
+  .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .toolbar .spacer { flex: 1; }
+  .toolbar select { width: auto; min-width: 190px; }
+
+  /* ── Tracks & items ─────────────────────────────────────────── */
+  .track { margin-bottom: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+  .track-head {
+    display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px;
+    padding: 14px 16px; border-bottom: 1px solid var(--border); border-radius: 12px 12px 0 0; background: var(--tint);
+  }
+  .track-no { display: grid; place-items: center; width: 36px; height: 40px; flex-shrink: 0; border-radius: 9px; background: var(--blue); color: #fff; font-weight: 800; }
+  .track-head .field { flex: 1 1 160px; }
+  .track-head .field.narrow { flex: 0 0 96px; }
+  .track-tools { display: flex; gap: 6px; margin-left: auto; padding-bottom: 3px; }
+  .track-body { padding: 16px; }
+  .track-note { margin: 0; color: var(--muted); font-size: .92rem; }
+  .track-title { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .track-title strong { font-size: 1.02rem; }
+  .track-title .axis { color: var(--muted); font-size: .88rem; font-family: var(--font-mono); }
+
+  .item { padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
+  .item + .item { margin-top: 10px; }
+  .item-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .item-head strong { font-size: .98rem; overflow-wrap: anywhere; }
+  .item-head .track-tools { padding-bottom: 0; }
+  .item-sub { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border); }
+  .item-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .add-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .empty { margin: 0; padding: 16px; border: 1px dashed #CFC8BB; border-radius: 10px; color: var(--muted); text-align: center; font-size: .92rem; }
+
+  .swatch-row { display: flex; align-items: center; gap: 8px; }
+  .swatch { flex: 0 0 auto; width: 28px; height: 28px; border-radius: 7px; border: 1px solid rgba(30, 30, 46, .25); }
+
+  /* ── Summaries & tables ─────────────────────────────────────── */
+  .facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(190px, 100%), 1fr)); gap: 12px 20px; margin: 0; }
+  .facts div { min-width: 0; }
+  .facts dt { font-size: .76rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  .facts dd { margin: 2px 0 0; font-weight: 600; overflow-wrap: anywhere; }
+
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+  .table-wrap + .table-wrap, .group .table-wrap { margin-top: 14px; }
+  table.data { width: 100%; border-collapse: collapse; font-size: .9rem; }
+  table.data caption { padding: 12px 14px; text-align: left; font-weight: 700; }
+  table.data th, table.data td { padding: 8px 12px; border-top: 1px solid var(--border); text-align: left; vertical-align: middle; white-space: nowrap; }
+  table.data th { background: #F5F1E8; color: var(--muted); font-size: .76rem; letter-spacing: .05em; text-transform: uppercase; }
+  table.data td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.data td.wrap { min-width: 220px; white-space: normal; }
+  table.data td.mono { font-family: var(--font-mono); font-size: .85rem; }
+  table.edit td { padding: 6px 8px; }
+  table.edit input { min-height: 36px; min-width: 110px; }
+  table.edit td.tools { width: 1%; }
+
+  details.more { margin-top: 12px; }
+  details.more summary { cursor: pointer; color: var(--blue); font-weight: 600; font-size: .92rem; }
+  details.more[open] summary { margin-bottom: 10px; }
+
+  .json {
+    margin: 12px 0 0; max-height: 440px; overflow: auto; padding: 16px;
+    border-radius: 12px; background: var(--text); color: #E5E0D8;
+    font: .8rem/1.5 var(--font-mono); white-space: pre;
+  }
+  .send-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+
+  /* ── Footer ─────────────────────────────────────────────────── */
+  .footer { background: var(--text); color: rgba(255, 255, 255, .68); padding: 40px 0; text-align: center; font-size: .95rem; }
+  .footer p { margin: 0; }
+  .footer p + p { margin-top: 8px; }
+  .footer .f-brand { color: rgba(255, 255, 255, .9); font-weight: 600; }
+  .footer .f-brand .glyph, .footer .f-brand strong { color: var(--gold); }
+  .footer a { color: var(--gold-light); text-decoration: none; }
+  .footer a:hover { color: #fff; text-decoration: underline; }
+
+  /* ── Responsive ─────────────────────────────────────────────── */
+  @media (max-width: 720px) {
+    .section { padding: 32px 0 56px; }
+    .hero { padding: 52px 0 44px; }
+    .step-body { padding: 22px 18px 6px; }
+    .messages { padding: 0 18px 16px; }
+    .wizard-nav { padding: 14px 18px; }
+    .stepper button:not([aria-current="step"]) .label { display: none; }
+    .stepper button:not([aria-current="step"]) { padding-right: 6px; }
+    .group { padding: 16px; }
+  }
+  @media (max-width: 480px) {
+    .container { padding: 0 16px; }
+    .brand { gap: 8px; }
+    .brand-mark { width: 32px; height: 32px; font-size: 19px; border-radius: 9px; }
+    .brand-name { font-size: 1.1rem; }
+    .nav-links { gap: 0; }
+    .nav-links a { padding: 7px 9px; font-size: .88rem; }
+    .step-count { display: none; }
+    .wizard-nav .btn { flex: 1 1 0; padding: 11px 12px; }
+    .track-head .field.narrow { flex: 1 1 96px; }
+    .track-tools { margin-left: 0; }
+    .toolbar select, .toolbar .btn { flex: 1 1 100%; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="nav" aria-label="Primary">
+  <div class="container">
+    <a class="brand" href="https://jshiriyev.github.io/" aria-label="Thoth - home">
+      <span class="brand-mark glyph" aria-hidden="true">𓅓</span>
+      <span class="brand-name">Tho<span>th</span></span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="https://jshiriyev.github.io/#tools">Tools</a></li>
+      <li><a href="https://github.com/jshiriyev/formation-evaluation/blob/main/doc/wellview.md">Guide</a></li>
+      <li><a href="https://github.com/jshiriyev/formation-evaluation">GitHub</a></li>
+    </ul>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <span class="hero-glyph glyph" aria-hidden="true">𓂀</span>
+  <div class="container">
+    <h1>WellView <span class="accent">One-Pager</span></h1>
+    <p>Set up a one-page well log display from a LAS file, step by step. Nothing is drawn here: the page prepares the configuration for the <code>pphys</code> WellView service.</p>
+  </div>
+</header>
+
+<main class="section">
+  <div class="container">
+    <div class="wizard card-surface" id="wizard-card">
+      <nav aria-label="Configuration steps"><ol class="stepper" id="stepper"></ol></nav>
+      <form id="wizard" novalidate>
+        <div class="step-body" id="step-body"></div>
+        <div class="messages" id="messages" role="alert"></div>
+        <div class="wizard-nav">
+          <button type="button" class="btn btn-plain" id="back">← Back</button>
+          <span class="step-count" id="step-count" aria-live="polite"></span>
+          <button type="submit" class="btn btn-blue" id="next">Next →</button>
+        </div>
+      </form>
+      <noscript><p class="notice">This configurator needs JavaScript.</p></noscript>
+    </div>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="container">
+    <p class="f-brand"><span class="glyph" aria-hidden="true">𓅓</span> <strong>Thoth</strong> — Scripts, Structures &amp; Solutions</p>
+    <p>WellView is part of <a href="https://github.com/jshiriyev/formation-evaluation">pphys</a> · the <a href="https://github.com/jshiriyev/formation-evaluation/blob/main/doc/wellview.md">WellView guide</a> explains every setting.</p>
+  </div>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── API contract ────────────────────────────────────────────────
+     The page builds one JSON document describing a pphys WellView.
+     Once a backend exists (API_BASE set), it is POSTed to API_BASE + API_ENDPOINT
+     as multipart/form-data:
+       config   application/json   the document below
+       file     the LAS file       when it was picked from this computer
+     Until then the document is only written to the browser console.
+
+     {
+       "schema": "pphys.onepage.wellview/1",
+       "source": {"type": "file", "name", "size", "lastModified"} | {"type": "url", "url"},
+       "las":    header summary, for reference (well, depth index, curves)
+       "figure": {"size": [width, height] in inches, "title"}
+       "layout": {"ntrail", "ncycle", "label", "depth", "widths", "heights", "xaxes"}
+       "calls":  [{"method": "add_curve", "args": [...], "kwargs": {...}}, ...]
+       "output": {"filename", "format", "dpi", "step"}
+     }
+
+     A backend replays it with pphys:
+       xaxes = layout.pop("xaxes")
+       view = WellView(las, **layout)
+       for index, xaxis in enumerate(xaxes): view.set(index, **xaxis)
+       view(plt.figure(figsize=figure["size"]))
+       for call in calls: getattr(view, call["method"])(*call["args"], **call["kwargs"])
+       view.save(output["filename"], step=output["step"], dpi=output["dpi"])
+
+     Conventions inside "calls":
+       - tables (tops, perforations, casings, survey) are lists of records -> pandas.DataFrame;
+       - {"style": "Lithology.limestone"} stands for **Lithology.limestone
+         (also Mineral.<name> and Porespace.<name>), in add_module kwargs and in
+         the left/right fills of add_cut;
+       - add_perfs "year_axis" keys are years written as strings ("2024").
+     ──────────────────────────────────────────────────────────────── */
+
+  // ── Configuration ──────────────────────────────────────────────
+  const API_BASE = '';                        // e.g. 'https://api.example.com'; empty: console only
+  const API_ENDPOINT = '/onepage/wellview';
+  const SCHEMA = 'pphys.onepage.wellview/1';
+  const SAMPLE_URL = '../../notebooks/tutorial_3_graph_2.LAS';
+
+  const STEPS = [
+    { id: 'las', title: 'LAS file', lead: 'Choose the LAS file to display. It is read in this browser to list its curves, depths and header; the next steps use them to suggest a layout. Nothing is uploaded.' },
+    { id: 'page', title: 'Depth & page', lead: 'Pick the depth window, the depth ticks and the page: its size, title and the header rows that list each track\'s curves.' },
+    { id: 'tracks', title: 'Tracks', lead: 'Lay out the tracks from left to right. Curve tracks get a value range and scale; depth, tops, perforation and casing tracks are filled from the well data.' },
+    { id: 'curves', title: 'Curves & fills', lead: 'Put curves on each curve track, and add cut-off shading, colour shading and fills between curves.' },
+    { id: 'data', title: 'Well data', lead: 'Enter what is not in the LAS file: formation tops, perforations, casing and the deviation survey. Each table is needed only if a track uses it.' },
+    { id: 'output', title: 'Output', lead: 'Choose how the one-pager will be saved.' },
+    { id: 'review', title: 'Review & send', lead: 'Check the configuration, then send it. Until a backend is connected, sending writes it to the browser console.' }
+  ];
+
+  const TRACK_KINDS = {
+    md:      { label: 'Depth (MD)', title: '', width: '1.2' },
+    tvd:     { label: 'Depth (TVD)', title: '', width: '1.2' },
+    curves:  { label: 'Curves', title: '', width: '3' },
+    tops:    { label: 'Formation tops', title: 'Formation', width: '1' },
+    perfs:   { label: 'Perforations', title: 'Perforations', width: '0.7' },
+    casings: { label: 'Casing', title: 'Casing', width: '1.4' }
+  };
+
+  // Fill styles of pphys.onepage: name, label, face colour.
+  const STYLE_TABLES = {
+    Lithology: { label: 'Lithology', styles: [
+      ['limestone', 'limestone', '#2bffff'], ['dolomite', 'dolomite', '#ff99ff'], ['chert', 'chert', '#ffffff'],
+      ['dolomitic_limestone', 'dolomitic limestone', '#2bffff'], ['cherty_dolomite', 'cherty dolomite', '#ff99ff'],
+      ['cherty_limestone', 'cherty limestone', '#2bffff'], ['shaly_limestone', 'shaly limestone', '#2bffff'],
+      ['shaly_dolomite', 'shaly dolomite', '#ff99ff'], ['cherty_dolomitic_limestone', 'cherty dolomitic limestone', '#2bffff'],
+      ['shale', 'shale', '#c0c0c0'], ['calcareous_shale', 'calcareous shale', '#c0c0c0'], ['dolomitic_shale', 'dolomitic shale', '#c0c0c0'],
+      ['sandstone', 'sandstone', '#ffcc66'], ['shaly_sandstone', 'shaly sandstone', '#ffcc66'], ['sandy_shale', 'sandy shale', '#cc9966'],
+      ['ironstone', 'ironstone', '#c0c0c0'], ['coal', 'coal', '#000000'], ['gypsum', 'gypsum', '#9999ff'],
+      ['anhydrite', 'anhydrite', '#cc9933'], ['halite', 'halite', '#33ff66'], ['salt', 'salt', '#33ff66'],
+      ['matrix', 'matrix', '#808080'], ['shale_free', 'shale free', '#ffdead']
+    ] },
+    Mineral: { label: 'Mineral', styles: [
+      ['quartz', 'quartz', '#ffff66'], ['feldspar', 'feldspar', '#ffb380'], ['calcite', 'calcite', '#2bffff'],
+      ['dolomite', 'dolomite', '#ff99ff'], ['illite', 'illite', '#8c8c3a'], ['kaolinite', 'kaolinite', '#d2b48c'],
+      ['chlorite', 'chlorite', '#66a266'], ['smectite', 'smectite', '#4f7942'], ['pyrite', 'pyrite', '#595959'],
+      ['anhydrite', 'anhydrite', '#cc9933'], ['gypsum', 'gypsum', '#9999ff'], ['halite', 'halite', '#33ff66'],
+      ['kerogen', 'kerogen', '#262626']
+    ] },
+    Porespace: { label: 'Pore space', styles: [
+      ['total', 'total', '#ffffff'], ['liquid', 'liquid', '#0000ff'], ['water', 'water', '#4682b4'],
+      ['water_clay_bound', 'water clay bound', '#87cefa'], ['water_capillary_bound', 'water capillary bound', '#b0c4de'],
+      ['water_irreducible', 'water irreducible', '#add8e6'], ['water_movable', 'water movable', '#00ffff'],
+      ['fluid_movable', 'fluid movable', '#008080'], ['hydrocarbon', 'hydrocarbon', '#008000'], ['gas', 'gas', '#f08080'],
+      ['gas_residual', 'gas residual', '#cd5c5c'], ['gas_movable', 'gas movable', '#ff0000'],
+      ['gas_condensate', 'gas condensate', '#b22222'], ['oil', 'oil', '#2e8b57'], ['oil_residual', 'oil residual', '#228b22'],
+      ['oil_movable', 'oil movable', '#32cd32']
+    ] }
+  };
+
+  const COLORMAPS = ['YlOrBr', 'Reds', 'Oranges', 'Greens', 'Blues', 'Purples', 'coolwarm', 'RdYlBu', 'Spectral', 'viridis', 'plasma', 'cividis', 'jet', 'rainbow'];
+  const LINESTYLES = [['-', 'Solid'], ['--', 'Dashed'], [':', 'Dotted'], ['-.', 'Dash-dot']];
+  const RES_ORDER = ['RT', 'RD', 'LLD', 'ILD', 'RDEP', 'HLLD', 'RILD', 'AT90', 'AHT90', 'M2R9', 'LLS', 'ILM', 'RMED', 'HLLS', 'RILM', 'AT60', 'AT30', 'AT20', 'AT10', 'RS', 'RM', 'SFL', 'SFLU', 'MSFL', 'MLL', 'RXO', 'RXOZ'];
+  const RES_COLORS = ['#000000', '#d62728', '#1f77b4', '#2ca02c'];
+
+  // Curve families, as recognized by pphys (_families.py): first match wins.
+  const UNIT_SPELLINGS = {
+    'OHMM': ['OHMM', 'OHM.M', 'OHM-M', 'OHM*M', 'OHM_M'],
+    'GAPI': ['GAPI', 'API', 'API-GR'],
+    'G/CC': ['G/CC', 'G/CM3', 'G/C3', 'GM/CC', 'GR/CC', 'GRAM/CC', 'GRAMPERCC', 'GMPERCC'],
+    'K/M3': ['K/M3', 'KG/M3'],
+    'US/F': ['US/F', 'US/FT', 'USEC/FT', 'MUS/FT', 'MU-SEC/FT', 'MICROSEC/FT'],
+    'US/M': ['US/M', 'USEC/M'],
+    'V/V': ['V/V', 'DEC', 'DECP', 'FRAC', 'FRACTION', 'M3/M3', 'CFCF'],
+    'PU': ['PU', 'P.U.', 'LS-PU', 'SS-PU', 'DS-PU', 'PU-L', 'PU-S'],
+    '%': ['%', 'PCT', 'PERCENT'],
+    'IN': ['IN', 'INCH', 'INCHES'],
+    'MM': ['MM'], 'CM': ['CM'],
+    'DEG': ['DEG', 'DEGREE', 'DEGREES'],
+    'MV': ['MV', 'MILLIVOLTS'],
+    'B/E': ['B/E', 'BARN/E', 'BARNS/E', 'BARNS/ELECTRON'],
+    'DB/F': ['DB/F', 'DB/FT'], 'DB/M': ['DB/M'],
+    'PPM': ['PPM', 'PARTS-PER-MIL', 'PARTSPERMILLION'],
+    'DEGC': ['DEGC', 'DEG_C'], 'DEGF': ['DEGF', 'DEG_F']
+  };
+  const CANONICAL_UNIT = {};
+  Object.keys(UNIT_SPELLINGS).forEach(function (canon) {
+    UNIT_SPELLINGS[canon].forEach(function (s) { CANONICAL_UNIT[s] = canon; });
+  });
+
+  const FAMILIES = [
+    ['density correction', 'DRHO|DRH|DRHB|HDRA|ZCOR|DCOR|DENCORR?|DENSITYCORR', [], false, '#808080'],
+    ['bulk density', 'RHOB|RHOZ|RHO8|RHOM|ZDEN|HDEN|DEN|DENS|DENSITY|BDEL', ['G/CC', 'K/M3'], false, '#d62728'],
+    ['neutron porosity', 'NPHI[A-Z0-9_]*|TNPH|NPOR|NPHS|NPLS|NPSS|CNC|CNCF|CNL|CN|HNPO|APLC|PHIN|NEU|NEUT|NEUTRON|NEUTRONPOROSITY', [], false, '#1f4fd6'],
+    ['photoelectric factor', 'PEF|PE|PEFZ|PEFL|PEF8|PDPE|PEFS', ['B/E'], false, '#c000c0'],
+    ['shear sonic', 'DTS[A-Z0-9_]*|DT4S|DTSH', [], false, '#800080'],
+    ['sonic', 'DT[A-Z0-9_]*|AC|ACS|SONIC', ['US/F', 'US/M'], false, '#000080'],
+    ['caliper', 'CAL[A-Z0-9_]*|HCAL|LCAL|C1|C2|C3', [], false, '#8b4513'],
+    ['bit size', 'BS|BIT|BITSIZE|BSZ', [], false, '#808080'],
+    ['potassium', 'POTA|K|HFK|KPOT|POTASSIUM', [], false, '#006400'],
+    ['thorium', 'THOR|TH|HTHO|THORIUM', [], false, '#ff8c00'],
+    ['uranium', 'URAN|U|HURA|URANIUM', [], false, '#9400d3'],
+    ['gamma ray', 'GR[A-Z0-9_]*|SGR|CGR|HSGR|HCGR|ECGR|EHGR|GAMMA[A-Z0-9_]*', ['GAPI'], false, '#008000'],
+    ['spontaneous potential', 'SP|SPC|SPBL|SPBR|SSP|PSP', ['MV'], false, '#d62728'],
+    ['resistivity', 'RT|RD|RS|RM|RXO[A-Z0-9_]*|RLA[0-9]|MSFL|MLL|SFLU?|LLD|LLS|ILD|ILM|RILD|RILM|RDEP|RMED|RSHAL|HLLD|HLLS|HDRS|HMRS|A[TOF][0-9]{2}[A-Z0-9_]*|AHT[0-9]{2}|M2R[0-9X]|P[0-9]{2}H|RES[A-Z0-9_]*', ['OHMM'], true, '#000000'],
+    ['attenuation', 'AT(AV|MN|MX|C[0-9]+)[A-Z0-9_]*|ATTN[A-Z0-9_]*', ['DB/F', 'DB/M'], false, '#808000'],
+    ['casing collar locator', 'CCL[A-Z0-9_]*|COLLAR', [], false, '#808080'],
+    ['deviation', 'DEV[A-Z0-9_]*|DEVI|INCL|INC|HDEV|DEVIATION', [], false, '#000000'],
+    ['azimuth', 'AZI[A-Z0-9_]*|HAZI|AZIM|P1AZ|HLAZ|RB[A-Z0-9_]*|RELBEAR[A-Z0-9_]*', [], false, '#000000'],
+    ['tension', 'TENS|TTEN|HTEN|CHT|TEN[A-Z0-9_]*|TENSION', [], false, '#000000'],
+    ['logging speed', 'SPD[A-Z0-9_]*|SPEED|CS|LSPD|CVEL', [], false, '#000000'],
+    ['temperature', 'TEMP[A-Z0-9_]*|MTEM|MTEMP|BHT|HTEM', [], false, '#b22222'],
+    ['volume fraction', 'PHI[A-Z0-9_]*|POR[A-Z0-9_]*|SW[A-Z0-9_]*|SXO|VSH[A-Z0-9_]*|VCL[A-Z0-9_]*|BVW', [], false, '#008080']
+  ].map(function (f) {
+    return { name: f[0], regex: new RegExp('^(?:' + f[1] + ')$'), units: f[2], log: f[3], color: f[4] };
+  });
+
+  // ── State ──────────────────────────────────────────────────────
+  // Values typed by the user are kept as strings and parsed when needed.
+  const state = {
+    step: 0,
+    reached: 0,
+    las: null,
+    source: null,
+    file: null,
+    urlDraft: '',
+    lasStatus: { text: '', kind: '' },
+    sendStatus: { text: '', kind: '' },
+    depth: { top: '', base: '', major: '10', minor: '2', grid: true },
+    page: { title: '', width: '12', height: '11', spot: 'top', rowsMode: 'auto', rows: '4', share: '18' },
+    tracks: [],
+    data: { tops: [], perfs: [], casings: [], survey: [], perfSeparators: true },
+    output: { filename: 'onepager', format: 'pdf', dpi: '200', paged: false, pageLength: '' }
+  };
+  let nextId = 1;
+
+  // ── Small helpers ──────────────────────────────────────────────
+  function esc(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function uid(prefix) { return prefix + (nextId++); }
+  function num(value) {
+    if (value === null || value === undefined) return NaN;
+    const text = String(value).trim();
+    return text === '' ? NaN : Number(text);
+  }
+  function isNum(value) { return isFinite(num(value)); }
+  function blank(value) { return value === null || value === undefined || String(value).trim() === ''; }
+  function round(x, digits) { return Number(Number(x).toPrecision(digits || 12)); }
+  function fmt(x) {
+    if (x === null || x === undefined || !isFinite(x)) return '';
+    return String(Number(Number(x).toPrecision(6)));
+  }
+  function clean(object) {
+    const out = {};
+    Object.keys(object).forEach(function (k) { if (object[k] !== undefined) out[k] = object[k]; });
+    return out;
+  }
+  function niceStep(x) {
+    if (!(x > 0) || !isFinite(x)) return 1;
+    const power = Math.pow(10, Math.floor(Math.log10(x)));
+    const m = x / power;
+    return round((m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * power);
+  }
+  function niceRange(lo, hi) {
+    if (!isFinite(lo) || !isFinite(hi)) return [0, 1];
+    if (lo === hi) { lo -= 1; hi += 1; }
+    const step = niceStep((hi - lo) / 5);
+    return [round(Math.floor(lo / step) * step), round(Math.ceil(hi / step) * step)];
+  }
+  function suggestTicks(length) {
+    const major = niceStep(Math.abs(length) / 8);
+    return [major, round(major / 5)];
+  }
+  function canonUnit(unit) {
+    const key = String(unit || '').trim().toUpperCase().replace(/\s+/g, '');
+    return CANONICAL_UNIT[key] || key;
+  }
+  function depthUnit() { return state.las ? state.las.depth.unit || '' : ''; }
+  function metresPer(unit) {
+    const u = String(unit || '').trim().toUpperCase();
+    return u === 'M' ? 1 : (u === 'FT' || u === 'F') ? 0.3048 : null;
+  }
+  function inches(od) {
+    if (typeof od === 'number') return od;
+    const parts = String(od || '').replace(/"/g, '').replace(/-/g, ' ').trim().split(/\s+/);
+    let total = 0;
+    for (const part of parts) {
+      if (part === '') continue;
+      const m = /^(\d+(?:\.\d+)?)(?:\/(\d+(?:\.\d+)?))?$/.exec(part);
+      if (!m) return NaN;
+      total += m[2] ? Number(m[1]) / Number(m[2]) : Number(m[1]);
+    }
+    return parts.length ? total : NaN;
+  }
+  function slug(text) {
+    const s = String(text || '').trim().replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^_+|_+$/g, '');
+    return s || 'well';
+  }
+  function styleColor(kind, name) {
+    const table = STYLE_TABLES[kind];
+    if (!table) return null;
+    const hit = table.styles.find(function (s) { return s[0] === name; });
+    return hit ? hit[2] : null;
+  }
+
+  // ── LAS reading ────────────────────────────────────────────────
+  function sectionOf(line) {
+    const name = line.slice(1).trim().toUpperCase();
+    if (name.indexOf('LOG_DATA') === 0) return 'A';
+    if (name.indexOf('LOG_DEFINITION') === 0) return 'C';
+    if (name.indexOf('LOG_PARAMETER') === 0) return 'P';
+    if (/^[A-Z]+_/.test(name)) return null;          // other LAS 3.0 sections
+    const c = name.charAt(0);
+    return 'VWCPOA'.indexOf(c) >= 0 && c !== '' ? c : null;
+  }
+
+  function headerItem(line) {
+    const dot = line.indexOf('.');
+    if (dot <= 0) return null;
+    const mnemonic = line.slice(0, dot).trim();
+    const match = /^(\S*)([\s\S]*)$/.exec(line.slice(dot + 1));
+    let unit = match[1];
+    let rest = match[2];
+    const inUnit = unit.indexOf(':');
+    if (inUnit >= 0) { rest = unit.slice(inUnit) + rest; unit = unit.slice(0, inUnit); }
+    const colon = rest.lastIndexOf(':');
+    return {
+      mnemonic: mnemonic,
+      unit: unit,
+      value: (colon >= 0 ? rest.slice(0, colon) : rest).trim(),
+      descr: colon >= 0 ? rest.slice(colon + 1).trim() : ''
+    };
+  }
+
+  function classify(mnemonic, unit) {
+    const key = String(mnemonic).replace(/:\d+$/, '').toUpperCase().replace(/\s+/g, '');
+    for (const family of FAMILIES) if (family.regex.test(key)) return family;
+    const canon = canonUnit(unit);
+    if (canon) for (const family of FAMILIES) if (family.units.indexOf(canon) >= 0) return family;
+    return null;
+  }
+
+  function curveStats(values, depth) {
+    let count = 0, min = Infinity, max = -Infinity, top = Infinity, base = -Infinity;
+    const stride = Math.max(1, Math.floor(values.length / 20000));
+    const sample = [];
+    for (let r = 0; r < values.length; r++) {
+      const v = values[r];
+      if (v !== v) continue;
+      count++;
+      if (v < min) min = v;
+      if (v > max) max = v;
+      const d = depth[r];
+      if (d === d) { if (d < top) top = d; if (d > base) base = d; }
+      if (r % stride === 0) sample.push(v);
+    }
+    sample.sort(function (a, b) { return a - b; });
+    function quantile(p) { return sample.length ? sample[Math.min(sample.length - 1, Math.floor(p * (sample.length - 1)))] : NaN; }
+    return {
+      count: count,
+      min: count ? min : NaN, max: count ? max : NaN,
+      p1: quantile(0.01), p99: quantile(0.99),
+      top: count ? top : NaN, base: count ? base : NaN,
+      coverage: values.length ? count / values.length : 0
+    };
+  }
+
+  function parseLas(text) {
+    const warnings = [];
+    const sections = { V: [], W: [], C: [], P: [] };
+    const tokens = [];
+    let section = null;
+    let sawData = false;
+
+    const lines = text.split(/\r\n|\n|\r/);
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line || line.charAt(0) === '#') continue;
+      if (line.charAt(0) === '~') {
+        section = sectionOf(line);
+        if (section === 'A') sawData = true;
+        continue;
+      }
+      if (section === 'A') {
+        const parts = line.split(/[\s,]+/);
+        for (let k = 0; k < parts.length; k++) if (parts[k] !== '') tokens.push(Number(parts[k]));
+      } else if (section && sections[section]) {
+        const item = headerItem(line);
+        if (item) sections[section].push(item);
+      }
+    }
+
+    if (!sections.C.length) throw new Error('No ~Curve section: this does not look like a LAS file.');
+    if (!sawData) throw new Error('No ~A (data) section was found.');
+
+    const lookup = function (items) {
+      const out = {};
+      items.forEach(function (item) { out[item.mnemonic.toUpperCase()] = item; });
+      return out;
+    };
+    const version = lookup(sections.V);
+    const well = lookup(sections.W);
+    const vers = version.VERS ? version.VERS.value : '';
+    const wrap = version.WRAP ? version.WRAP.value.toUpperCase() : 'NO';
+    if (/^3/.test(vers)) warnings.push('LAS 3.0 is only partly supported: only the log data section is read.');
+
+    let nullValue = well.NULL ? Number(well.NULL.value) : NaN;
+    if (!isFinite(nullValue)) { nullValue = -999.25; warnings.push('The header has no NULL value; -999.25 is assumed.'); }
+
+    // Repeated mnemonics get :1, :2, ... as lasio names them.
+    const counts = {};
+    sections.C.forEach(function (c) { counts[c.mnemonic] = (counts[c.mnemonic] || 0) + 1; });
+    const seen = {};
+    const defs = sections.C.map(function (c) {
+      let name = c.mnemonic;
+      if (counts[name] > 1) { seen[name] = (seen[name] || 0) + 1; name = name + ':' + seen[name]; }
+      return { mnemonic: name, unit: c.unit, descr: c.descr };
+    });
+    if (Object.keys(seen).length) warnings.push('Some mnemonics repeat; they are numbered as lasio does (e.g. ' + Object.keys(seen)[0] + ':1).');
+
+    const ncol = defs.length;
+    const nrow = Math.floor(tokens.length / ncol);
+    if (nrow < 2) throw new Error('The data section has fewer than two depth samples.');
+    if (tokens.length % ncol) warnings.push('The data section has ' + (tokens.length % ncol) + ' values left over after ' + nrow + ' rows of ' + ncol + ' curves.');
+    if (wrap === 'YES') warnings.push('Wrapped data (WRAP YES) was read as one row per depth.');
+
+    const tolerance = 1e-9 * Math.max(1, Math.abs(nullValue));
+    const columns = defs.map(function () { return new Float64Array(nrow); });
+    for (let r = 0; r < nrow; r++) {
+      for (let j = 0; j < ncol; j++) {
+        const v = tokens[r * ncol + j];
+        columns[j][r] = (v !== v || Math.abs(v - nullValue) <= tolerance) ? NaN : v;
+      }
+    }
+
+    const depth = columns[0];
+    const depthStats = curveStats(depth, depth);
+    if (depthStats.count < 2) throw new Error('The depth curve has fewer than two values.');
+
+    const steps = [];
+    for (let r = 1; r < nrow && steps.length < 4000; r++) {
+      const d = depth[r] - depth[r - 1];
+      if (d === d && d !== 0) steps.push(Math.abs(d));
+    }
+    steps.sort(function (a, b) { return a - b; });
+    const step = steps.length ? round(steps[Math.floor(steps.length / 2)], 10) : NaN;
+
+    const curves = defs.map(function (def, j) {
+      const family = j === 0 ? null : classify(def.mnemonic, def.unit);
+      return {
+        mnemonic: def.mnemonic,
+        key: def.mnemonic.toUpperCase().replace(/\s+/g, ''),
+        unit: def.unit,
+        descr: def.descr,
+        family: family,
+        color: family ? family.color : '#000000',
+        stats: j === 0 ? depthStats : curveStats(columns[j], depth)
+      };
+    });
+
+    const value = function (key) { return well[key] ? well[key].value : ''; };
+    return {
+      version: vers,
+      nullValue: nullValue,
+      well: {
+        WELL: value('WELL'), FLD: value('FLD'), COMP: value('COMP'), SRVC: value('SRVC'),
+        DATE: value('DATE'), LOC: value('LOC'), CTRY: value('CTRY'), UWI: value('UWI'), API: value('API')
+      },
+      depth: {
+        mnemonic: defs[0].mnemonic, unit: defs[0].unit,
+        top: depthStats.min, base: depthStats.max, step: step
+      },
+      rows: nrow,
+      curves: curves,
+      warnings: warnings
+    };
+  }
+
+  // ── Suggestions from the LAS file ──────────────────────────────
+  function lin(left, right) { return { left: left, right: right, scale: 'linear' }; }
+
+  function suggestAxis(curve) {
+    const s = curve.stats;
+    const unit = canonUnit(curve.unit);
+    const name = curve.family ? curve.family.name : '';
+    const porosityUnits = unit === 'PU' || unit === '%' || s.p99 > 1.5;
+    switch (name) {
+      case 'gamma ray':
+        return lin(0, s.p99 > 150 ? Math.ceil(s.p99 / 50) * 50 : 150);
+      case 'resistivity': {
+        let lo = 0.2, hi = 2000;
+        while (s.p1 < lo && lo > 1e-4) lo = round(lo / 10);
+        while (s.p99 > hi && hi < 1e8) hi = round(hi * 10);
+        return { left: lo, right: hi, scale: 'log10' };
+      }
+      case 'bulk density': return unit === 'K/M3' ? lin(1950, 2950) : lin(1.95, 2.95);
+      case 'neutron porosity': return porosityUnits ? lin(45, -15) : lin(0.45, -0.15);
+      case 'photoelectric factor': return lin(0, 10);
+      case 'sonic': return unit === 'US/M' ? lin(460, 130) : lin(140, 40);
+      case 'shear sonic': return unit === 'US/M' ? lin(800, 130) : lin(240, 40);
+      case 'caliper':
+      case 'bit size':
+        if (unit === 'MM') return lin(150, 400);
+        if (unit === 'CM') return lin(15, 40);
+        return lin(Math.min(6, Math.floor(s.p1)), Math.max(16, Math.ceil(s.p99)));
+      case 'density correction': return lin(-0.25, 0.25);
+      case 'volume fraction': return porosityUnits ? lin(0, 100) : lin(0, 1);
+      default: {
+        const range = niceRange(s.p1, s.p99);
+        return lin(range[0], range[1]);
+      }
+    }
+  }
+
+  function newTrack(kind, overrides, axis) {
+    const defaults = TRACK_KINDS[kind];
+    axis = axis || lin(0, 100);
+    return Object.assign({
+      id: uid('t'), kind: kind, title: defaults.title, width: defaults.width,
+      left: fmt(axis.left), right: fmt(axis.right), scale: axis.scale,
+      grid: true, major: '', minor: '', year: '', items: []
+    }, overrides || {});
+  }
+
+  function newFill(kind, color, style) { return { kind: kind, color: color, style: style }; }
+
+  function newCurve(curve, overrides) {
+    const item = {
+      id: uid('i'), type: 'curve', mnemonic: curve ? curve.mnemonic : '',
+      color: curve ? curve.color : '#000000', linestyle: '-', linewidth: '1',
+      title: '', row: 'auto', ownLeft: '', ownRight: '',
+      cut: { on: false, value: '', left: newFill('color', '#ffd966', 'sandstone'), right: newFill('color', '#8c8c3a', 'shale') }
+    };
+    overrides = overrides || {};
+    if (overrides.own) { item.ownLeft = fmt(overrides.own.left); item.ownRight = fmt(overrides.own.right); delete overrides.own; }
+    return Object.assign(item, overrides);
+  }
+
+  function newShade(curve, track) {
+    return {
+      id: uid('i'), type: 'shade', mnemonic: curve ? curve.mnemonic : '',
+      baseline: track ? track.left : '', colormap: 'YlOrBr', vmin: '', vmax: '', title: '', row: 'auto'
+    };
+  }
+
+  function newModule(left, right, fill, title) {
+    return { id: uid('i'), type: 'fill', left: left || 'edge', right: right || 'edge', fill: fill || newFill('color', '#d2b48c', 'shale'), title: title || '', row: 'auto' };
+  }
+
+  function suggestTracks(las) {
+    const curves = las.curves.slice(1).filter(function (c) { return c.stats.count > 0; });
+    function family(name) { return curves.filter(function (c) { return c.family && c.family.name === name; }); }
+    function pick(name, prefer) {
+      const list = family(name);
+      if (!list.length) return null;
+      for (const p of prefer || []) {
+        const hit = list.find(function (c) { return c.key === p; });
+        if (hit) return hit;
+      }
+      return list.slice().sort(function (a, b) { return b.stats.coverage - a.stats.coverage; })[0];
+    }
+
+    const tracks = [newTrack('md')];
+
+    const gr = pick('gamma ray', ['GR', 'GAMMA', 'SGR', 'CGR', 'ECGR', 'HSGR', 'GRC']);
+    const sp = pick('spontaneous potential', ['SP', 'SSP']);
+    if (gr || sp) {
+      const lead = gr || sp;
+      const t = newTrack('curves', { title: gr ? 'Gamma ray' : 'SP' }, suggestAxis(lead));
+      t.items.push(newCurve(lead));
+      if (gr && sp) t.items.push(newCurve(sp, { linestyle: '--', own: suggestAxis(sp) }));
+      tracks.push(t);
+    }
+
+    const cal = pick('caliper', ['CALI', 'CAL', 'CALIPER', 'HCAL', 'C1']);
+    const bs = pick('bit size', ['BS', 'BIT', 'BITSIZE']);
+    if (cal) {
+      const t = newTrack('curves', { title: 'Caliper', width: '2' }, suggestAxis(cal));
+      const caliper = newCurve(cal);
+      if (bs) {
+        const bit = newCurve(bs, { linestyle: ':', color: '#000000' });
+        t.items.push(bit, caliper, newModule(bit.id, caliper.id, newFill('color', '#d2b48c', 'shale'), 'hole'));
+      } else {
+        t.items.push(caliper);
+      }
+      tracks.push(t);
+    }
+
+    const res = family('resistivity').slice().sort(function (a, b) {
+      const ia = RES_ORDER.indexOf(a.key), ib = RES_ORDER.indexOf(b.key);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    }).slice(0, 4);
+    if (res.length) {
+      const axes = res.map(suggestAxis);
+      const axis = {
+        left: Math.min.apply(null, axes.map(function (a) { return a.left; })),
+        right: Math.max.apply(null, axes.map(function (a) { return a.right; })),
+        scale: 'log10'
+      };
+      const t = newTrack('curves', { title: 'Resistivity' }, axis);
+      res.forEach(function (c, k) { t.items.push(newCurve(c, { color: RES_COLORS[k] })); });
+      tracks.push(t);
+    }
+
+    const den = pick('bulk density', ['RHOB', 'RHOZ', 'DEN', 'DENSITY', 'ZDEN']);
+    const neu = pick('neutron porosity', ['NPHI', 'TNPH', 'NPOR', 'NEU', 'CNC']);
+    if (den) {
+      const t = newTrack('curves', { title: neu ? 'Density-neutron' : 'Density' }, suggestAxis(den));
+      t.items.push(newCurve(den));
+      if (neu && canonUnit(den.unit) !== 'K/M3') t.items.push(newCurve(neu, { own: suggestAxis(neu) }));
+      tracks.push(t);
+    } else if (neu) {
+      const t = newTrack('curves', { title: 'Neutron' }, suggestAxis(neu));
+      t.items.push(newCurve(neu));
+      tracks.push(t);
+    }
+
+    const pe = pick('photoelectric factor', ['PEF', 'PE']);
+    if (pe) {
+      const t = newTrack('curves', { title: 'PE', width: '2' }, suggestAxis(pe));
+      t.items.push(newCurve(pe));
+      tracks.push(t);
+    }
+
+    const dt = pick('sonic', ['DT', 'DTC', 'DTCO', 'AC']);
+    if (dt) {
+      const t = newTrack('curves', { title: 'Sonic' }, suggestAxis(dt));
+      t.items.push(newCurve(dt));
+      tracks.push(t);
+    }
+
+    if (tracks.length === 1) {
+      // Nothing recognized: show the first curves that have values.
+      curves.slice(0, 3).forEach(function (c) {
+        const t = newTrack('curves', { title: c.mnemonic }, suggestAxis(c));
+        t.items.push(newCurve(c));
+        tracks.push(t);
+      });
+    }
+    return tracks;
+  }
+
+  function wellName() {
+    if (!state.las) return '';
+    const w = state.las.well.WELL;
+    return w && !/^unknown$/i.test(w) ? w : '';
+  }
+
+  function applyLasDefaults(las) {
+    state.depth.top = fmt(las.depth.top);
+    state.depth.base = fmt(las.depth.base);
+    const ticks = suggestTicks(las.depth.base - las.depth.top);
+    state.depth.major = fmt(ticks[0]);
+    state.depth.minor = fmt(ticks[1]);
+    const name = wellName();
+    const stem = state.source && state.source.name ? state.source.name.replace(/\.las$/i, '') :
+      state.source && state.source.url ? state.source.url.split('/').pop().replace(/\.las$/i, '') : 'well';
+    state.page.title = name;
+    state.tracks = suggestTracks(las);
+    state.output.filename = slug(name || stem) + '_onepager';
+    state.output.pageLength = fmt(niceStep((las.depth.base - las.depth.top) / 4));
+  }
+
+  function curveByName(mnemonic) {
+    if (!state.las) return null;
+    return state.las.curves.find(function (c) { return c.mnemonic === mnemonic; }) || null;
+  }
+
+  // ── Header rows, scales and the payload ───────────────────────
+  function assignRows(track) {
+    const map = {};
+    if (track.kind === 'md' || track.kind === 'tvd') return { map: map, count: 1 };
+    if (track.kind !== 'curves') return { map: map, count: 0 };
+    const used = {};
+    track.items.forEach(function (it) { if (it.row !== 'auto' && it.row !== 'none') used[+it.row] = true; });
+    let next = 0, count = 0;
+    track.items.forEach(function (it) {
+      if (it.row === 'none') { map[it.id] = false; return; }
+      if (it.row === 'auto') {
+        while (used[next]) next++;
+        map[it.id] = next;
+        used[next] = true;
+      } else {
+        map[it.id] = +it.row;
+      }
+      count = Math.max(count, map[it.id] + 1);
+    });
+    return { map: map, count: count };
+  }
+
+  function neededRows() {
+    return Math.max(1, Math.max.apply(null, [0].concat(state.tracks.map(function (t) { return assignRows(t).count; }))));
+  }
+
+  function headerRows() {
+    return state.page.rowsMode === 'fixed' ? Math.round(num(state.page.rows)) : neededRows();
+  }
+
+  function mapping(track, item) {
+    if (track.scale === 'log10' || blank(item.ownLeft) || blank(item.ownRight)) return { multp: 1, shift: 0 };
+    const a = num(item.ownLeft), b = num(item.ownRight), L = num(track.left), R = num(track.right);
+    const multp = (R - L) / (b - a);
+    return { multp: round(multp), shift: round(L - a * multp) };
+  }
+
+  function fillSpec(fill) {
+    if (!fill || fill.kind === 'none') return null;
+    if (fill.kind === 'color') return { facecolor: fill.color };
+    return { style: fill.kind + '.' + fill.style };
+  }
+
+  function records(table) {
+    const rows = state.data[table];
+    if (table === 'tops') {
+      return rows.filter(function (r) { return !blank(r.formation) || !blank(r.depth); }).map(function (r) {
+        return clean({ formation: String(r.formation).trim(), depth: num(r.depth), facecolor: blank(r.color) ? undefined : String(r.color).trim() });
+      });
+    }
+    if (table === 'perfs') {
+      return rows.filter(function (r) { return !blank(r.top) || !blank(r.base); }).map(function (r) {
+        return clean({ top: num(r.top), base: num(r.base), date: blank(r.date) ? undefined : r.date });
+      });
+    }
+    if (table === 'casings') {
+      return rows.filter(function (r) { return !blank(r.od) || !blank(r.base); }).map(function (r) {
+        const od = String(r.od).trim();
+        return clean({ od: /^\d+(\.\d+)?$/.test(od) ? Number(od) : od, base: num(r.base), top: blank(r.top) ? undefined : num(r.top) });
+      });
+    }
+    return rows.filter(function (r) { return !blank(r.md) || !blank(r.tvd); }).map(function (r) {
+      return { MD: num(r.md), TVD: num(r.tvd) };
+    });
+  }
+
+  function call(method, args, kwargs) { return { method: method, args: args, kwargs: clean(kwargs || {}) }; }
+
+  function curveTrackCalls(track, index, calls) {
+    const rows = assignRows(track).map;
+    const lines = {};
+    let line = 0;
+    track.items.forEach(function (it) { if (it.type === 'curve') lines[it.id] = line++; });
+
+    track.items.forEach(function (it) {
+      const title = String(it.title || '').trim() || undefined;
+      if (it.type === 'curve') {
+        const m = mapping(track, it);
+        const kwargs = {
+          multp: m.multp, shift: m.shift, cycle: rows[it.id], title: title,
+          color: it.color, linestyle: it.linestyle, linewidth: num(it.linewidth)
+        };
+        if (it.cut.on) {
+          calls.push(call('add_cut', [index, it.mnemonic, num(it.cut.value)],
+            Object.assign({ left: fillSpec(it.cut.left), right: fillSpec(it.cut.right) }, kwargs)));
+        } else {
+          calls.push(call('add_curve', [index, it.mnemonic], kwargs));
+        }
+      } else if (it.type === 'shade') {
+        calls.push(call('add_shade', [index, it.mnemonic], {
+          x2: isNum(it.baseline) ? num(it.baseline) : num(track.left),
+          colormap: it.colormap,
+          vmin: isNum(it.vmin) ? num(it.vmin) : undefined,
+          vmax: isNum(it.vmax) ? num(it.vmax) : undefined,
+          cycle: rows[it.id], title: title
+        }));
+      }
+    });
+
+    // Fills come after every curve of the track, which they refer to by line index.
+    track.items.forEach(function (it) {
+      if (it.type !== 'fill') return;
+      calls.push(call('add_module', [index], Object.assign({
+        left: it.left === 'edge' ? null : lines[it.left],
+        right: it.right === 'edge' ? null : lines[it.right],
+        cycle: rows[it.id],
+        title: String(it.title || '').trim() || undefined
+      }, fillSpec(it.fill) || { facecolor: 'none' })));
+    });
+  }
+
+  function xaxisOf(track) {
+    if (track.kind !== 'curves') return { limit: [0, 1], grid: false };
+    const xaxis = { limit: [num(track.left), num(track.right)], scale: track.scale, grid: !!track.grid };
+    if (track.scale === 'linear') {
+      if (isNum(track.major)) xaxis.major = num(track.major);
+      if (isNum(track.minor)) xaxis.minor = num(track.minor);
+    }
+    return xaxis;
+  }
+
+  function buildPayload() {
+    const las = state.las;
+    const tracks = state.tracks;
+    const ncycle = headerRows();
+    const top = num(state.depth.top), base = num(state.depth.base);
+    const length = Math.abs(base - top) || 1;
+    const share = Math.min(Math.max(num(state.page.share) || 18, 1), 90) / 100;
+    const rowHeight = round(share / (1 - share) * length / Math.max(1, ncycle), 6);
+
+    const calls = [];
+    tracks.forEach(function (t, i) {
+      const title = String(t.title || '').trim() || undefined;
+      if (t.kind === 'md') calls.push(call('add_depths', [i], { title: title, scale: true }));
+      else if (t.kind === 'tvd') calls.push(call('add_depths', [i], { survey: records('survey'), title: title, scale: true }));
+      else if (t.kind === 'tops') calls.push(call('add_tops', [i, records('tops')], { title: title }));
+      else if (t.kind === 'casings') calls.push(call('add_casings', [i, records('casings')], { title: title }));
+      else if (t.kind === 'curves') curveTrackCalls(t, i, calls);
+    });
+
+    const perfTracks = [];
+    tracks.forEach(function (t, i) { if (t.kind === 'perfs') perfTracks.push([t, i]); });
+    if (perfTracks.length) {
+      const main = perfTracks.find(function (p) { return blank(p[0].year); }) || perfTracks[0];
+      const yearAxis = {};
+      perfTracks.forEach(function (p) { if (!blank(p[0].year)) yearAxis[String(p[0].year).trim()] = p[1]; });
+      calls.push(call('add_perfs', [main[1], records('perfs')], {
+        year_axis: Object.keys(yearAxis).length ? yearAxis : undefined,
+        sep_line: !!state.data.perfSeparators,
+        title: String(main[0].title || '').trim() || undefined
+      }));
+    }
+
+    const paged = state.output.format === 'pdf' && state.output.paged;
+    return {
+      schema: SCHEMA,
+      created: new Date().toISOString(),
+      source: state.source,
+      las: las ? {
+        version: las.version, rows: las.rows, null: las.nullValue, well: las.well,
+        depth: las.depth,
+        curves: las.curves.map(function (c) {
+          return { mnemonic: c.mnemonic, unit: c.unit, description: c.descr, family: c.family ? c.family.name : null };
+        })
+      } : null,
+      figure: { size: [num(state.page.width), num(state.page.height)], title: String(state.page.title || '').trim() || null },
+      layout: {
+        ntrail: tracks.length,
+        ncycle: ncycle,
+        label: { spot: state.page.spot === 'none' ? null : state.page.spot, major: 10 },
+        depth: {
+          limit: [top, base], major: num(state.depth.major), minor: num(state.depth.minor),
+          spot: tracks.map(function (t, i) { return t.kind === 'md' || t.kind === 'tvd' ? i : -1; }).filter(function (i) { return i >= 0; }),
+          grid: !!state.depth.grid
+        },
+        widths: tracks.map(function (t) { return num(t.width); }),
+        heights: [rowHeight, 1],
+        xaxes: tracks.map(xaxisOf)
+      },
+      calls: calls,
+      output: {
+        filename: String(state.output.filename).trim() + '.' + state.output.format,
+        format: state.output.format,
+        dpi: Math.round(num(state.output.dpi)),
+        step: paged ? num(state.output.pageLength) : null
+      }
+    };
+  }
+
+  function stepPayload(id, p) {
+    switch (id) {
+      case 'las': return { source: p.source, las: p.las };
+      case 'page': return { figure: p.figure, ncycle: p.layout.ncycle, label: p.layout.label, depth: p.layout.depth, heights: p.layout.heights };
+      case 'tracks': return {
+        ntrail: p.layout.ntrail, widths: p.layout.widths, xaxes: p.layout.xaxes,
+        tracks: state.tracks.map(function (t, i) { return { index: i, kind: t.kind, title: t.title }; })
+      };
+      case 'curves': return { calls: p.calls.filter(function (c) { return ['add_curve', 'add_cut', 'add_shade', 'add_module'].indexOf(c.method) >= 0; }) };
+      case 'data': return { tops: records('tops'), perfs: records('perfs'), casings: records('casings'), survey: records('survey') };
+      case 'output': return p.output;
+      default: return p;
+    }
+  }
+
+  // ── Validation ─────────────────────────────────────────────────
+  function trackName(t, i) {
+    const title = String(t.title || '').trim();
+    return 'Track ' + i + ' (' + (title || TRACK_KINDS[t.kind].label) + ')';
+  }
+
+  function result() { return { errors: [], warnings: [] }; }
+
+  const VALIDATE = {
+    las: function () {
+      const r = result();
+      if (!state.las) r.errors.push('Choose a LAS file first.');
+      return r;
+    },
+
+    page: function () {
+      const r = result();
+      const las = state.las;
+      const top = num(state.depth.top), base = num(state.depth.base);
+      const unit = depthUnit();
+      if (!isFinite(top) || !isFinite(base)) r.errors.push('Enter the top and base of the depth window.');
+      else if (top >= base) r.errors.push('The top of the depth window must be shallower (smaller) than its base.');
+      else if (las && (base <= las.depth.top || top >= las.depth.base)) r.errors.push('The depth window does not overlap the logged interval, ' + fmt(las.depth.top) + ' to ' + fmt(las.depth.base) + ' ' + unit + '.');
+      else if (las && (top < las.depth.top || base > las.depth.base)) r.warnings.push('The depth window reaches beyond the logged interval; the tracks are empty there.');
+      const major = num(state.depth.major), minor = num(state.depth.minor);
+      if (!(major > 0) || !(minor > 0)) r.errors.push('The depth tick spacings must be positive numbers.');
+      else if (isFinite(top) && isFinite(base)) {
+        if ((base - top) / minor > 2000) r.errors.push('The minor depth spacing gives more than 2000 ticks; choose a larger one.');
+        if (minor > major) r.warnings.push('The minor depth spacing is larger than the major one.');
+      }
+      const width = num(state.page.width), height = num(state.page.height);
+      if (!(width >= 2 && width <= 60) || !(height >= 2 && height <= 60)) r.errors.push('The page width and height must be between 2 and 60 inches.');
+      if (state.page.spot !== 'none') {
+        const share = num(state.page.share);
+        if (!(share >= 5 && share <= 60)) r.errors.push('The header share must be between 5 and 60 %.');
+        if (state.page.rowsMode === 'fixed') {
+          const rows = num(state.page.rows);
+          if (!(rows >= 1 && rows <= 20 && Math.round(rows) === rows)) r.errors.push('The number of header rows must be a whole number from 1 to 20.');
+        }
+      }
+      return r;
+    },
+
+    tracks: function () {
+      const r = result();
+      const tracks = state.tracks;
+      if (!tracks.length) r.errors.push('Add at least one track.');
+      const years = {};
+      tracks.forEach(function (t, i) {
+        const name = trackName(t, i);
+        if (!(num(t.width) > 0)) r.errors.push(name + ': the width must be a positive number.');
+        if (t.kind === 'curves') {
+          const L = num(t.left), R = num(t.right);
+          if (!isFinite(L) || !isFinite(R)) r.errors.push(name + ': enter its left and right values.');
+          else if (L === R) r.errors.push(name + ': the left and right values must differ.');
+          else if (t.scale === 'log10' && (L <= 0 || R <= 0)) r.errors.push(name + ': a log10 track needs positive left and right values.');
+          else if (t.scale === 'linear') {
+            ['major', 'minor'].forEach(function (key) {
+              if (!blank(t[key]) && !(num(t[key]) > 0)) r.errors.push(name + ': the ' + key + ' grid spacing must be a positive number or empty (automatic).');
+            });
+            if (num(t.minor) > 0 && Math.abs(R - L) / num(t.minor) > 1000) r.errors.push(name + ': the minor grid spacing gives more than 1000 lines.');
+          }
+        }
+        if (t.kind === 'perfs' && !blank(t.year)) {
+          const year = String(t.year).trim();
+          if (!/^\d{4}$/.test(year)) r.errors.push(name + ': the year must have four digits.');
+          else if (years[year] !== undefined) r.errors.push(name + ': year ' + year + ' is already shown in track ' + years[year] + '.');
+          else years[year] = i;
+        }
+      });
+      if (tracks.length && !tracks.some(function (t) { return t.kind === 'md' || t.kind === 'tvd'; })) r.warnings.push('There is no depth track, so no depth values will be written.');
+      if (tracks.length && !tracks.some(function (t) { return t.kind !== 'md' && t.kind !== 'tvd'; })) r.warnings.push('There are only depth tracks.');
+      return r;
+    },
+
+    curves: function () {
+      const r = result();
+      const rows = headerRows();
+      state.tracks.forEach(function (t, i) {
+        if (t.kind !== 'curves') return;
+        const name = trackName(t, i);
+        if (!t.items.length) r.warnings.push(name + ' is empty.');
+        const curveIds = t.items.filter(function (it) { return it.type === 'curve'; }).map(function (it) { return it.id; });
+        const explicit = {};
+        t.items.forEach(function (it, k) {
+          const label = name + ', item ' + (k + 1);
+          if (it.type !== 'fill' && !curveByName(it.mnemonic)) r.errors.push(label + ': choose a curve.');
+          if (it.row !== 'auto' && it.row !== 'none') {
+            if (explicit[it.row]) r.errors.push(label + ': header row ' + it.row + ' is taken by another item.');
+            explicit[it.row] = true;
+            if (state.page.rowsMode === 'fixed' && +it.row >= rows) r.errors.push(label + ': header row ' + it.row + ' is beyond the ' + rows + ' header rows.');
+          }
+          if (it.type === 'curve') {
+            if (!(num(it.linewidth) > 0)) r.errors.push(label + ': the line width must be a positive number.');
+            if (t.scale === 'linear' && (!blank(it.ownLeft) || !blank(it.ownRight))) {
+              if (!isNum(it.ownLeft) || !isNum(it.ownRight)) r.errors.push(label + ': enter both ends of the curve scale, or leave both empty.');
+              else if (num(it.ownLeft) === num(it.ownRight)) r.errors.push(label + ': the ends of the curve scale must differ.');
+            }
+            if (it.cut.on) {
+              if (!isNum(it.cut.value)) r.errors.push(label + ': enter the cut-off value.');
+              if (it.cut.left.kind === 'none' && it.cut.right.kind === 'none') r.warnings.push(label + ': the cut-off has no fill on either side.');
+            }
+          } else if (it.type === 'shade') {
+            if (!blank(it.baseline) && !isNum(it.baseline)) r.errors.push(label + ': the baseline must be a number.');
+            if (t.scale === 'log10' && isNum(it.baseline) && num(it.baseline) <= 0) r.errors.push(label + ': the baseline must be positive on a log10 track.');
+            ['vmin', 'vmax'].forEach(function (key) { if (!blank(it[key]) && !isNum(it[key])) r.errors.push(label + ': ' + key + ' must be a number or empty.'); });
+            if (isNum(it.vmin) && isNum(it.vmax) && num(it.vmin) >= num(it.vmax)) r.errors.push(label + ': the colour range needs vmin below vmax.');
+          } else if (it.type === 'fill') {
+            [['left', it.left], ['right', it.right]].forEach(function (side) {
+              if (side[1] !== 'edge' && curveIds.indexOf(side[1]) < 0) r.errors.push(label + ': its ' + side[0] + ' curve is no longer on the track.');
+            });
+            if (it.left !== 'edge' && it.left === it.right) r.errors.push(label + ': the fill needs two different boundaries.');
+          }
+        });
+      });
+      return r;
+    },
+
+    data: function () {
+      const r = result();
+      const uses = function (kind) { return state.tracks.some(function (t) { return t.kind === kind; }); };
+      const top = num(state.depth.top), base = num(state.depth.base);
+
+      const tops = records('tops');
+      tops.forEach(function (row, k) {
+        if (!row.formation) r.errors.push('Formation tops, row ' + (k + 1) + ': enter the formation name.');
+        if (!isFinite(row.depth)) r.errors.push('Formation tops, row ' + (k + 1) + ': enter its depth.');
+        if (row.facecolor && !CSS.supports('color', row.facecolor)) r.errors.push('Formation tops, row ' + (k + 1) + ': "' + row.facecolor + '" is not a colour.');
+      });
+      if (uses('tops') && !tops.length) r.errors.push('A track shows formation tops: enter at least one top.');
+      if (tops.length && tops.every(function (row) { return row.depth < top || row.depth > base; })) r.warnings.push('No formation top falls inside the depth window.');
+
+      const perfs = records('perfs');
+      perfs.forEach(function (row, k) {
+        if (!isFinite(row.top) || !isFinite(row.base)) r.errors.push('Perforations, row ' + (k + 1) + ': enter its top and base.');
+        else if (row.top >= row.base) r.errors.push('Perforations, row ' + (k + 1) + ': the top must be shallower than the base.');
+      });
+      if (uses('perfs') && !perfs.length) r.errors.push('A track shows perforations: enter at least one interval.');
+
+      const casings = records('casings');
+      casings.forEach(function (row, k) {
+        if (!(inches(row.od) > 0)) r.errors.push('Casing, row ' + (k + 1) + ': the outside diameter should look like 7, 9.625 or 9 5/8.');
+        if (!isFinite(row.base)) r.errors.push('Casing, row ' + (k + 1) + ': enter the shoe depth.');
+        if (row.top !== undefined && !(row.top < row.base)) r.errors.push('Casing, row ' + (k + 1) + ': the hanger must be above the shoe.');
+      });
+      if (uses('casings') && !casings.length) r.errors.push('A track shows casing: enter at least one string.');
+
+      const survey = records('survey');
+      survey.forEach(function (row, k) {
+        if (!isFinite(row.MD) || !isFinite(row.TVD)) r.errors.push('Survey, row ' + (k + 1) + ': enter both MD and TVD.');
+      });
+      if (uses('tvd')) {
+        if (survey.length < 2) r.errors.push('A track shows TVD: enter at least two survey stations.');
+        for (let k = 1; k < survey.length; k++) {
+          if (!(survey[k].MD > survey[k - 1].MD && survey[k].TVD > survey[k - 1].TVD)) {
+            r.errors.push('Survey, row ' + (k + 1) + ': MD and TVD must both increase down the list.');
+            break;
+          }
+        }
+      }
+
+      [['tops', tops.length, 'Formation tops'], ['perfs', perfs.length, 'Perforations'], ['casings', casings.length, 'Casing'], ['tvd', survey.length, 'Survey']].forEach(function (item) {
+        if (item[1] && !uses(item[0])) r.warnings.push(item[2] + ' entered, but no track shows them.');
+      });
+      return r;
+    },
+
+    output: function () {
+      const r = result();
+      const name = String(state.output.filename).trim();
+      if (!/^[A-Za-z0-9._-]+$/.test(name)) r.errors.push('Use letters, digits, dots, hyphens and underscores in the file name.');
+      const dpi = num(state.output.dpi);
+      if (!(dpi >= 50 && dpi <= 1200)) r.errors.push('The resolution must be between 50 and 1200 dpi.');
+      if (state.output.format === 'pdf' && state.output.paged) {
+        const step = num(state.output.pageLength);
+        const length = num(state.depth.base) - num(state.depth.top);
+        if (!(step > 0)) r.errors.push('Enter the depth length of one page.');
+        else if (length / step > 200) r.errors.push('That page length gives more than 200 pages.');
+      }
+      return r;
+    },
+
+    review: function () { return validateAll(); }
+  };
+
+  function validateAll() {
+    const all = result();
+    STEPS.forEach(function (s, i) {
+      if (s.id === 'review') return;
+      const r = VALIDATE[s.id]();
+      r.errors.forEach(function (e) { all.errors.push({ step: i, text: e }); });
+      r.warnings.forEach(function (w) { all.warnings.push({ step: i, text: w }); });
+    });
+    return all;
+  }
+
+  // ── Rendering helpers ──────────────────────────────────────────
+  function get(path) {
+    return path.split('.').reduce(function (o, k) { return o === null || o === undefined ? undefined : o[k]; }, state);
+  }
+  function set(path, value) {
+    const keys = path.split('.');
+    const last = keys.pop();
+    const target = keys.reduce(function (o, k) { return o[k]; }, state);
+    target[last] = value;
+  }
+  function parentPath(path) { return path.split('.').slice(0, -1).join('.'); }
+  function fid(path) { return 'f-' + path.replace(/[^A-Za-z0-9_-]/g, '-'); }
+
+  function wrapField(label, control, path, o) {
+    o = o || {};
+    return '<div class="field' + (o.cls ? ' ' + o.cls : '') + '">' +
+      '<label for="' + fid(path) + '">' + esc(label) + (o.unit ? ' <span class="unit">(' + esc(o.unit) + ')</span>' : '') + '</label>' +
+      control + (o.hint ? '<p class="hint">' + o.hint + '</p>' : '') + '</div>';
+  }
+
+  function attrs(path, o) {
+    const list = ['id="' + fid(path) + '"', 'data-bind="' + esc(path) + '"'];
+    if (o.refresh) list.push('data-refresh');
+    if (o.hook) list.push('data-hook="' + o.hook + '"');
+    if (o.disabled) list.push('disabled');
+    if (o.describe) list.push('aria-describedby="' + o.describe + '"');
+    return list.join(' ');
+  }
+
+  function inputField(label, path, o) {
+    o = o || {};
+    const type = o.type || 'text';
+    let control = '<input type="' + type + '" ' + attrs(path, o) + ' value="' + esc(get(path)) + '"';
+    if (type === 'number') control += ' step="any" inputmode="decimal"';
+    if (o.placeholder) control += ' placeholder="' + esc(o.placeholder) + '"';
+    if (o.min !== undefined) control += ' min="' + o.min + '"';
+    if (o.max !== undefined) control += ' max="' + o.max + '"';
+    control += '>';
+    return wrapField(label, control, path, o);
+  }
+
+  function optionsHtml(options, value) {
+    return options.map(function (opt) {
+      if (opt.group) return '<optgroup label="' + esc(opt.group) + '">' + optionsHtml(opt.options, value) + '</optgroup>';
+      return '<option value="' + esc(opt[0]) + '"' + (String(opt[0]) === String(value) ? ' selected' : '') + '>' + esc(opt[1]) + '</option>';
+    }).join('');
+  }
+
+  function selectField(label, path, options, o) {
+    o = o || {};
+    const control = '<select ' + attrs(path, o) + '>' + optionsHtml(options, get(path)) + '</select>';
+    return wrapField(label, control, path, o);
+  }
+
+  function checkField(label, path, o) {
+    o = o || {};
+    return '<div class="field' + (o.cls ? ' ' + o.cls : '') + '"><label class="check" for="' + fid(path) + '">' +
+      '<input type="checkbox" ' + attrs(path, o) + (get(path) ? ' checked' : '') + '> ' + esc(label) + '</label>' +
+      (o.hint ? '<p class="hint">' + o.hint + '</p>' : '') + '</div>';
+  }
+
+  function pillsField(label, path, options, o) {
+    o = o || {};
+    const value = get(path);
+    const name = fid(path);
+    return '<div class="field' + (o.cls ? ' ' + o.cls : '') + '" role="radiogroup" aria-labelledby="' + name + '-label">' +
+      '<span class="field-label" id="' + name + '-label">' + esc(label) + '</span><div class="pills">' +
+      options.map(function (opt, k) {
+        return '<label class="pill"><input type="radio" name="' + name + '" id="' + name + '-' + k + '" value="' + esc(opt[0]) + '" data-bind="' + esc(path) + '"' +
+          (o.refresh ? ' data-refresh' : '') + (String(opt[0]) === String(value) ? ' checked' : '') + '><span>' + esc(opt[1]) + '</span></label>';
+      }).join('') + '</div>' + (o.hint ? '<p class="hint">' + o.hint + '</p>' : '') + '</div>';
+  }
+
+  function head(step) {
+    return '<div class="step-head"><h2 id="step-title" tabindex="-1">' + esc(step.title) + '</h2><p>' + esc(step.lead) + '</p></div>';
+  }
+
+  function curveOptions(includeBlank) {
+    const groups = {};
+    const order = [];
+    state.las.curves.slice(1).forEach(function (c) {
+      const group = c.family ? c.family.name.charAt(0).toUpperCase() + c.family.name.slice(1) : 'Other curves';
+      if (!groups[group]) { groups[group] = []; order.push(group); }
+      const range = c.stats.count ? fmt(c.stats.min) + ' to ' + fmt(c.stats.max) : 'no values';
+      groups[group].push([c.mnemonic, c.mnemonic + ' · ' + (c.unit || 'no unit') + ' · ' + range]);
+    });
+    order.sort(function (a, b) { return a === 'Other curves' ? 1 : b === 'Other curves' ? -1 : a.localeCompare(b); });
+    const options = order.map(function (g) { return { group: g, options: groups[g] }; });
+    return includeBlank ? [['', 'Choose a curve…']].concat(options) : options;
+  }
+
+  function rowOptions() {
+    const options = [['auto', 'Next free row'], ['none', 'Not in the header']];
+    for (let k = 0; k < 10; k++) options.push([String(k), 'Row ' + k + (k === 0 ? ' (next to the track)' : '')]);
+    return options;
+  }
+
+  function fillPicker(label, path, allowNone) {
+    const fill = get(path);
+    const kinds = [['color', 'Colour'], ['Lithology', 'Lithology'], ['Mineral', 'Mineral'], ['Porespace', 'Pore space']];
+    if (allowNone) kinds.push(['none', 'No fill']);
+    let html = selectField(label, path + '.kind', kinds, { refresh: true, hook: 'fill-kind' });
+    if (fill.kind === 'color') {
+      html += inputField('Colour', path + '.color', { type: 'color' });
+    } else if (STYLE_TABLES[fill.kind]) {
+      const table = STYLE_TABLES[fill.kind];
+      const control = '<div class="swatch-row"><span class="swatch" style="background:' + (styleColor(fill.kind, fill.style) || '#fff') + '" aria-hidden="true"></span>' +
+        '<select ' + attrs(path + '.style', { refresh: true }) + '>' +
+        optionsHtml(table.styles.map(function (s) { return [s[0], s[1]]; }), fill.style) + '</select></div>';
+      html += wrapField(table.label + ' style', control, path + '.style', { hint: 'Pattern and colour of pphys ' + (fill.kind === 'Porespace' ? 'Porespace' : fill.kind) + '.' + esc(fill.style) });
+    }
+    return html;
+  }
+
+  // ── Step views ─────────────────────────────────────────────────
+  function sourceLabel() {
+    const s = state.source;
+    if (!s) return '';
+    if (s.type === 'file') return s.name + ' (' + (s.size < 1048576 ? Math.max(1, Math.round(s.size / 1024)) + ' KB' : (s.size / 1048576).toFixed(1) + ' MB') + ')';
+    return s.url;
+  }
+
+  function viewLas() {
+    const las = state.las;
+    let html = head(STEPS[0]);
+    html += '<div class="dropzone' + (las ? ' has-file' : '') + '" id="las-drop" role="button" tabindex="0" data-action="browse" aria-describedby="las-drop-hint">' +
+      '<span class="dz-icon" aria-hidden="true">🛢️</span>' +
+      '<span class="dz-main">Drag &amp; drop a LAS file, or <u>browse</u></span>' +
+      '<span class="dz-hint" id="las-drop-hint">.las · LAS 1.2 or 2.0 · read in your browser, nothing is uploaded</span>' +
+      (state.source ? '<span class="dz-file">' + esc(sourceLabel()) + '</span>' : '') + '</div>' +
+      '<input type="file" id="las-input" accept=".las" hidden aria-label="LAS file">';
+
+    html += '<div class="fields" style="margin-top:16px">' +
+      '<div class="field wide"><label for="' + fid('urlDraft') + '">Or load it from a web address</label>' +
+      '<div class="inline"><input type="url" ' + attrs('urlDraft', {}) + ' value="' + esc(state.urlDraft) + '" placeholder="https://example.com/well.las">' +
+      '<button type="button" class="btn btn-plain btn-sm" data-action="load-url">Load</button></div>' +
+      '<p class="hint">The server must allow cross-origin requests. Or <button type="button" class="linkish" data-action="load-sample">try the sample log</button>, tutorial_3_graph_2.LAS from the pphys repository.</p></div></div>';
+
+    html += '<div class="tool-status' + (state.lasStatus.kind ? ' is-' + state.lasStatus.kind : '') + '" id="las-status" role="status" aria-live="polite">' + esc(state.lasStatus.text) + '</div>';
+
+    if (!las) return html;
+
+    const w = las.well;
+    const unit = las.depth.unit;
+    const facts = [
+      ['Well', wellName() || '—'], ['Field', w.FLD || '—'], ['Company', w.COMP || '—'], ['Service company', w.SRVC || '—'],
+      ['Date', w.DATE || '—'], ['UWI / API', [w.UWI, w.API].filter(Boolean).join(' / ') || '—'],
+      ['Depth curve', las.depth.mnemonic + (unit ? ' (' + unit + ')' : '')],
+      ['Logged interval', fmt(las.depth.top) + ' to ' + fmt(las.depth.base) + ' ' + unit],
+      ['Step', fmt(las.depth.step) + ' ' + unit], ['Samples', las.rows.toLocaleString()],
+      ['Curves', String(las.curves.length - 1)], ['NULL value', fmt(las.nullValue)], ['LAS version', las.version || '—']
+    ];
+    html += '<section class="group" style="margin-top:18px" aria-labelledby="las-facts"><h3 class="group-title" id="las-facts">' + esc(wellName() || 'Unnamed well') + '</h3><dl class="facts">' +
+      facts.map(function (f) { return '<div><dt>' + esc(f[0]) + '</dt><dd>' + esc(f[1]) + '</dd></div>'; }).join('') + '</dl></section>';
+
+    if (las.warnings.length) {
+      html += '<div class="notice"><strong>Reading notes</strong><ul>' + las.warnings.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>';
+    }
+
+    html += '<div class="table-wrap" style="margin-top:16px"><table class="data"><caption>Curves in the file</caption><thead><tr>' +
+      '<th scope="col">Curve</th><th scope="col">Unit</th><th scope="col">Recognized as</th><th scope="col">Values</th><th scope="col">Logged</th><th scope="col">Coverage</th><th scope="col">Description</th>' +
+      '</tr></thead><tbody>' + las.curves.slice(1).map(function (c) {
+        const s = c.stats;
+        return '<tr><td><strong>' + esc(c.mnemonic) + '</strong></td><td>' + esc(c.unit || '—') + '</td>' +
+          '<td>' + (c.family ? '<span class="badge tone-eng">' + esc(c.family.name) + '</span>' : '<span class="badge">not recognized</span>') + '</td>' +
+          '<td class="num">' + (s.count ? esc(fmt(s.min) + ' to ' + fmt(s.max)) : '—') + '</td>' +
+          '<td class="num">' + (s.count ? esc(fmt(s.top) + ' to ' + fmt(s.base)) : '—') + '</td>' +
+          '<td class="num">' + Math.round(s.coverage * 100) + ' %</td>' +
+          '<td class="wrap">' + esc(c.descr || '—') + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+    return html;
+  }
+
+  function printScale() {
+    const metres = metresPer(depthUnit());
+    const length = num(state.depth.base) - num(state.depth.top);
+    const height = num(state.page.height);
+    if (!metres || !(length > 0) || !(height > 0)) return null;
+    const share = state.page.spot === 'none' ? 0 : (num(state.page.share) || 0) / 100;
+    const body = height * 0.77 * (1 - share) * 0.0254;           // matplotlib's default margins
+    return length * metres / body;
+  }
+
+  // Hints that follow typed values. They are updated in place while typing:
+  // re-rendering the step would replace the field the user moves to next.
+  const LIVE = {
+    ticks: function () {
+      const ticks = suggestTicks(num(state.depth.base) - num(state.depth.top));
+      return 'For this window, ticks every <strong>' + esc(fmt(ticks[0])) + '</strong> and <strong>' + esc(fmt(ticks[1])) + '</strong> ' + esc(depthUnit()) + ' read well.';
+    },
+    scale: function () {
+      const scale = printScale();
+      return scale ? 'At this height the depth scale is about <strong>1:' + esc(Math.round(scale).toLocaleString()) + '</strong> when printed at full size.' : '';
+    },
+    track: function (el) {
+      const t = state.tracks[+el.dataset.index];
+      if (!t) return '';
+      const flipped = num(t.left) > num(t.right);
+      const names = t.items.filter(function (it) { return it.type !== 'fill'; }).map(function (it) { return it.mnemonic; }).filter(Boolean);
+      return (flipped ? 'Values decrease to the right (a flipped track). ' : '') +
+        (names.length ? 'Curves: <strong>' + esc(names.join(', ')) + '</strong>.' : 'No curves yet: add them in the next step.');
+    },
+    widths: function () {
+      const total = state.tracks.reduce(function (sum, t) { return sum + (num(t.width) || 0); }, 0);
+      return state.tracks.length + ' tracks, total width ' + esc(fmt(total)) + ' units, shared across the ' + esc(state.page.width) + ' in page.';
+    },
+    pages: function () {
+      const length = num(state.depth.base) - num(state.depth.top);
+      const step = num(state.output.pageLength);
+      if (!(step > 0) || !(length > 0)) return 'Enter the depth length of one page.';
+      const pages = Math.ceil(length / step);
+      return pages + ' page' + (pages === 1 ? '' : 's') + ' for the ' + esc(fmt(length)) + ' ' + esc(depthUnit()) + ' window.';
+    }
+  };
+
+  function refreshLive() {
+    bodyEl.querySelectorAll('[data-live]').forEach(function (el) {
+      const html = LIVE[el.dataset.live](el);
+      if (el.innerHTML !== html) el.innerHTML = html;
+    });
+  }
+
+  function viewPage() {
+    const las = state.las;
+    const unit = depthUnit();
+    let html = head(STEPS[1]);
+
+    html += '<fieldset class="group"><legend>Depth window</legend>' +
+      '<p class="group-lead">Logged from <strong>' + esc(fmt(las.depth.top)) + '</strong> to <strong>' + esc(fmt(las.depth.base)) + '</strong> ' + esc(unit) +
+      ' (' + esc(las.depth.mnemonic) + '). <button type="button" class="linkish" data-action="depth-full">Use the whole log</button></p>' +
+      '<div class="fields">' +
+      inputField('Top', 'depth.top', { type: 'number', unit: unit }) +
+      inputField('Base', 'depth.base', { type: 'number', unit: unit }) +
+      inputField('Major ticks every', 'depth.major', { type: 'number', unit: unit }) +
+      inputField('Minor ticks every', 'depth.minor', { type: 'number', unit: unit }) +
+      '</div><p class="hint-block"><span data-live="ticks">' + LIVE.ticks() + '</span> ' +
+      '<button type="button" class="linkish" data-action="depth-ticks">Use them</button></p>' +
+      '<div class="fields">' + checkField('Draw depth grid lines across the curve tracks', 'depth.grid', { cls: 'wide' }) + '</div></fieldset>';
+
+    html += '<fieldset class="group"><legend>Page</legend><div class="fields">' +
+      inputField('Title', 'page.title', { cls: 'wide', placeholder: 'Shown above the tracks, e.g. the well name' }) +
+      inputField('Width', 'page.width', { type: 'number', unit: 'in' }) +
+      inputField('Height', 'page.height', { type: 'number', unit: 'in' }) +
+      '</div><p class="hint-block" data-live="scale">' + LIVE.scale() + '</p></fieldset>';
+
+    const needed = neededRows();
+    html += '<fieldset class="group"><legend>Header</legend>' +
+      '<p class="group-lead">The header lists each track\'s curves and fills, one row each, with their scales.</p><div class="fields">' +
+      pillsField('Position', 'page.spot', [['top', 'Above the tracks'], ['bottom', 'Below the tracks'], ['none', 'No header']], { refresh: true, cls: 'wide' });
+    if (state.page.spot !== 'none') {
+      html += pillsField('Rows', 'page.rowsMode', [['auto', 'Fit the tracks'], ['fixed', 'Fixed number']], {
+        refresh: true,
+        hint: 'Fitting uses the most entries in one track: <strong>' + needed + '</strong> with the current tracks.'
+      }) +
+        inputField('Number of rows', 'page.rows', { type: 'number', min: 1, max: 20, disabled: state.page.rowsMode !== 'fixed' }) +
+        '<div class="field"><label for="' + fid('page.share') + '">Header height <span class="unit">(% of the page)</span></label>' +
+        '<input type="range" min="5" max="50" step="1" ' + attrs('page.share', {}) + ' value="' + esc(state.page.share) + '" data-echo="share-out">' +
+        '<p class="hint"><output id="share-out">' + esc(state.page.share) + ' %</output> of the log\'s height goes to the header.</p></div>';
+    }
+    html += '</div></fieldset>';
+    return html;
+  }
+
+  function trackKindOptions() {
+    return Object.keys(TRACK_KINDS).map(function (k) { return [k, TRACK_KINDS[k].label]; });
+  }
+
+  function trackNote(t) {
+    switch (t.kind) {
+      case 'md': return 'Writes measured depths down the track; its header shows MD (' + esc(depthUnit() || 'unit') + ') and the print scale.';
+      case 'tvd': return 'Writes true vertical depths at their measured depths, from the survey entered in <em>Well data</em>.';
+      case 'tops': return 'Colours the formations between the tops entered in <em>Well data</em> and names them.';
+      case 'perfs': return 'Marks the perforated intervals entered in <em>Well data</em>. Give a year to show only that year\'s perforations here; a perforation track without a year takes the rest.';
+      case 'casings': return 'Sketches the casing strings entered in <em>Well data</em>: walls, shoes and diameters.';
+      default: return '';
+    }
+  }
+
+  function viewTracks() {
+    let html = head(STEPS[2]);
+    html += '<div class="toolbar"><button type="button" class="btn btn-plain btn-sm" data-action="suggest-layout">↺ Suggested layout</button>' +
+      '<span class="spacer"></span><label class="sr-only" for="add-kind" style="position:absolute;left:-9999px">Kind of track</label>' +
+      '<select id="add-kind">' + optionsHtml(trackKindOptions(), state.addKind || 'curves') + '</select>' +
+      '<button type="button" class="btn btn-blue btn-sm" data-action="add-track">+ Add track</button></div>';
+
+    if (!state.tracks.length) {
+      html += '<p class="empty">No tracks yet. Start from the suggested layout, or add tracks one by one.</p>';
+      return html;
+    }
+
+    state.tracks.forEach(function (t, i) {
+      const p = 'tracks.' + i;
+      html += '<section class="track" aria-label="' + esc(trackName(t, i)) + '"><div class="track-head">' +
+        '<span class="track-no" title="Track index">' + i + '</span>' +
+        selectField('Kind', p + '.kind', trackKindOptions(), { refresh: true, hook: 'track-kind' }) +
+        inputField('Title', p + '.title', { placeholder: t.kind === 'md' ? 'MD (' + depthUnit() + ')' : t.kind === 'tvd' ? 'TVD (' + depthUnit() + ')' : 'Optional' }) +
+        inputField('Width', p + '.width', { type: 'number', cls: 'narrow' }) +
+        '<div class="track-tools">' +
+        '<button type="button" class="icon-btn" data-action="track-up" data-track="' + i + '" aria-label="Move track ' + i + ' left"' + (i === 0 ? ' disabled' : '') + '>↑</button>' +
+        '<button type="button" class="icon-btn" data-action="track-down" data-track="' + i + '" aria-label="Move track ' + i + ' right"' + (i === state.tracks.length - 1 ? ' disabled' : '') + '>↓</button>' +
+        '<button type="button" class="icon-btn danger" data-action="track-remove" data-track="' + i + '" aria-label="Remove track ' + i + '">✕</button>' +
+        '</div></div><div class="track-body">';
+
+      if (t.kind === 'curves') {
+        html += '<div class="fields">' +
+          inputField('Left value', p + '.left', { type: 'number' }) +
+          inputField('Right value', p + '.right', { type: 'number' }) +
+          selectField('Scale', p + '.scale', [['linear', 'Linear'], ['log10', 'Logarithmic']], { refresh: true });
+        if (t.scale === 'linear') {
+          html += inputField('Major grid every', p + '.major', { type: 'number', placeholder: 'automatic' }) +
+            inputField('Minor grid every', p + '.minor', { type: 'number', placeholder: 'automatic' });
+        }
+        html += checkField('Grid lines', p + '.grid') + '</div>' +
+          '<p class="hint-block" data-live="track" data-index="' + i + '">' + LIVE.track({ dataset: { index: i } }) + '</p>';
+      } else {
+        html += '<p class="track-note">' + trackNote(t) + '</p>';
+        if (t.kind === 'perfs') html += '<div class="fields" style="margin-top:12px">' + inputField('Year', p + '.year', { type: 'number', placeholder: 'All years' }) + '</div>';
+      }
+      html += '</div></section>';
+    });
+
+    html += '<p class="hint-block" data-live="widths">' + LIVE.widths() + '</p>';
+    return html;
+  }
+
+  function curveItem(t, ti, it, ii) {
+    const p = 'tracks.' + ti + '.items.' + ii;
+    const log = t.scale === 'log10';
+    const curve = curveByName(it.mnemonic);
+    const kinds = { curve: 'Curve', shade: 'Colour shade', fill: 'Fill' };
+    let title = kinds[it.type] + (it.type !== 'fill' && it.mnemonic ? ' · ' + it.mnemonic : '');
+    if (it.type === 'fill') title += it.title ? ' · ' + it.title : '';
+
+    let html = '<div class="item"><div class="item-head"><strong>' + esc(title) + '</strong>' +
+      '<div class="track-tools">' +
+      '<button type="button" class="icon-btn" data-action="item-up" data-track="' + ti + '" data-item="' + ii + '" aria-label="Move up"' + (ii === 0 ? ' disabled' : '') + '>↑</button>' +
+      '<button type="button" class="icon-btn" data-action="item-down" data-track="' + ti + '" data-item="' + ii + '" aria-label="Move down"' + (ii === t.items.length - 1 ? ' disabled' : '') + '>↓</button>' +
+      '<button type="button" class="icon-btn danger" data-action="item-remove" data-track="' + ti + '" data-item="' + ii + '" aria-label="Remove">✕</button>' +
+      '</div></div>';
+
+    if (it.type === 'curve') {
+      html += '<div class="fields">' +
+        selectField('Curve', p + '.mnemonic', curveOptions(true), { refresh: true, hook: 'mnemonic' }) +
+        inputField('Colour', p + '.color', { type: 'color' }) +
+        selectField('Line', p + '.linestyle', LINESTYLES) +
+        inputField('Line width', p + '.linewidth', { type: 'number' }) +
+        inputField('Header name', p + '.title', { placeholder: it.mnemonic || 'mnemonic' }) +
+        selectField('Header row', p + '.row', rowOptions()) + '</div>';
+      if (!log) {
+        html += '<div class="fields">' +
+          inputField('Left-edge value', p + '.ownLeft', { type: 'number', placeholder: t.left }) +
+          inputField('Right-edge value', p + '.ownRight', { type: 'number', placeholder: t.right }) +
+          '</div><p class="hint">Leave empty to plot the curve on the track\'s own scale. Different values put it on its own scale in this track, e.g. neutron porosity 0.45 to −0.15 on a density track.</p>';
+      }
+      if (curve) {
+        html += '<div class="item-actions"><button type="button" class="btn btn-plain btn-sm" data-action="fit-track" data-track="' + ti + '" data-item="' + ii + '">Fit the track to ' + esc(curve.mnemonic) + '</button>' +
+          (log ? '' : '<button type="button" class="btn btn-plain btn-sm" data-action="suggest-scale" data-track="' + ti + '" data-item="' + ii + '">Suggest its own scale</button>') + '</div>';
+      }
+      html += '<div class="item-sub"><div class="fields">' + checkField('Shade either side of a cut-off', p + '.cut.on', { refresh: true, cls: 'wide' }) + '</div>';
+      if (it.cut.on) {
+        html += '<div class="fields">' + inputField('Cut-off', p + '.cut.value', { type: 'number', unit: curve ? curve.unit : '' }) + '</div>' +
+          '<div class="fields">' + fillPicker('Left of the cut-off', p + '.cut.left', true) + '</div>' +
+          '<div class="fields">' + fillPicker('Right of the cut-off', p + '.cut.right', true) + '</div>' +
+          '<p class="hint">Left and right as seen on the page, e.g. clean sand left of a gamma-ray cut-off and shale right of it.</p>';
+      }
+      html += '</div>';
+    } else if (it.type === 'shade') {
+      html += '<div class="fields">' +
+        selectField('Curve', p + '.mnemonic', curveOptions(true), { refresh: true }) +
+        inputField('Baseline', p + '.baseline', { type: 'number', placeholder: t.left, hint: 'Fill from the curve to this value; empty is the left edge.' }) +
+        selectField('Colour map', p + '.colormap', COLORMAPS.map(function (c) { return [c, c]; })) +
+        inputField('Colour scale from', p + '.vmin', { type: 'number', placeholder: curve ? fmt(curve.stats.min) : 'minimum' }) +
+        inputField('Colour scale to', p + '.vmax', { type: 'number', placeholder: curve ? fmt(curve.stats.max) : 'maximum' }) +
+        inputField('Header name', p + '.title', { placeholder: it.mnemonic || 'mnemonic' }) +
+        selectField('Header row', p + '.row', rowOptions()) + '</div>' +
+        '<p class="hint">Each depth is coloured by the curve\'s value there' + (log ? ', on a logarithmic colour scale' : '') + '. Add the curve itself as a Curve item to draw its line.</p>';
+    } else {
+      const bounds = [];
+      let n = 0;
+      t.items.forEach(function (x) { if (x.type === 'curve') { n += 1; bounds.push([x.id, (x.mnemonic || 'curve') + ' (curve ' + n + ')']); } });
+      html += '<div class="fields">' +
+        selectField('From', p + '.left', [['edge', 'Left edge of the track']].concat(bounds), { refresh: true }) +
+        selectField('To', p + '.right', [['edge', 'Right edge of the track']].concat(bounds), { refresh: true }) +
+        inputField('Header name', p + '.title', { placeholder: 'e.g. sand' }) +
+        selectField('Header row', p + '.row', rowOptions()) + '</div>' +
+        '<div class="fields">' + fillPicker('Fill', p + '.fill', false) + '</div>';
+    }
+    return html + '</div>';
+  }
+
+  function viewCurves() {
+    let html = head(STEPS[3]);
+    const tracks = state.tracks.map(function (t, i) { return [t, i]; }).filter(function (x) { return x[0].kind === 'curves'; });
+    if (!tracks.length) {
+      return html + '<p class="empty">There are no curve tracks. Go back to <button type="button" class="linkish" data-action="goto" data-step="2">Tracks</button> to add one.</p>';
+    }
+    tracks.forEach(function (x) {
+      const t = x[0], ti = x[1];
+      html += '<section class="track" aria-label="' + esc(trackName(t, ti)) + '"><div class="track-head"><div class="track-title">' +
+        '<span class="track-no">' + ti + '</span><strong>' + esc(String(t.title || '').trim() || 'Curves') + '</strong>' +
+        '<span class="axis">' + esc(t.left) + ' → ' + esc(t.right) + (t.scale === 'log10' ? ' · log' : '') + '</span></div></div><div class="track-body">';
+      if (!t.items.length) html += '<p class="empty">Nothing on this track yet.</p>';
+      t.items.forEach(function (it, ii) { html += curveItem(t, ti, it, ii); });
+      html += '<div class="add-row">' +
+        '<button type="button" class="btn btn-plain btn-sm" data-action="add-curve" data-track="' + ti + '">+ Curve</button>' +
+        '<button type="button" class="btn btn-plain btn-sm" data-action="add-shade" data-track="' + ti + '">+ Colour shade</button>' +
+        '<button type="button" class="btn btn-plain btn-sm" data-action="add-fill" data-track="' + ti + '">+ Fill</button></div></div></section>';
+    });
+    html += '<p class="hint-block">Header rows: <strong>' + headerRows() + '</strong> ' + (state.page.rowsMode === 'fixed' ? '(fixed in Depth &amp; page)' : '(fitted to the busiest track)') + '.</p>';
+    return html;
+  }
+
+  const TABLES = {
+    tops: { title: 'Formation tops', uses: 'tops', columns: [['formation', 'Formation', 'text'], ['depth', 'Top', 'number'], ['color', 'Colour (optional)', 'text']], example: 'Limestone A, 1684\nDolomite B, 1703, orchid' },
+    perfs: { title: 'Perforations', uses: 'perfs', columns: [['top', 'Top', 'number'], ['base', 'Base', 'number'], ['date', 'Date (optional)', 'date']], example: '1688, 1696, 2023-03-14\n1731, 1734.5, 2024-06-02' },
+    casings: { title: 'Casing', uses: 'casings', columns: [['od', 'Outside diameter (in)', 'text'], ['base', 'Shoe', 'number'], ['top', 'Hanger top (liners)', 'number']], example: '9 5/8, 1684.5\n7, 1738, 1672' },
+    survey: { title: 'Deviation survey', uses: 'tvd', columns: [['md', 'MD', 'number'], ['tvd', 'TVD', 'number']], example: '0, 0\n1000, 1000\n2000, 1906.3' }
+  };
+
+  function tableEditor(key) {
+    const spec = TABLES[key];
+    const rows = state.data[key];
+    const users = [];
+    state.tracks.forEach(function (t, i) { if (t.kind === spec.uses) users.push('track ' + i); });
+    const unit = depthUnit();
+    let html = '<fieldset class="group"><legend>' + esc(spec.title) + '</legend><p class="group-lead">' +
+      (users.length ? 'Shown in ' + esc(users.join(', ')) + '.' : 'No track shows this table.') +
+      (key === 'casings' ? ' Strings are nested by diameter; without a hanger top a string runs from the surface.' : '') +
+      (key === 'survey' ? ' MD and TVD must both increase down the list.' : '') + '</p>';
+
+    if (rows.length) {
+      html += '<div class="table-wrap"><table class="data edit"><thead><tr>' +
+        spec.columns.map(function (c) { return '<th scope="col">' + esc(c[1]) + (c[2] === 'number' ? ' <span class="unit">' + esc(unit) + '</span>' : '') + '</th>'; }).join('') +
+        '<th scope="col"><span style="position:absolute;left:-9999px">Remove</span></th></tr></thead><tbody>' +
+        rows.map(function (row, r) {
+          return '<tr>' + spec.columns.map(function (c) {
+            const path = 'data.' + key + '.' + r + '.' + c[0];
+            return '<td><input type="' + c[2] + '" ' + attrs(path, {}) + ' value="' + esc(row[c[0]]) + '"' + (c[2] === 'number' ? ' step="any" inputmode="decimal"' : '') +
+              ' aria-label="' + esc(c[1] + ', row ' + (r + 1)) + '"></td>';
+          }).join('') +
+            '<td class="tools"><button type="button" class="icon-btn danger" data-action="row-remove" data-table="' + key + '" data-row="' + r + '" aria-label="Remove row ' + (r + 1) + '">✕</button></td></tr>';
+        }).join('') + '</tbody></table></div>';
+    } else {
+      html += '<p class="empty">No rows yet.</p>';
+    }
+
+    html += '<div class="add-row"><button type="button" class="btn btn-plain btn-sm" data-action="row-add" data-table="' + key + '">+ Add row</button></div>' +
+      '<details class="more"><summary>Paste rows</summary><div class="field"><label for="paste-' + key + '">One row per line, values separated by commas, semicolons or tabs, in the column order above</label>' +
+      '<textarea id="paste-' + key + '" placeholder="' + esc(spec.example) + '"></textarea></div>' +
+      '<div class="add-row"><button type="button" class="btn btn-plain btn-sm" data-action="paste" data-table="' + key + '">Add these rows</button></div></details>';
+
+    if (key === 'perfs') html += '<div class="fields" style="margin-top:12px">' + checkField('White separator line at the top of each interval', 'data.perfSeparators', { cls: 'wide' }) + '</div>';
+    return html + '</fieldset>';
+  }
+
+  function viewData() {
+    let html = head(STEPS[4]);
+    const needed = ['tops', 'perfs', 'casings', 'survey'].filter(function (k) {
+      return state.tracks.some(function (t) { return t.kind === TABLES[k].uses; });
+    });
+    html += '<p class="notice is-info">' + (needed.length ?
+      'Your tracks need: <strong>' + esc(needed.map(function (k) { return TABLES[k].title.toLowerCase(); }).join(', ')) + '</strong>. The other tables can stay empty.' :
+      'None of your tracks needs these tables, so this step can be skipped.') + '</p><div style="height:16px"></div>';
+    ['tops', 'perfs', 'casings', 'survey'].forEach(function (k) { html += tableEditor(k); });
+    return html;
+  }
+
+  function viewOutput() {
+    let html = head(STEPS[5]);
+    const o = state.output;
+    html += '<fieldset class="group"><legend>File</legend><div class="fields">' +
+      inputField('File name', 'output.filename', { hint: 'Without extension; it becomes <code>' + esc(String(o.filename).trim() || 'name') + '.' + esc(o.format) + '</code>.' }) +
+      pillsField('Format', 'output.format', [['pdf', 'PDF'], ['png', 'PNG'], ['svg', 'SVG']], { refresh: true }) +
+      inputField('Resolution', 'output.dpi', { type: 'number', unit: 'dpi', hint: o.format === 'png' ? 'Pixels per inch of the image.' : 'For the colour shading, which is an image inside the file.' }) +
+      '</div></fieldset>';
+    if (o.format === 'pdf') {
+      html += '<fieldset class="group"><legend>Pages</legend><div class="fields">' +
+        checkField('Split the depth window into pages', 'output.paged', { refresh: true, cls: 'wide', hint: 'Each page covers the same depth length, redrawn at the same scale.' });
+      if (o.paged) html += inputField('Depth per page', 'output.pageLength', { type: 'number', unit: depthUnit(), hint: '<span data-live="pages">' + LIVE.pages() + '</span>' });
+      html += '</div></fieldset>';
+    }
+    return html;
+  }
+
+  function trackContents(t) {
+    if (t.kind !== 'curves') return TRACK_KINDS[t.kind].label + (t.kind === 'perfs' && !blank(t.year) ? ' ' + t.year : '');
+    return t.items.map(function (it) {
+      if (it.type === 'curve') return it.mnemonic + (it.cut.on ? ' (cut-off ' + it.cut.value + ')' : '');
+      if (it.type === 'shade') return it.mnemonic + ' shade';
+      return 'fill' + (it.title ? ' "' + it.title + '"' : '');
+    }).join(', ') || '—';
+  }
+
+  function viewReview() {
+    let html = head(STEPS[6]);
+    const check = validateAll();
+    if (check.errors.length) {
+      html += '<div class="notice is-error"><strong>Fix these before sending</strong><ul>' + check.errors.map(function (e) {
+        return '<li>' + esc(e.text) + ' <button type="button" class="linkish" data-action="goto" data-step="' + e.step + '">Go to ' + esc(STEPS[e.step].title) + '</button></li>';
+      }).join('') + '</ul></div>';
+    }
+    if (check.warnings.length) {
+      html += '<div class="notice"><strong>Worth a look</strong><ul>' + check.warnings.map(function (w) { return '<li>' + esc(w.text) + '</li>'; }).join('') + '</ul></div>';
+    }
+    if (!check.errors.length && !check.warnings.length) html += '<p class="notice is-info">Everything checks out.</p>';
+
+    const payload = buildPayload();
+    const unit = depthUnit();
+    const facts = [
+      ['LAS file', sourceLabel()], ['Well', wellName() || '—'],
+      ['Depth window', state.depth.top + ' to ' + state.depth.base + ' ' + unit],
+      ['Depth ticks', state.depth.major + ' / ' + state.depth.minor + ' ' + unit],
+      ['Page', state.page.width + ' × ' + state.page.height + ' in'],
+      ['Header', state.page.spot === 'none' ? 'none' : state.page.spot + ', ' + payload.layout.ncycle + ' rows, ' + state.page.share + ' %'],
+      ['Drawing calls', String(payload.calls.length)],
+      ['Output', payload.output.filename + (payload.output.step ? ', pages of ' + payload.output.step + ' ' + unit : '')]
+    ];
+    html += '<section class="group" style="margin-top:16px"><h3 class="group-title">Summary</h3><dl class="facts">' +
+      facts.map(function (f) { return '<div><dt>' + esc(f[0]) + '</dt><dd>' + esc(f[1]) + '</dd></div>'; }).join('') + '</dl>' +
+      '<div class="table-wrap"><table class="data"><thead><tr><th scope="col">#</th><th scope="col">Track</th><th scope="col">Width</th><th scope="col">Values</th><th scope="col">Contents</th></tr></thead><tbody>' +
+      state.tracks.map(function (t, i) {
+        return '<tr><td class="num">' + i + '</td><td>' + esc(String(t.title || '').trim() || TRACK_KINDS[t.kind].label) + '</td><td class="num">' + esc(t.width) + '</td>' +
+          '<td class="mono">' + (t.kind === 'curves' ? esc(t.left + ' → ' + t.right + (t.scale === 'log10' ? ' (log)' : '')) : '—') + '</td>' +
+          '<td class="wrap">' + esc(trackContents(t)) + '</td></tr>';
+      }).join('') + '</tbody></table></div></section>';
+
+    html += '<section class="group"><h3 class="group-title">Send to WellView</h3>' +
+      '<p class="group-lead">' + (API_BASE ? 'The configuration and the LAS file go to <code>' + esc(API_BASE + API_ENDPOINT) + '</code>.' :
+        'No backend is connected yet: sending writes the configuration to the browser console (developer tools → Console).') + '</p>' +
+      '<div class="send-row"><button type="button" class="btn btn-gold" data-action="send"' + (check.errors.length ? ' disabled' : '') + '>Send configuration</button>' +
+      '<button type="button" class="btn btn-plain btn-sm" data-action="copy-json">Copy JSON</button></div>' +
+      '<div class="tool-status' + (state.sendStatus.kind ? ' is-' + state.sendStatus.kind : '') + '" id="send-status" role="status" aria-live="polite">' + esc(state.sendStatus.text) + '</div>' +
+      '<details class="more"><summary>Show the configuration JSON</summary><pre class="json" tabindex="0">' + esc(JSON.stringify(payload, null, 2)) + '</pre></details></section>';
+    return html;
+  }
+
+  const VIEWS = { las: viewLas, page: viewPage, tracks: viewTracks, curves: viewCurves, data: viewData, output: viewOutput, review: viewReview };
+
+  // ── Rendering ──────────────────────────────────────────────────
+  const bodyEl = document.getElementById('step-body');
+  const stepperEl = document.getElementById('stepper');
+  const messagesEl = document.getElementById('messages');
+  const backBtn = document.getElementById('back');
+  const nextBtn = document.getElementById('next');
+  const countEl = document.getElementById('step-count');
+  const formEl = document.getElementById('wizard');
+  const cardEl = document.getElementById('wizard-card');
+
+  function renderStepper() {
+    stepperEl.innerHTML = STEPS.map(function (s, i) {
+      const current = i === state.step;
+      const done = i < state.reached && !current;
+      const enabled = i <= state.reached && (i === 0 || state.las);
+      return '<li><button type="button" data-step="' + i + '"' + (current ? ' aria-current="step"' : '') + (enabled ? '' : ' disabled') +
+        (done ? ' class="done"' : '') + '><span class="num" aria-hidden="true">' + (done ? '✓' : i + 1) + '</span>' +
+        '<span class="label">' + esc(s.title) + '</span></button></li>';
+    }).join('');
+  }
+
+  function render(keepFocus) {
+    let focus = null;
+    const active = document.activeElement;
+    if (keepFocus && active && active.id && bodyEl.contains(active)) {
+      focus = { id: active.id };
+      try { focus.start = active.selectionStart; focus.end = active.selectionEnd; } catch (e) { /* not a text field */ }
+    }
+    renderStepper();
+    bodyEl.innerHTML = VIEWS[STEPS[state.step].id]();
+    const last = state.step === STEPS.length - 1;
+    backBtn.disabled = state.step === 0;
+    nextBtn.hidden = last;
+    countEl.textContent = 'Step ' + (state.step + 1) + ' of ' + STEPS.length;
+    if (focus) {
+      const again = document.getElementById(focus.id);
+      if (again) {
+        again.focus();
+        try { if (focus.start !== null && focus.start !== undefined) again.setSelectionRange(focus.start, focus.end); } catch (e) { /* not a text field */ }
+      }
+    }
+  }
+
+  function showMessages(errors) {
+    messagesEl.innerHTML = '<div class="notice is-error"><strong>Before going on</strong><ul>' +
+      errors.map(function (e) { return '<li>' + esc(e) + '</li>'; }).join('') + '</ul></div>';
+    messagesEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+  function clearMessages() { messagesEl.innerHTML = ''; }
+
+  function goTo(step) {
+    state.step = step;
+    clearMessages();
+    render();
+    const title = document.getElementById('step-title');
+    if (title) title.focus({ preventScroll: true });
+    if (cardEl.getBoundingClientRect().top < 0) cardEl.scrollIntoView({ block: 'start' });
+  }
+
+  function logStep(index) {
+    const id = STEPS[index].id;
+    console.log('[WellView] step ' + (index + 1) + ' · ' + STEPS[index].title, stepPayload(id, buildPayload()));
+  }
+
+  function next() {
+    const id = STEPS[state.step].id;
+    const check = VALIDATE[id]();
+    if (check.errors.length) { showMessages(check.errors); return; }
+    logStep(state.step);
+    state.reached = Math.max(state.reached, state.step + 1);
+    goTo(state.step + 1);
+  }
+
+  function setStatus(key, elementId, text, kind) {
+    state[key] = { text: text, kind: kind || '' };
+    const el = document.getElementById(elementId);
+    if (el) {
+      el.textContent = text;
+      el.className = 'tool-status' + (kind ? ' is-' + kind : '');
+    }
+  }
+
+  function send() {
+    const check = validateAll();
+    if (check.errors.length) { render(); return; }
+    const payload = buildPayload();
+    console.log('%c[WellView] configuration', 'color:#1B6CA8;font-weight:bold', payload);
+    console.log(JSON.stringify(payload, null, 2));
+
+    if (!API_BASE) {
+      setStatus('sendStatus', 'send-status', '✅ Configuration written to the browser console. No backend is connected yet.', 'ok');
+      return;
+    }
+
+    const form = new FormData();
+    form.append('config', new Blob([JSON.stringify(payload)], { type: 'application/json' }), 'wellview.json');
+    if (state.file) form.append('file', state.file, state.file.name);
+    setStatus('sendStatus', 'send-status', '⏳ Sending…', 'busy');
+    fetch(API_BASE + API_ENDPOINT, { method: 'POST', body: form })
+      .then(function (res) {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        setStatus('sendStatus', 'send-status', '✅ Sent.', 'ok');
+      })
+      .catch(function (err) {
+        setStatus('sendStatus', 'send-status', '❌ Could not reach the WellView service (' + err.message + ').', 'error');
+      });
+  }
+
+  // ── Loading the LAS file ───────────────────────────────────────
+  function loadText(text, source, file) {
+    let las;
+    try {
+      las = parseLas(text);
+    } catch (err) {
+      setStatus('lasStatus', 'las-status', '❌ ' + err.message, 'error');
+      return;
+    }
+    const before = state.las !== null;
+    state.las = las;
+    state.source = source;
+    state.file = file || null;
+    applyLasDefaults(las);
+    state.reached = 0;
+    state.sendStatus = { text: '', kind: '' };
+    state.lasStatus = {
+      text: '✅ Read ' + (las.curves.length - 1) + ' curves over ' + las.rows.toLocaleString() + ' depths.' +
+        (before ? ' The depth window and tracks were set up again for this file.' : ''),
+      kind: 'ok'
+    };
+    clearMessages();
+    render();
+    console.log('[WellView] LAS file read', { source: source, las: stepPayload('las', buildPayload()).las });
+  }
+
+  function loadFile(file) {
+    if (!file) return;
+    if (!/\.las$/i.test(file.name)) {
+      setStatus('lasStatus', 'las-status', '⚠️ Choose a .las file.', 'warn');
+      return;
+    }
+    setStatus('lasStatus', 'las-status', '⏳ Reading ' + file.name + '…', 'busy');
+    const reader = new FileReader();
+    reader.onload = function () {
+      loadText(String(reader.result), { type: 'file', name: file.name, size: file.size, lastModified: new Date(file.lastModified).toISOString() }, file);
+    };
+    reader.onerror = function () { setStatus('lasStatus', 'las-status', '❌ The file could not be read.', 'error'); };
+    reader.readAsText(file);
+  }
+
+  function loadUrl(url, what) {
+    let absolute;
+    try { absolute = new URL(url, window.location.href).href; } catch (e) {
+      setStatus('lasStatus', 'las-status', '⚠️ That is not a web address.', 'warn');
+      return;
+    }
+    setStatus('lasStatus', 'las-status', '⏳ Loading ' + what + '…', 'busy');
+    fetch(absolute)
+      .then(function (res) {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.text();
+      })
+      .then(function (text) { loadText(text, { type: 'url', url: absolute }, null); })
+      .catch(function (err) {
+        setStatus('lasStatus', 'las-status', '❌ Could not load ' + what + ' (' + err.message + '). ' +
+          (window.location.protocol === 'file:' ? 'Pages opened from disk cannot fetch files; pick the file instead.' : 'The server may not allow cross-origin requests; download the file and pick it instead.'), 'error');
+      });
+  }
+
+  // ── Editing ────────────────────────────────────────────────────
+  const HOOKS = {
+    'track-kind': function (path) {
+      const t = get(parentPath(path));
+      const defaults = Object.keys(TRACK_KINDS).map(function (k) { return TRACK_KINDS[k].title; });
+      if (blank(t.title) || defaults.indexOf(t.title) >= 0) t.title = TRACK_KINDS[t.kind].title;
+    },
+    'mnemonic': function (path) {
+      const item = get(parentPath(path));
+      const curve = curveByName(item.mnemonic);
+      if (curve) item.color = curve.color;
+    },
+    'fill-kind': function (path) {
+      const fill = get(parentPath(path));
+      const table = STYLE_TABLES[fill.kind];
+      if (table && !styleColor(fill.kind, fill.style)) fill.style = table.styles[0][0];
+    }
+  };
+
+  function onEdit(event) {
+    const el = event.target;
+    if (el.id === 'las-input') {
+      if (event.type === 'change') { loadFile(el.files[0]); el.value = ''; }
+      return;
+    }
+    const path = el.dataset ? el.dataset.bind : null;
+    if (!path) return;
+    if (el.type === 'checkbox') set(path, el.checked);
+    else if (el.type === 'radio') { if (el.checked) set(path, el.value); else return; }
+    else set(path, el.value);
+
+    if (el.dataset.echo && event.type === 'input') {
+      const out = document.getElementById(el.dataset.echo);
+      if (out) out.textContent = el.value + ' %';
+    }
+    refreshLive();
+    if (event.type !== 'change') return;
+    if (el.dataset.hook && HOOKS[el.dataset.hook]) HOOKS[el.dataset.hook](path);
+    if ('refresh' in el.dataset) render(true);
+  }
+
+  function move(list, from, to) {
+    if (to < 0 || to >= list.length) return;
+    const item = list.splice(from, 1)[0];
+    list.splice(to, 0, item);
+  }
+
+  function pasteRows(key) {
+    const box = document.getElementById('paste-' + key);
+    if (!box) return;
+    const columns = TABLES[key].columns;
+    let added = 0;
+    box.value.split(/\r?\n/).forEach(function (line) {
+      if (!line.trim()) return;
+      const cells = line.split(/\t|;|,/).map(function (c) { return c.trim().replace(/^"|"$/g, ''); });
+      const numericMiss = columns.some(function (c, k) { return c[2] === 'number' && cells[k] !== undefined && cells[k] !== '' && !isNum(cells[k]); });
+      if (numericMiss) return;                          // a header line, or not data
+      const row = {};
+      columns.forEach(function (c, k) { row[c[0]] = cells[k] === undefined ? '' : cells[k]; });
+      state.data[key].push(row);
+      added += 1;
+    });
+    render();
+    const again = document.getElementById('paste-' + key);
+    if (again && added === 0) {
+      again.closest('details').open = true;
+      again.value = box.value;
+    }
+  }
+
+  function onAction(event) {
+    const el = event.target.closest('[data-action]');
+    if (!el || el.disabled) return;
+    const action = el.dataset.action;
+    const ti = el.dataset.track !== undefined ? +el.dataset.track : null;
+    const ii = el.dataset.item !== undefined ? +el.dataset.item : null;
+    const track = ti !== null ? state.tracks[ti] : null;
+
+    switch (action) {
+      case 'browse':
+        document.getElementById('las-input').click();
+        return;
+      case 'load-url':
+        if (blank(state.urlDraft)) { setStatus('lasStatus', 'las-status', '⚠️ Enter the web address of a LAS file.', 'warn'); return; }
+        loadUrl(String(state.urlDraft).trim(), 'the file');
+        return;
+      case 'load-sample':
+        loadUrl(SAMPLE_URL, 'the sample log');
+        return;
+      case 'depth-full':
+        state.depth.top = fmt(state.las.depth.top);
+        state.depth.base = fmt(state.las.depth.base);
+        break;
+      case 'depth-ticks': {
+        const ticks = suggestTicks(num(state.depth.base) - num(state.depth.top));
+        state.depth.major = fmt(ticks[0]);
+        state.depth.minor = fmt(ticks[1]);
+        break;
+      }
+      case 'suggest-layout':
+        if (state.tracks.length && !window.confirm('Replace the current tracks with the suggested layout?')) return;
+        state.tracks = suggestTracks(state.las);
+        break;
+      case 'add-track': {
+        const kind = document.getElementById('add-kind').value;
+        state.addKind = kind;
+        state.tracks.push(newTrack(kind));
+        break;
+      }
+      case 'track-up': move(state.tracks, ti, ti - 1); break;
+      case 'track-down': move(state.tracks, ti, ti + 1); break;
+      case 'track-remove': state.tracks.splice(ti, 1); break;
+      case 'add-curve': track.items.push(newCurve(null)); break;
+      case 'add-shade': track.items.push(newShade(null, track)); break;
+      case 'add-fill': track.items.push(newModule()); break;
+      case 'item-up': move(track.items, ii, ii - 1); break;
+      case 'item-down': move(track.items, ii, ii + 1); break;
+      case 'item-remove': {
+        const removed = track.items.splice(ii, 1)[0];
+        track.items.forEach(function (it) {
+          if (it.type !== 'fill') return;
+          if (it.left === removed.id) it.left = 'edge';
+          if (it.right === removed.id) it.right = 'edge';
+        });
+        break;
+      }
+      case 'fit-track': {
+        const axis = suggestAxis(curveByName(track.items[ii].mnemonic));
+        track.left = fmt(axis.left);
+        track.right = fmt(axis.right);
+        track.scale = axis.scale;
+        track.items[ii].ownLeft = '';
+        track.items[ii].ownRight = '';
+        break;
+      }
+      case 'suggest-scale': {
+        const axis = suggestAxis(curveByName(track.items[ii].mnemonic));
+        track.items[ii].ownLeft = fmt(axis.left);
+        track.items[ii].ownRight = fmt(axis.right);
+        break;
+      }
+      case 'row-add': {
+        const row = {};
+        TABLES[el.dataset.table].columns.forEach(function (c) { row[c[0]] = ''; });
+        state.data[el.dataset.table].push(row);
+        break;
+      }
+      case 'row-remove': state.data[el.dataset.table].splice(+el.dataset.row, 1); break;
+      case 'paste': pasteRows(el.dataset.table); return;
+      case 'goto': goTo(+el.dataset.step); return;
+      case 'send': send(); return;
+      case 'copy-json': {
+        const text = JSON.stringify(buildPayload(), null, 2);
+        const done = function () { setStatus('sendStatus', 'send-status', '📋 JSON copied to the clipboard.', 'ok'); };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(done, function () { setStatus('sendStatus', 'send-status', '⚠️ The browser blocked the clipboard; open the JSON below and copy it.', 'warn'); });
+        } else {
+          setStatus('sendStatus', 'send-status', '⚠️ The browser blocked the clipboard; open the JSON below and copy it.', 'warn');
+        }
+        return;
+      }
+      default:
+        return;
+    }
+    render();
+  }
+
+  // ── Wiring ─────────────────────────────────────────────────────
+  bodyEl.addEventListener('input', onEdit);
+  bodyEl.addEventListener('change', onEdit);
+  bodyEl.addEventListener('click', onAction);
+  bodyEl.addEventListener('keydown', function (e) {
+    if (e.target.id === 'las-drop' && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      document.getElementById('las-input').click();
+    } else if (e.key === 'Enter' && e.target.id === fid('urlDraft')) {
+      e.preventDefault();
+      state.urlDraft = e.target.value;
+      if (!blank(state.urlDraft)) loadUrl(String(state.urlDraft).trim(), 'the file');
+    } else if (e.key === 'Enter' && e.target.tagName === 'INPUT' && e.target.type !== 'checkbox' && e.target.type !== 'radio') {
+      e.preventDefault();                               // Enter in a field does not leave the step
+      e.target.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  });
+
+  // Drag and drop onto the drop zone; a file dropped elsewhere does not open in the tab.
+  ['dragover', 'drop'].forEach(function (type) {
+    window.addEventListener(type, function (e) { e.preventDefault(); });
+  });
+  bodyEl.addEventListener('dragover', function (e) {
+    const zone = e.target.closest('.dropzone');
+    if (zone) zone.classList.add('is-over');
+  });
+  bodyEl.addEventListener('dragleave', function (e) {
+    const zone = e.target.closest('.dropzone');
+    if (zone && !zone.contains(e.relatedTarget)) zone.classList.remove('is-over');
+  });
+  bodyEl.addEventListener('drop', function (e) {
+    const zone = e.target.closest('.dropzone');
+    if (!zone) return;
+    zone.classList.remove('is-over');
+    if (e.dataTransfer && e.dataTransfer.files.length) loadFile(e.dataTransfer.files[0]);
+  });
+
+  stepperEl.addEventListener('click', function (e) {
+    const button = e.target.closest('button[data-step]');
+    if (button && !button.disabled) goTo(+button.dataset.step);
+  });
+  backBtn.addEventListener('click', function () { if (state.step > 0) goTo(state.step - 1); });
+  formEl.addEventListener('submit', function (e) { e.preventDefault(); next(); });
+
+  render();
+})();
+</script>
+</body>
+</html>

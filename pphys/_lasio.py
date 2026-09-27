@@ -1,99 +1,164 @@
+"""Well-log container built on :class:`lasio.LASFile`."""
+
+from __future__ import annotations
+
+from copy import deepcopy
+
 import lasio
-import numpy
+import numpy as np
+import numpy.typing as npt
+import pandas as pd
 
-class LASIO(lasio.LASFile):
 
-	def __init__(self,file_ref,**kwargs):
+class WellLog(lasio.LASFile):
+    """A LAS file with depth-interval selection, resampling and cropped copies.
 
-		super().__init__(file_ref,**kwargs)
+    The first curve is the depth index (``self.index``). Construct it like
+    :class:`lasio.LASFile`: ``WellLog("well.las")`` reads a file and
+    ``WellLog()`` creates an empty log.
+    """
 
-	def mask(self,dmin:float=None,dmax:float=None):
-		"""
-		Selects a depth interval and returns a boolean array.
+    def mask(self, dmin: float | None = None, dmax: float | None = None) -> np.ndarray:
+        """Return a boolean array selecting the depths within ``[dmin, dmax]``.
 
-		Parameters:
-		dmin (float): Minimum depth of the interval.
-		dmax (float): Maximum depth of the interval.
+        Parameters
+        ----------
+        dmin, dmax : float, optional
+            Inclusive interval bounds. A missing bound leaves that side open.
 
-		Returns:
-		np.ndarray: Boolean array where True indicates depths within the interval.
-		"""
-		dmin = self.index.min() if dmin is None else dmin
-		dmax = self.index.max() if dmax is None else dmax
+        Returns
+        -------
+        numpy.ndarray
+            Boolean array aligned with ``self.index``.
+        """
+        mask = np.ones(self.index.shape, dtype=bool)
 
-		return numpy.logical_and(self.index>=dmin,self.index<=dmax)
+        if dmin is not None:
+            mask &= self.index >= dmin
+        if dmax is not None:
+            mask &= self.index <= dmax
 
-	def crop(self,dmin:float=None,dmax:float=None,key:str=None):
-		"""
-		Crops a LAS frame (or curve if key is provided) to include only data
-		within a specified depth range.
+        return mask
 
-		Parameters:
-		----------
-		dmin (float): Minimum depth for cropping.
-		dmax (float): Maximum depth for cropping.
-		key (str): Name of the curve to crop.
-		
-		Returns:
-		-------
-		numpy.ndarray or pandas.DataFrame: Cropped curve values.
-		"""
-		mask = self.mask(dmin,dmax)
+    def crop(
+        self,
+        dmin: float | None = None,
+        dmax: float | None = None,
+        key: str | None = None,
+    ) -> pd.DataFrame | np.ndarray:
+        """Return the data within ``[dmin, dmax]``.
 
-		return self.df()[mask] if key is None else self[key].values[mask]
+        Parameters
+        ----------
+        dmin, dmax : float, optional
+            Inclusive interval bounds. A missing bound leaves that side open.
+        key : str, optional
+            Curve mnemonic. If given, only that curve's values are returned.
 
-	def resample(self,depths:numpy.ndarray,key:str=None):
-		"""
-		Resample a curve's values based on new depth values.
+        Returns
+        -------
+        pandas.DataFrame or numpy.ndarray
+            Depth-indexed frame of all curves, or the values of ``key``.
+        """
+        mask = self.mask(dmin, dmax)
 
-		Parameters:
-		----------
-		depths (array-like): New depth values for resampling.
-		key (str): Name of the curve to resample.
+        if key is None:
+            return self.df()[mask]
 
-		Returns:
-		-------
-		numpy.ndarray or pandas.DataFrame: Resampled curve values.
-		"""
-		interp = lambda values: numpy.interp(depths,self.index,values)
+        return self[key][mask]
 
-		return self.df.apply(interp) if key is None else interp(self[key])
+    def resample(
+        self, depths: npt.ArrayLike, key: str | None = None
+    ) -> pd.DataFrame | np.ndarray:
+        """Linearly interpolate curve values at new depths.
 
-	def copy(self):
-		"""Create a new LAS object with the cropped data"""
-		las = lasio.LASFile()
+        Depths outside the logged interval return NaN instead of the edge
+        value. A NaN sample makes the interpolated values next to it NaN, so
+        gaps in the log are not bridged. Descending depth indexes are handled.
 
-		las.index = cropped_data.index  # Set the new depth index
+        Parameters
+        ----------
+        depths : array_like
+            Depths to interpolate at, in the unit of the depth index.
+        key : str, optional
+            Curve mnemonic. If given, only that curve is resampled.
 
-		for curve in self.curves:
-			if curve.mnemonic in cropped_data.columns:
-				las.add_curve(
-					curve.mnemonic,
-					cropped_data[curve.mnemonic].values,
-					unit=curve.unit,
-					descr=curve.descr,
-				)
+        Returns
+        -------
+        pandas.DataFrame or numpy.ndarray
+            Frame of all curves indexed by ``depths``, or the values of ``key``.
+        """
+        depths = np.asarray(depths, dtype=float)
 
-		return las
+        order = np.argsort(self.index)  # np.interp needs increasing depths
+        xp = self.index[order]
 
-	@staticmethod
-	def is_valid(values:numpy.ndarray):
-		return numpy.all(~numpy.isnan(values))
+        def interp(values: np.ndarray) -> np.ndarray:
+            fp = np.asarray(values, dtype=float)[order]
+            return np.interp(depths, xp, fp, left=np.nan, right=np.nan)
 
-	@staticmethod
-	def is_positive(values:numpy.ndarray):
-		return numpy.all(values>=0)
+        if key is not None:
+            return interp(self[key])
 
-	@staticmethod
-	def is_sorted(values:numpy.ndarray):
-		return numpy.all(values[:-1]<values[1:])
+        index = pd.Index(depths, name=self.curves[0].mnemonic)
+        curves = {curve.mnemonic: interp(curve.data) for curve in self.curves[1:]}
 
-if __name__ == "__main__":
+        return pd.DataFrame(curves, index=index)
 
-	# las = LasIO("G:\\My Drive\\Modeling Repository\\02_GeoM_Reservoir_Characterization\\Well_Data_Visualization\\NFD_correlation\\NFD_2472.las")
+    def copy(self, dmin: float | None = None, dmax: float | None = None) -> WellLog:
+        """Return an independent copy, optionally cropped to ``[dmin, dmax]``.
 
-	# print(las.mask(1050,1060))
-	# print(las.crop(1050,1060))
-	pass
-	# load("G:\\My Drive\\Modeling Repository\\02_GeoM_Reservoir_Characterization\\Well_Data_Visualization\\NFD_correlation",
-	# 	 "G:\\My Drive\\Modeling Repository\\02_GeoM_Reservoir_Characterization\\Well_Data_Visualization\\cache")
+        All header sections are kept. When cropping, STRT and STOP in ~Well
+        are set to the first and last depth of the window.
+
+        Parameters
+        ----------
+        dmin, dmax : float, optional
+            Inclusive interval bounds. A missing bound leaves that side open.
+
+        Returns
+        -------
+        WellLog
+            The copied (and cropped) log.
+
+        Raises
+        ------
+        ValueError
+            If no depth falls within ``[dmin, dmax]``.
+        """
+        log = deepcopy(self)
+
+        if dmin is None and dmax is None:
+            return log
+
+        mask = self.mask(dmin, dmax)
+
+        if not mask.any():
+            raise ValueError(f"No depths between {dmin} and {dmax}.")
+
+        for curve in log.curves:
+            curve.data = curve.data[mask]
+
+        log.update_start_stop_step(
+            STRT=float(log.index[0]),
+            STOP=float(log.index[-1]),
+            STEP=log.well["STEP"].value if "STEP" in log.well else None,
+        )
+
+        return log
+
+    @staticmethod
+    def is_valid(values: npt.ArrayLike) -> bool:
+        """Return True if ``values`` contains no NaN."""
+        return not np.isnan(values).any()
+
+    @staticmethod
+    def is_positive(values: npt.ArrayLike) -> bool:
+        """Return True if every value is non-negative (NaN counts as False)."""
+        return bool(np.all(np.asarray(values) >= 0))
+
+    @staticmethod
+    def is_sorted(values: npt.ArrayLike) -> bool:
+        """Return True if ``values`` is strictly increasing."""
+        values = np.asarray(values)
+        return bool(np.all(values[:-1] < values[1:]))

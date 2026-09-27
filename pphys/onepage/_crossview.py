@@ -111,9 +111,13 @@ class CrossView():
 		self.scene.axis.text(x,ylabel,key,zorder=2,ha='center',va='center',
 			bbox=dict(facecolor="white", edgecolor="none",pad=1))
 
-	def add_gradient(self,index,xvals,depth,ylabel,key=None,xmin=None,xmax=None,left=False,**kwargs):
+	def add_gradient(self,index,xvals,depth,ylabel,key=None,x2=0,colormap='Reds',vmin=None,vmax=None,**kwargs):
+		"""Adds a colour-map fill between a curve and x2 to a well, and its legend line.
 
-		Pigment.fill_gradient(self.scene[index],xvals,depth,**kwargs)
+		The fill colours follow the curve values (see Pigment.fill_colormap);
+		other keyword arguments style the legend line.
+		"""
+		Pigment.fill_colormap(self.scene[index],depth,xvals,x2,colormap,vmin,vmax)
 
 		self.scene.axis.plot(self.scene.xloc(index),[ylabel,]*2,**kwargs)
 
@@ -138,8 +142,13 @@ class CrossView():
 
 		self.litho_axis.plot([0,1],ylocs[-2:],**kwargs)
 
-	def add_formation(self,key,**kwargs):
-		"""Adds the formation fill to the main view."""
+	def add_formation(self,key,motifs=None,**kwargs):
+		"""Adds the formation fill to the main view.
+
+		motifs : MotifPattern objects tiled inside the fill, e.g.
+			``Lithology.get("limestone").motifs``; other keyword arguments
+			go to ``fill_between``.
+		"""
 		xlocs = self.scene.xlocs()
 
 		ytops,ybots = zip(*(w.tops.limit(key) for w in self._wells))
@@ -147,12 +156,14 @@ class CrossView():
 		ytops = self.scene.ylocs(ytops)
 		ybots = self.scene.ylocs(ybots)
 
-		self.scene.axis.fill_between(xlocs,y1=ytops,y2=ybots,**kwargs)
+		fill = self.scene.axis.fill_between(xlocs,y1=ytops,y2=ybots,**kwargs)
+		Pigment.add_motifs(self.scene.axis,fill,motifs)
 
 		if self.litho_axis is None:
 			return
 
-		self.litho_axis.fill_between([0,1],y1=ytops[-2:],y2=ybots[-2:],**kwargs)
+		fill = self.litho_axis.fill_between([0,1],y1=ytops[-2:],y2=ybots[-2:],**kwargs)
+		Pigment.add_motifs(self.litho_axis,fill,motifs)
 
 		ytext = (ytops[-1]+ybots[-1])/2
 

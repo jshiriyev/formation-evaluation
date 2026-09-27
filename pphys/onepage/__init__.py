@@ -5,5 +5,5 @@ from ._wellview import WellView
 from ._crossview import CrossView
 
 from ._motifs import Motifs, MotifPattern
-from ._templix import Lithology, Porespace
+from ._templix import FillStyle, Lithology, Mineral, Porespace, StyleTable
 from ._pigment import Pigment

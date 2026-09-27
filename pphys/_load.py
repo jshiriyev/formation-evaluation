@@ -1,42 +1,68 @@
-import pathlib
-import pickle
+"""Read every LAS file in a directory into :class:`WellLog` objects."""
 
-from ._lasio import LASIO
+from __future__ import annotations
 
-def load(source_path:str,cache_path:str,**kwargs) -> dict:
-	"""Load LAS files from a directory, using a cache to avoid redundant processing.
-	
-	Parameters:
-	----------
-	source_path  : Directory containing LAS files.
-	cache_path 	 : Directory where cached files will be stored.
+import os
+from pathlib import Path
+from typing import Any
 
-	Returns:
-	-------
-	dict: A dictionary with filenames (without extension) as keys and LAS data as values.
-	
-	"""
+from ._lasio import WellLog
+from ._read import read
 
-	# Ensure cache directory exists
-	pathlib.Path(cache_path).mkdir(parents=True, exist_ok=True)
 
-	las_files = {}  # Dictionary to store LAS data
+def load(
+    source_path: str | os.PathLike[str],
+    cache_path: str | os.PathLike[str] | None = None,
+    **kwargs: Any,
+) -> dict[str, WellLog]:
+    """Read all LAS files in a directory, optionally through a pickle cache.
 
-	# Loop through all .las files in the directory
-	for las_file in pathlib.Path(source_path).glob("*.las"):
-		cache_file = pathlib.Path(cache_path) / f"{las_file.stem}.pkl"  # Cache filename
+    Parameters
+    ----------
+    source_path : str or path-like
+        Directory containing the LAS files. Files ending in ``.las`` in any
+        letter case are read; subdirectories are not searched.
+    cache_path : str or path-like, optional
+        Cache directory, handled exactly as in :func:`pphys.read`. Without it
+        every file is parsed and nothing is cached.
+    **kwargs
+        Passed to :class:`lasio.LASFile`, e.g. ``null_policy="none"``.
 
-		# If a cached version exists, load it
-		if cache_file.exists():
-			with open(cache_file, "rb") as f:
-				las_data = pickle.load(f)
-		else:
-			# Otherwise, read and cache the LAS file
-			las_data = LASIO(str(las_file),**kwargs)
-			with open(cache_file, "wb") as f:
-				pickle.dump(las_data,f)
+    Returns
+    -------
+    dict of str to WellLog
+        Logs keyed by file name without extension, in case-insensitive
+        alphabetical order.
 
-		# Store in dictionary with filename as key
-		las_files[las_file.stem] = las_data
+    Raises
+    ------
+    FileNotFoundError
+        If ``source_path`` does not exist.
+    NotADirectoryError
+        If ``source_path`` is not a directory.
+    ValueError
+        If two files would get the same key, e.g. ``well.las`` and
+        ``well.LAS`` on a case-sensitive file system.
+    """
+    source_dir = Path(source_path)
 
-	return las_files  # Dictionary of {filename: LASFile}
+    paths = sorted(
+        (path for path in source_dir.iterdir() if _is_las_file(path)),
+        key=lambda path: path.name.lower(),
+    )
+
+    logs: dict[str, WellLog] = {}
+
+    for path in paths:
+        if path.stem in logs:
+            raise ValueError(
+                f"More than one LAS file named {path.stem!r} in {source_dir}."
+            )
+        logs[path.stem] = read(path, cache_path, **kwargs)
+
+    return logs
+
+
+def _is_las_file(path: Path) -> bool:
+    """Return True if ``path`` is a file with a ``.las`` extension in any case."""
+    return path.suffix.lower() == ".las" and path.is_file()

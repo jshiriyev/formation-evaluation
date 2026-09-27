@@ -2,7 +2,11 @@
 
 It is a Python package designed for the interpretation of well log data and modeling of the borehole environment. It includes a collection of modules for petrophysical analysis, along with tools for data streaming and interactive visualization, with a primary focus on petrophysical workflows.
 
-Test the commitments (python -m unittest discover -v)
+The project is managed with [uv](https://docs.astral.sh/uv/). Create the environment with `uv sync`, and run the tests with `uv run pytest`.
+
+**LasView**
+
+`pphys.LasView` summarizes and checks a single LAS file: header and curve inventory, data coverage and gaps, statistics, file- and curve-level quality control, zone averages from formation tops, quick-look log, histogram, crossplot and correlation plots, and a one-call PDF report. See [`doc/lasview.md`](doc/lasview.md) and the worked example in [`notebooks/lasview_real_field_data.ipynb`](notebooks/lasview_real_field_data.ipynb).
 
 **Stream Module**
 
