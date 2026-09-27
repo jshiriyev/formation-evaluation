@@ -1,11 +1,13 @@
-# Publish the web pages in pphys/pages to GitHub Pages:
-#   https://jshiriyev.github.io/formation-evaluation/  (redirects to the WellView configurator)
+# Publish the web apps to GitHub Pages at https://jshiriyev.github.io/formation-evaluation/
+#   index.html   the app hub, one card per app
+#   pages/       the apps (every pages/*.html is published)
 #
 # One-time setup: Settings > Pages > Build and deployment > Source: "GitHub Actions".
 #
 # The site mirrors the repository paths, so the relative links in the pages work the same
 # on Pages as from a local server at the repository root (e.g. the WellView sample log at
-# ../../notebooks/tutorial_3_graph_2.LAS).
+# ../notebooks/tutorial_3_graph_2.LAS). Any other file a page links to must be copied in
+# "Assemble the site"; the link check fails the run when one is missing.
 
 name: Pages
 
@@ -13,7 +15,8 @@ on:
   push:
     branches: [main]
     paths:
-      - "pphys/pages/**"
+      - "index.html"
+      - "pages/**"
       - "notebooks/tutorial_3_graph_2.LAS"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
@@ -38,27 +41,29 @@ jobs:
 
       - name: Assemble the site
         run: |
-          mkdir -p _site/pphys/pages _site/notebooks
-          cp pphys/pages/*.html _site/pphys/pages/
+          mkdir -p _site/pages _site/notebooks
+          cp index.html _site/
+          cp pages/*.html _site/pages/
           cp notebooks/tutorial_3_graph_2.LAS _site/notebooks/
-          cat > _site/index.html <<'EOF'
-          <!doctype html>
-          <html lang="en">
-          <head>
-          <meta charset="utf-8">
-          <title>WellView configurator</title>
-          <meta http-equiv="refresh" content="0; url=pphys/pages/onepage-wellview.html">
-          <link rel="canonical" href="pphys/pages/onepage-wellview.html">
-          </head>
-          <body><p><a href="pphys/pages/onepage-wellview.html">WellView configurator</a></p></body>
-          </html>
-          EOF
 
-      - name: Check the sample log link
+      - name: Check the links between published files
         run: |
-          sample=$(grep -oP "SAMPLE_URL = '\K[^']+" pphys/pages/onepage-wellview.html)
-          test -f "_site/pphys/pages/$sample" || { echo "::error::sample log $sample is not in the site"; exit 1; }
+          # Relative href/src attributes and *_URL = '...' constants must resolve inside _site.
+          status=0
+          while IFS= read -r page; do
+            while IFS= read -r link; do
+              target="$(dirname "$page")/$link"
+              [[ $link == */ ]] && target="${target}index.html"
+              if [ ! -f "$target" ]; then
+                echo "::error file=${page#_site/}::$link is not published"
+                status=1
+              fi
+            done < <(grep -oE "(href|src)=\"[^\"]*\"|_URL = '[^']*'" "$page" \
+                       | sed -E "s/^[^\"']*[\"']//; s/[\"']\$//; s/[?#].*//" \
+                       | grep -vE '^$|^[a-z]+:|^//' || true)
+          done < <(find _site -name '*.html')
           find _site -type f | sort
+          exit $status
 
       - uses: actions/upload-pages-artifact@v5
         with:

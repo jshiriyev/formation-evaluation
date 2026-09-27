@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#1B6CA8">
+<title>Formation Evaluation &middot; Thoth</title>
+<meta name="description" content="Browser apps for pphys, a Python package for petrophysics: well log displays, log digitizing and interpretation.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231B6CA8'/%3E%3Ctext x='32' y='45' font-family='Georgia,serif' font-size='38' font-weight='700' text-anchor='middle' fill='%23e8c96a'%3ET%3C/text%3E%3C/svg%3E">
+<style>
+  :root {
+    color-scheme: light;
+    --blue: #1B6CA8;
+    --blue-dark: #145289;
+    --gold: #C9A84C;
+    --gold-light: #e8c96a;
+    --bg: #FAF8F4;
+    --surface: #FFFFFF;
+    --text: #1E1E2E;
+    --muted: #6B7280;
+    --border: #E5E0D8;
+
+    --nav-h: 64px;
+    --radius: 14px;
+    --shadow: 0 1px 2px rgba(30, 30, 46, .04), 0 4px 16px rgba(30, 30, 46, .06);
+    --shadow-hover: 0 2px 4px rgba(30, 30, 46, .05), 0 12px 28px rgba(30, 30, 46, .10);
+    --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    --font-glyph: "Segoe UI Historic", "Noto Sans Egyptian Hieroglyphs", "Aegyptus", serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { transition: none !important; }
+  }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  a { color: var(--blue); }
+  a:hover { color: var(--blue-dark); }
+  :focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; border-radius: 6px; }
+  code { font-family: var(--font-mono); font-size: .9em; }
+
+  .container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+  .glyph { font-family: var(--font-glyph); font-style: normal; line-height: 1; }
+
+  /* ── Navigation ─────────────────────────────────────────────── */
+  .nav {
+    position: sticky; top: 0; z-index: 100;
+    height: var(--nav-h);
+    background: rgba(255, 255, 255, .92);
+    -webkit-backdrop-filter: saturate(160%) blur(10px);
+    backdrop-filter: saturate(160%) blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav .container { height: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+
+  .brand { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); flex-shrink: 0; }
+  .brand:hover { color: var(--text); }
+  .brand-mark {
+    width: 36px; height: 36px; border-radius: 10px;
+    display: grid; place-items: center;
+    background: var(--blue); color: #fff; font-size: 22px;
+    box-shadow: inset 0 -2px 0 rgba(0, 0, 0, .15);
+  }
+  .brand-name { font-size: 1.25rem; font-weight: 800; letter-spacing: -.01em; }
+  .brand-name span { color: var(--gold); }
+
+  .nav-links { display: flex; gap: 4px; list-style: none; margin: 0; padding: 0; }
+  .nav-links a {
+    display: block; padding: 8px 14px; border-radius: 999px;
+    color: var(--muted); font-size: .95rem; font-weight: 600; text-decoration: none;
+    transition: color .15s, background-color .15s;
+  }
+  .nav-links a:hover { color: var(--blue); background: rgba(27, 108, 168, .06); }
+
+  /* ── Hero ───────────────────────────────────────────────────── */
+  .hero {
+    position: relative; overflow: hidden;
+    background: linear-gradient(135deg, #336DAA 0%, #1D4070 100%);
+    color: #fff; text-align: center;
+    padding: 88px 0 68px;
+  }
+  .hero-glyph {
+    position: absolute; top: -.095em; right: 4.3vw;
+    font-size: clamp(9rem, 13.2vw, 15rem);
+    color: #fff; opacity: .08;
+    pointer-events: none; user-select: none;
+  }
+  .hero .container { position: relative; }
+  .hero h1 {
+    margin: 0 0 24px;
+    font-size: clamp(2.2rem, 5vw, 3.5rem);
+    line-height: 1.2; font-weight: 800; letter-spacing: -.025em;
+  }
+  .hero h1 .accent { color: var(--gold-light); }
+  .hero p { margin: 0 auto 32px; max-width: 620px; font-size: clamp(1.05rem, 2vw, 1.2rem); color: rgba(255, 255, 255, .86); }
+  .hero code { padding: 1px 6px; border-radius: 5px; background: rgba(255, 255, 255, .14); color: #fff; }
+  .hero-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 12px 24px; border-radius: 10px;
+    font: inherit; font-weight: 700; font-size: 1.05rem; line-height: 1.2;
+    text-decoration: none; cursor: pointer; border: 2px solid transparent;
+    transition: background-color .15s, border-color .15s, color .15s, transform .15s;
+  }
+  .btn-gold { background: var(--gold); color: var(--text); border-color: var(--gold); }
+  .btn-gold:hover { background: var(--gold-light); border-color: var(--gold-light); color: var(--text); transform: translateY(-1px); }
+  .btn-ghost { background: transparent; color: #fff; border-color: rgba(255, 255, 255, .5); }
+  .btn-ghost:hover { background: rgba(255, 255, 255, .12); color: #fff; border-color: #fff; }
+
+  /* ── Sections ───────────────────────────────────────────────── */
+  .section { padding: 80px 0; scroll-margin-top: var(--nav-h); }
+  .section-head { margin-bottom: 36px; }
+  .section-head h2 {
+    display: flex; align-items: center; gap: 12px;
+    margin: 0 0 10px; font-size: clamp(1.7rem, 3.4vw, 2.2rem); line-height: 1.2; letter-spacing: -.015em;
+  }
+  .section-head h2::before { content: ""; width: 6px; height: 1.05em; border-radius: 3px; background: var(--gold); flex-shrink: 0; }
+  .section-head p { margin: 0; max-width: 720px; color: var(--muted); font-size: 1.05rem; }
+
+  .card-surface { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+
+  /* ── App cards ──────────────────────────────────────────────── */
+  .grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); }
+
+  /* one tone per pphys feature */
+  .tone-onepage  { --tone-bg: #E8F1FA; --tone-fg: #145289; }
+  .tone-digitize { --tone-bg: #F0EAFB; --tone-fg: #5B3A99; }
+  .tone-insight  { --tone-bg: #E6F4EE; --tone-fg: #17694A; }
+
+  .app-card {
+    display: flex; flex-direction: column; padding: 22px;
+    transition: transform .18s, box-shadow .18s;
+  }
+  .app-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
+  .app-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+  .app-icon {
+    width: 52px; height: 52px; border-radius: 12px; flex-shrink: 0;
+    display: grid; place-items: center; font-size: 26px;
+    background: var(--tone-bg);
+  }
+  .badge {
+    display: inline-block; padding: 4px 10px; border-radius: 999px;
+    background: var(--tone-bg); color: var(--tone-fg);
+    font-size: .76rem; font-weight: 700; letter-spacing: .02em;
+  }
+  .app-card h3 { margin: 0; font-size: 1.15rem; line-height: 1.3; }
+  .app-sub { margin: 2px 0 10px; color: var(--muted); font-size: .88rem; font-family: var(--font-mono); }
+  .app-desc { margin: 0 0 20px; color: var(--muted); font-size: .95rem; }
+
+  .app-actions { display: flex; align-items: center; gap: 16px; margin-top: auto; }
+  .btn-open {
+    flex: 1;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 11px 16px; border-radius: 10px;
+    background: var(--blue); color: #fff;
+    font-weight: 700; font-size: .95rem; text-decoration: none;
+    transition: background-color .15s;
+  }
+  .btn-open:hover { background: var(--blue-dark); color: #fff; }
+  .app-link { font-size: .92rem; font-weight: 600; text-decoration: none; white-space: nowrap; }
+  .app-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+  /* ── Footer ─────────────────────────────────────────────────── */
+  .footer { background: var(--text); color: rgba(255, 255, 255, .68); padding: 40px 0; text-align: center; font-size: .95rem; }
+  .footer p { margin: 0; }
+  .footer p + p { margin-top: 8px; }
+  .footer .f-brand { color: rgba(255, 255, 255, .9); font-weight: 600; }
+  .footer .f-brand .glyph, .footer .f-brand strong { color: var(--gold); }
+  .footer a { color: var(--gold-light); text-decoration: none; }
+  .footer a:hover { color: #fff; text-decoration: underline; }
+
+  /* ── Responsive ─────────────────────────────────────────────── */
+  @media (max-width: 720px) {
+    .section { padding: 56px 0; }
+    .hero { padding: 72px 0 64px; }
+  }
+  @media (max-width: 480px) {
+    .container { padding: 0 16px; }
+    .brand { gap: 8px; }
+    .brand-mark { width: 32px; height: 32px; font-size: 19px; border-radius: 9px; }
+    .brand-name { font-size: 1.1rem; }
+    .nav-links { gap: 0; }
+    .nav-links a { padding: 7px 9px; font-size: .88rem; }
+    .hero-actions .btn { flex: 1 1 100%; }
+    .app-card { padding: 18px; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="nav" aria-label="Primary">
+  <div class="container">
+    <a class="brand" href="https://jshiriyev.github.io/" aria-label="Thoth - home">
+      <span class="brand-mark glyph" aria-hidden="true">𓅓</span>
+      <span class="brand-name">Tho<span>th</span></span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="#apps">Apps</a></li>
+      <li><a href="https://github.com/jshiriyev/formation-evaluation/tree/main/doc">Docs</a></li>
+      <li><a href="https://github.com/jshiriyev/formation-evaluation">GitHub</a></li>
+    </ul>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <span class="hero-glyph glyph" aria-hidden="true">𓂀</span>
+  <div class="container">
+    <h1>Formation <span class="accent">Evaluation</span></h1>
+    <p>Browser apps for <code>pphys</code>, a Python package for petrophysics: one-page well log displays, digitizing scanned logs and log interpretation.</p>
+    <div class="hero-actions">
+      <a class="btn btn-gold" href="#apps">Browse the apps</a>
+      <a class="btn btn-ghost" href="https://github.com/jshiriyev/formation-evaluation">View on GitHub</a>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- ── Apps ────────────────────────────────────────────────────
+       To add an app: put its page in pages/ and copy one <article class="app-card"> below.
+       The badge and icon tone name the pphys feature: tone-onepage, tone-digitize or tone-insight.
+       The Pages workflow fails when a link here points to a file that is not published. -->
+  <section class="section" id="apps" aria-labelledby="apps-title">
+    <div class="container">
+      <div class="section-head">
+        <h2 id="apps-title">Apps</h2>
+        <p>Each app runs in your browser and walks you through the input for a <code>pphys</code> tool.</p>
+      </div>
+      <div class="grid">
+
+        <article class="app-card card-surface">
+          <div class="app-top">
+            <div class="app-icon tone-onepage" aria-hidden="true">📈</div>
+            <span class="badge tone-onepage">onepage</span>
+          </div>
+          <h3>WellView One-Pager</h3>
+          <p class="app-sub">pphys.onepage.WellView</p>
+          <p class="app-desc">Set up a one-page well log display from a LAS file, step by step: tracks, curve scales, fills, formation tops, perforations, casing and output.</p>
+          <div class="app-actions">
+            <a class="btn-open" href="pages/onepage-wellview.html">Open the app →</a>
+            <a class="app-link" href="https://github.com/jshiriyev/formation-evaluation/blob/main/doc/wellview.md">Guide ↗</a>
+          </div>
+        </article>
+
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <div class="container">
+    <p class="f-brand"><span class="glyph" aria-hidden="true">𓅓</span> <strong>Thoth</strong> — Scripts, Structures &amp; Solutions</p>
+    <p>These apps are part of <a href="https://github.com/jshiriyev/formation-evaluation">pphys</a> · more tools on <a href="https://jshiriyev.github.io/">jshiriyev.github.io</a>.</p>
+  </div>
+</footer>
+
+</body>
+</html>

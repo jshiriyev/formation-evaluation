@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 2. **digitize**: scanned log (PDF/image) → LAS. See `pphys/digitize/digitize.py`, a CLI-style MVP.
 3. **insight**: log interpretation models, covering water analysis, lithology/porosity/shale volume, saturation (Archie + shaly-sand) and permeability. Target workflow: `img/insight_shaly_sand_results.png`. The resistivity models it should support are listed in `img/insight_shaly_sand_resistivity_models.png`.
 
-`img/` holds the reference figures the package is expected to reproduce.
+`img/` holds the reference figures the package is expected to reproduce. `index.html` and `pages/` are browser apps published on GitHub Pages (see "Web apps" below).
 
 `notebooks/` holds demo exercises:
 - `real_field_data.las` is a real cased-hole cement-bond run (well ABD001), used by `lasview_real_field_data.ipynb`.
@@ -103,13 +103,6 @@ Its sizing rules:
 - **Casings and depths:** `add_casings` takes `od, base[, top]`. `add_depths(i, survey=)` labels MD or TVD and writes the print scale.
 - **Pages:** drawing methods are wrapped by `@_drawing`, which records the outermost call in `_calls`. `page(top, base)` copies the view with a new `DepthDict` window and replays the calls on a new figure, so motifs are re-tiled. `save(path, step=)` writes such pages to a PdfPages PDF. Anything drawn directly on `stage(i)` is not replayed.
 
-**Web configurator** (`pphys/pages/onepage-wellview.html`): a standalone GitHub Pages wizard in vanilla JS, styled like jshiriyev.github.io. It walks through a WellView set-up and draws nothing.
-- It reads the LAS header, curves and statistics in the browser. Curve families are a JS port of `_families.py`, so keep the two in step.
-- It builds a JSON payload that mirrors the WellView API (`layout` including `xaxes`, then `calls` of `{method, args, kwargs}`, then `output`). The contract is documented in the comment at the top of its script.
-- With `API_BASE = ''` it only `console.log`s the payload; setting `API_BASE` POSTs it together with the LAS file.
-- A payload from it has been replayed through WellView successfully, so a backend only needs to resolve `{"style": "Table.name"}`, turn table records into DataFrames and convert `year_axis` keys to int.
-- `.github/workflows/pages.yml` deploys it on pushes to main that touch `pphys/pages/`. The site mirrors the repository paths, with the root redirecting to the page, so the relative sample link `../../notebooks/tutorial_3_graph_2.LAS` works both on Pages and from a local server at the repo root. Every `pphys/pages/*.html` is published, but any other file a page links to must be added to that workflow's "Assemble the site" step.
-
 **Fills** are in `_pigment.Pigment`, static methods that draw in data coordinates with depth on y:
 - `fill_solid(axis, y, x1, x2, motifs=, **kwargs)` passes every other keyword to `fill_betweenx`, so `where=`/`interpolate=` shade crossovers and `label=` reaches the legend. It then calls `add_motifs` and returns the fill.
 - `add_motifs(axis, fill, motifs)` tiles one motif or several inside any fill: the result of `fill_between`/`fill_betweenx`, or a patch in any coordinates of the axis. It is used by `WellView.add_module`, which also draws motifs in the header box, and by `CrossView.add_formation(..., motifs=)`.
@@ -171,6 +164,21 @@ Standalone model classes with lowercase names (`archie`, `gammaray`, `simandoux`
 5. Resample to `--step` and write LAS 2.0 by hand. QC images, a JSON preset and a CSV go to `--outdir`.
 
 `utils.resample` is a separate smoothing-spline resampler.
+
+### Web apps (GitHub Pages)
+
+`index.html` (the app hub) and `pages/*.html` (the apps) are standalone vanilla-JS pages, styled like jshiriyev.github.io. They live outside `pphys/`, so they are not packaged.
+- **Publishing:** `.github/workflows/pages.yml` publishes them to https://jshiriyev.github.io/formation-evaluation/ on pushes to main that touch them.
+  - The site mirrors the repository paths, so relative links work the same on Pages and from `python -m http.server` at the repo root.
+  - Only `index.html`, `pages/*.html` and `notebooks/tutorial_3_graph_2.LAS` are published. Any other linked file must be added to the "Assemble the site" step.
+  - The workflow fails if a relative `href`/`src` or a `*_URL = '...'` constant in any published page points to a missing file.
+- **Adding an app:** put the page in `pages/` and copy an `app-card` in `index.html`; `tone-onepage`/`tone-digitize`/`tone-insight` name the pphys feature.
+
+**WellView configurator** (`pages/onepage-wellview.html`): a wizard that walks through a WellView set-up and draws nothing.
+- It reads the LAS header, curves and statistics in the browser. Its sample is `../notebooks/tutorial_3_graph_2.LAS`. Curve families are a JS port of `_families.py`, so keep the two in step.
+- It builds a JSON payload that mirrors the WellView API (`layout` including `xaxes`, then `calls` of `{method, args, kwargs}`, then `output`). The contract is documented in the comment at the top of its script.
+- With `API_BASE = ''` it only `console.log`s the payload; setting `API_BASE` POSTs it together with the LAS file.
+- A payload from it has been replayed through WellView successfully, so a backend only needs to resolve `{"style": "Table.name"}`, turn table records into DataFrames and convert `year_axis` keys to int.
 
 ## Conventions
 
