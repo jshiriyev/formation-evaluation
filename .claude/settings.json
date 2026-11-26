@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "deny": [
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git push * --force*)",
+      "Bash(git push * -f*)",
+      "Bash(git push origin main)",
+      "Bash(git push origin main *)",
+      "Bash(git push * origin main)",
+      "Bash(git push * HEAD:main*)",
+      "Bash(git push --all*)",
+      "Bash(git push --mirror*)",
+      "Bash(git reset --hard*)",
+      "Bash(git clean -f*)",
+      "Bash(git clean -d*)",
+      "Bash(git clean -x*)",
+      "Bash(git clean --force*)",
+      "Bash(git branch -D *)",
+      "Bash(git checkout -- *)",
+      "Bash(git checkout .)",
+      "Bash(git restore .)",
+      "Bash(git stash drop*)",
+      "Bash(git stash clear*)",
+      "Bash(git filter-branch*)",
+      "Bash(git reflog expire*)",
+      "Bash(python)",
+      "Bash(python *)",
+      "Bash(python3)",
+      "Bash(python3 *)",
+      "Bash(py *)",
+      "Bash(pip *)",
+      "Bash(pip3 *)",
+      "Bash(pytest)",
+      "Bash(pytest *)",
+      "PowerShell(git push --force*)",
+      "PowerShell(git push -f*)",
+      "PowerShell(git push * --force*)",
+      "PowerShell(git push * -f*)",
+      "PowerShell(git push origin main)",
+      "PowerShell(git push origin main *)",
+      "PowerShell(git push * origin main)",
+      "PowerShell(git push * HEAD:main*)",
+      "PowerShell(git push --all*)",
+      "PowerShell(git push --mirror*)",
+      "PowerShell(git reset --hard*)",
+      "PowerShell(git clean -f*)",
+      "PowerShell(git clean -d*)",
+      "PowerShell(git clean -x*)",
+      "PowerShell(git clean --force*)",
+      "PowerShell(git branch -D *)",
+      "PowerShell(git checkout -- *)",
+      "PowerShell(git checkout .)",
+      "PowerShell(git restore .)",
+      "PowerShell(git stash drop*)",
+      "PowerShell(git stash clear*)",
+      "PowerShell(git filter-branch*)",
+      "PowerShell(git reflog expire*)",
+      "PowerShell(python)",
+      "PowerShell(python *)",
+      "PowerShell(python3)",
+      "PowerShell(python3 *)",
+      "PowerShell(py *)",
+      "PowerShell(pip *)",
+      "PowerShell(pip3 *)",
+      "PowerShell(pytest)",
+      "PowerShell(pytest *)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell|Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --project \"$CLAUDE_PROJECT_DIR\" --no-sync --quiet python \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre_tool.py\"",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --project \"$CLAUDE_PROJECT_DIR\" --no-sync --quiet python \"$CLAUDE_PROJECT_DIR/.claude/hooks/post_edit.py\"",
+            "timeout": 200,
+            "statusMessage": "Checking the edit (indentation, F821, ruff format, related tests)"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --project \"$CLAUDE_PROJECT_DIR\" --no-sync --quiet python \"$CLAUDE_PROJECT_DIR/.claude/hooks/stop_tests.py\" --baseline",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --project \"$CLAUDE_PROJECT_DIR\" --no-sync --quiet python \"$CLAUDE_PROJECT_DIR/.claude/hooks/stop_tests.py\"",
+            "timeout": 600,
+            "statusMessage": "Running pytest if pphys/ or tests/ changed"
+          }
+        ]
+      }
+    ]
+  }
+}

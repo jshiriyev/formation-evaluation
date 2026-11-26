@@ -183,10 +183,22 @@ Standalone model classes with lowercase names (`archie`, `gammaray`, `simandoux`
 ## Conventions
 
 - Indentation varies by file:
-  - Tabs: `digitize/utils.py`, `insight/saturation/shalyform/*`, `onepage/_crossview.py`, `onepage/crossview/*`, `onepage/wellview/*`.
+  - Tabs: `digitize/utils.py`, `insight/permeability/_resistivity.py`, `insight/saturation/shalyform/*`, `onepage/_crossview.py`, `onepage/crossview/*`, `onepage/wellview/*`.
   - 4 spaces: everything else.
 
   Match the surrounding block. Inconsistent mixing raises `TabError`.
+- Formatting is `ruff format` with quotes preserved, run through `uv run python .claude/hooks/fmt.py [paths]` (`--check` to verify). It keeps each file's indentation; bare `ruff format` would turn the tab files into spaces.
 - `import numpy` and `import numpy as np` both appear; follow the file.
 - Implementation lives in `_private.py` modules and is re-exported from the package `__init__.py`.
 - Frozen dataclasses set derived fields only through `object.__setattr__` in `__post_init__`.
+
+## Claude Code setup (`.claude/`)
+
+- `settings.json` (committed) holds the deny rules and the hooks; `settings.local.json` (git-ignored) holds a personal allow list.
+  - Denied: force pushes, `reset --hard`, `clean -f`, `branch -D` and similar; pushes to `main` (they deploy Pages); bare `python`/`pip`/`pytest` (use `uv run`).
+- Hooks (`.claude/hooks/`, stdlib Python run through `uv run --no-sync`, so run `uv sync` once after cloning):
+  - `pre_tool.py`: denies any `git push` that would update `main` or force; asks before running or editing the stale `notebooks/*.py`.
+  - `post_edit.py`, after a Write/Edit of a `pphys/` or `tests/` `.py` file: syntax and mixed-indentation check, new undefined names (F821, compared with HEAD) block, `fmt.py` formats, the related tests run (map in `TESTS`). Editing `_families.py` or the families block of `pages/onepage-wellview.html` reports the differences from the other side (`families_sync.py`). Editing `index.html`, `pages/*.html` or `pages.yml` runs the published-link check (`check_links.py`, same rule as the workflow).
+  - `stop_tests.py`: at the end of a turn, runs the full `pytest` if `pphys/` or `tests/` changed since the last run; a failure sends Claude back to fix it (at most three rounds).
+- Skills: `/check` (pre-push gate), `/rerun-notebook`, `/reproduce-figure`, `/new-app`, `/digitize`, `/update-docs`, `/fix-insight-imports`.
+- Agents: `petrophysics-reviewer` (insight equations, read-only), `plot-qa` (renders and inspects figures), `web-app-reviewer` (pages, read-only), `test-writer` (tests only).
