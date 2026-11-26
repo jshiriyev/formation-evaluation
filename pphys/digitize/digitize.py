@@ -9,7 +9,10 @@ import cv2
 import pytesseract
 import pypdfium2 as pdfium
 
-pytesseract.pytesseract.tesseract_cmd = (r"C:\Users\Javid.Shiriyev\AppData\Local\Programs\Tesseract-OCR\tesseract.exe")
+pytesseract.pytesseract.tesseract_cmd = (
+    r"C:\Users\Javid.Shiriyev\AppData\Local\Programs\Tesseract-OCR\tesseract.exe"
+)
+
 
 @dataclass
 class Cluster:
@@ -17,7 +20,10 @@ class Cluster:
     x1: int
     score: float
 
-def render_pdf_page(pdf_path: str, page_index: int = 0, scale: float = 2.0) -> np.ndarray:
+
+def render_pdf_page(
+    pdf_path: str, page_index: int = 0, scale: float = 2.0
+) -> np.ndarray:
     """Render a PDF page to a BGR image (OpenCV)."""
     pdf = pdfium.PdfDocument(pdf_path)
     page = pdf.get_page(page_index)
@@ -29,6 +35,7 @@ def render_pdf_page(pdf_path: str, page_index: int = 0, scale: float = 2.0) -> n
     else:
         bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
     return bgr
+
 
 def hsv_red_mask(bgr: np.ndarray) -> np.ndarray:
     hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
@@ -45,6 +52,7 @@ def hsv_red_mask(bgr: np.ndarray) -> np.ndarray:
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, k, iterations=1)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, k, iterations=1)
     return mask
+
 
 def find_red_clusters(mask: np.ndarray, min_width: int = 30) -> List[Cluster]:
     """Find contiguous x-ranges with lots of red pixels."""
@@ -64,37 +72,46 @@ def find_red_clusters(mask: np.ndarray, min_width: int = 30) -> List[Cluster]:
         elif (not val) and start is not None:
             end = i - 1
             if end - start + 1 >= min_width:
-                score = float(col[start:end + 1].sum())
+                score = float(col[start : end + 1].sum())
                 clusters.append(Cluster(start, end, score))
             start = None
     if start is not None:
         end = len(on) - 1
         if end - start + 1 >= min_width:
-            score = float(col[start:end + 1].sum())
+            score = float(col[start : end + 1].sum())
             clusters.append(Cluster(start, end, score))
 
     clusters.sort(key=lambda c: (c.x0, -(c.x1 - c.x0)))
     return clusters
 
+
 def pick_right_track(clusters: List[Cluster]) -> Tuple[Cluster, Optional[Cluster]]:
     """Pick the right-most cluster as right track; return (right, left_candidate)."""
     if not clusters:
-        raise RuntimeError("No red clusters detected. Try adjusting thresholds or scale.")
+        raise RuntimeError(
+            "No red clusters detected. Try adjusting thresholds or scale."
+        )
     clusters_sorted = sorted(clusters, key=lambda c: c.x0)
     right = clusters_sorted[-1]
     left = clusters_sorted[-2] if len(clusters_sorted) >= 2 else None
     return right, left
 
-def crop_with_margin(img: np.ndarray, x0: int, x1: int, y0: int, y1: int, margin: int = 40) -> Tuple[np.ndarray, Tuple[int, int, int, int]]:
+
+def crop_with_margin(
+    img: np.ndarray, x0: int, x1: int, y0: int, y1: int, margin: int = 40
+) -> Tuple[np.ndarray, Tuple[int, int, int, int]]:
     H, W = img.shape[:2]
     x0m = max(0, x0 - margin)
     x1m = min(W - 1, x1 + margin)
     y0m = max(0, y0)
     y1m = min(H - 1, y1)
-    roi = img[y0m:y1m + 1, x0m:x1m + 1].copy()
+    roi = img[y0m : y1m + 1, x0m : x1m + 1].copy()
     return roi, (x0m, y0m, x1m, y1m)
 
-def build_depth_strip_roi(img: np.ndarray, left: Optional[Cluster], right: Cluster, half_width: int = 110) -> Tuple[np.ndarray, Tuple[int, int, int, int]]:
+
+def build_depth_strip_roi(
+    img: np.ndarray, left: Optional[Cluster], right: Cluster, half_width: int = 110
+) -> Tuple[np.ndarray, Tuple[int, int, int, int]]:
     H, W = img.shape[:2]
     if left is not None:
         x_center = int((left.x1 + right.x0) / 2)
@@ -102,8 +119,9 @@ def build_depth_strip_roi(img: np.ndarray, left: Optional[Cluster], right: Clust
         x_center = int(right.x0 - 200)
     x0 = max(0, x_center - half_width)
     x1 = min(W - 1, x_center + half_width)
-    roi = img[:, x0:x1 + 1].copy()
+    roi = img[:, x0 : x1 + 1].copy()
     return roi, (x0, 0, x1, H - 1)
+
 
 def ocr_depth_points(depth_strip_bgr: np.ndarray) -> List[Tuple[float, float]]:
     """Return list of (y_px, depth_value).
@@ -116,7 +134,7 @@ def ocr_depth_points(depth_strip_bgr: np.ndarray) -> List[Tuple[float, float]]:
     H, W = gray_full.shape
 
     # In this template, depth numbers sit on the right side of the strip.
-    gray_full = gray_full[:, int(W * 0.25):]
+    gray_full = gray_full[:, int(W * 0.25) :]
     H, W = gray_full.shape
 
     chunk_h = 4000
@@ -134,7 +152,9 @@ def ocr_depth_points(depth_strip_bgr: np.ndarray) -> List[Tuple[float, float]]:
         target_h = 1400
         scale = target_h / max(1, chunk.shape[0])
         if scale < 1.0:
-            chunk_s = cv2.resize(chunk, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+            chunk_s = cv2.resize(
+                chunk, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA
+            )
         else:
             chunk_s = chunk
             scale = 1.0
@@ -142,11 +162,17 @@ def ocr_depth_points(depth_strip_bgr: np.ndarray) -> List[Tuple[float, float]]:
         # Enhance digits
         clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
         c = clahe.apply(chunk_s)
-        bh = cv2.morphologyEx(c, cv2.MORPH_BLACKHAT, cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15)))
-        _, bw = cv2.threshold(bh, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)  # text tends to become white
+        bh = cv2.morphologyEx(
+            c, cv2.MORPH_BLACKHAT, cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15))
+        )
+        _, bw = cv2.threshold(
+            bh, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
+        )  # text tends to become white
         inv = 255 - bw  # black text on white
 
-        data = pytesseract.image_to_data(inv, output_type=pytesseract.Output.DICT, config=config)
+        data = pytesseract.image_to_data(
+            inv, output_type=pytesseract.Output.DICT, config=config
+        )
 
         n = len(data.get('text', []))
         for i in range(n):
@@ -186,7 +212,10 @@ def ocr_depth_points(depth_strip_bgr: np.ndarray) -> List[Tuple[float, float]]:
 
     return filtered
 
-def fit_depth_transform(points: List[Tuple[float, float]]) -> Optional[Tuple[float, float]]:
+
+def fit_depth_transform(
+    points: List[Tuple[float, float]],
+) -> Optional[Tuple[float, float]]:
     """Fit depth = a*y + b. Returns (a,b) or None."""
     if len(points) < 2:
         return None
@@ -210,6 +239,7 @@ def fit_depth_transform(points: List[Tuple[float, float]]) -> Optional[Tuple[flo
     a, b = np.polyfit(y[mask], d[mask], 1)
     return float(a), float(b)
 
+
 def extract_curve_x_by_row(curve_mask: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """For each row y, compute x (median of mask pixels) and confidence (#pixels)."""
     H, W = curve_mask.shape
@@ -224,12 +254,18 @@ def extract_curve_x_by_row(curve_mask: np.ndarray) -> Tuple[np.ndarray, np.ndarr
         conf[y] = float(cols.size)
     return xs, conf
 
-def map_x_to_value(x_px: np.ndarray, x_left: float, x_right: float, vmin: float, vmax: float) -> np.ndarray:
+
+def map_x_to_value(
+    x_px: np.ndarray, x_left: float, x_right: float, vmin: float, vmax: float
+) -> np.ndarray:
     val = (x_px - x_left) / (x_right - x_left)
     val = vmin + val * (vmax - vmin)
     return val
 
-def resample_to_step(depth: np.ndarray, value: np.ndarray, step: float) -> Tuple[np.ndarray, np.ndarray]:
+
+def resample_to_step(
+    depth: np.ndarray, value: np.ndarray, step: float
+) -> Tuple[np.ndarray, np.ndarray]:
     """Resample to regular depth step using linear interpolation, keeping NaNs as gaps."""
     # Sort by depth
     order = np.argsort(depth)
@@ -249,9 +285,18 @@ def resample_to_step(depth: np.ndarray, value: np.ndarray, step: float) -> Tuple
     v_new = np.interp(d_new, depth[valid], value[valid])
     return d_new, v_new
 
-def write_las(path: str, depth: np.ndarray, curve: np.ndarray, curve_mnemonic: str = 'QK',
-              depth_unit: str = 'M', curve_unit: str = '', well_name: str = '2580',
-              null_value: float = -999.25, note: str = '') -> None:
+
+def write_las(
+    path: str,
+    depth: np.ndarray,
+    curve: np.ndarray,
+    curve_mnemonic: str = 'QK',
+    depth_unit: str = 'M',
+    curve_unit: str = '',
+    well_name: str = '2580',
+    null_value: float = -999.25,
+    note: str = '',
+) -> None:
     def fmt(v: float) -> str:
         if not np.isfinite(v):
             return f"{null_value:.2f}"
@@ -282,6 +327,7 @@ def write_las(path: str, depth: np.ndarray, curve: np.ndarray, curve_mnemonic: s
     with open(path, 'w', encoding='utf-8') as f:
         f.write("\n".join(lines) + "\n")
 
+
 def save_overlay_curve(roi_bgr: np.ndarray, xs: np.ndarray, out_path: str) -> None:
     overlay = roi_bgr.copy()
     H, W = overlay.shape[:2]
@@ -293,12 +339,25 @@ def save_overlay_curve(roi_bgr: np.ndarray, xs: np.ndarray, out_path: str) -> No
         cv2.circle(overlay, p, 1, (0, 255, 255), -1)  # cyan points
     cv2.imwrite(out_path, overlay)
 
-def save_overlay_depth_strip(depth_strip_bgr: np.ndarray, points: List[Tuple[float, float]],
-                            fit: Optional[Tuple[float, float]], out_path: str) -> None:
+
+def save_overlay_depth_strip(
+    depth_strip_bgr: np.ndarray,
+    points: List[Tuple[float, float]],
+    fit: Optional[Tuple[float, float]],
+    out_path: str,
+) -> None:
     overlay = depth_strip_bgr.copy()
     for y, d in points:
         cv2.circle(overlay, (10, int(y)), 3, (0, 255, 0), -1)
-        cv2.putText(overlay, str(int(d)), (20, int(y)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        cv2.putText(
+            overlay,
+            str(int(d)),
+            (20, int(y)),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (0, 255, 0),
+            2,
+        )
 
     if fit is not None:
         a, b = fit
@@ -306,14 +365,34 @@ def save_overlay_depth_strip(depth_strip_bgr: np.ndarray, points: List[Tuple[flo
         # draw depth at top/bottom
         d_top = a * 0 + b
         d_bot = a * (H - 1) + b
-        cv2.putText(overlay, f"fit: d={a:.5f}*y+{b:.2f}", (5, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
-        cv2.putText(overlay, f"top~{d_top:.1f}  bottom~{d_bot:.1f}", (5, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
+        cv2.putText(
+            overlay,
+            f"fit: d={a:.5f}*y+{b:.2f}",
+            (5, 30),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            (255, 0, 0),
+            2,
+        )
+        cv2.putText(
+            overlay,
+            f"top~{d_top:.1f}  bottom~{d_bot:.1f}",
+            (5, 60),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            (255, 0, 0),
+            2,
+        )
 
     cv2.imwrite(out_path, overlay)
 
+
 def main():
     import argparse
-    ap = argparse.ArgumentParser(description="MVP digitizer: PDF scanned log -> LAS (single curve)")
+
+    ap = argparse.ArgumentParser(
+        description="MVP digitizer: PDF scanned log -> LAS (single curve)"
+    )
     ap.add_argument('--pdf', required=True)
     ap.add_argument('--outdir', default='mvp_out')
     ap.add_argument('--page', type=int, default=0)
@@ -322,8 +401,18 @@ def main():
     ap.add_argument('--vmin', type=float, default=0.0)
     ap.add_argument('--vmax', type=float, default=8.0)
     ap.add_argument('--step', type=float, default=0.1524)
-    ap.add_argument('--depth-top', type=float, default=None, help='Manual depth at top of page (m). If set with --depth-bottom, overrides OCR.')
-    ap.add_argument('--depth-bottom', type=float, default=None, help='Manual depth at bottom of page (m). If set with --depth-top, overrides OCR.')
+    ap.add_argument(
+        '--depth-top',
+        type=float,
+        default=None,
+        help='Manual depth at top of page (m). If set with --depth-bottom, overrides OCR.',
+    )
+    ap.add_argument(
+        '--depth-bottom',
+        type=float,
+        default=None,
+        help='Manual depth at bottom of page (m). If set with --depth-top, overrides OCR.',
+    )
     args = ap.parse_args()
 
     os.makedirs(args.outdir, exist_ok=True)
@@ -342,42 +431,54 @@ def main():
     right, left = pick_right_track(clusters)
 
     # Crop left track ROI with margin
-    track_roi, track_bbox = crop_with_margin(page_bgr, right.x0, right.x1, 0, H - 1, margin=60)
+    track_roi, track_bbox = crop_with_margin(
+        page_bgr, right.x0, right.x1, 0, H - 1, margin=60
+    )
     # x0, y0, x1, y1 = track_bbox
     cv2.imwrite(os.path.join(args.outdir, 'track_right.jpg'), track_roi)
 
     # Depth strip ROI
-    depth_strip, depth_bbox = build_depth_strip_roi(page_bgr, left, right, half_width=120)
-    
+    depth_strip, depth_bbox = build_depth_strip_roi(
+        page_bgr, left, right, half_width=120
+    )
+
     clusters_sorted = sorted(clusters, key=lambda c: c.x0)
-    
+
     if len(clusters_sorted) < 2:
         raise RuntimeError("Need at least 2 red clusters (left and right tracks).")
-    
-    left_track  = clusters_sorted[0]
+
+    left_track = clusters_sorted[0]
     right_track = clusters_sorted[-1]
-    
-    track_roi, track_bbox = crop_with_margin(page_bgr, left_track.x0, left_track.x1, 0, H - 1, margin=60)
+
+    track_roi, track_bbox = crop_with_margin(
+        page_bgr, left_track.x0, left_track.x1, 0, H - 1, margin=60
+    )
     x0, y0, x1, y1 = track_bbox
     cv2.imwrite(os.path.join(args.outdir, 'track_left.jpg'), track_roi)
 
-# Depth strip ROI between left and right tracks (keep this!)
-    depth_strip, depth_bbox = build_depth_strip_roi(page_bgr, left_track, right_track, half_width=120)
+    # Depth strip ROI between left and right tracks (keep this!)
+    depth_strip, depth_bbox = build_depth_strip_roi(
+        page_bgr, left_track, right_track, half_width=120
+    )
     cv2.imwrite(os.path.join(args.outdir, 'depth_strip.jpg'), depth_strip)
-    
+
     # OCR depths
     depth_points = ocr_depth_points(depth_strip)
     fit = fit_depth_transform(depth_points)
 
     # Save depth debug
-    save_overlay_depth_strip(depth_strip, depth_points, fit, os.path.join(args.outdir, 'debug_depth_ocr.jpg'))
+    save_overlay_depth_strip(
+        depth_strip, depth_points, fit, os.path.join(args.outdir, 'debug_depth_ocr.jpg')
+    )
 
     # Curve extraction on right track
     track_mask = hsv_red_mask(track_roi)
     cv2.imwrite(os.path.join(args.outdir, 'track_red_mask.jpg'), track_mask)
 
     xs, conf = extract_curve_x_by_row(track_mask)
-    save_overlay_curve(track_roi, xs, os.path.join(args.outdir, 'debug_curve_overlay.jpg'))
+    save_overlay_curve(
+        track_roi, xs, os.path.join(args.outdir, 'debug_curve_overlay.jpg')
+    )
 
     # Map to values using full ROI width
     x_left = 0.0
@@ -411,7 +512,11 @@ def main():
     d_res, v_res = resample_to_step(depth_valid, values_valid, args.step)
 
     # QC
-    coverage = float(np.isfinite(v_res).sum()) / float(len(v_res)) * 100.0 if len(v_res) else 0.0
+    coverage = (
+        float(np.isfinite(v_res).sum()) / float(len(v_res)) * 100.0
+        if len(v_res)
+        else 0.0
+    )
     qc_txt = []
     qc_txt.append(f"PDF: {args.pdf}")
     qc_txt.append(f"Page size (px): {W} x {H}")
@@ -439,12 +544,17 @@ def main():
         curve_unit='',
         well_name='2580',
         null_value=-999.25,
-        note=f"Digitized from {os.path.basename(args.pdf)}. {depth_note}"
+        note=f"Digitized from {os.path.basename(args.pdf)}. {depth_note}",
     )
 
     # Save extracted curve table
-    np.savetxt(os.path.join(args.outdir, 'curve_depth_value.csv'), np.column_stack([depth_valid, values_valid]),
-               delimiter=',', header='depth,value', comments='')
+    np.savetxt(
+        os.path.join(args.outdir, 'curve_depth_value.csv'),
+        np.column_stack([depth_valid, values_valid]),
+        delimiter=',',
+        header='depth,value',
+        comments='',
+    )
 
     # Save preset
     preset = {
@@ -459,13 +569,26 @@ def main():
         'depth_strip_bbox': depth_bbox,
         'red_clusters': [c.__dict__ for c in clusters],
         'depth_fit': (
-            {'mode': 'manual_top_bottom', 'top_m': args.depth_top, 'bottom_m': args.depth_bottom,
-             'a': float((args.depth_bottom - args.depth_top) / max(1.0, float(H - 1))), 'b': float(args.depth_top)}
+            {
+                'mode': 'manual_top_bottom',
+                'top_m': args.depth_top,
+                'bottom_m': args.depth_bottom,
+                'a': float(
+                    (args.depth_bottom - args.depth_top) / max(1.0, float(H - 1))
+                ),
+                'b': float(args.depth_top),
+            }
             if (args.depth_top is not None and args.depth_bottom is not None)
-            else ({'mode': 'ocr_linear', 'a': fit[0], 'b': fit[1]} if fit is not None else None)
+            else (
+                {'mode': 'ocr_linear', 'a': fit[0], 'b': fit[1]}
+                if fit is not None
+                else None
+            )
         ),
     }
-    with open(os.path.join(args.outdir, 'preset_2580.json'), 'w', encoding='utf-8') as f:
+    with open(
+        os.path.join(args.outdir, 'preset_2580.json'), 'w', encoding='utf-8'
+    ) as f:
         json.dump(preset, f, indent=2)
 
     print('Done.')

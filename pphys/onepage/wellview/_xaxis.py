@@ -34,14 +34,15 @@ class XAxisDict:
 	grid 	: whether the track draws grid lines, along and across it.
 
 	"""
-	limit 	: tuple[float, float] | None = None
 
-	major 	: float | None = None
-	minor 	: float | tuple[float, ...] | None = None
+	limit: tuple[float, float] | None = None
 
-	scale 	: str = "linear"
+	major: float | None = None
+	minor: float | tuple[float, ...] | None = None
 
-	grid 	: bool = True
+	scale: str = "linear"
+
+	grid: bool = True
 
 	def __post_init__(self):
 
@@ -50,28 +51,34 @@ class XAxisDict:
 
 		limit = _LIMITS[self.scale] if self.limit is None else self.limit
 
-		if len(limit)!=2 or limit[0]==limit[1]:
+		if len(limit) != 2 or limit[0] == limit[1]:
 			raise ValueError(f"limit must be two different values, not {limit!r}.")
 
-		if self.scale=="log10" and min(limit)<=0:
+		if self.scale == "log10" and min(limit) <= 0:
 			raise ValueError(f"A log10 track needs positive limits, not {limit!r}.")
 
-		object.__setattr__(self,'limit',(float(limit[0]),float(limit[1])))
+		object.__setattr__(self, 'limit', (float(limit[0]), float(limit[1])))
 
-		if self.scale=="log10":
-			minor = range(1,10) if self.minor is None else self.minor
-			object.__setattr__(self,'minor',tuple(float(sub) for sub in np.atleast_1d(minor)))
+		if self.scale == "log10":
+			minor = range(1, 10) if self.minor is None else self.minor
+			object.__setattr__(
+				self, 'minor', tuple(float(sub) for sub in np.atleast_1d(minor))
+			)
 			return
 
-		minor = floor(self.length/10) if self.minor is None else float(self.minor)
+		minor = floor(self.length / 10) if self.minor is None else float(self.minor)
 		# round off float noise such as 5*0.06 = 0.30000000000000004
-		major = round(5*minor,decimals(minor)) if self.major is None else float(self.major)
+		major = (
+			round(5 * minor, decimals(minor))
+			if self.major is None
+			else float(self.major)
+		)
 
-		if minor<=0 or major<=0:
+		if minor <= 0 or major <= 0:
 			raise ValueError("major and minor must be positive.")
 
-		object.__setattr__(self,'minor',minor)
-		object.__setattr__(self,'major',major)
+		object.__setattr__(self, 'minor', minor)
+		object.__setattr__(self, 'major', major)
 
 	@property
 	def lower(self) -> float:
@@ -86,31 +93,31 @@ class XAxisDict:
 	@property
 	def length(self) -> float:
 		"""Return the span of the axis (upper - lower)."""
-		return self.upper-self.lower
+		return self.upper - self.lower
 
 	@property
 	def middle(self) -> float:
 		"""Return the midpoint of the axis, geometric on a log10 scale."""
-		if self.scale=="log10":
-			return float(np.sqrt(self.lower*self.upper))
+		if self.scale == "log10":
+			return float(np.sqrt(self.lower * self.upper))
 
-		return (self.lower+self.upper)/2
+		return (self.lower + self.upper) / 2
 
 	@property
 	def flipped(self) -> bool:
 		"""Return True if the values decrease from left to right."""
-		return self.limit[0]>self.limit[1]
+		return self.limit[0] > self.limit[1]
 
-	def lower_off(self,perc:float=2.) -> float:
+	def lower_off(self, perc: float = 2.0) -> float:
 		"""Return the value perc % of the axis in from the lower limit."""
-		if self.scale=="log10":
-			return self.lower**(1-perc/100.)*self.upper**(perc/100.)
+		if self.scale == "log10":
+			return self.lower ** (1 - perc / 100.0) * self.upper ** (perc / 100.0)
 
-		return self.lower+self.length*perc/100.
+		return self.lower + self.length * perc / 100.0
 
-	def upper_off(self,perc:float=2.) -> float:
+	def upper_off(self, perc: float = 2.0) -> float:
 		"""Return the value perc % of the axis in from the upper limit."""
-		if self.scale=="log10":
-			return self.upper**(1-perc/100.)*self.lower**(perc/100.)
+		if self.scale == "log10":
+			return self.upper ** (1 - perc / 100.0) * self.lower ** (perc / 100.0)
 
-		return self.upper-self.length*perc/100.
+		return self.upper - self.length * perc / 100.0

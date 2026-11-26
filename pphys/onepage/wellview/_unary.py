@@ -62,7 +62,7 @@ def _snap(function: Callable[[float], int], x: float, ndigits: int | None) -> fl
 
 	# Scale by an exact power of ten, multiplying or dividing so that it
 	# stays an integer: 10**-3 has no exact float.
-	scale = 10.0**abs(int(ndigits))
+	scale = 10.0 ** abs(int(ndigits))
 
 	if ndigits >= 0:
 		return function(round(x * scale, _NOISE_DECIMALS)) / scale

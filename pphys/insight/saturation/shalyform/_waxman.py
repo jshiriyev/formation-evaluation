@@ -13,8 +13,8 @@ means exists to use this method if only well log data are available. Modificatio
 Smits method by Juhász (1979) have made it more directly applicable to measurements from logs.
 """
 
-class waxman():
 
+class waxman:
 	def saturation():
 
 		pass

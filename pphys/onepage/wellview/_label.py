@@ -17,19 +17,22 @@ class LabelDict:
 	spot 	: where the header goes: 'top', 'bottom', or None for no header.
 
 	"""
-	limit	: tuple[float, float] | None = None
 
-	major 	: float = 10.
+	limit: tuple[float, float] | None = None
 
-	spot 	: str | None = "top"
+	major: float = 10.0
+
+	spot: str | None = "top"
 
 	def __post_init__(self):
 
 		if self.spot not in SPOTS:
 			raise ValueError(f"spot must be one of {SPOTS}, not {self.spot!r}.")
 
-		if self.major<=0:
+		if self.major <= 0:
 			raise ValueError("major must be positive.")
 
 		if self.limit is not None:
-			object.__setattr__(self,'limit',tuple(sorted(float(value) for value in self.limit)))
+			object.__setattr__(
+				self, 'limit', tuple(sorted(float(value) for value in self.limit))
+			)
