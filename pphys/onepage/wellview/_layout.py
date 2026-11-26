@@ -16,13 +16,13 @@ class Layout:
 
 	def __init__(
 		self,
-		ntrail : int = 3,
-		ncycle : int = 3,
-		label : dict | LabelDict | None = None,
-		depth : dict | DepthDict | None = None,
-		widths : tuple[float, ...] | None = None,
-		heights : tuple[float, float] | None = None
-		):
+		ntrail: int = 3,
+		ncycle: int = 3,
+		label: dict | LabelDict | None = None,
+		depth: dict | DepthDict | None = None,
+		widths: tuple[float, ...] | None = None,
+		heights: tuple[float, float] | None = None,
+	):
 		"""It sets elements for different trails in the axes:
 
 		ntrail 	: number of trails (tracks) including the depth trails.
@@ -42,28 +42,32 @@ class Layout:
 
 		Set each trail's x axis with ``set(index, limit=, scale=, ...)``.
 		"""
-		if int(ntrail)<1 or int(ncycle)<1:
+		if int(ntrail) < 1 or int(ncycle) < 1:
 			raise ValueError("ntrail and ncycle must be at least 1.")
 
 		self._ntrail = int(ntrail)
 		self._ncycle = int(ncycle)
 
-		self._depth = depth if isinstance(depth,DepthDict) else DepthDict(**(depth or {}))
+		self._depth = (
+			depth if isinstance(depth, DepthDict) else DepthDict(**(depth or {}))
+		)
 
 		for spot in self._depth.spot:
-			if not 0<=spot<self._ntrail:
-				raise ValueError(f"Depth trail {spot} is outside the {self._ntrail} trails.")
+			if not 0 <= spot < self._ntrail:
+				raise ValueError(
+					f"Depth trail {spot} is outside the {self._ntrail} trails."
+				)
 
-		label = label if isinstance(label,LabelDict) else LabelDict(**(label or {}))
+		label = label if isinstance(label, LabelDict) else LabelDict(**(label or {}))
 
 		if label.limit is None:
-			label = replace(label,limit=(0.,self._ncycle*label.major))
+			label = replace(label, limit=(0.0, self._ncycle * label.major))
 
 		self._label = label
 
 		self._xaxes = [XAxisDict() for _ in range(self._ntrail)]
 
-		self.widths  = widths
+		self.widths = widths
 		self.heights = heights
 
 	@property
@@ -81,19 +85,19 @@ class Layout:
 
 	@property
 	def shape(self):
-		return (self.ntrail,self.ncycle)
+		return (self.ntrail, self.ncycle)
 
-	def set(self,index:int,**kwargs):
+	def set(self, index: int, **kwargs):
 		"""Set the x axis of a trail from XAxisDict keywords."""
 		self[index] = XAxisDict(**kwargs)
 
-	def __setitem__(self,index:int,xaxis:XAxisDict):
-		if not isinstance(xaxis,XAxisDict):
+	def __setitem__(self, index: int, xaxis: XAxisDict):
+		if not isinstance(xaxis, XAxisDict):
 			raise TypeError(f"A trail takes an XAxisDict, not {type(xaxis).__name__}.")
 
 		self._xaxes[index] = xaxis
 
-	def __getitem__(self,index:int) -> XAxisDict:
+	def __getitem__(self, index: int) -> XAxisDict:
 		return self._xaxes[index]
 
 	@property
@@ -102,23 +106,28 @@ class Layout:
 		return self._widths
 
 	@widths.setter
-	def widths(self,value:tuple[float, ...] | None):
+	def widths(self, value: tuple[float, ...] | None):
 
-		value = (2.,4.) if value is None else tuple(value)
+		value = (2.0, 4.0) if value is None else tuple(value)
 
-		if len(value)==self.ntrail:
+		if len(value) == self.ntrail:
 			widths = value
 
-		elif len(value)==1:
-			widths = value*self.ntrail
+		elif len(value) == 1:
+			widths = value * self.ntrail
 
-		elif len(value)==2:
-			widths = [value[0] if index in self._depth.spot else value[1] for index in range(self.ntrail)]
+		elif len(value) == 2:
+			widths = [
+				value[0] if index in self._depth.spot else value[1]
+				for index in range(self.ntrail)
+			]
 
 		else:
-			raise ValueError(f"widths takes 1, 2 or {self.ntrail} values, not {len(value)}.")
+			raise ValueError(
+				f"widths takes 1, 2 or {self.ntrail} values, not {len(value)}."
+			)
 
-		if min(widths)<=0:
+		if min(widths) <= 0:
 			raise ValueError("widths must be positive.")
 
 		self._widths = tuple(float(width) for width in widths)
@@ -129,30 +138,30 @@ class Layout:
 		return self._heights
 
 	@heights.setter
-	def heights(self,value:tuple[float, float] | None):
+	def heights(self, value: tuple[float, float] | None):
 
-		value = (50.,20.) if value is None else tuple(value)
+		value = (50.0, 20.0) if value is None else tuple(value)
 
-		if len(value)!=2 or min(value)<=0:
+		if len(value) != 2 or min(value) <= 0:
 			raise ValueError(f"heights takes two positive values, not {value!r}.")
 
-		self._heights = (float(value[0]),float(value[1]))
+		self._heights = (float(value[0]), float(value[1]))
 
 	@property
 	def height_ratios(self) -> tuple[float, ...]:
 		"""Return the heights of the header and trail rows, in figure order."""
-		head = self._heights[0]*self.ncycle
-		body = self._heights[1]*self._depth.length
+		head = self._heights[0] * self.ncycle
+		body = self._heights[1] * self._depth.length
 
-		if self._label.spot=="top":
-			return (head,body)
+		if self._label.spot == "top":
+			return (head, body)
 
-		if self._label.spot=="bottom":
-			return (body,head)
+		if self._label.spot == "bottom":
+			return (body, head)
 
 		return (body,)
 
 	@property
 	def size(self):
 		"""Return the (width, height) of the layout in its own units."""
-		return (sum(self.widths),sum(self.height_ratios))
+		return (sum(self.widths), sum(self.height_ratios))

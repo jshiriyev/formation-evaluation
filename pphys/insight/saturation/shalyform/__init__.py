@@ -8,4 +8,3 @@ from ._simandoux import totalshale
 
 from ._waxman import waxman
 from ._dualwater import dualwater
-

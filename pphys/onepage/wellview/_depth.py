@@ -19,28 +19,31 @@ class DepthDict:
 			own grid is off draws none.
 
 	"""
-	limit 	: tuple[float, float] = (0.,100.)
 
-	major 	: float = 10.
-	minor 	: float = 1.
+	limit: tuple[float, float] = (0.0, 100.0)
 
-	spot 	: tuple[int, ...] = (0,)
-	grid 	: bool = True
+	major: float = 10.0
+	minor: float = 1.0
+
+	spot: tuple[int, ...] = (0,)
+	grid: bool = True
 
 	def __post_init__(self):
 
-		top,base = sorted(float(value) for value in self.limit)
+		top, base = sorted(float(value) for value in self.limit)
 
-		if top==base:
-			raise ValueError(f"The depth limit needs two different depths, not {self.limit!r}.")
+		if top == base:
+			raise ValueError(
+				f"The depth limit needs two different depths, not {self.limit!r}."
+			)
 
-		if self.major<=0 or self.minor<=0:
+		if self.major <= 0 or self.minor <= 0:
 			raise ValueError("major and minor must be positive.")
 
-		spot = (self.spot,) if isinstance(self.spot,int) else tuple(self.spot)
+		spot = (self.spot,) if isinstance(self.spot, int) else tuple(self.spot)
 
-		object.__setattr__(self,'limit',(base,top))
-		object.__setattr__(self,'spot',spot)
+		object.__setattr__(self, 'limit', (base, top))
+		object.__setattr__(self, 'spot', spot)
 
 	@property
 	def lower(self) -> float:
@@ -55,4 +58,4 @@ class DepthDict:
 	@property
 	def length(self) -> float:
 		"""Return the depth interval (lower - upper)."""
-		return self.lower-self.upper
+		return self.lower - self.upper
