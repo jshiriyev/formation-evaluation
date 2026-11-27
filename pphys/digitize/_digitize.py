@@ -1,24 +1,29 @@
-"""Digitize one curve of a scanned log (PDF) into a :class:`pphys.WellLog`.
+"""Digitize the curves of a scanned log page (PDF) into a :class:`pphys.WellLog`.
 
-The pipeline, one curve per call:
+The pipeline:
 
 1. Render a PDF page (pypdfium2).
-2. Mask the curve colour (HSV, red by default) and find the tracks as
-   clusters of columns that hold many curve pixels.
-3. Calibrate depth: from the depths given, or by reading the depth labels
-   between the first and last track with Tesseract OCR and fitting
-   ``depth = a * row + b``.
-4. Take the median column of the curve pixels in each row and map it linearly
-   onto ``[vmin, vmax]`` across the track.
-5. Resample to a regular depth step and build the WellLog.
+2. Mask each curve's colour: by hue for coloured curves, by darkness for
+   black and grey ones (:func:`curve_mask`).
+3. Find the tracks from their frame lines (:func:`find_tracks`) and pick
+   each curve's track.
+4. Calibrate depth once: from the depths given, or from the depth labels,
+   found and read with Tesseract and fitted with a robust straight line
+   (:func:`find_depth_labels`, :func:`fit_depth`).
+5. For each curve: clean its mask in the track (grid lines, frames, specks;
+   :func:`clean_track_mask`), follow it row by row (:func:`trace_curve`),
+   bridge short gaps (:func:`bridge_gaps`) and map columns to values across
+   the track edges on a linear or log10 scale (:func:`map_x_to_value`).
+6. Resample all curves onto one depth grid, keeping long gaps empty
+   (:func:`resample`), and build the WellLog.
 
-Known limits, left to later roadmap steps: without ``track_edges`` the value
-scale spans the curve's own columns plus a margin, not the track edges; one
-colour and one curve per call; linear scales; PDF input only.
+Known limits: curves of one colour in one track are not told apart (a QC
+warning flags them); rotated pages are not deskewed; PDF input only.
 """
 
 from __future__ import annotations
 
+import functools
 import json
 import math
 import os
@@ -27,8 +32,10 @@ import shutil
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from typing import NamedTuple
 
 import numpy as np
+from matplotlib.colors import is_color_like, to_rgb
 
 try:
     import cv2
@@ -44,6 +51,7 @@ from .._lasio import WellLog
 DEPTH_UNITS = {"m": "M", "ft": "FT"}
 DEFAULT_STEP = {"m": 0.1524, "ft": 0.5}
 SCALES = ("linear", "log10")
+GRAY_SATURATION = 64  # colours less saturated than this are black or grey
 
 
 class DigitizeError(RuntimeError):
@@ -66,22 +74,29 @@ class DepthCalibrationError(DigitizeError):
 class Settings:
     """Tuning of the pipeline. Sizes are pixels of the rendered page.
 
-    The defaults are those of the scans the prototype was built on.
-
     Parameters
     ----------
     render_scale : float
         PDF render scale; 1.0 renders at 72 dpi.
-    hue_bands : tuple of (int, int)
-        Curve colour as OpenCV hue ranges (0-180). Red wraps around 0, hence
-        two bands by default.
+    hue_tolerance : int
+        How far (OpenCV hue, 0-90) a pixel's hue may be from a coloured
+        curve's.
     min_saturation, min_value : int
-        Lower HSV saturation and value (0-255) of a curve pixel.
-    mask_kernel : int
-        Size of the opening and closing that clean the colour mask.
+        Lower HSV saturation and value (0-255) of a coloured curve's pixel.
+    gray_saturation : int
+        Upper HSV saturation (0-255) of a black or grey curve's pixel.
+    gray_tolerance : int
+        How much brighter (HSV value, 0-255) than its colour a black or grey
+        curve's pixel may be.
+    min_blob : int
+        Connected pieces of a colour mask smaller than this many pixels are
+        specks, not curve.
+    max_gap : int
+        Gaps in a curve of up to this many rows (where another curve is drawn
+        over it, between dashes) are bridged by interpolation; longer gaps
+        stay empty.
     min_track_width : int
-        Tracks, and column clusters of curve pixels, narrower than this are
-        ignored.
+        Tracks narrower than this are ignored.
     ink_contrast : int
         How much darker than the paper (median grey, 0-255) a pixel must be
         to count as a printed line.
@@ -107,10 +122,13 @@ class Settings:
     """
 
     render_scale: float = 2.0
-    hue_bands: tuple[tuple[int, int], ...] = ((0, 10), (160, 180))
+    hue_tolerance: int = 12
     min_saturation: int = 70
     min_value: int = 50
-    mask_kernel: int = 3
+    gray_saturation: int = 60
+    gray_tolerance: int = 90
+    min_blob: int = 6
+    max_gap: int = 8
     min_track_width: int = 30
     ink_contrast: int = 40
     min_line_fraction: float = 0.5
@@ -126,7 +144,6 @@ class Settings:
     def __post_init__(self):
         positive = (
             "render_scale",
-            "mask_kernel",
             "min_track_width",
             "min_label_height",
             "label_tolerance",
@@ -136,6 +153,15 @@ class Settings:
                 raise ValueError(
                     f"{name} must be positive, not {getattr(self, name)!r}."
                 )
+        for name in ("min_blob", "max_gap"):
+            if getattr(self, name) < 0:
+                raise ValueError(
+                    f"{name} cannot be negative, not {getattr(self, name)!r}."
+                )
+        if not 0 <= self.hue_tolerance <= 90:
+            raise ValueError(
+                f"hue_tolerance must be in 0-90, not {self.hue_tolerance!r}."
+            )
         if not 0 < self.ink_contrast < 255:
             raise ValueError(
                 f"ink_contrast must be in 1-254, not {self.ink_contrast!r}."
@@ -152,26 +178,96 @@ class Settings:
             raise ValueError("max_label_height must be at least min_label_height.")
         if self.min_labels < 2:
             raise ValueError(f"min_labels must be at least 2, not {self.min_labels!r}.")
-        for name in ("min_saturation", "min_value"):
+        for name in (
+            "min_saturation",
+            "min_value",
+            "gray_saturation",
+            "gray_tolerance",
+        ):
             if not 0 <= getattr(self, name) <= 255:
                 raise ValueError(
                     f"{name} must be in 0-255, not {getattr(self, name)!r}."
                 )
-        bands = tuple((int(lo), int(hi)) for lo, hi in self.hue_bands)
-        if not bands or any(not 0 <= lo <= hi <= 180 for lo, hi in bands):
+
+
+@dataclass(frozen=True)
+class Curve:
+    """A curve to digitize.
+
+    Parameters
+    ----------
+    name : str
+        Mnemonic, e.g. "GR".
+    vmin, vmax : float
+        Values at the left and right edge of its track (vmin > vmax for a
+        flipped track).
+    unit : str
+        Unit, e.g. "gAPI".
+    scale : {"linear", "log10"}
+        The track's scale, as printed in the log header.
+    color : str
+        Any matplotlib colour ("red", "#1f77b4", "black"). Coloured curves
+        are matched by hue, so faded ink still counts; black and greys by
+        darkness.
+    track : "auto", "left", "right" or int
+        The detected track that holds it: the one with the most pixels of its
+        colour ("auto"), the first or last one, or its index from the left.
+    track_edges : (float, float), optional
+        Columns of the rendered page at its track's left and right edges;
+        overrides ``track`` and the detection.
+    """
+
+    name: str
+    vmin: float
+    vmax: float
+    unit: str = ""
+    scale: str = "linear"
+    color: str = "red"
+    track: str | int = "auto"
+    track_edges: tuple[float, float] | None = None
+
+    def __post_init__(self):
+        name = str(self.name).strip()
+        if not name:
+            raise ValueError("A curve needs a mnemonic, e.g. curve='GR'.")
+        object.__setattr__(self, "name", name)
+        if self.vmin == self.vmax:
+            raise ValueError(f"{name}: vmin and vmax must differ.")
+        if self.scale not in SCALES:
             raise ValueError(
-                f"hue_bands must be (low, high) pairs within 0-180, not {self.hue_bands!r}."
+                f"{name}: scale must be 'linear' or 'log10', not {self.scale!r}."
             )
-        object.__setattr__(self, "hue_bands", bands)
+        if self.scale == "log10" and min(self.vmin, self.vmax) <= 0:
+            raise ValueError(f"{name}: a log10 scale needs positive vmin and vmax.")
+        if not is_color_like(self.color):
+            raise ValueError(
+                f"{name}: color must be a colour name or hex, not {self.color!r}."
+            )
+        _, saturation, value = _hsv_of(self.color)
+        if saturation < GRAY_SATURATION and value > 200:
+            raise ValueError(
+                f"{name}: a {self.color!r} curve cannot be told from the paper."
+            )
+        named = isinstance(self.track, str) and self.track in ("auto", "left", "right")
+        index = isinstance(self.track, (int, np.integer)) and not isinstance(
+            self.track, bool
+        )
+        if not (named or index):
+            raise ValueError(
+                f"{name}: track must be 'auto', 'left', 'right' or an index, not {self.track!r}."
+            )
+        if self.track_edges is not None:
+            x0, x1 = sorted(float(v) for v in self.track_edges)
+            if x1 - x0 < 2:
+                raise ValueError(
+                    f"{name}: track_edges must be two columns at least 2 apart."
+                )
+            object.__setattr__(self, "track_edges", (x0, x1))
 
-
-@dataclass
-class Cluster:
-    """A run of columns with many curve pixels."""
-
-    x0: int
-    x1: int
-    score: float
+    @property
+    def dark(self) -> bool:
+        """Whether the colour is black or grey, matched by darkness rather than hue."""
+        return _hsv_of(self.color)[1] < GRAY_SATURATION
 
 
 @dataclass
@@ -214,6 +310,46 @@ class Label:
 
 
 @dataclass
+class CurveQC:
+    """What :func:`digitize` found for one curve.
+
+    Parameters
+    ----------
+    name, color, scale : str
+        As given.
+    track : (float, float)
+        Columns of the left and right edge of its track, where its values
+        are ``vmin`` and ``vmax``.
+    track_source : str
+        "detected" (from the frame lines) or "manual" (``track_edges``).
+    grid : str or None
+        What the track's vertical grid looks like: "linear" (evenly spaced),
+        "log10" (bunching toward each decade), or None if unclear.
+    rows_found : int
+        Page rows where the curve was found.
+    rows_bridged : int
+        Rows filled in by interpolation across short gaps (up to
+        ``Settings.max_gap``).
+    rows_ambiguous : int
+        Rows holding two or more separate runs of the curve's colour.
+    coverage : float
+        Percent of the resampled depths, between its first and last reading,
+        that have a value.
+    """
+
+    name: str
+    color: str
+    scale: str
+    track: tuple[float, float]
+    track_source: str
+    grid: str | None = None
+    rows_found: int = 0
+    rows_bridged: int = 0
+    rows_ambiguous: int = 0
+    coverage: float = 0.0
+
+
+@dataclass
 class QC:
     """What :func:`digitize` found, for checking the result.
 
@@ -229,22 +365,13 @@ class QC:
         Width and height of the rendered page.
     tracks : list of (float, float)
         Frame columns of every track found, left to right.
-    track : (float, float)
-        Columns of the left and right edge of the track read, where the
-        values are ``vmin`` and ``vmax``.
-    track_source : str
-        "detected" (found from its frame lines) or "manual" (``track_edges``).
-    scale : str
-        "linear" or "log10", as given.
     depth_source : str
         "manual" (depths given) or "ocr" (depth labels read).
     depth_fit : (float, float)
         ``(a, b)`` of ``depth = a * row + b``.
-    grid : str or None
-        What the vertical grid of the track looks like: "linear" (evenly
-        spaced), "log10" (bunching toward each decade), or None if unclear.
-    curve_clusters : list of (int, int)
-        Column ranges of the curve-coloured pixels, left to right.
+    curves : list of CurveQC
+        One per curve, in order. ``track``, ``track_source``, ``scale``,
+        ``grid`` and ``coverage`` are shortcuts to the first.
     depth_labels : list of (float, float)
         ``(row, depth)`` of the labels read by OCR (empty for manual depths).
     depth_inliers : list of bool
@@ -256,8 +383,6 @@ class QC:
         RMS of the agreeing labels' residuals, in rows.
     label_columns : (float, float) or None
         Column range the labels were read from.
-    coverage : float
-        Percent of the resampled depths that have a value.
     warnings : list of str
         Things to check before trusting the result.
     """
@@ -266,29 +391,42 @@ class QC:
     page: int
     page_size: tuple[int, int]
     tracks: list[tuple[float, float]]
-    track: tuple[float, float]
-    track_source: str
-    scale: str
     depth_source: str
     depth_fit: tuple[float, float]
-    grid: str | None = None
-    curve_clusters: list[tuple[int, int]] = field(default_factory=list)
+    curves: list[CurveQC] = field(default_factory=list)
     depth_labels: list[tuple[float, float]] = field(default_factory=list)
     depth_inliers: list[bool] = field(default_factory=list)
     depth_residuals: list[float] = field(default_factory=list)
     depth_rms: float | None = None
     label_columns: tuple[float, float] | None = None
-    coverage: float = 0.0
     warnings: list[str] = field(default_factory=list)
+
+    @property
+    def track(self) -> tuple[float, float]:
+        return self.curves[0].track
+
+    @property
+    def track_source(self) -> str:
+        return self.curves[0].track_source
+
+    @property
+    def scale(self) -> str:
+        return self.curves[0].scale
+
+    @property
+    def grid(self) -> str | None:
+        return self.curves[0].grid
+
+    @property
+    def coverage(self) -> float:
+        return self.curves[0].coverage
 
     def summary(self) -> str:
         """A few lines for the console."""
         a, b = self.depth_fit
         lines = [
-            f"scan: {self.scan} (page {self.page}, {self.page_size[0]} x {self.page_size[1]} px)",
-            f"track: columns {self.track[0]:.1f}-{self.track[1]:.1f} ({self.track_source}; "
-            f"{len(self.tracks)} track(s) found), {self.scale} scale"
-            + (f", grid looks {self.grid}" if self.grid else ""),
+            f"scan: {self.scan} (page {self.page}, {self.page_size[0]} x {self.page_size[1]} px), "
+            f"{len(self.tracks)} track(s) found",
             f"depth: {self.depth_source}, depth = {a:.6g} * row + {b:.6g}",
         ]
         if self.depth_source == "ocr":
@@ -297,9 +435,25 @@ class QC:
                 f"depth labels: {used} of {len(self.depth_labels)} on the line, "
                 f"RMS {self.depth_rms:.2f} rows"
             )
-        lines.append(f"coverage: {self.coverage:.1f}%")
+        for c in self.curves:
+            lines.append(
+                f"{c.name} ({c.color}): track columns {c.track[0]:.1f}-{c.track[1]:.1f} "
+                f"({c.track_source}), {c.scale} scale"
+                + (f", grid looks {c.grid}" if c.grid else "")
+                + f"; found in {c.rows_found} rows, {c.rows_bridged} bridged; "
+                f"coverage {c.coverage:.1f}%"
+            )
         lines += [f"warning: {w}" for w in self.warnings]
         return "\n".join(lines)
+
+
+class Reading(NamedTuple):
+    """A curve as read: one sample per page row that holds it, before
+    resampling; ``bridged`` marks rows interpolated across a short gap."""
+
+    depth: np.ndarray
+    value: np.ndarray
+    bridged: np.ndarray
 
 
 @dataclass
@@ -309,33 +463,41 @@ class DigitizeResult:
     Parameters
     ----------
     las : WellLog
-        The depth index and the digitized curve, resampled to a regular step.
+        The depth index and the digitized curves, resampled to a regular step.
     qc : QC
-        Track, depth calibration, coverage and warnings.
+        Tracks, depth calibration, per-curve findings and warnings.
     settings : Settings
         The settings used.
     images : dict of str to numpy.ndarray
-        QC images by name: "page", "mask", "track", "track_mask",
-        "curve_overlay", and for OCR "depth_labels".
-    depth, value : numpy.ndarray
-        The curve as read, one sample per page row that holds it, before
-        resampling.
+        QC images by name: "page", and per curve ``mask_<name>``,
+        ``track_<name>``, ``track_mask_<name>`` and ``curve_overlay_<name>``;
+        for OCR also "depth_labels".
+    raw : dict of str to Reading
+        Each curve as read, before resampling. ``depth`` and ``value`` are
+        shortcuts to the first curve's.
     """
 
     las: WellLog
     qc: QC
     settings: Settings
     images: dict[str, np.ndarray]
-    depth: np.ndarray
-    value: np.ndarray
+    raw: dict[str, Reading]
+
+    @property
+    def depth(self) -> np.ndarray:
+        return next(iter(self.raw.values())).depth
+
+    @property
+    def value(self) -> np.ndarray:
+        return next(iter(self.raw.values())).value
 
     def save(self, outdir: str | os.PathLike, name: str | None = None) -> Path:
-        """Write the LAS file, the raw curve, the QC images and ``qc.json``.
+        """Write the LAS file, the raw readings, the QC images and ``qc.json``.
 
-        Files: ``<name>.las``, ``<name>.csv`` (depth, value as read),
-        ``<image>.png`` for every QC image, and ``qc.json`` (QC and
-        settings). ``name`` defaults to the scan's file name. Returns the
-        LAS path.
+        Files: ``<name>.las``; ``<name>.csv`` with the readings before
+        resampling (columns curve, depth, value, bridged); ``<image>.png``
+        for every QC image; and ``qc.json`` (QC and settings). ``name``
+        defaults to the scan's file name. Returns the LAS path.
         """
         out = Path(outdir)
         out.mkdir(parents=True, exist_ok=True)
@@ -343,13 +505,13 @@ class DigitizeResult:
 
         las_path = out / f"{name}.las"
         self.las.write(str(las_path), version=2.0)
-        np.savetxt(
-            out / f"{name}.csv",
-            np.column_stack([self.depth, self.value]),
-            delimiter=",",
-            header="depth,value",
-            comments="",
-        )
+        lines = ["curve,depth,value,bridged"]
+        for curve, reading in self.raw.items():
+            lines += [
+                f"{curve},{d:.6f},{v:.6f},{int(bridged)}"
+                for d, v, bridged in zip(reading.depth, reading.value, reading.bridged)
+            ]
+        (out / f"{name}.csv").write_text("\n".join(lines) + "\n", encoding="utf-8")
         for key, image in self.images.items():
             _write_image(out / f"{key}.png", image)
         report = {"qc": asdict(self.qc), "settings": asdict(self.settings)}
@@ -360,37 +522,38 @@ class DigitizeResult:
 def digitize(
     scan: str | os.PathLike,
     *,
-    curve: str,
-    vmin: float,
-    vmax: float,
+    curves: Sequence[Curve] | None = None,
+    curve: str | None = None,
+    vmin: float | None = None,
+    vmax: float | None = None,
     unit: str = "",
     scale: str = "linear",
+    color: str = "red",
+    track: str | int = "auto",
+    track_edges: tuple[float, float] | None = None,
     depth: Sequence[float] | Sequence[tuple[float, float]] | None = None,
     depth_unit: str = "m",
     step: float | None = None,
     page: int = 0,
-    track: str | int = "auto",
-    track_edges: tuple[float, float] | None = None,
     label_columns: tuple[float, float] | None = None,
     well: str | None = None,
     settings: Settings | None = None,
 ) -> DigitizeResult:
-    """Digitize one curve of a scanned log page into a WellLog.
+    """Digitize curves of a scanned log page into a WellLog.
+
+    Give the curves as ``curves=[Curve(...), ...]``, or one curve with the
+    shorthand ``curve``, ``vmin``, ``vmax``, ``unit``, ``scale``, ``color``,
+    ``track`` and ``track_edges`` (the fields of :class:`Curve`). The tracks
+    and the depth calibration are found once for all curves.
 
     Parameters
     ----------
     scan : str or path
         A PDF file.
-    curve : str
-        Mnemonic of the digitized curve, e.g. "GR".
-    vmin, vmax : float
-        Values at the left and right edge of the track (vmin > vmax for a
-        flipped track).
-    unit : str
-        Unit of the curve, e.g. "gAPI".
-    scale : {"linear", "log10"}
-        The track's scale, as printed in the log header. A QC warning flags
-        a grid that looks like the other kind.
+    curves : sequence of Curve, optional
+        The curves, each with its scale, colour and track.
+    curve, vmin, vmax, unit, scale, color, track, track_edges
+        One curve, when ``curves`` is not given; see :class:`Curve`.
     depth : (top, base) or sequence of (row, depth), optional
         Manual depth calibration, which skips OCR. ``(top, base)`` are the
         depths at the first and last row of the rendered page; two or more
@@ -405,14 +568,6 @@ def digitize(
         Depth step of the output; 0.1524 (m) or 0.5 (ft) by default.
     page : int
         Page of the PDF to digitize, 0-based.
-    track : "auto", "left", "right" or int
-        Which detected track to read: the one holding the most pixels of the
-        curve colour ("auto"), the first or last one, or its index from the
-        left. Tracks are found from their frame lines (see :func:`find_tracks`).
-    track_edges : (float, float), optional
-        Columns of the rendered page at the track's left and right edges,
-        where the values are ``vmin`` and ``vmax``; overrides the detection
-        and ``track``.
     label_columns : (float, float), optional
         Columns of the rendered page between which the depth labels are;
         by default every band outside the tracks is searched.
@@ -424,8 +579,8 @@ def digitize(
     Returns
     -------
     DigitizeResult
-        ``.las`` (the WellLog), ``.qc`` and the QC images; ``.save(dir)``
-        writes them.
+        ``.las`` (the WellLog, one column per curve), ``.qc``, ``.raw`` and
+        the QC images; ``.save(dir)`` writes them.
 
     Raises
     ------
@@ -433,9 +588,9 @@ def digitize(
         If depth cannot be calibrated: no labels found, or fewer than
         ``Settings.min_labels`` of them on one line.
     DigitizeError
-        If no curve is found, no track frames are found (pass
-        ``track_edges``), the track does not exist, or Tesseract is needed
-        but missing.
+        If a curve's colour is not found, no track frames are found (pass
+        ``track_edges``), a track does not exist, or Tesseract is needed but
+        missing.
     """
     settings = Settings() if settings is None else settings
     path = Path(scan)
@@ -445,14 +600,9 @@ def digitize(
         raise DigitizeError(
             f"{path.name}: only PDF scans are read for now; convert an image to PDF first."
         )
-    if not str(curve).strip():
-        raise ValueError("curve needs a mnemonic, e.g. curve='GR'.")
-    if vmin == vmax:
-        raise ValueError("vmin and vmax must differ.")
-    if scale not in SCALES:
-        raise ValueError(f"scale must be 'linear' or 'log10', not {scale!r}.")
-    if scale == "log10" and min(vmin, vmax) <= 0:
-        raise ValueError("A log10 scale needs positive vmin and vmax.")
+    curves = _curve_list(
+        curves, curve, vmin, vmax, unit, scale, color, track, track_edges
+    )
     if depth_unit not in DEPTH_UNITS:
         raise ValueError(f"depth_unit must be 'm' or 'ft', not {depth_unit!r}.")
     step = DEFAULT_STEP[depth_unit] if step is None else float(step)
@@ -462,55 +612,45 @@ def digitize(
 
     page_bgr = render_pdf_page(path, page, settings.render_scale)
     height, width = page_bgr.shape[:2]
-    mask = curve_mask(page_bgr, settings)
-    images = {"page": page_bgr, "mask": mask}
-
-    clusters = find_clusters(mask, settings.min_track_width)
-    if not clusters:
-        raise DigitizeError(
-            "No curve of the chosen colour was found on the page; check "
-            "Settings.hue_bands and Settings.render_scale.",
-            images,
-        )
-    warnings: list[str] = []
-    tracks = find_tracks(page_bgr, settings, curve=mask)
-
-    # The track's edges, where the values are vmin and vmax.
-    if track_edges is not None:
-        x0, x1 = sorted(float(v) for v in track_edges)
-        if x0 < 0 or x1 > width - 1 or x1 - x0 < 2:
-            raise ValueError(
-                f"track_edges {tuple(track_edges)} must be two columns within the page (0-{width - 1})."
-            )
-        track_source = "manual"
-        chosen = max(tracks, key=lambda t: _overlap(t, x0, x1), default=None)
-        if chosen is not None and _overlap(chosen, x0, x1) <= 0:
-            chosen = None
-    else:
-        if not tracks:
+    images: dict[str, np.ndarray] = {"page": page_bgr}
+    masks = {}
+    for c in curves:
+        masks[c.name] = curve_mask(page_bgr, c.color, settings)
+        images[f"mask_{c.name}"] = masks[c.name]
+        if not masks[c.name].any():
             raise DigitizeError(
-                "No track frames (long vertical lines) were found around the curve; "
-                "pass track_edges=(left, right) in page columns (see the 'page' image).",
+                f"No {c.color} pixels were found on the page for {c.name}; check its "
+                "color= and the Settings colour tolerances.",
                 images,
             )
-        chosen, note = _pick_track(tracks, track, mask)
-        if note:
-            warnings.append(note)
-        x0, x1 = chosen.x0, chosen.x1
-        track_source = "detected"
+    warnings: list[str] = []
+    every = functools.reduce(np.bitwise_or, masks.values())
+    coloured = [masks[c.name] for c in curves if not c.dark]
+    # Black curves share the frames' colour, so only coloured curves are kept out of the lines.
+    exclude = (
+        functools.reduce(np.bitwise_or, coloured) if coloured else np.zeros_like(every)
+    )
+    tracks = find_tracks(page_bgr, settings, curve=every, exclude=exclude)
 
-    grid = grid_kind(chosen) if chosen is not None else None
-    if grid is not None and grid != scale:
-        warnings.append(
-            f"The track's grid looks {grid} ("
-            + ("evenly spaced" if grid == "linear" else "bunching toward each decade")
-            + f") but scale='{scale}'; check the scale printed in the log header."
+    picks = {}
+    for c in curves:
+        x0, x1, source, chosen, note = _curve_track(
+            c, tracks, masks[c.name], width, images
         )
-
-    # Crop whole columns around the edges; values use the exact (sub-pixel) edges.
-    c0, c1 = max(0, math.floor(x0)), min(width - 1, math.ceil(x1))
-    roi = page_bgr[:, c0 : c1 + 1].copy()
-    images["track"] = roi
+        if note:
+            warnings.append(f"{c.name}: {note}")
+        grid = grid_kind(chosen) if chosen is not None else None
+        if grid is not None and grid != c.scale:
+            warnings.append(
+                f"{c.name}: the track's grid looks {grid} ("
+                + (
+                    "evenly spaced"
+                    if grid == "linear"
+                    else "bunching toward each decade"
+                )
+                + f") but scale='{c.scale}'; check the scale printed in the log header."
+            )
+        picks[c.name] = (x0, x1, source, grid)
 
     labels: list[Label] = []
     inliers: list[bool] = []
@@ -521,7 +661,7 @@ def digitize(
         a, b = _manual_fit(manual, height)
         source = "manual"
     else:
-        known = tracks or [Track(x0, x1)]
+        known = tracks or [Track(p[0], p[1]) for p in picks.values()]
         columns, labels = find_depth_labels(page_bgr, known, settings, label_columns)
         numbers = [lb for lb in labels if lb.depth is not None]
         fit = fit_depth(
@@ -575,26 +715,64 @@ def digitize(
                 "line; the scan may be stretched."
             )
 
-    track_mask = curve_mask(roi, settings)
-    xs, _ = extract_curve_x_by_row(track_mask)
-    images["track_mask"] = track_mask
-    images["curve_overlay"] = curve_overlay(roi, xs)
-
-    values = map_x_to_value(xs + c0, x0, x1, vmin, vmax, scale)
-    depths = a * np.arange(roi.shape[0], dtype=float) + b
-    found = np.isfinite(values)
-    if found.sum() < 2:
-        raise DigitizeError(
-            "The curve was found in fewer than two rows of the track.", images
+    depths = a * np.arange(height, dtype=float) + b
+    raw: dict[str, Reading] = {}
+    curve_qcs = []
+    for c in curves:
+        x0, x1, track_source, grid = picks[c.name]
+        c0, c1 = max(0, math.floor(x0)), min(width - 1, math.ceil(x1))
+        roi = page_bgr[:, c0 : c1 + 1]
+        clean = clean_track_mask(
+            masks[c.name][:, c0 : c1 + 1], x0 - c0, x1 - c0, settings, frames=c.dark
         )
-    raw_depth, raw_value = depths[found], values[found]
+        xs, ambiguous = trace_curve(clean)
+        found = int(np.isfinite(xs).sum())
+        xs, bridged = bridge_gaps(xs, settings.max_gap)
+        values = map_x_to_value(xs + c0, x0, x1, c.vmin, c.vmax, c.scale)
+        ok = np.isfinite(values)
+        images[f"track_{c.name}"] = roi.copy()
+        images[f"track_mask_{c.name}"] = clean.astype(np.uint8) * 255
+        images[f"curve_overlay_{c.name}"] = curve_overlay(roi, xs, bridged)
+        if ok.sum() < 2:
+            raise DigitizeError(
+                f"{c.name} was found in fewer than two rows of its track (columns "
+                f"{x0:.0f}-{x1:.0f}); check its color= and track.",
+                images,
+            )
+        raw[c.name] = Reading(depths[ok], values[ok], bridged[ok])
+        if ambiguous > 0.1 * max(1, found):
+            warnings.append(
+                f"{c.name}: {ambiguous} rows hold two or more separate runs of {c.color}; "
+                "another curve of that colour may be mixed in (curves of one colour "
+                "in one track are not told apart)."
+            )
+        curve_qcs.append(
+            CurveQC(
+                c.name,
+                c.color,
+                c.scale,
+                (float(x0), float(x1)),
+                track_source,
+                grid,
+                found,
+                int(bridged.sum()),
+                int(ambiguous),
+            )
+        )
 
-    out_depth, out_value = resample_to_step(raw_depth, raw_value, step)
-    coverage = (
-        100.0 * float(np.isfinite(out_value).sum()) / len(out_value)
-        if len(out_value)
-        else 0.0
-    )
+    spacing = (settings.max_gap + 1.5) * abs(a)
+    top = min(float(r.depth.min()) for r in raw.values())
+    base = max(float(r.depth.max()) for r in raw.values())
+    out_depth = np.arange(top, base + 0.5 * step, step)
+    outputs = []
+    for c, cq in zip(curves, curve_qcs):
+        reading = raw[c.name]
+        values = resample(out_depth, reading.depth, reading.value, spacing)
+        inside = (out_depth >= reading.depth.min()) & (out_depth <= reading.depth.max())
+        cq.coverage = (
+            100.0 * float(np.isfinite(values[inside]).mean()) if inside.any() else 0.0
+        )
+        outputs.append((c, values))
 
     note = f"Digitized with pphys.digitize from {path.name}, page {page}. Depth " + (
         "from manual calibration."
@@ -603,10 +781,7 @@ def digitize(
     )
     las = _build_las(
         out_depth,
-        out_value,
-        curve=str(curve).strip(),
-        unit=unit,
-        descr=f"Digitized curve, {scale} scale {vmin:g} to {vmax:g}",
+        outputs,
         depth_unit=depth_unit,
         well=path.stem if well is None else well,
         null_value=settings.null_value,
@@ -617,22 +792,74 @@ def digitize(
         page=page,
         page_size=(width, height),
         tracks=[(t.x0, t.x1) for t in tracks],
-        track=(float(x0), float(x1)),
-        track_source=track_source,
-        scale=scale,
         depth_source=source,
         depth_fit=(float(a), float(b)),
-        grid=grid,
-        curve_clusters=[(c.x0, c.x1) for c in sorted(clusters, key=lambda c: c.x0)],
+        curves=curve_qcs,
         depth_labels=[(lb.row, lb.depth) for lb in labels],
         depth_inliers=inliers,
         depth_residuals=residuals,
         depth_rms=depth_rms,
         label_columns=columns,
-        coverage=coverage,
         warnings=warnings,
     )
-    return DigitizeResult(las, qc, settings, images, raw_depth, raw_value)
+    return DigitizeResult(las, qc, settings, images, raw)
+
+
+def _curve_list(
+    curves, curve, vmin, vmax, unit, scale, color, track, track_edges
+) -> list[Curve]:
+    """The curves to digitize, from ``curves`` or the one-curve shorthand."""
+    if curves is not None:
+        if curve is not None or vmin is not None or vmax is not None:
+            raise ValueError("Give curves=[...] or curve/vmin/vmax, not both.")
+        curves = list(curves)
+        if not curves or not all(isinstance(c, Curve) for c in curves):
+            raise ValueError("curves must be a non-empty list of Curve.")
+    else:
+        if curve is None or vmin is None or vmax is None:
+            raise ValueError(
+                "Name the curve and its scale: curve=, vmin= and vmax= (or curves=[Curve(...)])."
+            )
+        curves = [
+            Curve(
+                curve,
+                vmin,
+                vmax,
+                unit=unit,
+                scale=scale,
+                color=color,
+                track=track,
+                track_edges=track_edges,
+            )
+        ]
+    names = [c.name for c in curves]
+    if len(set(names)) != len(names) or "DEPT" in names:
+        raise ValueError(f"Curve names must be unique and not DEPT, not {names}.")
+    return curves
+
+
+def _curve_track(curve, tracks, mask, width, images):
+    """Edges, their source, the detected track (for the grid check) and any
+    warning, for one curve."""
+    if curve.track_edges is not None:
+        x0, x1 = curve.track_edges
+        if x0 < 0 or x1 > width - 1:
+            raise ValueError(
+                f"{curve.name}: track_edges {curve.track_edges} must lie within the page "
+                f"(0-{width - 1})."
+            )
+        chosen = max(tracks, key=lambda t: _overlap(t, x0, x1), default=None)
+        if chosen is not None and _overlap(chosen, x0, x1) <= 0:
+            chosen = None
+        return x0, x1, "manual", chosen, None
+    if not tracks:
+        raise DigitizeError(
+            "No track frames (long vertical lines) were found around the curve; "
+            "pass track_edges=(left, right) in page columns (see the 'page' image).",
+            images,
+        )
+    chosen, note = _pick_track(tracks, curve.track, mask)
+    return chosen.x0, chosen.x1, "detected", chosen, note
 
 
 def find_tesseract(path: str | os.PathLike | None = None) -> str:
@@ -689,44 +916,116 @@ def render_pdf_page(
     return cv2.cvtColor(rgb[..., :3], cv2.COLOR_RGB2BGR)
 
 
-def curve_mask(bgr: np.ndarray, settings: Settings | None = None) -> np.ndarray:
-    """Mask (0 or 255) of the pixels in the curve colour of ``settings``."""
+def curve_mask(
+    bgr: np.ndarray, color: str = "red", settings: Settings | None = None
+) -> np.ndarray:
+    """Mask (0 or 255) of the pixels in ``color``.
+
+    Coloured curves are matched by hue (within ``Settings.hue_tolerance``,
+    with enough saturation and brightness), so faded ink still counts; black
+    and greys by darkness (low saturation, at most ``gray_tolerance``
+    brighter than the colour). Specks smaller than ``Settings.min_blob``
+    pixels are dropped.
+    """
     settings = Settings() if settings is None else settings
+    hue, saturation, value = _hsv_of(color)
     hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
-    mask = np.zeros(hsv.shape[:2], dtype=np.uint8)
-    for lo, hi in settings.hue_bands:
-        lower = np.array([lo, settings.min_saturation, settings.min_value])
-        upper = np.array([hi, 255, 255])
-        mask = cv2.bitwise_or(mask, cv2.inRange(hsv, lower, upper))
-    kernel = cv2.getStructuringElement(
-        cv2.MORPH_ELLIPSE, (settings.mask_kernel, settings.mask_kernel)
-    )
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=1)
-    return cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=1)
+    if saturation < GRAY_SATURATION:
+        mask = (hsv[..., 1] <= settings.gray_saturation) & (
+            hsv[..., 2] <= min(255, value + settings.gray_tolerance)
+        )
+    else:
+        dh = np.abs(hsv[..., 0].astype(np.int16) - hue)
+        dh = np.minimum(dh, 180 - dh)
+        mask = (
+            (dh <= settings.hue_tolerance)
+            & (hsv[..., 1] >= settings.min_saturation)
+            & (hsv[..., 2] >= settings.min_value)
+        )
+    return _drop_blobs(mask, settings.min_blob).astype(np.uint8) * 255
 
 
-def find_clusters(mask: np.ndarray, min_width: int = 30) -> list[Cluster]:
-    """Find runs of columns with many curve pixels, left to right."""
-    col = mask.sum(axis=0) / 255.0
-    # Threshold based on percentiles, to adapt to the page.
-    thr = np.percentile(col, 95) * 0.3
-    thr = max(thr, np.percentile(col, 90) * 0.5)
-    on = col > thr
+def clean_track_mask(
+    mask: np.ndarray,
+    left: float,
+    right: float,
+    settings: Settings | None = None,
+    frames: bool = False,
+) -> np.ndarray:
+    """The curve's pixels in a track crop (boolean).
 
-    clusters: list[Cluster] = []
-    start = None
-    for i, val in enumerate(on):
-        if val and start is None:
-            start = i
-        elif not val and start is not None:
-            if i - start >= min_width:
-                clusters.append(Cluster(start, i - 1, float(col[start:i].sum())))
-            start = None
-    if start is not None and len(on) - start >= min_width:
-        clusters.append(Cluster(start, len(on) - 1, float(col[start:].sum())))
+    Removed: lines running across the track (rows 70 % covered), full-height
+    lines when there are three or more (a grid in the curve's colour; one
+    alone may be a constant curve), the frame columns at ``left``/``right``
+    (crop columns) when ``frames`` (dark curves share the frames' colour),
+    and specks.
+    """
+    settings = Settings() if settings is None else settings
+    m = mask > 0
+    if frames:
+        m[:, : max(0, math.floor(left) + 3)] = False
+        m[:, max(0, math.ceil(right) - 2) :] = False
+    m[m.mean(axis=1) >= 0.7] = False
+    lines = _runs(m.mean(axis=0) >= settings.min_line_fraction)
+    if len(lines) >= 3:
+        for start, stop in lines:
+            m[:, start:stop] = False
+    return _drop_blobs(m, settings.min_blob)
 
-    clusters.sort(key=lambda c: (c.x0, -(c.x1 - c.x0)))
-    return clusters
+
+def trace_curve(mask: np.ndarray, join: int = 3) -> tuple[np.ndarray, int]:
+    """Follow a curve down a track mask, one column per row.
+
+    In each row, runs of pixels closer than ``join`` columns are joined and a
+    run's centre is its column. A row with one run takes it; a row with
+    several takes the one nearest the curve in the neighbouring rows, so
+    stray marks don't pull the curve off. Returns the columns (NaN where the
+    row is empty) and the number of rows that held several runs.
+    """
+    centres = []
+    for row in mask:
+        merged: list[list[int]] = []
+        for start, stop in _runs(row):
+            if merged and start - merged[-1][1] <= join:
+                merged[-1][1] = stop
+            else:
+                merged.append([start, stop])
+        centres.append([(start + stop - 1) / 2.0 for start, stop in merged])
+
+    xs = np.full(len(centres), np.nan)
+    for y, found in enumerate(centres):
+        if len(found) == 1:
+            xs[y] = found[0]
+    several = [y for y, found in enumerate(centres) if len(found) > 1]
+    if several and not np.isfinite(xs).any():
+        first = centres[several[0]]
+        xs[several[0]] = first[len(first) // 2]  # no single-run row to start from
+    if several:
+        for order in (range(len(xs)), range(len(xs) - 1, -1, -1)):
+            last = np.nan
+            for y in order:
+                if np.isfinite(xs[y]):
+                    last = xs[y]
+                elif len(centres[y]) > 1 and np.isfinite(last):
+                    xs[y] = min(centres[y], key=lambda x, last=last: abs(x - last))
+                    last = xs[y]
+    return xs, len(several)
+
+
+def bridge_gaps(xs: np.ndarray, max_gap: int) -> tuple[np.ndarray, np.ndarray]:
+    """Interpolate across gaps of up to ``max_gap`` empty rows.
+
+    Returns the filled columns (longer gaps stay NaN) and which rows were
+    filled.
+    """
+    xs = np.array(xs, dtype=float)
+    bridged = np.zeros(len(xs), dtype=bool)
+    rows = np.flatnonzero(np.isfinite(xs))
+    for a, b in zip(rows[:-1], rows[1:]):
+        if 1 < b - a <= max_gap + 1:
+            xs[a + 1 : b] = np.interp(np.arange(a + 1, b), [a, b], [xs[a], xs[b]])
+            bridged[a + 1 : b] = True
+    return xs, bridged
 
 
 def find_vertical_lines(
@@ -750,19 +1049,24 @@ def find_tracks(
     page_bgr: np.ndarray,
     settings: Settings | None = None,
     curve: np.ndarray | None = None,
+    exclude: np.ndarray | None = None,
 ) -> list[Track]:
     """Tracks found from their frame lines, left to right.
 
     The darkest long vertical lines are frames, the lighter ones grid lines
     (``Settings.frame_tolerance``). The span between two neighbouring frames
-    is a track when it holds grid lines, pixels of ``curve`` (the curve
-    mask), or horizontal grid lines running across it; so the depth column
+    is a track when it holds grid lines, ``curve`` pixels (the curve mask)
+    in at least 30 % of its rows, or horizontal grid lines running across it; so the depth column
     and margins are skipped and tracks sharing a frame are told apart. When
     all lines are equally dark, a track is a run of lines whose gaps are all
-    crossed by horizontal grid lines.
+    crossed by horizontal grid lines. ``exclude`` (``curve`` by default) is
+    kept out of the line ink: coloured curves, not black ones, which share
+    the frames' colour.
     """
     settings = Settings() if settings is None else settings
-    gray, paper, ink = _line_ink(page_bgr, settings, curve)
+    gray, paper, ink = _line_ink(
+        page_bgr, settings, curve if exclude is None else exclude
+    )
     lines = _vertical_lines(gray, paper, ink, settings)
     if len(lines) < 2:
         return []
@@ -778,7 +1082,9 @@ def find_tracks(
             continue
         inside = [x for x in grid if left.x < x < right.x]
         inner = slice(math.floor(left.x) + 2, math.ceil(right.x) - 1)
-        has_curve = curve is not None and curve[:, inner].any()
+        # A curve runs down most of its track; text in a curve's colour (black
+        # depth labels, for a black curve) covers only a few rows.
+        has_curve = curve is not None and curve[:, inner].any(axis=1).mean() >= 0.3
         if inside or has_curve or _crossed(ink, left.x, right.x):
             tracks.append(Track(left.x, right.x, inside))
     return tracks
@@ -932,19 +1238,6 @@ def fit_depth(
     return float(a), float(b), best
 
 
-def extract_curve_x_by_row(curve_mask: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """For each row, the median column of the curve pixels and their count (NaN, 0 if none)."""
-    height = curve_mask.shape[0]
-    xs = np.full(height, np.nan, dtype=float)
-    conf = np.zeros(height, dtype=float)
-    for y in range(height):
-        cols = np.flatnonzero(curve_mask[y, :])
-        if cols.size:
-            xs[y] = float(np.median(cols))
-            conf[y] = float(cols.size)
-    return xs, conf
-
-
 def map_x_to_value(
     x_px: np.ndarray,
     x_left: float,
@@ -964,32 +1257,38 @@ def map_x_to_value(
     return vmin + fraction * (vmax - vmin)
 
 
-def resample_to_step(
-    depth: np.ndarray, value: np.ndarray, step: float
-) -> tuple[np.ndarray, np.ndarray]:
-    """Resample to a regular depth step by linear interpolation.
+def resample(
+    depth: np.ndarray,
+    raw_depth: np.ndarray,
+    raw_value: np.ndarray,
+    max_spacing: float = np.inf,
+) -> np.ndarray:
+    """A reading's values at ``depth``, by linear interpolation.
 
-    Gaps between the rows that hold the curve are interpolated across.
+    NaN outside the reading, and inside gaps where neighbouring readings are
+    more than ``max_spacing`` apart, so a curve's gaps stay gaps.
     """
-    order = np.argsort(depth)
-    depth = depth[order]
-    value = value[order]
-
-    d_new = np.arange(
-        float(np.nanmin(depth)), float(np.nanmax(depth)) + 0.5 * step, step
-    )
-    valid = np.isfinite(depth) & np.isfinite(value)
-    if valid.sum() < 2:
-        return d_new, np.full_like(d_new, np.nan, dtype=float)
-    return d_new, np.interp(d_new, depth[valid], value[valid])
+    order = np.argsort(raw_depth)
+    d = np.asarray(raw_depth, dtype=float)[order]
+    v = np.asarray(raw_value, dtype=float)[order]
+    out = np.interp(depth, d, v, left=np.nan, right=np.nan)
+    if len(d) > 1:
+        i = np.clip(np.searchsorted(d, depth), 1, len(d) - 1)
+        out[(d[i] - d[i - 1]) > max_spacing] = np.nan
+    return out
 
 
-def curve_overlay(roi_bgr: np.ndarray, xs: np.ndarray) -> np.ndarray:
-    """The track with the column read in each row marked in cyan."""
+def curve_overlay(
+    roi_bgr: np.ndarray, xs: np.ndarray, bridged: np.ndarray | None = None
+) -> np.ndarray:
+    """The track with the column read in each row marked: cyan where the curve
+    was found, magenta where a short gap was bridged."""
     overlay = roi_bgr.copy()
-    for y, x in enumerate(xs):
+    bridged = np.zeros(len(xs), dtype=bool) if bridged is None else bridged
+    for y, (x, filled) in enumerate(zip(xs, bridged)):
         if np.isfinite(x):
-            cv2.circle(overlay, (int(x), y), 1, (255, 255, 0), -1)
+            color = (255, 0, 255) if filled else (255, 255, 0)
+            cv2.circle(overlay, (int(round(x)), y), 1, color, -1)
     return overlay
 
 
@@ -1047,7 +1346,7 @@ def _pick_track(
             f"track must be 'auto', 'left', 'right' or an index, not {track!r}."
         )
     counts = [
-        int(np.count_nonzero(curve[:, math.ceil(t.x0) : math.floor(t.x1) + 1]))
+        int(np.count_nonzero(curve[:, math.ceil(t.x0) + 3 : math.floor(t.x1) - 2]))
         for t in tracks
     ]
     order = np.argsort(counts)[::-1]
@@ -1055,7 +1354,7 @@ def _pick_track(
     if counts[best] == 0:
         raise DigitizeError(
             f"None of the {len(tracks)} track(s) found holds the curve colour; "
-            "check Settings.hue_bands, or pass track_edges."
+            "check the curve's color=, or pass track_edges."
         )
     note = None
     if len(tracks) > 1 and counts[int(order[1])] >= 0.5 * counts[best]:
@@ -1250,16 +1549,41 @@ def _manual_fit(manual: tuple[str, list], height: int) -> tuple[float, float]:
     return float(a), float(b)
 
 
-def _build_las(
-    depth, value, *, curve, unit, descr, depth_unit, well, null_value, note
-) -> WellLog:
+def _build_las(depth, outputs, *, depth_unit, well, null_value, note) -> WellLog:
     las = WellLog()
     las.well["WELL"].value = well
     las.well["NULL"].value = null_value
     las.append_curve("DEPT", depth, unit=DEPTH_UNITS[depth_unit], descr="Depth")
-    las.append_curve(curve, value, unit=unit, descr=descr)
+    for curve, values in outputs:
+        las.append_curve(
+            curve.name,
+            values,
+            unit=curve.unit,
+            descr=f"Digitized {curve.color} curve, {curve.scale} scale {curve.vmin:g} to {curve.vmax:g}",
+        )
     las.other = note
     return las
+
+
+def _hsv_of(color: str) -> tuple[int, int, int]:
+    """OpenCV HSV (hue 0-180, saturation and value 0-255) of a matplotlib colour."""
+    r, g, b = to_rgb(color)
+    pixel = np.uint8([[[round(b * 255), round(g * 255), round(r * 255)]]])
+    h, s, v = cv2.cvtColor(pixel, cv2.COLOR_BGR2HSV)[0, 0]
+    return int(h), int(s), int(v)
+
+
+def _drop_blobs(mask: np.ndarray, min_area: int) -> np.ndarray:
+    """``mask`` (boolean) without connected pieces smaller than ``min_area`` pixels."""
+    mask = mask > 0
+    if min_area <= 1 or not mask.any():
+        return mask
+    _, labels, stats, _ = cv2.connectedComponentsWithStats(
+        mask.astype(np.uint8), connectivity=8
+    )
+    keep = stats[:, cv2.CC_STAT_AREA] >= min_area
+    keep[0] = False
+    return keep[labels]
 
 
 def _write_image(path: Path, image: np.ndarray) -> None:

@@ -14,6 +14,7 @@ Image = pytest.importorskip("PIL.Image")
 import pphys  # noqa: E402
 from pphys import digitize as dz  # noqa: E402
 from pphys.digitize import (  # noqa: E402
+    Curve,
     DepthCalibrationError,
     DigitizeError,
     Settings,
@@ -100,8 +101,9 @@ def ramp_result(scan, **kwargs):
     [
         {"render_scale": 0},
         {"min_labels": 1},
-        {"hue_bands": ((0, 200),)},
-        {"hue_bands": ()},
+        {"hue_tolerance": 100},
+        {"max_gap": -1},
+        {"gray_saturation": 300},
         {"max_label_height": 2},
         {"min_value": 300},
         {"min_line_fraction": 0},
@@ -112,10 +114,6 @@ def ramp_result(scan, **kwargs):
 def test_settings_reject_bad_values(kwargs):
     with pytest.raises(ValueError):
         Settings(**kwargs)
-
-
-def test_settings_normalize_hue_bands():
-    assert Settings(hue_bands=[(100.0, 130.0)]).hue_bands == ((100, 130),)
 
 
 def test_map_x_to_value_is_linear_and_follows_reversed_scales():
@@ -198,9 +196,9 @@ def test_ramp_with_track_edges_reads_the_values(ramp):
     assert qc.depth_source == "manual"
     assert qc.coverage == pytest.approx(100)
     assert qc.warnings == []
-    assert {"page", "mask", "track", "track_mask", "curve_overlay"} <= set(
-        result.images
-    )
+    names = {"page", "mask_GR", "track_GR", "track_mask_GR", "curve_overlay_GR"}
+    assert names <= set(result.images)
+    assert qc.curves[0].color == "red" and qc.curves[0].rows_found > 500
 
 
 def test_without_frames_or_track_edges_digitize_raises(ramp):
@@ -314,6 +312,205 @@ def test_a_grid_unlike_the_scale_is_flagged(tmp_path):
         tmp_path / "page.pdf", vmin=0.2, vmax=2000, scale="log10", **kwargs
     ).qc
     assert not any("grid looks" in w for w in log.warnings)
+
+
+# Colours, grids, gaps and several curves
+
+
+def colour_page(path, *curves, frames=((40, 360),), rows=None):
+    """A white PDF page with black frames and one polyline per ``(xs, bgr)``
+    curve; ``rows`` limits a curve to some rows (a gap elsewhere)."""
+    img = np.full((HEIGHT, WIDTH, 3), 255, np.uint8)
+    for left, right in frames:
+        img[:, left : left + 2] = 0
+        img[:, right : right + 2] = 0
+    for xs, colour, *only in curves:
+        keep = only[0] if only else np.ones(HEIGHT, bool)
+        for run in _digitize._runs(keep):
+            sl = slice(*run)
+            pts = (
+                np.column_stack([xs[sl], ROWS[sl]])
+                .round()
+                .astype(np.int32)
+                .reshape(-1, 1, 2)
+            )
+            cv2.polylines(img, [pts], False, colour, 3)
+    Image.fromarray(img[..., ::-1]).save(path, "PDF", resolution=72)
+    return path
+
+
+RAMP = 40.5 + 320 * ROWS / (
+    HEIGHT - 1
+)  # 0..100 across frames centred at 40.5 and 360.5
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"name": " "},
+        {"vmax": 0},
+        {"scale": "sqrt"},
+        {"scale": "log10"},
+        {"color": "not a colour"},
+        {"color": "white"},
+        {"track": "middle"},
+        {"track": True},
+        {"track_edges": (5, 6)},
+    ],
+)
+def test_bad_curves_are_rejected(kwargs):
+    with pytest.raises(ValueError):
+        Curve(**{"name": "GR", "vmin": 0, "vmax": 100, **kwargs})
+
+
+def test_curve_colours_are_matched_by_hue_or_darkness():
+    assert Curve("GR", 0, 1, color="black").dark and Curve("GR", 0, 1, color="0.3").dark
+    assert not Curve("GR", 0, 1, color="red").dark
+    patches = {  # RGB
+        "red": (230, 0, 0),
+        "faded red": (242, 127, 127),
+        "light red grid": (229, 115, 115),
+        "blue": (0, 0, 230),
+        "black": (10, 10, 10),
+        "grey grid": (153, 153, 153),
+        "tinted paper": (241, 228, 196),
+    }
+    img = np.full((20, 20 * len(patches), 3), 255, np.uint8)
+    for i, rgb in enumerate(patches.values()):
+        img[5:15, 20 * i + 5 : 20 * i + 15] = rgb[::-1]
+
+    def matched(color):
+        mask = _digitize.curve_mask(img, color)
+        return {name for i, name in enumerate(patches) if mask[10, 20 * i + 10]}
+
+    # The light red grid matches too; it is removed by its shape (clean_track_mask).
+    assert matched("red") == {"red", "faded red", "light red grid"}
+    assert matched("blue") == {"blue"}
+    assert matched("black") == {"black"}
+
+
+def test_clean_track_mask_removes_grids_and_frames_but_keeps_a_lone_line():
+    mask = np.zeros((100, 60), np.uint8)
+    mask[:, [10, 25, 40]] = 255  # a grid in the curve's colour
+    mask[50, :] = 255  # a line across the track
+    mask[20:30, 30] = 255  # a bit of curve
+    clean = _digitize.clean_track_mask(mask, 0.0, 59.0)
+    assert not clean[:, [10, 25, 40]].any() and not clean[50].any()
+    assert clean[20:30, 30].all()
+
+    lone = np.zeros((100, 60), np.uint8)
+    lone[:, 30] = 255  # one full-height line may be a constant curve
+    assert _digitize.clean_track_mask(lone, 0.0, 59.0)[:, 30].all()
+
+    framed = np.zeros((100, 60), np.uint8)
+    framed[:, [0, 1, 58, 59]] = 255
+    framed[:, 30] = 255
+    clean = _digitize.clean_track_mask(framed, 0.5, 58.5, frames=True)
+    assert not clean[:, [0, 1, 58, 59]].any() and clean[:, 30].all()
+
+
+def test_trace_curve_follows_the_nearest_run():
+    mask = np.zeros((30, 60), bool)
+    mask[:10, 9:12] = True  # the curve, alone
+    mask[10:20, 11:14] = True  # the curve...
+    mask[10:20, 40:43] = True  # ...and a stray mark
+    mask[20:30, [12, 13, 16, 17]] = True  # one run split by a 2-px gap
+    xs, several = _digitize.trace_curve(mask)
+    np.testing.assert_allclose(xs[:10], 10)
+    np.testing.assert_allclose(xs[10:20], 12)
+    np.testing.assert_allclose(xs[20:30], 14.5)
+    assert several == 10
+
+
+def test_short_gaps_are_bridged_and_long_ones_kept():
+    xs = np.arange(40, dtype=float)
+    xs[5:8] = np.nan  # 3 rows
+    xs[20:35] = np.nan  # 15 rows
+    filled, bridged = _digitize.bridge_gaps(xs, max_gap=8)
+    np.testing.assert_allclose(filled[5:8], [5, 6, 7])
+    assert bridged[5:8].all() and bridged.sum() == 3
+    assert np.isnan(filled[20:35]).all()
+
+
+def test_resample_keeps_gaps_empty():
+    raw = np.r_[np.arange(0.0, 10.0, 0.1), np.arange(20.0, 30.0, 0.1)]
+    out = _digitize.resample(np.arange(-1.0, 31.0, 0.5), raw, raw * 2, max_spacing=0.5)
+    depth = np.arange(-1.0, 31.0, 0.5)
+    assert np.isnan(out[depth < 0]).all() and np.isnan(out[depth > 29.9]).all()
+    assert np.isnan(out[(depth > 10) & (depth < 20)]).all()
+    np.testing.assert_allclose(
+        out[(depth >= 0) & (depth <= 9.9)], 2 * depth[(depth >= 0) & (depth <= 9.9)]
+    )
+
+
+def test_several_curves_in_one_call(tmp_path):
+    page = colour_page(
+        tmp_path / "two.pdf", (RAMP, (0, 0, 230)), (zigzag(200), (230, 0, 0))
+    )
+    result = digitize(
+        page,
+        curves=[
+            Curve("A", 0, 100, color="red"),
+            Curve("B", 0, 100, color="blue", unit="mV"),
+        ],
+        depth=(0, 100),
+        settings=ONE,
+    )
+    las = result.las
+    assert [c.mnemonic for c in las.curves] == ["DEPT", "A", "B"]
+    assert las.curves[2].unit == "mV" and "blue" in las.curves[2].descr
+    inner = (las.index > 2) & (las.index < 98)
+    np.testing.assert_allclose(
+        las["A"][inner], las.index[inner], atol=2
+    )  # the red ramp
+    assert (
+        35 <= np.nanmin(las["B"]) and np.nanmax(las["B"]) <= 65
+    )  # the blue zigzag, 37-62
+    assert [c.name for c in result.qc.curves] == ["A", "B"] and set(result.raw) == {
+        "A",
+        "B",
+    }
+    assert (
+        result.qc.curves[0].rows_bridged > 0
+    )  # where the blue curve is drawn over the red
+    assert {"curve_overlay_A", "curve_overlay_B"} <= set(result.images)
+
+
+def test_curves_and_the_shorthand_do_not_mix(two_tracks):
+    with pytest.raises(ValueError, match="not both"):
+        digitize(two_tracks, curves=[Curve("A", 0, 1)], curve="GR", settings=ONE)
+    with pytest.raises(ValueError, match="curve=, vmin= and vmax="):
+        digitize(two_tracks, settings=ONE)
+    with pytest.raises(ValueError, match="unique"):
+        digitize(two_tracks, curves=[Curve("A", 0, 1), Curve("A", 0, 1)], settings=ONE)
+
+
+def test_a_black_curve_is_read_beside_black_frames(tmp_path):
+    page = colour_page(tmp_path / "black.pdf", (zigzag(200), (0, 0, 0)))
+    las = digitize(
+        page, curve="GR", vmin=0, vmax=100, color="black", depth=(0, 100), settings=ONE
+    ).las
+    assert 35 <= np.nanmin(las["GR"]) and np.nanmax(las["GR"]) <= 65
+
+
+def test_long_gaps_stay_empty(tmp_path):
+    keep = (ROWS < 200) | (ROWS >= 400)
+    page = colour_page(tmp_path / "gap.pdf", (RAMP, (0, 0, 230), keep))
+    result = digitize(page, curve="GR", vmin=0, vmax=100, depth=(0, 100), settings=ONE)
+    las = result.las
+    hole = (las.index > 35) & (las.index < 65)
+    assert np.isnan(las["GR"][hole]).all()
+    assert np.isfinite(las["GR"][las.index < 30]).all()
+    assert result.qc.coverage < 75
+
+
+def test_same_colour_curves_are_flagged(tmp_path):
+    page = colour_page(
+        tmp_path / "same.pdf", (zigzag(120), (0, 0, 230)), (zigzag(280), (0, 0, 230))
+    )
+    qc = digitize(page, curve="GR", vmin=0, vmax=100, depth=(0, 100), settings=ONE).qc
+    assert qc.curves[0].rows_ambiguous > 0.5 * HEIGHT
+    assert any("another curve of that colour" in w for w in qc.warnings)
 
 
 # depth from OCR (Tesseract replaced by a stub)
@@ -459,7 +656,7 @@ def test_rejects_a_missing_page(ramp):
 
 
 def test_a_page_without_the_curve_colour_raises(tmp_path):
-    with pytest.raises(DigitizeError, match="No curve"):
+    with pytest.raises(DigitizeError, match="No red pixels"):
         ramp_result(write_scan(tmp_path / "blank.pdf"))
 
 
@@ -489,12 +686,15 @@ def test_save_writes_las_csv_images_and_qc(ramp, tmp_path):
 
     assert las_path == tmp_path / "out" / "ramp.las"
     np.testing.assert_allclose(pphys.read(las_path)["GR"], result.las["GR"], atol=1e-4)
-    rows = np.loadtxt(tmp_path / "out" / "ramp.csv", delimiter=",", skiprows=1)
-    assert rows.shape == (len(result.depth), 2)
+    lines = (tmp_path / "out" / "ramp.csv").read_text(encoding="utf-8").splitlines()
+    assert lines[0] == "curve,depth,value,bridged"
+    assert len(lines) == len(result.depth) + 1
+    assert lines[1].startswith("GR,")
     for name in result.images:
         assert (tmp_path / "out" / f"{name}.png").stat().st_size > 0
     report = json.loads((tmp_path / "out" / "qc.json").read_text(encoding="utf-8"))
-    assert report["qc"]["track"] == [50, 350]
+    assert report["qc"]["curves"][0]["track"] == [50, 350]
+    assert report["qc"]["curves"][0]["color"] == "red"
     assert report["settings"]["render_scale"] == 1.0
 
 
@@ -530,6 +730,8 @@ def test_cli_writes_the_outputs(ramp, tmp_path, capsys):
         "350",
         "--render-scale",
         "1",
+        "--color",
+        "red",
         "--out",
         str(out),
     ]
@@ -561,6 +763,8 @@ def test_module_runs_as_a_command():
 def test_package_exports():
     assert set(dz.__all__) == {
         "QC",
+        "Curve",
+        "CurveQC",
         "DepthCalibrationError",
         "DigitizeError",
         "DigitizeResult",

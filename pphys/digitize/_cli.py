@@ -36,6 +36,11 @@ def parser() -> argparse.ArgumentParser:
     )
     ap.add_argument("--unit", default="", help="unit of the curve, e.g. gAPI")
     ap.add_argument(
+        "--color",
+        default="red",
+        help="the curve's colour: a name or hex, e.g. red, blue, black, '#1f77b4' (default red)",
+    )
+    ap.add_argument(
         "--scale",
         choices=("linear", "log10"),
         default="linear",
@@ -103,6 +108,7 @@ def main(argv: list[str] | None = None) -> int:
             vmax=args.vmax,
             unit=args.unit,
             scale=args.scale,
+            color=args.color,
             depth=args.depth,
             depth_unit=args.depth_unit,
             step=args.step,

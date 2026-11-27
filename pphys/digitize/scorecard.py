@@ -1,10 +1,10 @@
 """Scorecard: digitize synthetic pages of known values and score each one.
 
 Every scenario draws a page with :func:`~pphys.digitize.synthetic_scan`,
-digitizes one curve with :func:`~pphys.digitize.digitize` and compares it
-with the truth (:func:`~pphys.digitize.score`). ``gap`` names the roadmap
-step expected to make a failing scenario pass; scenarios without one should
-pass today. The tests run the same list.
+digitizes one or more curves with :func:`~pphys.digitize.digitize` (in one
+call) and compares each with the truth (:func:`~pphys.digitize.score`).
+``gap`` names the roadmap step expected to make a failing scenario pass;
+scenarios without one should pass today. The tests run the same list.
 
     uv run python -m pphys.digitize.scorecard [--keep DIR] [NAME ...]
 """
@@ -18,7 +18,7 @@ from pathlib import Path
 
 import numpy as np
 
-from ._digitize import DigitizeError, Settings, digitize, find_tesseract
+from ._digitize import Curve, DigitizeError, Settings, digitize, find_tesseract
 from ._synthetic import (
     Defects,
     Score,
@@ -39,13 +39,14 @@ class Scenario:
         Identifier and one line on what is tested.
     page : dict
         Keyword arguments of :func:`~pphys.digitize.synthetic_scan`.
-    curve : str
-        The curve to digitize.
-    track : "auto", "left", "right" or int
-        Passed to :func:`~pphys.digitize.digitize`.
+    curve : str or tuple of str
+        The curve(s) to digitize, in one call. Each is passed with its true
+        scale, colour and unit, as a user reading the log header would.
+    track : "auto", "left", "right", int, or dict of curve to those
+        The ``track`` of each curve.
     edges : bool
         Pass the true track edges (``track_edges``) instead of letting the
-        digitizer find them. The track's true scale is always passed.
+        digitizer find them.
     manual_depth : bool
         Pass the true depths; otherwise depth comes from OCR of the labels.
     settings : dict
@@ -58,25 +59,34 @@ class Scenario:
     name: str
     description: str
     page: dict = field(default_factory=dict)
-    curve: str = "GR"
-    track: str | int = "left"
+    curve: str | tuple[str, ...] = "GR"
+    track: str | int | dict = "left"
     edges: bool = False
     manual_depth: bool = True
     settings: dict = field(default_factory=dict)
     gap: str | None = None
 
     @property
+    def curves(self) -> tuple[str, ...]:
+        return (self.curve,) if isinstance(self.curve, str) else tuple(self.curve)
+
+    @property
     def needs_ocr(self) -> bool:
         return not self.manual_depth
+
+    def track_of(self, name: str):
+        return (
+            self.track.get(name, "auto") if isinstance(self.track, dict) else self.track
+        )
 
 
 def _gr_track(*curves: SyntheticCurve) -> SyntheticTrack:
     return SyntheticTrack(curves or (SyntheticCurve("GR", unit="gAPI"),), 0.0, 150.0)
 
 
-def _rt_track() -> SyntheticTrack:
+def _rt_track(color: str = "red") -> SyntheticTrack:
     return SyntheticTrack(
-        (SyntheticCurve("RT", unit="ohm.m"),), 0.2, 2000.0, scale="log10"
+        (SyntheticCurve("RT", color=color, unit="ohm.m"),), 0.2, 2000.0, scale="log10"
     )
 
 
@@ -93,16 +103,17 @@ def blocky_gr(depth):
     )
 
 
-BLUE = ((100, 130),)
-
-
 def _three_tracks() -> tuple[SyntheticTrack, ...]:
     """GR | depth | RT (log10) | NPHI (flipped, 0.45 to -0.15), the last two sharing a frame."""
     nphi = SyntheticTrack((SyntheticCurve("NPHI", unit="v/v"),), 0.45, -0.15)
-    rt = SyntheticTrack(
-        (SyntheticCurve("RT", color="blue", unit="ohm.m"),), 0.2, 2000.0, scale="log10"
+    return (_gr_track(SyntheticCurve("GR", color="blue")), _rt_track("blue"), nphi)
+
+
+def _gr_and_sp() -> SyntheticTrack:
+    return _gr_track(
+        SyntheticCurve("GR", unit="gAPI"),
+        SyntheticCurve("SP", color="blue", unit="mV", vmin=-160.0, vmax=40.0),
     )
-    return (_gr_track(SyntheticCurve("GR", color="blue")), rt, nphi)
 
 
 SCENARIOS: tuple[Scenario, ...] = (
@@ -111,14 +122,7 @@ SCENARIOS: tuple[Scenario, ...] = (
     Scenario(
         "auto_track",
         "track='auto' picks the track of the only red curve",
-        page={
-            "tracks": (
-                _gr_track(),
-                SyntheticTrack(
-                    (SyntheticCurve("RT", color="blue"),), 0.2, 2000.0, scale="log10"
-                ),
-            )
-        },
+        page={"tracks": (_gr_track(), _rt_track("blue"))},
         track="auto",
     ),
     Scenario(
@@ -183,25 +187,20 @@ SCENARIOS: tuple[Scenario, ...] = (
     ),
     Scenario(
         "blue_curve",
-        "a blue curve, picked with Settings.hue_bands",
+        "a blue curve, picked with color='blue'",
         page={"tracks": (_gr_track(SyntheticCurve("GR", color="blue")), _rt_track())},
-        settings={"hue_bands": BLUE},
     ),
     Scenario(
         "two_colours_one_track",
-        "red GR crossing a blue SP curve in the same track",
-        page={
-            "tracks": (
-                _gr_track(
-                    SyntheticCurve("GR", unit="gAPI"),
-                    SyntheticCurve(
-                        "SP", color="blue", unit="mV", vmin=-160.0, vmax=40.0
-                    ),
-                ),
-                _rt_track(),
-            )
-        },
-        gap="step 5: the red curve is lost wherever the blue one is drawn over it",
+        "red GR crossing a blue SP curve drawn over it, in the same track",
+        page={"tracks": (_gr_and_sp(), _rt_track())},
+    ),
+    Scenario(
+        "several_curves",
+        "GR (red) and SP (blue) in one track and RT (black, log10) in another, in one call",
+        page={"tracks": (_gr_and_sp(), _rt_track("black"))},
+        curve=("GR", "SP", "RT"),
+        track={"GR": "left", "SP": "left", "RT": "right"},
     ),
     Scenario(
         "blocky_beds",
@@ -212,7 +211,11 @@ SCENARIOS: tuple[Scenario, ...] = (
                 _rt_track(),
             )
         },
-        gap="step 5: the 3x3 mask cleaning erases thin vertical strokes, so flat beds go missing",
+    ),
+    Scenario(
+        "dashed_curve",
+        "a dashed GR, whose gaps between dashes are bridged",
+        page={"tracks": (_gr_track(SyntheticCurve("GR", linestyle="--")), _rt_track())},
     ),
     Scenario(
         "log_track",
@@ -224,13 +227,25 @@ SCENARIOS: tuple[Scenario, ...] = (
         "black_curve",
         "a black curve on a grey grid",
         page={"tracks": (_gr_track(SyntheticCurve("GR", color="black")), _rt_track())},
-        gap="step 5: curves are picked by hue only, so black cannot be selected",
+    ),
+    Scenario(
+        "ocr_black_curve",
+        "a black curve with OCR depth: the black depth labels must not be taken for curve",
+        page={"tracks": (_gr_track(SyntheticCurve("GR", color="black")), _rt_track())},
+        manual_depth=False,
+    ),
+    Scenario(
+        "black_on_black_grid",
+        "a black curve on a grid as dark as itself",
+        page={
+            "tracks": (_gr_track(SyntheticCurve("GR", color="black")), _rt_track()),
+            "grid_color": "black",
+        },
     ),
     Scenario(
         "coloured_grid",
         "grid lines in light red, close to the curve colour",
         page={"grid_color": "#e57373"},
-        gap="step 5: grid lines in the curve colour are read as curve",
     ),
     Scenario(
         "noisy_scan",
@@ -243,6 +258,19 @@ SCENARIOS: tuple[Scenario, ...] = (
         page={"defects": Defects(tint="#f1e4c4", fade=0.5)},
     ),
     Scenario(
+        "same_colour_track",
+        "two red curves in one track; only one can be read by colour",
+        page={
+            "tracks": (
+                _gr_track(
+                    SyntheticCurve("GR"), SyntheticCurve("CGR", vmin=-150.0, vmax=150.0)
+                ),
+                _rt_track("blue"),
+            )
+        },
+        gap="not planned: curves of one colour in one track are not told apart (a QC warning flags them)",
+    ),
+    Scenario(
         "rotated",
         "the page rotated by 1 degree",
         page={"defects": Defects(rotation=1.0)},
@@ -253,16 +281,21 @@ SCENARIOS: tuple[Scenario, ...] = (
 
 @dataclass
 class Row:
-    """One scenario's outcome: its score, or the error that stopped it."""
+    """One scenario's outcome: a score per curve, or the error that stopped it."""
 
     scenario: Scenario
-    score: Score | None = None
+    scores: list[Score] = field(default_factory=list)
     error: str | None = None
     skipped: str | None = None
+    warnings: list[str] = field(default_factory=list)
+
+    @property
+    def score(self) -> Score | None:
+        return self.scores[0] if self.scores else None
 
     @property
     def passed(self) -> bool:
-        return self.score is not None and self.score.passed
+        return bool(self.scores) and all(s.passed for s in self.scores)
 
 
 def run_scenario(scenario: Scenario, folder: str | Path) -> Row:
@@ -274,30 +307,42 @@ def run_scenario(scenario: Scenario, folder: str | Path) -> Row:
             return Row(scenario, skipped="Tesseract not found")
     path = Path(folder) / f"{scenario.name}.pdf"
     scan = synthetic_scan(path, **scenario.page)
-    track, curve = scan.curve(scenario.curve)
-    vmin, vmax = track.range_of(curve)
     settings = Settings(**scenario.settings)
+    curves = []
+    for name in scenario.curves:
+        track, spec = scan.curve(name)
+        vmin, vmax = track.range_of(spec)
+        curves.append(
+            Curve(
+                name,
+                vmin,
+                vmax,
+                unit=spec.unit,
+                scale=track.scale,
+                color=spec.color,
+                track=scenario.track_of(name),
+                track_edges=scan.track_edges(name, settings.render_scale)
+                if scenario.edges
+                else None,
+            )
+        )
     try:
         result = digitize(
             path,
-            curve=scenario.curve,
-            vmin=vmin,
-            vmax=vmax,
-            unit=curve.unit,
-            scale=track.scale,
+            curves=curves,
             depth=scan.depth_pairs(settings.render_scale)
             if scenario.manual_depth
             else None,
             depth_unit=scan.depth_unit,
-            track=scenario.track,
-            track_edges=scan.track_edges(scenario.curve, settings.render_scale)
-            if scenario.edges
-            else None,
             settings=settings,
         )
     except DigitizeError as exc:
         return Row(scenario, error=str(exc))
-    return Row(scenario, score=score(result, scan, scenario.curve))
+    return Row(
+        scenario,
+        scores=[score(result, scan, name) for name in scenario.curves],
+        warnings=list(result.qc.warnings),
+    )
 
 
 def run(names=None, folder: str | Path | None = None) -> list[Row]:
@@ -314,25 +359,28 @@ def run(names=None, folder: str | Path | None = None) -> list[Row]:
 
 
 def table(rows: list[Row]) -> str:
-    """The scorecard as text."""
-    head = f"{'scenario':24} {'rms %':>7} {'max %':>7} {'cover %':>8} {'depth %':>8}  result  expected"
+    """The scorecard as text, one line per curve."""
+    head = f"{'scenario':28} {'rms %':>7} {'max %':>7} {'cover %':>8} {'depth %':>8}  result  expected"
     lines = [head, "-" * len(head)]
     for row in rows:
         s = row.scenario
         expected = "pass" if s.gap is None else s.gap.split(":")[0]
-        if row.score is not None:
-            sc = row.score
-            nums = f"{sc.rms:7.2f} {sc.max:7.2f} {sc.coverage:8.1f} {sc.depth:8.3f}"
-            result = "pass" if sc.passed else "FAIL"
-        else:
-            nums = f"{'-':>7} {'-':>7} {'-':>8} {'-':>8}"
-            result = "skip" if row.skipped else "error"
-        flag = (
-            ""
-            if (result == "pass") == (s.gap is None) or result == "skip"
-            else "  <- unexpected"
-        )
-        lines.append(f"{s.name:24} {nums}  {result:6}  {expected}{flag}")
+        entries = row.scores or [None]
+        for sc in entries:
+            label = (
+                s.name if len(s.curves) == 1 else f"{s.name}[{sc.curve if sc else '?'}]"
+            )
+            if sc is not None:
+                nums = f"{sc.rms:7.2f} {sc.max:7.2f} {sc.coverage:8.1f} {sc.depth:8.3f}"
+                result = "pass" if sc.passed else "FAIL"
+            else:
+                nums = f"{'-':>7} {'-':>7} {'-':>8} {'-':>8}"
+                result = "skip" if row.skipped else "error"
+            ok = row.passed if sc is not None else False
+            flag = (
+                "" if ok == (s.gap is None) or result == "skip" else "  <- unexpected"
+            )
+            lines.append(f"{label:28} {nums}  {result:6}  {expected}{flag}")
     for row in rows:
         if row.error:
             lines.append(f"{row.scenario.name}: {row.error}")

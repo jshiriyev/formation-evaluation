@@ -6,6 +6,14 @@
 >>> result.las        # pphys.WellLog                           # doctest: +SKIP
 >>> result.save("out")                                           # doctest: +SKIP
 
+Several curves at once, each with its colour, scale and track:
+
+>>> from pphys.digitize import Curve
+>>> result = digitize("scan.pdf", depth=(1500, 1600), curves=[
+...     Curve("GR", 0, 150, unit="gAPI", color="red"),
+...     Curve("RT", 0.2, 2000, scale="log10", color="black", track=1),
+... ])                                                           # doctest: +SKIP
+
 From the command line: ``pphys-digitize scan.pdf --curve GR --vmin 0 --vmax 150``
 (or ``python -m pphys.digitize``). Needs the ``digitize`` extra, and the
 Tesseract program to read depth labels.
@@ -25,6 +33,8 @@ Synthetic pages of known values measure the accuracy:
 
 from ._digitize import (
     QC,
+    Curve,
+    CurveQC,
     DepthCalibrationError,
     DigitizeError,
     DigitizeResult,
@@ -45,6 +55,8 @@ from ._synthetic import (
 
 __all__ = [
     "QC",
+    "Curve",
+    "CurveQC",
     "TARGET",
     "Defects",
     "DepthCalibrationError",

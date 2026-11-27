@@ -505,7 +505,8 @@ def score(
     scan : SyntheticScan
         The page.
     curve : str, optional
-        Name of the true curve; the digitized curve's mnemonic by default.
+        Name of the curve, both on the page and in the result; the first
+        digitized curve by default.
     target : dict, optional
         Thresholds; :data:`TARGET` by default.
 
@@ -522,7 +523,7 @@ def score(
     top, base = float(scan.depth[0]), float(scan.depth[-1])
 
     depths = np.asarray(las.index, dtype=float)
-    digitized = np.asarray(las.curves[1].data, dtype=float)
+    digitized = np.asarray(las[name], dtype=float)
     inside = (depths >= top) & (depths <= base) & np.isfinite(digitized)
     if inside.sum() == 0:
         nan = float("nan")
@@ -535,8 +536,9 @@ def score(
     render_scale = result.settings.render_scale
     row_top, row_base = scan.row_of([top, base], render_scale)
     rows_total = max(1, math.floor(row_base) - math.ceil(row_top) + 1)
-    raw_depth = np.asarray(result.depth, dtype=float)
-    raw_found = np.isfinite(np.asarray(result.value, dtype=float))
+    reading = result.raw[name] if name in getattr(result, "raw", {}) else result
+    raw_depth = np.asarray(reading.depth, dtype=float)
+    raw_found = np.isfinite(np.asarray(reading.value, dtype=float))
     found = np.count_nonzero(raw_found & (raw_depth >= top) & (raw_depth <= base))
     coverage = min(100.0, 100.0 * found / rows_total)
 

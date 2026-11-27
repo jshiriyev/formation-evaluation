@@ -11,6 +11,7 @@ pytest.importorskip("pypdfium2")
 from pphys import WellLog  # noqa: E402
 from pphys.digitize import (  # noqa: E402
     QC,
+    CurveQC,
     TARGET,
     Defects,
     DigitizeError,
@@ -24,7 +25,7 @@ from pphys.digitize import (  # noqa: E402
     synthetic_scan,
 )
 from pphys.digitize import scorecard  # noqa: E402
-from pphys.digitize._digitize import curve_mask, render_pdf_page  # noqa: E402
+from pphys.digitize._digitize import Reading, curve_mask, render_pdf_page  # noqa: E402
 
 NOTEBOOKS = Path(__file__).resolve().parents[1] / "notebooks"
 
@@ -239,13 +240,15 @@ def fake_result(scan, name, values, depth_fit=None):
         page=0,
         page_size=scan.image.shape[1::-1],
         tracks=[],
-        track=(0, 1),
-        track_source="manual",
-        scale="linear",
         depth_source="manual",
         depth_fit=scan.depth_fit if depth_fit is None else depth_fit,
+        curves=[CurveQC(name, "red", "linear", (0.0, 1.0), "manual")],
     )
-    return DigitizeResult(las, qc, Settings(), {}, raw_depth[found], raw_value[found])
+    found_rows = raw_depth[found]
+    reading = Reading(
+        found_rows, raw_value[found], np.zeros(found_rows.size, dtype=bool)
+    )
+    return DigitizeResult(las, qc, Settings(), {}, {name: reading})
 
 
 def test_a_perfect_reading_scores_zero(page):
@@ -307,6 +310,12 @@ def test_scenario_meets_the_target(scenario, tmp_path):
         pytest.skip(row.skipped)
     assert row.error is None, row.error
     assert row.passed, str(row.score)
+
+
+def test_same_colour_curves_are_flagged_on_a_synthetic_page(tmp_path):
+    scenario = next(s for s in scorecard.SCENARIOS if s.name == "same_colour_track")
+    row = scorecard.run_scenario(scenario, tmp_path)
+    assert any("another curve of that colour" in w for w in row.warnings)
 
 
 def test_scenario_names_are_unique():
