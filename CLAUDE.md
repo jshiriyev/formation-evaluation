@@ -8,9 +8,9 @@ Formation Evaluation (package `pphys`) gives **practicing petrophysicists** an e
 - **Two interfaces with equal goals:** the Python package (the engine) and no-code browser apps on GitHub Pages. The apps will be computed by a hosted `pphys` service, so uploaded files leave the browser.
 - **Milestones, in order** (`ROADMAP.md` has the done-when lists):
   1. working interpretation (`pphys.insight` imports, is tested and reproduces the shaly-sand workflow);
-  2. robust digitizing (multi-curve, any colour, image input, Python API);
-  3. a backend for the apps;
-  4. multi-well CrossView.
+  2. multi-well CrossView (a class for each well's tops; reproduces `img/onepage_cross_view.png`);
+  3. robust digitizing (multi-curve, any colour, image input, Python API);
+  4. a backend for the apps.
 
   Prefer work that advances the current milestone, and tick its items in `ROADMAP.md` when they are done.
 - **Out of scope:** a Bokeh streaming viewer (the former `pphys.stream`), induction-tool modelling (the former `pphys.maxwres`), and PyPI. Install is from GitHub only.

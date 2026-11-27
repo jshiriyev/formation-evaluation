@@ -10,9 +10,9 @@ Today, loading, QC and single-well plots work. The milestones below close the re
 | # | Milestone | Workflow step | State today |
 |---|---|---|---|
 | 1 | [Working interpretation](#1-working-interpretation) | Interpret | Models written, but most modules do not import |
-| 2 | [Robust digitizing](#2-robust-digitizing) | Digitize paper logs | Prototype: one red curve per run |
-| 3 | [Backend for the apps](#3-backend-for-the-apps) | Every step, in the browser | Configurator only; nothing is computed |
-| 4 | [Multi-well CrossView](#4-multi-well-crossview) | Plot several wells | Drawing code exists; no class holds a well's tops |
+| 2 | [Multi-well CrossView](#2-multi-well-crossview) | Plot several wells | Drawing code exists; no class holds a well's tops |
+| 3 | [Robust digitizing](#3-robust-digitizing) | Digitize paper logs | Prototype: one red curve per run |
+| 4 | [Backend for the apps](#4-backend-for-the-apps) | Every step, in the browser | Configurator only; nothing is computed |
 
 ## 1. Working interpretation
 
@@ -26,7 +26,18 @@ Today, loading, QC and single-well plots work. The milestones below close the re
 - [ ] A notebook runs the shaly-sand workflow of [`img/insight_shaly_sand_results.png`](img/insight_shaly_sand_results.png) on a log in `notebooks/` and shows it with WellView. The original South Caspian well's data is not in the repository.
 - [ ] `doc/insight.md` documents the models, their equations and units.
 
-## 2. Robust digitizing
+## 2. Multi-well CrossView
+
+**Goal.** `pphys.onepage.CrossView` reproduces [`img/onepage_cross_view.png`](img/onepage_cross_view.png): several wells side by side, correlated by their formation tops.
+
+**Today.** `CrossView.add_top` and `add_formation` expect each well object to have `.tops[key]` and `.tops.limit(key)`, but no such class exists. The old `Formation` class (removed in commit 07046bd) stored tops per formation across wells, not per well.
+
+**Done when:**
+- [ ] A class holds one well's log and formation tops, built from a dict, Series or DataFrame the way `WellView.add_tops` accepts them.
+- [ ] CrossView reproduces the reference figure from data in the repository.
+- [ ] Tests and a `doc/crossview.md` reference exist.
+
+## 3. Robust digitizing
 
 **Goal.** Paper logs enter the workflow as reliably as LAS files.
 
@@ -41,7 +52,7 @@ Today, loading, QC and single-well plots work. The milestones below close the re
 - [ ] QC output shows the trace overlay and the depth-fit residuals, and warns when the fit uses too few labels.
 - [ ] Tests run on synthetic scans and need no Tesseract.
 
-## 3. Backend for the apps
+## 4. Backend for the apps
 
 **Goal.** A petrophysicist with no Python installed can run the whole workflow in the browser. The pages send the LAS file and the settings to a hosted `pphys` service and show the result.
 
@@ -55,17 +66,6 @@ Today, loading, QC and single-well plots work. The milestones below close the re
 - [ ] Where the service runs and how it is deployed are documented in the repository.
 
 **Open decisions:** hosting, file-size limits, and abuse protection (rate limits or sign-in).
-
-## 4. Multi-well CrossView
-
-**Goal.** `pphys.onepage.CrossView` reproduces [`img/onepage_cross_view.png`](img/onepage_cross_view.png): several wells side by side, correlated by their formation tops.
-
-**Today.** `CrossView.add_top` and `add_formation` expect each well object to have `.tops[key]` and `.tops.limit(key)`, but no such class exists. The old `Formation` class (removed in commit 07046bd) stored tops per formation across wells, not per well.
-
-**Done when:**
-- [ ] A class holds one well's log and formation tops, built from a dict, Series or DataFrame the way `WellView.add_tops` accepts them.
-- [ ] CrossView reproduces the reference figure from data in the repository.
-- [ ] Tests and a `doc/crossview.md` reference exist.
 
 ## Out of scope
 
