@@ -41,7 +41,11 @@ Today, loading, QC and single-well plots work. The milestones below close the re
 
 **Goal.** Paper logs enter the workflow as reliably as LAS files.
 
-**Today.** `pphys.digitize.digitize()` and the `pphys-digitize` command digitize one red curve from one PDF page into a `WellLog`, with QC images and a `qc.json`. Depth comes from manual depths, or from the depth labels read by OCR (Tesseract) and fitted with a straight line. Values are mapped linearly across the track edges when given; otherwise they are approximate, scaled across the curve's own columns plus a margin. Tests cover the pipeline on simple synthetic pages.
+**Today.** `pphys.digitize.digitize()` and the `pphys-digitize` command digitize one red curve from one PDF page into a `WellLog`, with QC images and a `qc.json`. Depth comes from manual depths, or from the depth labels read by OCR (Tesseract) and fitted with a straight line. Values are mapped linearly across the track edges when given; otherwise they are approximate, scaled across the curve's own columns plus a margin.
+
+`pphys.digitize.synthetic_scan()` draws pages of known values, with optional scan defects, and `score()` measures a result against them. `python -m pphys.digitize.scorecard` runs 13 scenarios:
+- **Pass today:** clean, feet, a blue curve, noise/blur/JPEG, and tinted paper with faded ink.
+- **Known gaps:** track edges and log10 tracks (step 3); OCR depth, which reads 2 of 11 labels on a clean page (step 4); black curves, coloured grids, crossing curves and flat beds, whose thin vertical strokes the mask cleaning erases (step 5); rotation (not planned).
 
 **Done when:**
 - [ ] Several curves can be digitized per track and per page, picked by any colour, not only red.
@@ -50,7 +54,8 @@ Today, loading, QC and single-well plots work. The milestones below close the re
 - [x] A Python API returns a `pphys.WellLog` (`digitize(...).las`); the command line is a thin wrapper around it.
 - [x] LAS files are written through lasio / `WellLog`, not by hand.
 - [ ] QC output shows the trace overlay and the depth-fit residuals, and warns when the fit uses too few labels.
-- [ ] Tests run on synthetic scans and need no Tesseract.
+- [x] Tests run on synthetic scans and need no Tesseract.
+- [ ] Every scorecard scenario except rotation meets the target: value error RMS ≤ 1 % and max ≤ 3 % of the track width, the curve found in ≥ 98 % of the page rows, and depth error ≤ 0.5 % of the depth span.
 
 ## 4. Backend for the apps
 

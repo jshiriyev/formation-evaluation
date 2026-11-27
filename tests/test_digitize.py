@@ -386,4 +386,13 @@ def test_package_exports():
         "Settings",
         "digitize",
         "find_tesseract",
+        "TARGET",
+        "Defects",
+        "Score",
+        "SyntheticCurve",
+        "SyntheticScan",
+        "SyntheticTrack",
+        "score",
+        "synthetic_scan",
     }
+    assert all(hasattr(dz, name) for name in dz.__all__)

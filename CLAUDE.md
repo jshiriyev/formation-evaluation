@@ -54,7 +54,7 @@ uv build            # wheel + sdist into dist/
   - Don't edit `uv.lock` by hand; commit it.
 - **Build backend:** `uv_build`, with `module-root = ""` because this is a flat layout (`./pphys`, not `./src/pphys`). It packages every file under `pphys/`, including `_lithology.json` and subfolders without an `__init__.py`.
 
-Tests use pytest, and uv installs `pphys` in editable mode, so tests import the working tree. Tests cover the top-level modules (`WellLog`, `read`, `load`, `Temperature`, `LasView`, the curve families), the onepage fills (`test_motifs`, `test_templix`, `test_pigment`), the wellview layout chain (`test_layout`), its rounding helpers (`test_unary`), WellView itself (`test_wellview`) and the digitizer on synthetic PDF pages with OCR stubbed (`test_digitize`); insight has none yet. `tests/conftest.py` does the following:
+Tests use pytest, and uv installs `pphys` in editable mode, so tests import the working tree. Tests cover the top-level modules (`WellLog`, `read`, `load`, `Temperature`, `LasView`, the curve families), the onepage fills (`test_motifs`, `test_templix`, `test_pigment`), the wellview layout chain (`test_layout`), its rounding helpers (`test_unary`), WellView itself (`test_wellview`) the digitizer on synthetic PDF pages with OCR stubbed (`test_digitize`), and the synthetic-page generator, the score and every scorecard scenario (`test_digitize_synthetic`; known gaps are strict xfails); insight has none yet. `tests/conftest.py` does the following:
 - switches matplotlib to the Agg backend and closes figures after each test;
 - provides the fixtures `write_las`, `age` (moves a file's modification time back so cache tests don't depend on timestamp resolution), `parses` (counts LAS parses to prove cache hits) and `cache`.
 
@@ -181,9 +181,21 @@ Standalone model classes with lowercase names (`archie`, `gammaray`, `simandoux`
 
 `_cli.py` is the thin `pphys-digitize` / `python -m pphys.digitize` wrapper. `utils.resample` is a separate, unused smoothing-spline resampler.
 
-Known prototype weaknesses (roadmap milestone 3):
-- Track detection splits a wandering curve into several "tracks".
-- OCR assumes the labels sit in the right three-quarters of the strip and reads whole numbers only.
+**Measuring accuracy** (`_synthetic.py`, `scorecard.py`):
+- `synthetic_scan(path, tracks=, depth=, defects=, ...)` draws a page with matplotlib (Agg, no pyplot): `SyntheticTrack`s holding `SyntheticCurve`s (linear or log10, any colour, values as an array, a function of depth, or random smooth), a depth column with labels, a grid, and optional `Defects` (fade, tint, rotation, blur, noise, JPEG). It returns a `SyntheticScan` with the truth:
+  - `values`, `track_columns`, `depth_fit`;
+  - helpers `track_edges(curve, render_scale)` and `depth_pairs(render_scale)` that feed `digitize`.
+- Pages are drawn at 144 dpi and saved as a **lossless** PDF through pypdfium2 (Pillow would JPEG-compress them), so `render_scale=2.0` reproduces the drawn pixels exactly. Truth positions are pixel indices (pixel i covers [i, i+1)).
+- `score(result, scan)` returns RMS/max value error in percent of the track width (in log space on log10 tracks), coverage, and the largest depth error in percent of the span. Coverage is the percent of page rows where the curve was found, from `result.depth`, before resampling hides gaps. `TARGET` is the agreed threshold: 1 / 3 / 98 / 0.5.
+- `scorecard.SCENARIOS` lists the pages. `gap` names the roadmap step expected to fix a failing one; the tests mark those as `xfail(strict=True)`, so a fix fails until its `gap` is removed. Run `uv run python -m pphys.digitize.scorecard [--keep DIR] [NAME ...]`.
+
+Known prototype weaknesses (roadmap milestone 3), each shown by a scenario:
+- Track detection splits a wandering curve into several "tracks", so without `track_edges` the scale is wrong (`no_track_edges`).
+- Log10 tracks are mapped linearly (`log_track`).
+- OCR reads 2 of 11 labels on a clean synthetic page and misreads them (`ocr_depth`; Tesseract 5.4 is installed in `C:\Program Files\Tesseract-OCR`).
+- The 3×3 mask opening erases strokes narrower than 3 px, i.e. near-vertical stretches of a curve, so flat beds go missing (`blocky_beds`; `Settings(mask_kernel=1)` keeps them).
+- Curves are picked by hue only, so black curves can't be picked (`black_curve`) and grid lines in the curve's colour are read as curve (`coloured_grid`).
+- A curve drawn under another is lost at the crossings (`two_colours_one_track`).
 - Gaps are interpolated across.
 
 ### Web apps (GitHub Pages)

@@ -61,7 +61,7 @@ TESTS = {
     "pphys/onepage/wellview/_unary.py": ["tests/test_unary.py", "tests/test_layout.py"],
     "pphys/onepage/wellview/": ["tests/test_layout.py", "tests/test_wellview.py"],
     "pphys/onepage/crossview/": ["tests/test_motifs.py", "tests/test_pigment.py"],
-    "pphys/digitize/": ["tests/test_digitize.py"],
+    "pphys/digitize/": ["tests/test_digitize.py", "tests/test_digitize_synthetic.py"],
 }
 FAMILIES_JS = (
     "UNIT_SPELLINGS",

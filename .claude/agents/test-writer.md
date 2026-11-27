@@ -48,9 +48,13 @@ code or weakening the test.
   `pphys/digitize/_digitize.py`: `curve_mask`, `find_clusters`,
   `extract_curve_x_by_row`, `map_x_to_value`, `fit_depth_transform`,
   `resample_to_step`, `find_tesseract`. Also test the `_cli.main(argv)` wrapper.
-  Run real OCR only when `shutil.which("tesseract")` finds it.
+  Run real OCR only when `find_tesseract()` finds it.
 - Check that `result.save(dir)` writes a LAS that `pphys.read` loads, and that values
   round-trip within a pixel's worth of tolerance.
+- For accuracy, use `synthetic_scan` + `score` (`tests/test_digitize_synthetic.py`),
+  not hand-drawn pages. A new case of real-scan trouble belongs in
+  `pphys/digitize/scorecard.py` `SCENARIOS`. Set `gap` to the roadmap step that
+  should fix it; the parametrized test marks it as a strict xfail.
 
 ## Report
 

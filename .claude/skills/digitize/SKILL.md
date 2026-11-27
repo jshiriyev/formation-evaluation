@@ -38,10 +38,17 @@ Command line: `uv run pphys-digitize SCAN --curve GR --vmin 0 --vmax 150 [option
    across the curve's own columns) and the QC warns about it. Do a first run, Read
    `page.png` (pixels of the rendered page, at `--scale`), find the columns of the track's
    left and right borders, and re-run with `--track-edges L R`.
-4. **OCR.** Without `--depth`, Tesseract must be found (`tesseract --version`, or
+4. **OCR.** Without `--depth`, Tesseract must be found (`find_tesseract()`, or
    `TESSERACT_CMD`). If it is missing, ask for the top and bottom depths of the page
    instead, or how to install Tesseract. A failed OCR stops with an error; never
-   fall back to pixel depths.
+   fall back to pixel depths. Today OCR is unreliable (scorecard `ocr_depth`), so
+   prefer manual depths when the user can read them off the scan.
+   - **Flat beds:** if the log has them (a blocky gamma ray), add `mask_kernel=1` in
+     Python (`Settings(mask_kernel=1)`); the default cleaning erases near-vertical
+     strokes.
+   - **Settings that matter:** when they're unclear, imitate the page with
+     `synthetic_scan(...)` (same colours, scales and defects) and compare settings
+     with `score(...)` before running on the real scan.
 5. **Run.** Use an output folder in the scratchpad unless the user names one.
 6. **QC.** Read the outputs:
    - `curve_overlay.png`: the cyan trace on the track. It should follow the curve, with no jumps to grid lines or other curves.

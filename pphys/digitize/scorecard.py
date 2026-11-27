@@ -1,0 +1,295 @@
+"""Scorecard: digitize synthetic pages of known values and score each one.
+
+Every scenario draws a page with :func:`~pphys.digitize.synthetic_scan`,
+digitizes one curve with :func:`~pphys.digitize.digitize` and compares it
+with the truth (:func:`~pphys.digitize.score`). ``gap`` names the roadmap
+step expected to make a failing scenario pass; scenarios without one should
+pass today. The tests run the same list.
+
+    uv run python -m pphys.digitize.scorecard [--keep DIR] [NAME ...]
+"""
+
+from __future__ import annotations
+
+import argparse
+import tempfile
+from dataclasses import dataclass, field
+from pathlib import Path
+
+import numpy as np
+
+from ._digitize import DigitizeError, Settings, digitize, find_tesseract
+from ._synthetic import (
+    Defects,
+    Score,
+    SyntheticCurve,
+    SyntheticTrack,
+    score,
+    synthetic_scan,
+)
+
+
+@dataclass(frozen=True)
+class Scenario:
+    """A synthetic page and how to digitize it.
+
+    Parameters
+    ----------
+    name, description : str
+        Identifier and one line on what is tested.
+    page : dict
+        Keyword arguments of :func:`~pphys.digitize.synthetic_scan`.
+    curve : str
+        The curve to digitize.
+    track : "left", "right" or int
+        Passed to :func:`~pphys.digitize.digitize`.
+    edges : bool
+        Pass the true track edges (``track_edges``).
+    manual_depth : bool
+        Pass the true depths; otherwise depth comes from OCR of the labels.
+    settings : dict
+        Keyword arguments of :class:`~pphys.digitize.Settings`.
+    gap : str or None
+        Why the scenario fails today and which roadmap step should fix it;
+        None when it should pass.
+    """
+
+    name: str
+    description: str
+    page: dict = field(default_factory=dict)
+    curve: str = "GR"
+    track: str | int = "left"
+    edges: bool = True
+    manual_depth: bool = True
+    settings: dict = field(default_factory=dict)
+    gap: str | None = None
+
+    @property
+    def needs_ocr(self) -> bool:
+        return not self.manual_depth
+
+
+def _gr_track(*curves: SyntheticCurve) -> SyntheticTrack:
+    return SyntheticTrack(curves or (SyntheticCurve("GR", unit="gAPI"),), 0.0, 150.0)
+
+
+def _rt_track() -> SyntheticTrack:
+    return SyntheticTrack(
+        (SyntheticCurve("RT", unit="ohm.m"),), 0.2, 2000.0, scale="log10"
+    )
+
+
+def blocky_gr(depth):
+    """Gamma ray of flat beds with soft boundaries, for pages from 1000 to 1100."""
+    beds = np.array([1000, 1012, 1020, 1035, 1041, 1060, 1072, 1085])
+    levels = np.array([30.0, 110.0, 45.0, 125.0, 25.0, 95.0, 40.0, 120.0])
+    raw = levels[
+        np.clip(np.searchsorted(beds, depth, side="right") - 1, 0, len(levels) - 1)
+    ]
+    kernel = np.exp(-0.5 * (np.arange(-15, 16) / 5.0) ** 2)
+    return np.convolve(
+        np.pad(raw, 15, mode="edge"), kernel / kernel.sum(), mode="valid"
+    )
+
+
+BLUE = ((100, 130),)
+
+SCENARIOS: tuple[Scenario, ...] = (
+    Scenario("clean", "red GR on a linear track; true edges and depths"),
+    Scenario(
+        "ocr_depth",
+        "depth from OCR of the printed labels instead of given depths",
+        manual_depth=False,
+        gap="step 4: OCR reads 2 of 11 labels on a clean page, and misreads those",
+    ),
+    Scenario(
+        "feet",
+        "depths and labels in feet",
+        page={
+            "depth": (3300.0, 3600.0),
+            "depth_unit": "ft",
+            "step": 0.5,
+            "label_every": 50.0,
+            "grid_every": 10.0,
+        },
+    ),
+    Scenario(
+        "blue_curve",
+        "a blue curve, picked with Settings.hue_bands",
+        page={"tracks": (_gr_track(SyntheticCurve("GR", color="blue")), _rt_track())},
+        settings={"hue_bands": BLUE},
+    ),
+    Scenario(
+        "two_colours_one_track",
+        "red GR crossing a blue SP curve in the same track",
+        page={
+            "tracks": (
+                _gr_track(
+                    SyntheticCurve("GR", unit="gAPI"),
+                    SyntheticCurve(
+                        "SP", color="blue", unit="mV", vmin=-160.0, vmax=40.0
+                    ),
+                ),
+                _rt_track(),
+            )
+        },
+        gap="step 5: the red curve is lost wherever the blue one is drawn over it",
+    ),
+    Scenario(
+        "blocky_beds",
+        "a blocky GR with flat beds and soft boundaries, like a real log",
+        page={
+            "tracks": (
+                _gr_track(SyntheticCurve("GR", values=blocky_gr, unit="gAPI")),
+                _rt_track(),
+            )
+        },
+        gap="step 5: the 3x3 mask cleaning erases thin vertical strokes, so flat beds go missing",
+    ),
+    Scenario(
+        "no_track_edges",
+        "track edges found by the digitizer itself",
+        edges=False,
+        gap="step 3: track edges are not detected; the scale spans the curve's own columns",
+    ),
+    Scenario(
+        "log_track",
+        "resistivity on a log10 track (0.2-2000)",
+        curve="RT",
+        track="right",
+        gap="step 3: log10 tracks are mapped linearly",
+    ),
+    Scenario(
+        "black_curve",
+        "a black curve on a grey grid",
+        page={"tracks": (_gr_track(SyntheticCurve("GR", color="black")), _rt_track())},
+        gap="step 5: curves are picked by hue only, so black cannot be selected",
+    ),
+    Scenario(
+        "coloured_grid",
+        "grid lines in light red, close to the curve colour",
+        page={"grid_color": "#e57373"},
+        gap="step 5: grid lines in the curve colour are read as curve",
+    ),
+    Scenario(
+        "noisy_scan",
+        "speckle noise, slight blur and JPEG artefacts",
+        page={"defects": Defects(noise=12.0, blur=0.8, jpeg=40)},
+    ),
+    Scenario(
+        "faded_tinted",
+        "yellowed paper and ink faded halfway",
+        page={"defects": Defects(tint="#f1e4c4", fade=0.5)},
+    ),
+    Scenario(
+        "rotated",
+        "the page rotated by 1 degree",
+        page={"defects": Defects(rotation=1.0)},
+        gap="not planned: deskewing rotated scans is outside milestone 3",
+    ),
+)
+
+
+@dataclass
+class Row:
+    """One scenario's outcome: its score, or the error that stopped it."""
+
+    scenario: Scenario
+    score: Score | None = None
+    error: str | None = None
+    skipped: str | None = None
+
+    @property
+    def passed(self) -> bool:
+        return self.score is not None and self.score.passed
+
+
+def run_scenario(scenario: Scenario, folder: str | Path) -> Row:
+    """Draw, digitize and score one scenario; the page is written to ``folder``."""
+    if scenario.needs_ocr:
+        try:
+            find_tesseract(scenario.settings.get("tesseract"))
+        except DigitizeError:
+            return Row(scenario, skipped="Tesseract not found")
+    path = Path(folder) / f"{scenario.name}.pdf"
+    scan = synthetic_scan(path, **scenario.page)
+    track, curve = scan.curve(scenario.curve)
+    vmin, vmax = track.range_of(curve)
+    settings = Settings(**scenario.settings)
+    try:
+        result = digitize(
+            path,
+            curve=scenario.curve,
+            vmin=vmin,
+            vmax=vmax,
+            unit=curve.unit,
+            depth=scan.depth_pairs(settings.render_scale)
+            if scenario.manual_depth
+            else None,
+            depth_unit=scan.depth_unit,
+            track=scenario.track,
+            track_edges=scan.track_edges(scenario.curve, settings.render_scale)
+            if scenario.edges
+            else None,
+            settings=settings,
+        )
+    except DigitizeError as exc:
+        return Row(scenario, error=str(exc))
+    return Row(scenario, score=score(result, scan, scenario.curve))
+
+
+def run(names=None, folder: str | Path | None = None) -> list[Row]:
+    """Run the scenarios called ``names`` (all by default); pages go to ``folder`` or a temp folder."""
+    chosen = [s for s in SCENARIOS if names is None or s.name in names]
+    unknown = set(names or ()) - {s.name for s in SCENARIOS}
+    if unknown:
+        raise ValueError(f"Unknown scenario(s) {sorted(unknown)}; see SCENARIOS.")
+    if folder is not None:
+        Path(folder).mkdir(parents=True, exist_ok=True)
+        return [run_scenario(s, folder) for s in chosen]
+    with tempfile.TemporaryDirectory() as tmp:
+        return [run_scenario(s, tmp) for s in chosen]
+
+
+def table(rows: list[Row]) -> str:
+    """The scorecard as text."""
+    head = f"{'scenario':24} {'rms %':>7} {'max %':>7} {'cover %':>8} {'depth %':>8}  result  expected"
+    lines = [head, "-" * len(head)]
+    for row in rows:
+        s = row.scenario
+        expected = "pass" if s.gap is None else s.gap.split(":")[0]
+        if row.score is not None:
+            sc = row.score
+            nums = f"{sc.rms:7.2f} {sc.max:7.2f} {sc.coverage:8.1f} {sc.depth:8.3f}"
+            result = "pass" if sc.passed else "FAIL"
+        else:
+            nums = f"{'-':>7} {'-':>7} {'-':>8} {'-':>8}"
+            result = "skip" if row.skipped else "error"
+        flag = (
+            ""
+            if (result == "pass") == (s.gap is None) or result == "skip"
+            else "  <- unexpected"
+        )
+        lines.append(f"{s.name:24} {nums}  {result:6}  {expected}{flag}")
+    for row in rows:
+        if row.error:
+            lines.append(f"{row.scenario.name}: {row.error}")
+        if row.skipped:
+            lines.append(f"{row.scenario.name}: skipped, {row.skipped}")
+    return "\n".join(lines)
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(
+        prog="python -m pphys.digitize.scorecard",
+        description="Digitize synthetic pages of known values and score them.",
+    )
+    ap.add_argument("names", nargs="*", help="scenarios to run (default: all)")
+    ap.add_argument("--keep", type=Path, help="write the pages to this folder")
+    args = ap.parse_args(argv)
+    print(table(run(args.names or None, args.keep)))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
