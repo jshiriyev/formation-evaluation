@@ -4,7 +4,8 @@
 >>> result = digitize("scan.pdf", curve="GR", vmin=0, vmax=150, unit="gAPI",
 ...                   depth=(1500, 1600))                      # doctest: +SKIP
 >>> result.las        # pphys.WellLog                           # doctest: +SKIP
->>> result.save("out")                                           # doctest: +SKIP
+>>> result.save("out")    # LAS, CSV, qc.png, QC images, qc.json  # doctest: +SKIP
+>>> fig = result.plot_qc() # scan + trace | depth-fit residuals | curves  # doctest: +SKIP
 
 Several curves at once, each with its colour, scale and track:
 

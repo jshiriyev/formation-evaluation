@@ -57,7 +57,10 @@ code or weakening the test.
 - Test through `digitize(...)` (manual `depth=`, `track_edges=`) and the pieces of
   `pphys/digitize/_digitize.py`: `curve_mask` (by colour),
   `clean_track_mask`, `trace_curve`, `bridge_gaps`, `resample`, `map_x_to_value`, `fit_depth`, `read_labels`, `label_bands`,
-  `find_tesseract`, `load_pages`. Also test the `_cli.main(argv)` wrapper.
+  `find_tesseract`, `load_pages`. Also test the `_cli.main(argv)` wrapper, and the
+  QC figure through `result.plot_qc()`: inspect its axes (images, lines,
+  `Rectangle` patches, scatter `PathCollection`s, titles, `fig.texts`) rather than
+  pixels.
   Run real OCR only when `find_tesseract()` finds it.
 - Check that `result.save(dir)` writes a LAS that `pphys.read` loads, and that values
   round-trip within a pixel's worth of tolerance.

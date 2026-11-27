@@ -267,6 +267,17 @@ SCENARIOS: tuple[Scenario, ...] = (
         page={"defects": Defects(noise=12.0, blur=0.8, jpeg=40)},
     ),
     Scenario(
+        "noisy_black_log_track",
+        "black resistivity on a log10 track with pixel noise: colour noise on dark "
+        "ink must not read as colour",
+        page={
+            "tracks": (_gr_track(), _rt_track("black")),
+            "defects": Defects(noise=8.0),
+        },
+        curve="RT",
+        track="right",
+    ),
+    Scenario(
         "faded_tinted",
         "yellowed paper and ink faded halfway",
         page={"defects": Defects(tint="#f1e4c4", fade=0.5)},
