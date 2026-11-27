@@ -15,9 +15,9 @@ It has two interfaces:
 | Check the data | `pphys.LasView`: inventory, coverage and gaps, statistics, QC flags, zone averages, quick-look plots and a PDF report | ✅ Ready |
 | Plot one well | `pphys.onepage.WellView`: a one-page display like a logging-company print, with tracks, fills, lithology patterns, tops, casing and perforations | ✅ Ready |
 | Interpret | `pphys.insight`: Rw, porosity, shale volume, Archie and shaly-sand saturation, permeability | 🚧 Being restored ([milestone 1](ROADMAP.md#1-working-interpretation)) |
-| Digitize paper logs | `pphys.digitize`: a scanned PDF to LAS, with OCR of the depth labels | 🧪 Prototype: one red curve per run ([milestone 2](ROADMAP.md#2-robust-digitizing)) |
-| Do it in the browser | [GitHub Pages apps](https://jshiriyev.github.io/formation-evaluation/) | 🧪 WellView configurator; plotting needs the hosted service ([milestone 3](ROADMAP.md#3-backend-for-the-apps)) |
-| Correlate wells | `pphys.onepage.CrossView`: several wells along a profile | 🚧 Needs a class for each well's tops ([milestone 4](ROADMAP.md#4-multi-well-crossview)) |
+| Digitize paper logs | `pphys.digitize.digitize()` and the `pphys-digitize` command: a scanned PDF to a `WellLog`/LAS with QC images; several curves of any colour, track edges found automatically, linear or log10 scales; depth from manual depths or OCR of the labels | 🚧 PDF input only; image scans and QC plots to come ([milestone 3](ROADMAP.md#3-robust-digitizing)) |
+| Do it in the browser | [GitHub Pages apps](https://jshiriyev.github.io/formation-evaluation/) | 🧪 WellView configurator; plotting needs the hosted service ([milestone 4](ROADMAP.md#4-backend-for-the-apps)) |
+| Correlate wells | `pphys.onepage.CrossView`: several wells along a profile | 🚧 Needs a class for each well's tops ([milestone 2](ROADMAP.md#2-multi-well-crossview)) |
 
 The [roadmap](ROADMAP.md) lists what "done" means for each open step.
 
@@ -81,7 +81,7 @@ More:
 
 <img src="img/onepage_cross_view.png">
 
-*Figure 2: A cross-section made with an earlier version of CrossView. Restoring it is [milestone 4](ROADMAP.md#4-multi-well-crossview).*
+*Figure 2: A cross-section made with an earlier version of CrossView. Restoring it is [milestone 2](ROADMAP.md#2-multi-well-crossview).*
 
 ## Interpretation in shaly sands
 

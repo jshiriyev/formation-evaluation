@@ -61,6 +61,7 @@ TESTS = {
     "pphys/onepage/wellview/_unary.py": ["tests/test_unary.py", "tests/test_layout.py"],
     "pphys/onepage/wellview/": ["tests/test_layout.py", "tests/test_wellview.py"],
     "pphys/onepage/crossview/": ["tests/test_motifs.py", "tests/test_pigment.py"],
+    "pphys/digitize/": ["tests/test_digitize.py", "tests/test_digitize_synthetic.py"],
 }
 FAMILIES_JS = (
     "UNIT_SPELLINGS",
@@ -128,14 +129,16 @@ def check_python(rel: str, blocks: list[str], notes: list[str]) -> None:
         )
         return
     siblings = [p for p in path.parent.glob("*.py") if p != path]
-    sibling_styles = set()
+    styles = []  # of the siblings with an indented block
     for sibling in siblings:
         try:
-            sibling_styles.add(fmt.indent_style(sibling.read_text(encoding="utf-8")))
+            styles.append(fmt.indent_style(sibling.read_text(encoding="utf-8")))
         except (SyntaxError, UnicodeDecodeError):
             pass
-    sibling_styles.discard("none")
-    if style != "none" and len(sibling_styles) == 1 and style not in sibling_styles:
+    styles = [s for s in styles if s != "none"]
+    sibling_styles = set(styles)
+    # One sibling is not a folder convention; two or more that agree are.
+    if style != "none" and len(styles) >= 2 and len(sibling_styles) == 1 and style not in sibling_styles:
         notes.append(
             f"{rel} is {style}-indented, but every other module in {path.parent.relative_to(ROOT).as_posix()}/ "
             f"uses {sibling_styles.pop()}s. Check that this is intended."

@@ -40,15 +40,28 @@ code or weakening the test.
 
 ## digitize
 
-- Avoid Tesseract and real scans: build a synthetic page with numpy/cv2 (white
-  background, black grid, a red polyline of known values), and test the pieces of
-  `pphys/digitize/digitize.py` (`hsv_red_mask`, `find_red_clusters`,
-  `extract_curve_x_by_row`, `map_x_to_value`, `fit_depth_transform`,
-  `resample_to_step`, `write_las`) and `pphys/digitize/utils.py` (`resample`) with
-  manual depths. Skip OCR tests (`ocr_depth_points`) when `shutil.which("tesseract")`
-  is None.
-- Check the written LAS loads with `pphys.read` and the values round-trip within a
-  pixel's worth of tolerance.
+- Extend `tests/test_digitize.py`. It draws synthetic PDF pages (`write_scan`,
+  `zigzag`), uses `Settings(render_scale=1.0)` so page pixels equal drawing pixels,
+  and replaces OCR with `stub_labels(monkeypatch, labels(...))`, which stubs
+  `find_depth_labels` (misreads via `labels(..., misread=[(row, depth)])`).
+  The `no_tesseract` fixture hides any installed Tesseract.
+- `colour_page(path, (xs, bgr), ..., frames=, rows=)` draws curves in any colour,
+  with gaps via `rows=`. `RAMP` reads 0..100 across frames centred at 40.5 and 360.5.
+  Several curves go in one call: `digitize(page, curves=[Curve(...), ...])`.
+- Track detection needs frame lines. `write_scan(..., frames=[(left, right)])` draws
+  2-px black frames, whose centres sit at `left + 0.5` and `right + 0.5`. A page
+  without frames needs `track_edges`.
+- Test through `digitize(...)` (manual `depth=`, `track_edges=`) and the pieces of
+  `pphys/digitize/_digitize.py`: `curve_mask` (by colour),
+  `clean_track_mask`, `trace_curve`, `bridge_gaps`, `resample`, `map_x_to_value`, `fit_depth`, `read_labels`, `label_bands`,
+  `find_tesseract`. Also test the `_cli.main(argv)` wrapper.
+  Run real OCR only when `find_tesseract()` finds it.
+- Check that `result.save(dir)` writes a LAS that `pphys.read` loads, and that values
+  round-trip within a pixel's worth of tolerance.
+- For accuracy, use `synthetic_scan` + `score` (`tests/test_digitize_synthetic.py`),
+  not hand-drawn pages. A new case of real-scan trouble belongs in
+  `pphys/digitize/scorecard.py` `SCENARIOS`. Set `gap` to the roadmap step that
+  should fix it; the parametrized test marks it as a strict xfail.
 
 ## Report
 
