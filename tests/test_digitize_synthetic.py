@@ -240,6 +240,8 @@ def fake_result(scan, name, values, depth_fit=None):
         page_size=scan.image.shape[1::-1],
         tracks=[],
         track=(0, 1),
+        track_source="manual",
+        scale="linear",
         depth_source="manual",
         depth_fit=scan.depth_fit if depth_fit is None else depth_fit,
     )

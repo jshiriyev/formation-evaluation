@@ -41,10 +41,11 @@ class Scenario:
         Keyword arguments of :func:`~pphys.digitize.synthetic_scan`.
     curve : str
         The curve to digitize.
-    track : "left", "right" or int
+    track : "auto", "left", "right" or int
         Passed to :func:`~pphys.digitize.digitize`.
     edges : bool
-        Pass the true track edges (``track_edges``).
+        Pass the true track edges (``track_edges``) instead of letting the
+        digitizer find them. The track's true scale is always passed.
     manual_depth : bool
         Pass the true depths; otherwise depth comes from OCR of the labels.
     settings : dict
@@ -59,7 +60,7 @@ class Scenario:
     page: dict = field(default_factory=dict)
     curve: str = "GR"
     track: str | int = "left"
-    edges: bool = True
+    edges: bool = False
     manual_depth: bool = True
     settings: dict = field(default_factory=dict)
     gap: str | None = None
@@ -94,8 +95,44 @@ def blocky_gr(depth):
 
 BLUE = ((100, 130),)
 
+
+def _three_tracks() -> tuple[SyntheticTrack, ...]:
+    """GR | depth | RT (log10) | NPHI (flipped, 0.45 to -0.15), the last two sharing a frame."""
+    nphi = SyntheticTrack((SyntheticCurve("NPHI", unit="v/v"),), 0.45, -0.15)
+    rt = SyntheticTrack(
+        (SyntheticCurve("RT", color="blue", unit="ohm.m"),), 0.2, 2000.0, scale="log10"
+    )
+    return (_gr_track(SyntheticCurve("GR", color="blue")), rt, nphi)
+
+
 SCENARIOS: tuple[Scenario, ...] = (
-    Scenario("clean", "red GR on a linear track; true edges and depths"),
+    Scenario("clean", "red GR on a linear track; edges found, true depths"),
+    Scenario("manual_edges", "the true track edges given as track_edges", edges=True),
+    Scenario(
+        "auto_track",
+        "track='auto' picks the track of the only red curve",
+        page={
+            "tracks": (
+                _gr_track(),
+                SyntheticTrack(
+                    (SyntheticCurve("RT", color="blue"),), 0.2, 2000.0, scale="log10"
+                ),
+            )
+        },
+        track="auto",
+    ),
+    Scenario(
+        "three_tracks",
+        "a flipped neutron track (0.45 to -0.15) sharing its frame with a log10 track",
+        page={"tracks": _three_tracks()},
+        curve="NPHI",
+        track="right",
+    ),
+    Scenario(
+        "uniform_grid",
+        "grid lines as dark as the track frames",
+        page={"grid_color": "black"},
+    ),
     Scenario(
         "ocr_depth",
         "depth from OCR of the printed labels instead of given depths",
@@ -147,17 +184,10 @@ SCENARIOS: tuple[Scenario, ...] = (
         gap="step 5: the 3x3 mask cleaning erases thin vertical strokes, so flat beds go missing",
     ),
     Scenario(
-        "no_track_edges",
-        "track edges found by the digitizer itself",
-        edges=False,
-        gap="step 3: track edges are not detected; the scale spans the curve's own columns",
-    ),
-    Scenario(
         "log_track",
         "resistivity on a log10 track (0.2-2000)",
         curve="RT",
         track="right",
-        gap="step 3: log10 tracks are mapped linearly",
     ),
     Scenario(
         "black_curve",
@@ -223,6 +253,7 @@ def run_scenario(scenario: Scenario, folder: str | Path) -> Row:
             vmin=vmin,
             vmax=vmax,
             unit=curve.unit,
+            scale=track.scale,
             depth=scan.depth_pairs(settings.render_scale)
             if scenario.manual_depth
             else None,

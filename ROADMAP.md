@@ -41,15 +41,18 @@ Today, loading, QC and single-well plots work. The milestones below close the re
 
 **Goal.** Paper logs enter the workflow as reliably as LAS files.
 
-**Today.** `pphys.digitize.digitize()` and the `pphys-digitize` command digitize one red curve from one PDF page into a `WellLog`, with QC images and a `qc.json`. Depth comes from manual depths, or from the depth labels read by OCR (Tesseract) and fitted with a straight line. Values are mapped linearly across the track edges when given; otherwise they are approximate, scaled across the curve's own columns plus a margin.
+**Today.** `pphys.digitize.digitize()` and the `pphys-digitize` command digitize one red curve from one PDF page into a `WellLog`, with QC images and a `qc.json`. Depth comes from manual depths, or from the depth labels read by OCR (Tesseract) and fitted with a straight line.
+- **Track edges** are found from the frame lines, to a fraction of a pixel. That works with tracks sharing a frame and with grids as dark as the frames, and `track_edges` can override it.
+- **Values** are mapped across the edges on a linear or log10 scale. A QC warning flags a grid that looks like the other kind.
 
-`pphys.digitize.synthetic_scan()` draws pages of known values, with optional scan defects, and `score()` measures a result against them. `python -m pphys.digitize.scorecard` runs 13 scenarios:
-- **Pass today:** clean, feet, a blue curve, noise/blur/JPEG, and tinted paper with faded ink.
-- **Known gaps:** track edges and log10 tracks (step 3); OCR depth, which reads 2 of 11 labels on a clean page (step 4); black curves, coloured grids, crossing curves and flat beds, whose thin vertical strokes the mask cleaning erases (step 5); rotation (not planned).
+`pphys.digitize.synthetic_scan()` draws pages of known values, with optional scan defects, and `score()` measures a result against them. `python -m pphys.digitize.scorecard` runs 16 scenarios:
+- **Pass today:** clean, given track edges, `track='auto'`, three tracks with a flipped scale, a uniform-dark grid, feet, a blue curve, log10 resistivity, noise/blur/JPEG, and tinted paper with faded ink.
+- **Known gaps:** OCR depth, which reads 2 of 11 labels on a clean page (step 4); black curves, coloured grids, crossing curves and flat beds, whose thin vertical strokes the mask cleaning erases (step 5); rotation (not planned).
 
 **Done when:**
 - [ ] Several curves can be digitized per track and per page, picked by any colour, not only red.
-- [ ] Linear and logarithmic tracks (e.g. resistivity on a 0.2–2000 scale) are both supported.
+- [x] Linear and logarithmic tracks (e.g. resistivity on a 0.2–2000 scale) are both supported.
+- [x] Track edges are found from the page, so `track_edges` is only needed when detection fails.
 - [ ] Image scans (PNG, JPG, TIFF) and multi-page PDFs are accepted directly.
 - [x] A Python API returns a `pphys.WellLog` (`digitize(...).las`); the command line is a thin wrapper around it.
 - [x] LAS files are written through lasio / `WellLog`, not by hand.

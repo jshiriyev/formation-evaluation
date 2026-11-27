@@ -44,6 +44,9 @@ code or weakening the test.
   `zigzag`), uses `Settings(render_scale=1.0)` so page pixels equal drawing pixels,
   and replaces OCR with `monkeypatch.setattr(_digitize, "ocr_depth_points", ...)`.
   The `no_tesseract` fixture hides any installed Tesseract.
+- Track detection needs frame lines. `write_scan(..., frames=[(left, right)])` draws
+  2-px black frames, whose centres sit at `left + 0.5` and `right + 0.5`. A page
+  without frames needs `track_edges`.
 - Test through `digitize(...)` (manual `depth=`, `track_edges=`) and the pieces of
   `pphys/digitize/_digitize.py`: `curve_mask`, `find_clusters`,
   `extract_curve_x_by_row`, `map_x_to_value`, `fit_depth_transform`,

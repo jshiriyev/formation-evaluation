@@ -42,7 +42,7 @@ uv sync                                              # create/update .venv from 
 uv run pytest                                        # all tests
 uv run pytest tests/test_welllog.py::test_copy_window  # one test
 uv run ruff check pphys --no-cache --select F821     # quickest way to find broken code (undefined names)
-uv run pphys-digitize scan.pdf --curve GR --vmin 0 --vmax 150 [--depth TOP BASE] [--track-edges L R] [--out DIR]
+uv run pphys-digitize scan.pdf --curve GR --vmin 0 --vmax 150 [--scale log10] [--depth TOP BASE] [--track auto] [--out DIR]
 uv add <pkg>        # runtime dependency (use --optional digitize or --dev for the others)
 uv build            # wheel + sdist into dist/
 ```
@@ -168,16 +168,25 @@ Standalone model classes with lowercase names (`archie`, `gammaray`, `simandoux`
 
 ### digitize
 
-`digitize(scan, curve=, vmin=, vmax=, ...)` (`_digitize.py`) returns a `DigitizeResult`: `.las` (a `WellLog`), `.qc` (`QC`: tracks, track columns, depth source and fit, labels read, coverage, `warnings`), `.images` (QC images by name), and the raw `.depth`/`.value`. `.save(dir)` writes `<name>.las`, `<name>.csv`, one PNG per image and `qc.json`. The pipeline:
+`digitize(scan, curve=, vmin=, vmax=, ...)` (`_digitize.py`) returns a `DigitizeResult`: `.las` (a `WellLog`), `.qc` (`QC`: detected `tracks`, the `track` edges used and their `track_source`, `scale`, what the `grid` looks like, `curve_clusters`, depth source and fit, labels read, coverage, `warnings`), `.images` (QC images by name), and the raw `.depth`/`.value`. `.save(dir)` writes `<name>.las`, `<name>.csv`, one PNG per image and `qc.json`. The pipeline:
 1. Render the PDF page with pypdfium2 at `Settings.render_scale`. All pixel positions (`track_edges`, `(row, depth)` pairs, `QC`) are on this rendered page.
-2. Mask the curve colour (`Settings.hue_bands`, red by default) and take column clusters of the mask as tracks. `track` picks one: "left" (default), "right", or an index.
-3. Calibrate depth:
+2. Mask the curve colour (`Settings.hue_bands`, red by default).
+3. Find the tracks (`find_tracks`):
+   - **Lines:** long vertical lines are runs of columns whose line ink covers `min_line_fraction` of the page height. Line ink is pixels `ink_contrast` darker than the paper, the curve mask excluded.
+   - **Frames vs grid:** the darkest lines are frames, lighter ones grid (`frame_tolerance`).
+   - **Tracks:** a span between neighbouring frames is a track if it holds grid lines, curve pixels, or horizontal grid lines running across it (`_crossed`). That skips the depth column and margins, and separates tracks sharing a frame.
+   - **Uniform darkness:** when every line is as dark as the frames, a track is a run of lines whose gaps are all crossed by horizontal lines. With a shared frame and uniform darkness, contiguous tracks merge.
+   - **Edges** are the frame centres, to sub-pixel accuracy.
+   - **Choosing:** `track` picks one: "auto" (default; most curve-colour pixels, with a warning when two tracks are close), "left", "right" or an index. `track_edges` overrides all of this.
+   - **No tracks found** raises `DigitizeError`; there is no fallback.
+   - **Grid check:** `grid_kind` reads the grid as linear (even spacing) or log10 (spacing shrinking within each decade). A mismatch with `scale` adds a warning; the grid never changes the values.
+4. Calibrate depth:
    - from `depth=(top, base)` (the first and last page rows) or two or more `(row, depth)` pairs;
    - otherwise by Tesseract OCR of the labels in the strip between the first and last track, fitted as `depth = a*row + b`.
 
    A failed calibration raises `DepthCalibrationError`, whose `.images` holds the QC images made so far; it never falls back to pixel depths. `find_tesseract` checks `Settings.tesseract`, `TESSERACT_CMD`, the PATH, then the Windows install folders.
-4. Take the per-row median column of the mask and map it linearly to `[vmin, vmax]` across `track_edges`. Without them, the scale spans the curve's columns ± `Settings.track_margin`, which is wrong unless the curve touches both edges, and a QC warning says so.
-5. Resample to `step` (0.1524 m / 0.5 ft) and build the `WellLog` through lasio.
+5. Take the per-row median column of the mask in the track and map it across the exact edges with `map_x_to_value`: linear, or for `scale="log10"` linear in log10 of the value. vmin > vmax flips the track.
+6. Resample to `step` (0.1524 m / 0.5 ft) and build the `WellLog` through lasio. The curve's LAS description records the scale.
 
 `_cli.py` is the thin `pphys-digitize` / `python -m pphys.digitize` wrapper. `utils.resample` is a separate, unused smoothing-spline resampler.
 
@@ -190,8 +199,8 @@ Standalone model classes with lowercase names (`archie`, `gammaray`, `simandoux`
 - `scorecard.SCENARIOS` lists the pages. `gap` names the roadmap step expected to fix a failing one; the tests mark those as `xfail(strict=True)`, so a fix fails until its `gap` is removed. Run `uv run python -m pphys.digitize.scorecard [--keep DIR] [NAME ...]`.
 
 Known prototype weaknesses (roadmap milestone 3), each shown by a scenario:
-- Track detection splits a wandering curve into several "tracks", so without `track_edges` the scale is wrong (`no_track_edges`).
-- Log10 tracks are mapped linearly (`log_track`).
+- Tracks can't be found on a rotated page (`rotated`; deskewing isn't planned).
+- On noisy or faded pages the grid lines fall below `ink_contrast`, so the grid check stays silent; the frames are still found.
 - OCR reads 2 of 11 labels on a clean synthetic page and misreads them (`ocr_depth`; Tesseract 5.4 is installed in `C:\Program Files\Tesseract-OCR`).
 - The 3×3 mask opening erases strokes narrower than 3 px, i.e. near-vertical stretches of a curve, so flat beds go missing (`blocky_beds`; `Settings(mask_kernel=1)` keeps them).
 - Curves are picked by hue only, so black curves can't be picked (`black_curve`) and grid lines in the curve's colour are read as curve (`coloured_grid`).

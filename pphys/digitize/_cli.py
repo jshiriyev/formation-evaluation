@@ -10,13 +10,13 @@ from ._digitize import DigitizeError, Settings, digitize
 
 
 def _track(value: str) -> str | int:
-    if value in ("left", "right"):
+    if value in ("auto", "left", "right"):
         return value
     try:
         return int(value)
     except ValueError:
         raise argparse.ArgumentTypeError(
-            "use 'left', 'right' or a track index"
+            "use 'auto', 'left', 'right' or a track index"
         ) from None
 
 
@@ -36,6 +36,12 @@ def parser() -> argparse.ArgumentParser:
     )
     ap.add_argument("--unit", default="", help="unit of the curve, e.g. gAPI")
     ap.add_argument(
+        "--scale",
+        choices=("linear", "log10"),
+        default="linear",
+        help="track scale, as printed in the log header (default linear)",
+    )
+    ap.add_argument(
         "--depth",
         type=float,
         nargs=2,
@@ -50,21 +56,25 @@ def parser() -> argparse.ArgumentParser:
     ap.add_argument(
         "--track",
         type=_track,
-        default="left",
-        help="track to read: left, right or an index from the left (default left)",
+        default="auto",
+        help="track to read: auto (the one holding the curve colour), left, right "
+        "or an index from the left (default auto)",
     )
     ap.add_argument(
         "--track-edges",
         type=float,
         nargs=2,
         metavar=("LEFT", "RIGHT"),
-        help="page columns of the track edges (see page.png); exact value scale",
+        help="page columns of the track edges (see page.png); overrides detection",
     )
     ap.add_argument(
         "--well", help="well name for the LAS header (default: the scan's name)"
     )
     ap.add_argument(
-        "--scale", type=float, default=Settings.render_scale, help="PDF render scale"
+        "--render-scale",
+        type=float,
+        default=Settings.render_scale,
+        help="PDF render scale (default 2.0)",
     )
     ap.add_argument("--tesseract", help="path to the Tesseract executable")
     ap.add_argument(
@@ -77,7 +87,7 @@ def parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
-    settings = Settings(render_scale=args.scale, tesseract=args.tesseract)
+    settings = Settings(render_scale=args.render_scale, tesseract=args.tesseract)
     try:
         result = digitize(
             args.scan,
@@ -85,6 +95,7 @@ def main(argv: list[str] | None = None) -> int:
             vmin=args.vmin,
             vmax=args.vmax,
             unit=args.unit,
+            scale=args.scale,
             depth=args.depth,
             depth_unit=args.depth_unit,
             step=args.step,

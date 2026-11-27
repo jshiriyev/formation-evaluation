@@ -20,6 +20,7 @@ colour and one curve per call; linear scales; PDF input only.
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import shutil
@@ -42,6 +43,7 @@ from .._lasio import WellLog
 
 DEPTH_UNITS = {"m": "M", "ft": "FT"}
 DEFAULT_STEP = {"m": 0.1524, "ft": 0.5}
+SCALES = ("linear", "log10")
 
 
 class DigitizeError(RuntimeError):
@@ -78,10 +80,17 @@ class Settings:
     mask_kernel : int
         Size of the opening and closing that clean the colour mask.
     min_track_width : int
-        Column clusters narrower than this are not tracks.
-    track_margin : int
-        Columns added on both sides of the curve when no ``track_edges`` are
-        given to :func:`digitize`.
+        Tracks, and column clusters of curve pixels, narrower than this are
+        ignored.
+    ink_contrast : int
+        How much darker than the paper (median grey, 0-255) a pixel must be
+        to count as a printed line.
+    min_line_fraction : float
+        Fraction of the page height a column of line pixels must cover to be
+        a vertical line (a track frame or grid line).
+    frame_tolerance : float
+        Lines at least this fraction as dark (against the paper) as the
+        darkest line are track frames; lighter ones are grid lines.
     depth_strip_half_width : int
         Half width of the strip, centred between the first and last track,
         that holds the depth labels.
@@ -109,7 +118,9 @@ class Settings:
     min_value: int = 50
     mask_kernel: int = 3
     min_track_width: int = 30
-    track_margin: int = 60
+    ink_contrast: int = 40
+    min_line_fraction: float = 0.5
+    frame_tolerance: float = 0.5
     depth_strip_half_width: int = 120
     label_skip: float = 0.25
     ocr_chunk_height: int = 4000
@@ -135,9 +146,17 @@ class Settings:
                 raise ValueError(
                     f"{name} must be positive, not {getattr(self, name)!r}."
                 )
-        if self.track_margin < 0:
+        if not 0 < self.ink_contrast < 255:
             raise ValueError(
-                f"track_margin cannot be negative, not {self.track_margin!r}."
+                f"ink_contrast must be in 1-254, not {self.ink_contrast!r}."
+            )
+        if not 0 < self.min_line_fraction <= 1:
+            raise ValueError(
+                f"min_line_fraction must be in (0, 1], not {self.min_line_fraction!r}."
+            )
+        if not 0 < self.frame_tolerance < 1:
+            raise ValueError(
+                f"frame_tolerance must be in (0, 1), not {self.frame_tolerance!r}."
             )
         if not 0 <= self.ocr_chunk_overlap < self.ocr_chunk_height:
             raise ValueError(
@@ -160,11 +179,34 @@ class Settings:
 
 @dataclass
 class Cluster:
-    """A run of columns with many curve pixels: a track candidate."""
+    """A run of columns with many curve pixels."""
 
     x0: int
     x1: int
     score: float
+
+
+@dataclass
+class Line:
+    """A long vertical line on the page: a track frame or a grid line.
+
+    ``x`` is its centre column; ``strength`` how much darker than the paper
+    it is (0-255).
+    """
+
+    x: float
+    width: int
+    strength: float
+
+
+@dataclass
+class Track:
+    """A track found on the page: the columns of its two frame lines and of
+    the grid lines between them."""
+
+    x0: float
+    x1: float
+    grid: list[float] = field(default_factory=list)
 
 
 @dataclass
@@ -181,15 +223,24 @@ class QC:
         The page digitized (0-based).
     page_size : (int, int)
         Width and height of the rendered page.
-    tracks : list of (int, int)
-        Column ranges of every track candidate found, left to right.
-    track : (int, int)
-        First and last column of the strip the curve was read from; its
-        width spans ``[vmin, vmax]``.
+    tracks : list of (float, float)
+        Frame columns of every track found, left to right.
+    track : (float, float)
+        Columns of the left and right edge of the track read, where the
+        values are ``vmin`` and ``vmax``.
+    track_source : str
+        "detected" (found from its frame lines) or "manual" (``track_edges``).
+    scale : str
+        "linear" or "log10", as given.
     depth_source : str
         "manual" (depths given) or "ocr" (depth labels read).
     depth_fit : (float, float)
         ``(a, b)`` of ``depth = a * row + b``.
+    grid : str or None
+        What the vertical grid of the track looks like: "linear" (evenly
+        spaced), "log10" (bunching toward each decade), or None if unclear.
+    curve_clusters : list of (int, int)
+        Column ranges of the curve-coloured pixels, left to right.
     depth_labels : list of (float, float)
         ``(row, depth)`` of the labels read by OCR (empty for manual depths).
     depth_strip : (int, int) or None
@@ -203,10 +254,14 @@ class QC:
     scan: str
     page: int
     page_size: tuple[int, int]
-    tracks: list[tuple[int, int]]
-    track: tuple[int, int]
+    tracks: list[tuple[float, float]]
+    track: tuple[float, float]
+    track_source: str
+    scale: str
     depth_source: str
     depth_fit: tuple[float, float]
+    grid: str | None = None
+    curve_clusters: list[tuple[int, int]] = field(default_factory=list)
     depth_labels: list[tuple[float, float]] = field(default_factory=list)
     depth_strip: tuple[int, int] | None = None
     coverage: float = 0.0
@@ -217,7 +272,9 @@ class QC:
         a, b = self.depth_fit
         lines = [
             f"scan: {self.scan} (page {self.page}, {self.page_size[0]} x {self.page_size[1]} px)",
-            f"track: columns {self.track[0]}-{self.track[1]} ({len(self.tracks)} track(s) found)",
+            f"track: columns {self.track[0]:.1f}-{self.track[1]:.1f} ({self.track_source}; "
+            f"{len(self.tracks)} track(s) found), {self.scale} scale"
+            + (f", grid looks {self.grid}" if self.grid else ""),
             f"depth: {self.depth_source}, depth = {a:.6g} * row + {b:.6g}",
         ]
         if self.depth_source == "ocr":
@@ -289,11 +346,12 @@ def digitize(
     vmin: float,
     vmax: float,
     unit: str = "",
+    scale: str = "linear",
     depth: Sequence[float] | Sequence[tuple[float, float]] | None = None,
     depth_unit: str = "m",
     step: float | None = None,
     page: int = 0,
-    track: str | int = "left",
+    track: str | int = "auto",
     track_edges: tuple[float, float] | None = None,
     well: str | None = None,
     settings: Settings | None = None,
@@ -307,9 +365,13 @@ def digitize(
     curve : str
         Mnemonic of the digitized curve, e.g. "GR".
     vmin, vmax : float
-        Values at the left and right edge of the track.
+        Values at the left and right edge of the track (vmin > vmax for a
+        flipped track).
     unit : str
         Unit of the curve, e.g. "gAPI".
+    scale : {"linear", "log10"}
+        The track's scale, as printed in the log header. A QC warning flags
+        a grid that looks like the other kind.
     depth : (top, base) or sequence of (row, depth), optional
         Manual depth calibration, which skips OCR. ``(top, base)`` are the
         depths at the first and last row of the rendered page; two or more
@@ -322,14 +384,14 @@ def digitize(
         Depth step of the output; 0.1524 (m) or 0.5 (ft) by default.
     page : int
         Page of the PDF to digitize, 0-based.
-    track : "left", "right" or int
-        Which track to read the curve from: the first or last one found, or
-        its index from the left.
+    track : "auto", "left", "right" or int
+        Which detected track to read: the one holding the most pixels of the
+        curve colour ("auto"), the first or last one, or its index from the
+        left. Tracks are found from their frame lines (see :func:`find_tracks`).
     track_edges : (float, float), optional
         Columns of the rendered page at the track's left and right edges,
-        where the values are ``vmin`` and ``vmax``. Without it, the scale
-        spans the curve's own columns plus ``Settings.track_margin``, which
-        is only approximate.
+        where the values are ``vmin`` and ``vmax``; overrides the detection
+        and ``track``.
     well : str, optional
         Well name for the LAS header; the scan's file name by default.
     settings : Settings, optional
@@ -347,8 +409,9 @@ def digitize(
         If depth cannot be calibrated: too few labels read, or OCR is
         needed but only one track was found.
     DigitizeError
-        If no curve is found, the track does not exist, or Tesseract is
-        needed but missing.
+        If no curve is found, no track frames are found (pass
+        ``track_edges``), the track does not exist, or Tesseract is needed
+        but missing.
     """
     settings = Settings() if settings is None else settings
     path = Path(scan)
@@ -362,6 +425,10 @@ def digitize(
         raise ValueError("curve needs a mnemonic, e.g. curve='GR'.")
     if vmin == vmax:
         raise ValueError("vmin and vmax must differ.")
+    if scale not in SCALES:
+        raise ValueError(f"scale must be 'linear' or 'log10', not {scale!r}.")
+    if scale == "log10" and min(vmin, vmax) <= 0:
+        raise ValueError("A log10 scale needs positive vmin and vmax.")
     if depth_unit not in DEPTH_UNITS:
         raise ValueError(f"depth_unit must be 'm' or 'ft', not {depth_unit!r}.")
     step = DEFAULT_STEP[depth_unit] if step is None else float(step)
@@ -381,26 +448,44 @@ def digitize(
             "Settings.hue_bands and Settings.render_scale.",
             images,
         )
-    chosen = _pick_track(clusters, track)
     warnings: list[str] = []
+    tracks = find_tracks(page_bgr, settings, curve=mask)
 
-    # The strip the curve is read from; its width spans [vmin, vmax].
+    # The track's edges, where the values are vmin and vmax.
     if track_edges is not None:
-        x0, x1 = sorted(int(round(float(v))) for v in track_edges)
-        if x0 < 0 or x1 >= width or x1 - x0 < 2:
+        x0, x1 = sorted(float(v) for v in track_edges)
+        if x0 < 0 or x1 > width - 1 or x1 - x0 < 2:
             raise ValueError(
                 f"track_edges {tuple(track_edges)} must be two columns within the page (0-{width - 1})."
             )
-        roi = page_bgr[:, x0 : x1 + 1].copy()
+        track_source = "manual"
+        chosen = max(tracks, key=lambda t: _overlap(t, x0, x1), default=None)
+        if chosen is not None and _overlap(chosen, x0, x1) <= 0:
+            chosen = None
     else:
-        roi, (x0, _, x1, _) = crop_with_margin(
-            page_bgr, chosen.x0, chosen.x1, 0, height - 1, settings.track_margin
-        )
+        if not tracks:
+            raise DigitizeError(
+                "No track frames (long vertical lines) were found around the curve; "
+                "pass track_edges=(left, right) in page columns (see the 'page' image).",
+                images,
+            )
+        chosen, note = _pick_track(tracks, track, mask)
+        if note:
+            warnings.append(note)
+        x0, x1 = chosen.x0, chosen.x1
+        track_source = "detected"
+
+    grid = grid_kind(chosen) if chosen is not None else None
+    if grid is not None and grid != scale:
         warnings.append(
-            "Values are scaled across the curve's own columns plus a margin, not "
-            "across the track edges, so they are approximate; pass "
-            "track_edges=(left, right) in page columns for exact values."
+            f"The track's grid looks {grid} ("
+            + ("evenly spaced" if grid == "linear" else "bunching toward each decade")
+            + f") but scale='{scale}'; check the scale printed in the log header."
         )
+
+    # Crop whole columns around the edges; values use the exact (sub-pixel) edges.
+    c0, c1 = max(0, math.floor(x0)), min(width - 1, math.ceil(x1))
+    roi = page_bgr[:, c0 : c1 + 1].copy()
     images["track"] = roi
 
     labels: list[tuple[float, float]] = []
@@ -444,7 +529,7 @@ def digitize(
     images["track_mask"] = track_mask
     images["curve_overlay"] = curve_overlay(roi, xs)
 
-    values = map_x_to_value(xs, 0.0, float(roi.shape[1] - 1), vmin, vmax)
+    values = map_x_to_value(xs + c0, x0, x1, vmin, vmax, scale)
     depths = a * np.arange(roi.shape[0], dtype=float) + b
     found = np.isfinite(values)
     if found.sum() < 2:
@@ -470,6 +555,7 @@ def digitize(
         out_value,
         curve=str(curve).strip(),
         unit=unit,
+        descr=f"Digitized curve, {scale} scale {vmin:g} to {vmax:g}",
         depth_unit=depth_unit,
         well=path.stem if well is None else well,
         null_value=settings.null_value,
@@ -479,10 +565,14 @@ def digitize(
         scan=str(path),
         page=page,
         page_size=(width, height),
-        tracks=[(c.x0, c.x1) for c in sorted(clusters, key=lambda c: c.x0)],
-        track=(int(x0), int(x1)),
+        tracks=[(t.x0, t.x1) for t in tracks],
+        track=(float(x0), float(x1)),
+        track_source=track_source,
+        scale=scale,
         depth_source=source,
         depth_fit=(float(a), float(b)),
+        grid=grid,
+        curve_clusters=[(c.x0, c.x1) for c in sorted(clusters, key=lambda c: c.x0)],
         depth_labels=labels,
         depth_strip=strip_columns,
         coverage=coverage,
@@ -585,17 +675,79 @@ def find_clusters(mask: np.ndarray, min_width: int = 30) -> list[Cluster]:
     return clusters
 
 
-def crop_with_margin(
-    img: np.ndarray, x0: int, x1: int, y0: int, y1: int, margin: int = 40
-) -> tuple[np.ndarray, tuple[int, int, int, int]]:
-    """Crop columns ``x0-x1`` widened by ``margin`` and rows ``y0-y1``, within the image."""
-    height, width = img.shape[:2]
-    x0m = max(0, x0 - margin)
-    x1m = min(width - 1, x1 + margin)
-    y0m = max(0, y0)
-    y1m = min(height - 1, y1)
-    roi = img[y0m : y1m + 1, x0m : x1m + 1].copy()
-    return roi, (x0m, y0m, x1m, y1m)
+def find_vertical_lines(
+    page_bgr: np.ndarray,
+    settings: Settings | None = None,
+    exclude: np.ndarray | None = None,
+) -> list[Line]:
+    """Long vertical printed lines (track frames and grid lines), left to right.
+
+    A pixel is line ink when it is ``Settings.ink_contrast`` darker than the
+    paper (the median grey) and not in ``exclude`` (e.g. the curve mask); a
+    run of columns whose ink covers ``Settings.min_line_fraction`` of the
+    page height is one line.
+    """
+    settings = Settings() if settings is None else settings
+    gray, paper, ink = _line_ink(page_bgr, settings, exclude)
+    return _vertical_lines(gray, paper, ink, settings)
+
+
+def find_tracks(
+    page_bgr: np.ndarray,
+    settings: Settings | None = None,
+    curve: np.ndarray | None = None,
+) -> list[Track]:
+    """Tracks found from their frame lines, left to right.
+
+    The darkest long vertical lines are frames, the lighter ones grid lines
+    (``Settings.frame_tolerance``). The span between two neighbouring frames
+    is a track when it holds grid lines, pixels of ``curve`` (the curve
+    mask), or horizontal grid lines running across it; so the depth column
+    and margins are skipped and tracks sharing a frame are told apart. When
+    all lines are equally dark, a track is a run of lines whose gaps are all
+    crossed by horizontal grid lines.
+    """
+    settings = Settings() if settings is None else settings
+    gray, paper, ink = _line_ink(page_bgr, settings, curve)
+    lines = _vertical_lines(gray, paper, ink, settings)
+    if len(lines) < 2:
+        return []
+    strongest = max(line.strength for line in lines)
+    frames = [ln for ln in lines if ln.strength >= settings.frame_tolerance * strongest]
+    grid = [ln.x for ln in lines if ln.strength < settings.frame_tolerance * strongest]
+    if not grid and len(frames) > 6:
+        return _tracks_by_crossing([ln.x for ln in lines], ink, settings)
+
+    tracks = []
+    for left, right in zip(frames, frames[1:]):
+        if right.x - left.x < settings.min_track_width:
+            continue
+        inside = [x for x in grid if left.x < x < right.x]
+        inner = slice(math.floor(left.x) + 2, math.ceil(right.x) - 1)
+        has_curve = curve is not None and curve[:, inner].any()
+        if inside or has_curve or _crossed(ink, left.x, right.x):
+            tracks.append(Track(left.x, right.x, inside))
+    return tracks
+
+
+def grid_kind(track: Track) -> str | None:
+    """What a track's vertical grid looks like: "linear", "log10" or None (unclear).
+
+    Evenly spaced lines read as linear. Spacing that keeps shrinking (or
+    growing, on a flipped track) and jumps back once per decade reads as
+    log10. Needs at least four grid lines.
+    """
+    if len(track.grid) < 4:
+        return None
+    gaps = np.diff([track.x0, *sorted(track.grid), track.x1])
+    spread = gaps.std() / gaps.mean()
+    if spread < 0.15:
+        return "linear"
+    ratios = gaps[1:] / gaps[:-1]
+    monotone = max(np.mean(ratios < 1.0), np.mean(ratios > 1.0))
+    if spread > 0.3 and monotone >= 0.6:
+        return "log10"
+    return None
 
 
 def build_depth_strip_roi(
@@ -732,10 +884,22 @@ def extract_curve_x_by_row(curve_mask: np.ndarray) -> tuple[np.ndarray, np.ndarr
 
 
 def map_x_to_value(
-    x_px: np.ndarray, x_left: float, x_right: float, vmin: float, vmax: float
+    x_px: np.ndarray,
+    x_left: float,
+    x_right: float,
+    vmin: float,
+    vmax: float,
+    scale: str = "linear",
 ) -> np.ndarray:
-    """Map columns linearly so that ``x_left`` -> ``vmin`` and ``x_right`` -> ``vmax``."""
-    return vmin + (x_px - x_left) / (x_right - x_left) * (vmax - vmin)
+    """Map columns so that ``x_left`` -> ``vmin`` and ``x_right`` -> ``vmax``.
+
+    Linearly, or for ``scale="log10"`` linearly in the logarithm of the value.
+    """
+    fraction = (np.asarray(x_px, dtype=float) - x_left) / (x_right - x_left)
+    if scale == "log10":
+        lo, hi = math.log10(vmin), math.log10(vmax)
+        return 10.0 ** (lo + fraction * (hi - lo))
+    return vmin + fraction * (vmax - vmin)
 
 
 def resample_to_step(
@@ -796,19 +960,104 @@ def depth_labels_overlay(
     return overlay
 
 
-def _pick_track(clusters: list[Cluster], track: str | int) -> Cluster:
-    ordered = sorted(clusters, key=lambda c: c.x0)
+def _pick_track(
+    tracks: list[Track], track: str | int, curve: np.ndarray
+) -> tuple[Track, str | None]:
+    """The track chosen by ``track``, and a warning when "auto" was a close call."""
     if track == "left":
-        return ordered[0]
+        return tracks[0], None
     if track == "right":
-        return ordered[-1]
+        return tracks[-1], None
     if isinstance(track, (int, np.integer)) and not isinstance(track, bool):
-        if 0 <= track < len(ordered):
-            return ordered[track]
+        if 0 <= track < len(tracks):
+            return tracks[track], None
         raise DigitizeError(
-            f"track {track} does not exist: {len(ordered)} track(s) were found."
+            f"track {track} does not exist: {len(tracks)} track(s) were found."
         )
-    raise ValueError(f"track must be 'left', 'right' or an index, not {track!r}.")
+    if track != "auto":
+        raise ValueError(
+            f"track must be 'auto', 'left', 'right' or an index, not {track!r}."
+        )
+    counts = [
+        int(np.count_nonzero(curve[:, math.ceil(t.x0) : math.floor(t.x1) + 1]))
+        for t in tracks
+    ]
+    order = np.argsort(counts)[::-1]
+    best = int(order[0])
+    if counts[best] == 0:
+        raise DigitizeError(
+            f"None of the {len(tracks)} track(s) found holds the curve colour; "
+            "check Settings.hue_bands, or pass track_edges."
+        )
+    note = None
+    if len(tracks) > 1 and counts[int(order[1])] >= 0.5 * counts[best]:
+        note = (
+            f"Tracks {best} and {int(order[1])} both hold the curve colour; read track "
+            f"{best}, which holds more. Pass track= to choose."
+        )
+    return tracks[best], note
+
+
+def _overlap(track: Track, x0: float, x1: float) -> float:
+    """Columns shared by a track and the span ``x0-x1``."""
+    return min(track.x1, x1) - max(track.x0, x0)
+
+
+def _runs(on: np.ndarray):
+    """``(start, stop)`` of every run of True values."""
+    edges = np.flatnonzero(np.diff(np.concatenate([[0], on.astype(np.int8), [0]])))
+    return list(zip(edges[::2], edges[1::2]))
+
+
+def _line_ink(page_bgr, settings, exclude):
+    """Grey page, paper level, and the mask of printed-line pixels."""
+    gray = cv2.cvtColor(page_bgr, cv2.COLOR_BGR2GRAY)
+    paper = float(np.median(gray))
+    ink = gray < paper - settings.ink_contrast
+    if exclude is not None:
+        ink &= exclude == 0
+    return gray, paper, ink
+
+
+def _vertical_lines(gray, paper, ink, settings) -> list[Line]:
+    fraction = ink.mean(axis=0)
+    lines = []
+    for start, stop in _runs(fraction >= settings.min_line_fraction):
+        weights = fraction[start:stop]
+        x = float((np.arange(start, stop) * weights).sum() / weights.sum())
+        darkest = gray[:, start:stop].min(axis=1)
+        lines.append(Line(x, int(stop - start), paper - float(np.median(darkest))))
+    return lines
+
+
+def _crossed(ink: np.ndarray, x0: float, x1: float, runs: int = 3) -> bool:
+    """Whether at least ``runs`` horizontal lines run across the gap ``x0-x1``,
+    as a track's depth grid does (the depth column and margins have none)."""
+    c0, c1 = math.floor(x0) + 2, math.ceil(x1) - 1
+    if c1 - c0 < 3:
+        return True  # lines this close belong together
+    full = ink[:, c0:c1].mean(axis=1) >= 0.9
+    return len(_runs(full)) >= runs
+
+
+def _tracks_by_crossing(
+    xs: list[float], ink: np.ndarray, settings: Settings
+) -> list[Track]:
+    """Tracks as runs of lines whose gaps are all crossed by horizontal grid lines."""
+    xs = sorted(xs)
+    groups, current = [], [xs[0]]
+    for a, b in zip(xs, xs[1:]):
+        if _crossed(ink, a, b):
+            current.append(b)
+        else:
+            groups.append(current)
+            current = [b]
+    groups.append(current)
+    return [
+        Track(g[0], g[-1], g[1:-1])
+        for g in groups
+        if len(g) >= 2 and g[-1] - g[0] >= settings.min_track_width
+    ]
 
 
 def _parse_depth(depth) -> tuple[str, list]:
@@ -840,13 +1089,13 @@ def _manual_fit(manual: tuple[str, list], height: int) -> tuple[float, float]:
 
 
 def _build_las(
-    depth, value, *, curve, unit, depth_unit, well, null_value, note
+    depth, value, *, curve, unit, descr, depth_unit, well, null_value, note
 ) -> WellLog:
     las = WellLog()
     las.well["WELL"].value = well
     las.well["NULL"].value = null_value
     las.append_curve("DEPT", depth, unit=DEPTH_UNITS[depth_unit], descr="Depth")
-    las.append_curve(curve, value, unit=unit, descr="Digitized curve")
+    las.append_curve(curve, value, unit=unit, descr=descr)
     las.other = note
     return las
 

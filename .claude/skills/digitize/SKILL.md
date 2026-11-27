@@ -1,7 +1,7 @@
 ---
 name: digitize
 description: Digitize a scanned log (PDF or image) into LAS with pphys.digitize, then review the QC images and the resulting curve. Use when the user hands over a scanned log to convert.
-argument-hint: "<scan.pdf|scan.png> [--curve NAME --vmin V --vmax V --depth TOP BASE --track-edges L R]"
+argument-hint: "<scan.pdf|scan.png> [--curve NAME --vmin V --vmax V --scale linear|log10 --depth TOP BASE]"
 allowed-tools: Bash(uv run *), Bash(tesseract *), Read, Write, Glob
 ---
 
@@ -11,10 +11,11 @@ Input: `$ARGUMENTS`.
 
 `pphys.digitize` (still a prototype algorithm, roadmap milestone 3) reads **one red
 curve** per run:
-1. It renders the PDF page and finds the tracks from the red pixels.
-2. It calibrates depth from manual depths, or by OCR of the labels between the first
-   and last track (Tesseract), fitting `depth = a*row + b`.
-3. It maps the per-row median column of the curve linearly onto `[vmin, vmax]`.
+1. It renders the PDF page and finds the tracks from their frame lines.
+2. It calibrates depth from manual depths, or by OCR of the depth labels
+   (Tesseract), fitting `depth = a*row + b`.
+3. It maps the per-row median column of the curve across the track edges, on a
+   linear or log10 scale, onto `[vmin, vmax]`.
 
 Python: `digitize(scan, curve=, vmin=, vmax=, ...)` returns a result with `.las`
 (a WellLog), `.qc` and `.images`; `.save(dir)` writes them all.
@@ -22,22 +23,27 @@ Python: `digitize(scan, curve=, vmin=, vmax=, ...)` returns a result with `.las`
 Command line: `uv run pphys-digitize SCAN --curve GR --vmin 0 --vmax 150 [options]`.
 - **Required:** `--curve`, `--vmin`, `--vmax`.
 - **Options:**
-  - `--unit`, `--depth TOP BASE` (depths at the first and last page row; skips OCR), `--depth-unit m|ft`;
+  - `--unit`, `--scale linear|log10` (as printed in the log header);
+  - `--depth TOP BASE` (depths at the first and last page row; skips OCR), `--depth-unit m|ft`;
   - `--step` (0.1524 m / 0.5 ft by default), `--page` (0-based);
-  - `--track left|right|N`, `--track-edges L R` (page columns of the track edges, giving an exact value scale);
-  - `--well`, `--scale` (render scale, 2.0), `--tesseract PATH`, `--out DIR` (default `<scan>_digitized`).
+  - `--track auto|left|right|N` (default auto: the track holding the curve colour), `--track-edges L R` (page columns of the track edges; overrides detection);
+  - `--well`, `--render-scale` (2.0), `--tesseract PATH`, `--out DIR` (default `<scan>_digitized`).
 
 ## Steps
 
-1. **Inputs.** Ask for the curve mnemonic and the track's left/right scale values
-   unless given. Read the scan first: the scale is often legible in the header, so
-   propose it and confirm.
+1. **Inputs.** Ask for the curve mnemonic, the track's left and right scale values,
+   and whether the track is linear or log10, unless given. Read the scan first: the
+   scale is often legible in the header, so propose it and confirm.
 2. **Image input.** Only PDFs are read for now. For a PNG/JPG, convert it in the
    scratchpad: `uv run python -c "from PIL import Image; Image.open('in.png').convert('RGB').save('in.pdf', resolution=72)"`.
-3. **Track edges.** Without `--track-edges`, values are only approximate (scaled
-   across the curve's own columns) and the QC warns about it. Do a first run, Read
-   `page.png` (pixels of the rendered page, at `--scale`), find the columns of the track's
-   left and right borders, and re-run with `--track-edges L R`.
+3. **Track edges** are found from the frame lines. Check the summary's `track:` line
+   and `tracks` in `qc.json`.
+   - **The wrong track was read, or tracks are close:** pass `--track` (an index from
+     the left) or `--track-edges L R` (columns of the borders, read off `page.png` at
+     `--render-scale`).
+   - **No track frames found:** typical of rotated or frameless scans. Pass
+     `--track-edges`.
+   - **"grid looks log10/linear" warning:** recheck `--scale`.
 4. **OCR.** Without `--depth`, Tesseract must be found (`find_tesseract()`, or
    `TESSERACT_CMD`). If it is missing, ask for the top and bottom depths of the page
    instead, or how to install Tesseract. A failed OCR stops with an error; never
@@ -63,5 +69,5 @@ Command line: `uv run pphys-digitize SCAN --curve GR --vmin 0 --vmax 150 [option
 
 - The LAS path, depth range and step.
 - How depth was calibrated (manual, or OCR with N labels and the fit).
-- Each QC warning or problem, its likely cause (approximate scale, red grid lines,
-  OCR misses) and the option that would fix it.
+- Each QC warning or problem, its likely cause (wrong track, wrong scale type, red
+  grid lines, OCR misses) and the option that would fix it.
