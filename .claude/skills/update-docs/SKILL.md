@@ -20,8 +20,11 @@ Range: `$ARGUMENTS`, or `main...HEAD` plus uncommitted changes when empty.
    - `CLAUDE.md`: architecture notes for Claude. Keep its style: short bullets,
      facts about behaviour and pitfalls, no tutorials.
    - `doc/wellview.md` (WellView reference), `doc/lasview.md` (LasView reference).
-   - `README.md`: it still documents the removed `pphys.stream` (Bokeh) and
-     `pphys.maxwres`. Point this out; remove those sections only if the user agrees.
+   - `README.md`: the user-facing overview for practicing petrophysicists. Keep the
+     workflow table's status column honest, and keep the quick start runnable on the
+     sample logs in `notebooks/`.
+   - `ROADMAP.md`: tick a milestone item when the change completes it; update
+     "Today" when the current state changes.
    - `pages/onepage-wellview.html`: the payload contract comment at the top of its
      script mirrors the WellView API (`layout`, `calls` of `{method, args, kwargs}`,
      `output`). A renamed method or keyword must change there, and in the JS that

@@ -36,9 +36,11 @@ steps in parallel. With `--fix` ($ARGUMENTS), fix what is safely mechanical
 7. **Stale imports.** Grep `pphys/`, `tests/`, `doc/`, `README.md` and the `.ipynb`
    notebooks for `borepy`, `pphys.visualization`, `pphys.stream`, `pphys.maxwres`,
    `Correlation`, `Weaver`, `lasview` (lower-case module) and `Formation(`.
-   Known and expected: `borepy` in `pphys/insight/` (fixed by `/fix-insight-imports`),
-   `pphys.stream`/`maxwres` in the README, and anything in `notebooks/*.py`.
-   Anything else is new.
+   Known and expected: `borepy` in `pphys/insight/` (fixed by `/fix-insight-imports`)
+   and anything in `notebooks/*.py`. Anything else is new; `pphys.stream` and
+   `pphys.maxwres` are out of scope (ROADMAP.md) and must not reappear in the docs.
+8. **README status.** If this branch finished a ROADMAP.md item, check that the item is
+   ticked and the README's workflow table shows the new status.
 
 ## Report
 
