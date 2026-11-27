@@ -40,8 +40,11 @@ code or weakening the test.
 
 ## digitize
 
-- Extend `tests/test_digitize.py`. It draws synthetic PDF pages (`write_scan`,
-  `zigzag`), uses `Settings(render_scale=1.0)` so page pixels equal drawing pixels,
+- Extend `tests/test_digitize.py`. It draws synthetic pages (`page_image` as an RGB
+  array; `write_scan` for a one-page PDF, `write_pdf(path, *images)` for several
+  pages, `write_image(path, rgb, dpi)` for an image scan, `doubled` for a 144-dpi
+  one; `zigzag`, `RAMP_XS`, `two_pages`), uses `Settings(render_scale=1.0)` so page
+  pixels equal drawing pixels (72 dpi images load as is),
   and replaces OCR with `stub_labels(monkeypatch, labels(...))`, which stubs
   `find_depth_labels` (misreads via `labels(..., misread=[(row, depth)])`).
   The `no_tesseract` fixture hides any installed Tesseract.
@@ -54,7 +57,7 @@ code or weakening the test.
 - Test through `digitize(...)` (manual `depth=`, `track_edges=`) and the pieces of
   `pphys/digitize/_digitize.py`: `curve_mask` (by colour),
   `clean_track_mask`, `trace_curve`, `bridge_gaps`, `resample`, `map_x_to_value`, `fit_depth`, `read_labels`, `label_bands`,
-  `find_tesseract`. Also test the `_cli.main(argv)` wrapper.
+  `find_tesseract`, `load_pages`. Also test the `_cli.main(argv)` wrapper.
   Run real OCR only when `find_tesseract()` finds it.
 - Check that `result.save(dir)` writes a LAS that `pphys.read` loads, and that values
   round-trip within a pixel's worth of tolerance.

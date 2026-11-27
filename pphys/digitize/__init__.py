@@ -1,4 +1,4 @@
-"""Scanned log (PDF) to LAS.
+"""Scanned log (PDF or image, one page or several) to LAS.
 
 >>> from pphys.digitize import digitize
 >>> result = digitize("scan.pdf", curve="GR", vmin=0, vmax=150, unit="gAPI",
@@ -13,6 +13,14 @@ Several curves at once, each with its colour, scale and track:
 ...     Curve("GR", 0, 150, unit="gAPI", color="red"),
 ...     Curve("RT", 0.2, 2000, scale="log10", color="black", track=1),
 ... ])                                                           # doctest: +SKIP
+
+Images and several pages, stitched by depth (OCR on each page, or one
+``depth`` entry per page):
+
+>>> result = digitize("scan.tif", pages="all", curve="GR", vmin=0, vmax=150,
+...                   depth=[(1500, 1600), (1600, 1700)])        # doctest: +SKIP
+>>> result = digitize(["top.png", "bottom.jpg"], dpi=300,
+...                   curve="GR", vmin=0, vmax=150)              # doctest: +SKIP
 
 From the command line: ``pphys-digitize scan.pdf --curve GR --vmin 0 --vmax 150``
 (or ``python -m pphys.digitize``). Needs the ``digitize`` extra, and the
@@ -38,9 +46,11 @@ from ._digitize import (
     DepthCalibrationError,
     DigitizeError,
     DigitizeResult,
+    PageQC,
     Settings,
     digitize,
     find_tesseract,
+    load_pages,
 )
 from ._synthetic import (
     TARGET,
@@ -51,6 +61,7 @@ from ._synthetic import (
     SyntheticTrack,
     score,
     synthetic_scan,
+    write_pages,
 )
 
 __all__ = [
@@ -62,6 +73,7 @@ __all__ = [
     "DepthCalibrationError",
     "DigitizeError",
     "DigitizeResult",
+    "PageQC",
     "Score",
     "Settings",
     "SyntheticCurve",
@@ -69,6 +81,8 @@ __all__ = [
     "SyntheticTrack",
     "digitize",
     "find_tesseract",
+    "load_pages",
     "score",
     "synthetic_scan",
+    "write_pages",
 ]
