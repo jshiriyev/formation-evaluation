@@ -99,10 +99,10 @@ def ramp_result(scan, **kwargs):
     "kwargs",
     [
         {"render_scale": 0},
-        {"label_skip": 1.0},
+        {"min_labels": 1},
         {"hue_bands": ((0, 200),)},
         {"hue_bands": ()},
-        {"ocr_chunk_overlap": 5000},
+        {"max_label_height": 2},
         {"min_value": 300},
         {"min_line_fraction": 0},
         {"frame_tolerance": 1.0},
@@ -128,15 +128,52 @@ def test_map_x_to_value_is_linear_and_follows_reversed_scales():
     )
 
 
-def test_fit_depth_transform_drops_an_outlier():
-    points = [(y, 0.5 * y + 1000) for y in range(0, 1000, 100)] + [(450.0, 2000.0)]
-    a, b = _digitize.fit_depth_transform(points)
-    assert a == pytest.approx(0.5)
-    assert b == pytest.approx(1000)
+def test_fit_depth_ignores_misreads():
+    points = [(y, 0.5 * y + 1000) for y in range(0, 1000, 100)]
+    points += [(450.0, 2000.0), (150.0, 1610.0)]  # two misreads
+    a, b, keep = _digitize.fit_depth(points)
+    assert (a, b) == pytest.approx((0.5, 1000))
+    assert keep.tolist() == [True] * 10 + [False, False]
 
 
-def test_fit_depth_transform_needs_two_points():
-    assert _digitize.fit_depth_transform([(10.0, 1000.0)]) is None
+def test_fit_depth_needs_two_points_and_depth_growing_downward():
+    assert _digitize.fit_depth([(10.0, 1000.0)]) is None
+    assert _digitize.fit_depth([(10.0, 1000.0), (20.0, 990.0)]) is None
+
+
+def test_fit_depth_tolerance_is_in_rows():
+    # Five labels 100 rows apart; the last sits 12 rows off the line.
+    points = [(100.0 * i, 1000.0 + 10 * i) for i in range(4)] + [(412.0, 1040.0)]
+    assert _digitize.fit_depth(points, tolerance=3.0)[2].tolist() == [True] * 4 + [
+        False
+    ]
+    assert _digitize.fit_depth(points, tolerance=15.0)[2].all()
+
+
+@pytest.mark.parametrize(
+    "text, number",
+    [
+        ("1000", 1000.0),
+        ("1002.5", 1002.5),
+        ("-3", -3.0),
+        ("12-5", None),
+        (".", None),
+        ("", None),
+    ],
+)
+def test_parse_number(text, number):
+    assert _digitize._parse_number(text) == number
+
+
+def test_label_bands_are_outside_the_tracks():
+    tracks = [_digitize.Track(40.0, 380.0), _digitize.Track(480.0, 820.0)]
+    assert _digitize.label_bands(tracks, 864) == [
+        (0.0, 40.0),
+        (380.0, 480.0),
+        (820.0, 863.0),
+    ]
+    assert _digitize.label_bands(tracks, 864, columns=(500, 400)) == [(400.0, 500.0)]
+    assert _digitize.label_bands([_digitize.Track(3.0, 860.0)], 864) == []
 
 
 # digitize with manual depths
@@ -282,51 +319,103 @@ def test_a_grid_unlike_the_scale_is_flagged(tmp_path):
 # depth from OCR (Tesseract replaced by a stub)
 
 
-def labels(*rows):
-    return [(float(r), 1000.0 + 0.1 * r) for r in rows]
+COLUMNS = (170.0, 230.0)  # the gap between the two framed tracks
+
+
+def labels(*rows, misread=()):
+    """Labels on depth = 0.1 * row + 1000, plus ``misread`` (row, depth) pairs."""
+    found = [(float(r), 1000.0 + 0.1 * r) for r in rows] + list(misread)
+    return [
+        _digitize.Label(
+            row, depth, f"{depth:g}", 90.0, (180, int(row) - 4, 220, int(row) + 4)
+        )
+        for row, depth in sorted(found)
+    ]
+
+
+def stub_labels(monkeypatch, found):
+    monkeypatch.setattr(
+        _digitize,
+        "find_depth_labels",
+        lambda page, tracks, settings, columns: (COLUMNS, found),
+    )
+
+
+def ocr(page):
+    return digitize(page, curve="GR", vmin=0, vmax=1, track="left", settings=ONE)
 
 
 def test_ocr_labels_calibrate_depth(two_tracks, monkeypatch):
-    monkeypatch.setattr(
-        _digitize,
-        "ocr_depth_points",
-        lambda strip, settings: labels(0, 100, 200, 300, 400),
-    )
-    result = digitize(two_tracks, curve="GR", vmin=0, vmax=1, settings=ONE)
-    assert result.qc.depth_source == "ocr"
+    stub_labels(monkeypatch, labels(0, 100, 200, 300, 400))
+    qc = ocr(two_tracks).qc
+    assert qc.depth_source == "ocr"
+    assert qc.depth_fit == pytest.approx((0.1, 1000))
+    assert qc.label_columns == COLUMNS
+    assert qc.depth_inliers == [True] * 5
+    assert qc.depth_residuals == pytest.approx([0] * 5, abs=1e-9)
+    assert qc.depth_rms == pytest.approx(0, abs=1e-9)
+    assert not any("label" in w for w in qc.warnings)
+    assert "5 of 5 on the line" in qc.summary()
+
+
+def test_misread_labels_are_ignored_and_listed(two_tracks, monkeypatch):
+    stub_labels(monkeypatch, labels(0, 100, 200, 300, 400, misread=[(150.0, 1610.0)]))
+    result = ocr(two_tracks)
     assert result.qc.depth_fit == pytest.approx((0.1, 1000))
-    assert result.qc.depth_strip[0] < 200 < result.qc.depth_strip[1]
-    assert not any("labels" in w for w in result.qc.warnings)
-    assert {"depth_strip", "depth_labels"} <= set(result.images)
+    assert result.qc.depth_inliers == [True, True, False, True, True, True]
+    assert any("'1610' at row 150" in w for w in result.qc.warnings)
+    assert "depth_labels" in result.images
 
 
 def test_few_ocr_labels_are_flagged(two_tracks, monkeypatch):
-    monkeypatch.setattr(
-        _digitize, "ocr_depth_points", lambda strip, settings: labels(0, 250, 500)
-    )
-    result = digitize(two_tracks, curve="GR", vmin=0, vmax=1, settings=ONE)
-    assert any("only 3 labels" in w for w in result.qc.warnings)
+    stub_labels(monkeypatch, labels(0, 250, 500))
+    assert any("only 3 labels" in w for w in ocr(two_tracks).qc.warnings)
 
 
-def test_ocr_failure_raises_with_the_qc_images(two_tracks, monkeypatch):
-    monkeypatch.setattr(
-        _digitize, "ocr_depth_points", lambda strip, settings: labels(10)
-    )
-    with pytest.raises(DepthCalibrationError, match="1 usable depth label") as info:
-        digitize(two_tracks, curve="GR", vmin=0, vmax=1, settings=ONE)
+def test_scattered_labels_are_flagged(two_tracks, monkeypatch):
+    found = labels(0, 100, 200, 300, 400)
+    for label, shift in zip(found, (2.5, -2.5, 2.5, -2.5, 2.5)):
+        label.row += shift
+    stub_labels(monkeypatch, found)
+    # With a 3-row tolerance three collinear labels would win; at 6 rows all five
+    # stay on the line, 2.5 rows off it.
+    loose = Settings(render_scale=1.0, label_tolerance=6.0)
+    qc = digitize(
+        two_tracks, curve="GR", vmin=0, vmax=1, track="left", settings=loose
+    ).qc
+    assert all(qc.depth_inliers)
+    assert qc.depth_rms > 1.5
+    assert any("stretched" in w for w in qc.warnings)
+
+
+def test_too_few_agreeing_labels_raise(two_tracks, monkeypatch):
+    stub_labels(monkeypatch, labels(10, 300, misread=[(150.0, 1610.0)]))
+    with pytest.raises(
+        DepthCalibrationError, match="2 agree on one line, but 3"
+    ) as info:
+        ocr(two_tracks)
     assert "depth_labels" in info.value.images
 
 
-def test_ocr_needs_two_tracks(ramp):
-    with pytest.raises(DepthCalibrationError, match="two tracks"):
+def test_a_page_without_labels_raises(ramp):
+    with pytest.raises(DepthCalibrationError, match="Found 0 depth label"):
         digitize(
             ramp, curve="GR", vmin=0, vmax=150, track_edges=(50, 350), settings=ONE
         )
 
 
-def test_missing_tesseract_is_reported(two_tracks, no_tesseract):
+def test_missing_tesseract_is_reported(tmp_path, no_tesseract):
+    from pphys.digitize import synthetic_scan
+
+    page = synthetic_scan(tmp_path / "page.pdf")
     with pytest.raises(DigitizeError, match="Tesseract"):
-        digitize(two_tracks, curve="GR", vmin=0, vmax=1, settings=ONE)
+        digitize(
+            tmp_path / "page.pdf",
+            curve="GR",
+            vmin=0,
+            vmax=150,
+            track_edges=page.track_edges("GR"),
+        )
 
 
 # Tesseract lookup

@@ -41,13 +41,15 @@ Today, loading, QC and single-well plots work. The milestones below close the re
 
 **Goal.** Paper logs enter the workflow as reliably as LAS files.
 
-**Today.** `pphys.digitize.digitize()` and the `pphys-digitize` command digitize one red curve from one PDF page into a `WellLog`, with QC images and a `qc.json`. Depth comes from manual depths, or from the depth labels read by OCR (Tesseract) and fitted with a straight line.
+**Today.** `pphys.digitize.digitize()` and the `pphys-digitize` command digitize one red curve from one PDF page into a `WellLog`, with QC images and a `qc.json`. Depth comes from manual depths, or from OCR of the depth labels.
+- **Depth labels** are found in the depth column or margins (or given columns) and read by Tesseract, decimals and feet included. Each is snapped onto the grid line it marks.
+- **Depth fit:** a robust straight-line fit ignores misreads and needs at least 3 agreeing labels. The QC reports each label's residual and warns on misreads, few labels or scatter.
 - **Track edges** are found from the frame lines, to a fraction of a pixel. That works with tracks sharing a frame and with grids as dark as the frames, and `track_edges` can override it.
 - **Values** are mapped across the edges on a linear or log10 scale. A QC warning flags a grid that looks like the other kind.
 
-`pphys.digitize.synthetic_scan()` draws pages of known values, with optional scan defects, and `score()` measures a result against them. `python -m pphys.digitize.scorecard` runs 16 scenarios:
-- **Pass today:** clean, given track edges, `track='auto'`, three tracks with a flipped scale, a uniform-dark grid, feet, a blue curve, log10 resistivity, noise/blur/JPEG, and tinted paper with faded ink.
-- **Known gaps:** OCR depth, which reads 2 of 11 labels on a clean page (step 4); black curves, coloured grids, crossing curves and flat beds, whose thin vertical strokes the mask cleaning erases (step 5); rotation (not planned).
+`pphys.digitize.synthetic_scan()` draws pages of known values, with optional scan defects, and `score()` measures a result against them. `python -m pphys.digitize.scorecard` runs 20 scenarios:
+- **Pass today (15):** clean, given track edges, `track='auto'`, three tracks with a flipped scale, a uniform-dark grid, feet, a blue curve, log10 resistivity, noise/blur/JPEG, tinted paper with faded ink, and OCR depth (metres, feet, decimal labels, a left depth column, and a poor scan), all at 0.005–0.01 % depth error.
+- **Known gaps:** black curves, coloured grids, crossing curves and flat beds, whose thin vertical strokes the mask cleaning erases (step 5); rotation (not planned).
 
 **Done when:**
 - [ ] Several curves can be digitized per track and per page, picked by any colour, not only red.

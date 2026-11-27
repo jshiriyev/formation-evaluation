@@ -68,6 +68,13 @@ def parser() -> argparse.ArgumentParser:
         help="page columns of the track edges (see page.png); overrides detection",
     )
     ap.add_argument(
+        "--label-columns",
+        type=float,
+        nargs=2,
+        metavar=("LEFT", "RIGHT"),
+        help="page columns holding the depth labels (default: searched outside the tracks)",
+    )
+    ap.add_argument(
         "--well", help="well name for the LAS header (default: the scan's name)"
     )
     ap.add_argument(
@@ -102,6 +109,7 @@ def main(argv: list[str] | None = None) -> int:
             page=args.page,
             track=args.track,
             track_edges=args.track_edges,
+            label_columns=args.label_columns,
             well=args.well,
             settings=settings,
         )

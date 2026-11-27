@@ -42,7 +42,7 @@ uv sync                                              # create/update .venv from 
 uv run pytest                                        # all tests
 uv run pytest tests/test_welllog.py::test_copy_window  # one test
 uv run ruff check pphys --no-cache --select F821     # quickest way to find broken code (undefined names)
-uv run pphys-digitize scan.pdf --curve GR --vmin 0 --vmax 150 [--scale log10] [--depth TOP BASE] [--track auto] [--out DIR]
+uv run pphys-digitize scan.pdf --curve GR --vmin 0 --vmax 150 [--scale log10] [--depth TOP BASE | --label-columns L R] [--track auto] [--out DIR]
 uv add <pkg>        # runtime dependency (use --optional digitize or --dev for the others)
 uv build            # wheel + sdist into dist/
 ```
@@ -168,7 +168,7 @@ Standalone model classes with lowercase names (`archie`, `gammaray`, `simandoux`
 
 ### digitize
 
-`digitize(scan, curve=, vmin=, vmax=, ...)` (`_digitize.py`) returns a `DigitizeResult`: `.las` (a `WellLog`), `.qc` (`QC`: detected `tracks`, the `track` edges used and their `track_source`, `scale`, what the `grid` looks like, `curve_clusters`, depth source and fit, labels read, coverage, `warnings`), `.images` (QC images by name), and the raw `.depth`/`.value`. `.save(dir)` writes `<name>.las`, `<name>.csv`, one PNG per image and `qc.json`. The pipeline:
+`digitize(scan, curve=, vmin=, vmax=, ...)` (`_digitize.py`) returns a `DigitizeResult`: `.las` (a `WellLog`), `.qc` (`QC`: detected `tracks`, the `track` edges used and their `track_source`, `scale`, what the `grid` looks like, `curve_clusters`, depth source and fit, `depth_labels` with `depth_inliers`/`depth_residuals`/`depth_rms`, `label_columns`, coverage, `warnings`), `.images` (QC images by name), and the raw `.depth`/`.value`. `.save(dir)` writes `<name>.las`, `<name>.csv`, one PNG per image and `qc.json`. The pipeline:
 1. Render the PDF page with pypdfium2 at `Settings.render_scale`. All pixel positions (`track_edges`, `(row, depth)` pairs, `QC`) are on this rendered page.
 2. Mask the curve colour (`Settings.hue_bands`, red by default).
 3. Find the tracks (`find_tracks`):
@@ -180,11 +180,15 @@ Standalone model classes with lowercase names (`archie`, `gammaray`, `simandoux`
    - **Choosing:** `track` picks one: "auto" (default; most curve-colour pixels, with a warning when two tracks are close), "left", "right" or an index. `track_edges` overrides all of this.
    - **No tracks found** raises `DigitizeError`; there is no fallback.
    - **Grid check:** `grid_kind` reads the grid as linear (even spacing) or log10 (spacing shrinking within each decade). A mismatch with `scale` adds a warning; the grid never changes the values.
-4. Calibrate depth:
-   - from `depth=(top, base)` (the first and last page rows) or two or more `(row, depth)` pairs;
-   - otherwise by Tesseract OCR of the labels in the strip between the first and last track, fitted as `depth = a*row + b`.
+4. Calibrate depth, either manually or by OCR:
+   - **Manual:** `depth=(top, base)` (the first and last page rows) or two or more `(row, depth)` pairs.
+   - **OCR, where:** `find_depth_labels` reads every `label_bands` band (gaps between tracks and the margins, or `label_columns`) and keeps the band whose numbers best agree.
+   - **OCR, how:** `read_labels` finds text blobs: ink with full-width lines removed, characters merged sideways, height within `min_label_height`–`max_label_height`. It enlarges each to about 32 px and reads them all in **one** Tesseract call on a stacked sheet (psm 6, whitelist `0-9.-`), parsed by `_parse_number`.
+   - **Snapping:** each label's row is snapped onto the horizontal grid line it marks (`_grid_rows`, half the ink contrast, ≥ 80 % of a track's width), when one is within half its text height. Text centres sit about 2 px off their line, and snapping removed a 0.14 % depth error.
+   - **Fit:** `fit_depth` is a robust fit. Every pair of labels proposes a line with `a > 0`; the line with the most labels within `label_tolerance` rows wins and is refitted by least squares. At least `min_labels` (3) must agree.
+   - **Warnings:** misreads are listed; also fewer than 4 labels, or label RMS above 1.5 rows (a stretched scan).
 
-   A failed calibration raises `DepthCalibrationError`, whose `.images` holds the QC images made so far; it never falls back to pixel depths. `find_tesseract` checks `Settings.tesseract`, `TESSERACT_CMD`, the PATH, then the Windows install folders.
+   A failed calibration raises `DepthCalibrationError`, whose `.images` holds the QC images made so far, including `depth_labels` (boxes green or red, with each label's fitted depth). It never falls back to pixel depths. `find_tesseract` checks `Settings.tesseract`, `TESSERACT_CMD`, the PATH, then the Windows install folders.
 5. Take the per-row median column of the mask in the track and map it across the exact edges with `map_x_to_value`: linear, or for `scale="log10"` linear in log10 of the value. vmin > vmax flips the track.
 6. Resample to `step` (0.1524 m / 0.5 ft) and build the `WellLog` through lasio. The curve's LAS description records the scale.
 
@@ -201,7 +205,7 @@ Standalone model classes with lowercase names (`archie`, `gammaray`, `simandoux`
 Known prototype weaknesses (roadmap milestone 3), each shown by a scenario:
 - Tracks can't be found on a rotated page (`rotated`; deskewing isn't planned).
 - On noisy or faded pages the grid lines fall below `ink_contrast`, so the grid check stays silent; the frames are still found.
-- OCR reads 2 of 11 labels on a clean synthetic page and misreads them (`ocr_depth`; Tesseract 5.4 is installed in `C:\Program Files\Tesseract-OCR`).
+- OCR assumes one straight depth line per page; real scans with paper stretch show up only as label scatter (a warning), not as corrected depths. Tesseract 5.4 is installed in `C:\Program Files\Tesseract-OCR`.
 - The 3×3 mask opening erases strokes narrower than 3 px, i.e. near-vertical stretches of a curve, so flat beds go missing (`blocky_beds`; `Settings(mask_kernel=1)` keeps them).
 - Curves are picked by hue only, so black curves can't be picked (`black_curve`) and grid lines in the curve's colour are read as curve (`coloured_grid`).
 - A curve drawn under another is lost at the crossings (`two_colours_one_track`).

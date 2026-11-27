@@ -42,14 +42,15 @@ code or weakening the test.
 
 - Extend `tests/test_digitize.py`. It draws synthetic PDF pages (`write_scan`,
   `zigzag`), uses `Settings(render_scale=1.0)` so page pixels equal drawing pixels,
-  and replaces OCR with `monkeypatch.setattr(_digitize, "ocr_depth_points", ...)`.
+  and replaces OCR with `stub_labels(monkeypatch, labels(...))`, which stubs
+  `find_depth_labels` (misreads via `labels(..., misread=[(row, depth)])`).
   The `no_tesseract` fixture hides any installed Tesseract.
 - Track detection needs frame lines. `write_scan(..., frames=[(left, right)])` draws
   2-px black frames, whose centres sit at `left + 0.5` and `right + 0.5`. A page
   without frames needs `track_edges`.
 - Test through `digitize(...)` (manual `depth=`, `track_edges=`) and the pieces of
   `pphys/digitize/_digitize.py`: `curve_mask`, `find_clusters`,
-  `extract_curve_x_by_row`, `map_x_to_value`, `fit_depth_transform`,
+  `extract_curve_x_by_row`, `map_x_to_value`, `fit_depth`, `read_labels`, `label_bands`,
   `resample_to_step`, `find_tesseract`. Also test the `_cli.main(argv)` wrapper.
   Run real OCR only when `find_tesseract()` finds it.
 - Check that `result.save(dir)` writes a LAS that `pphys.read` loads, and that values

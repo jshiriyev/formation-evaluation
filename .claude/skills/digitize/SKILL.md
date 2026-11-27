@@ -24,7 +24,7 @@ Command line: `uv run pphys-digitize SCAN --curve GR --vmin 0 --vmax 150 [option
 - **Required:** `--curve`, `--vmin`, `--vmax`.
 - **Options:**
   - `--unit`, `--scale linear|log10` (as printed in the log header);
-  - `--depth TOP BASE` (depths at the first and last page row; skips OCR), `--depth-unit m|ft`;
+  - `--depth TOP BASE` (depths at the first and last page row; skips OCR), `--label-columns L R` (where the depth labels are, if not found), `--depth-unit m|ft`;
   - `--step` (0.1524 m / 0.5 ft by default), `--page` (0-based);
   - `--track auto|left|right|N` (default auto: the track holding the curve colour), `--track-edges L R` (page columns of the track edges; overrides detection);
   - `--well`, `--render-scale` (2.0), `--tesseract PATH`, `--out DIR` (default `<scan>_digitized`).
@@ -44,11 +44,14 @@ Command line: `uv run pphys-digitize SCAN --curve GR --vmin 0 --vmax 150 [option
    - **No track frames found:** typical of rotated or frameless scans. Pass
      `--track-edges`.
    - **"grid looks log10/linear" warning:** recheck `--scale`.
-4. **OCR.** Without `--depth`, Tesseract must be found (`find_tesseract()`, or
-   `TESSERACT_CMD`). If it is missing, ask for the top and bottom depths of the page
-   instead, or how to install Tesseract. A failed OCR stops with an error; never
-   fall back to pixel depths. Today OCR is unreliable (scorecard `ocr_depth`), so
-   prefer manual depths when the user can read them off the scan.
+4. **OCR.** Without `--depth`, the depth labels are found and read with Tesseract
+   (`find_tesseract()`, or `TESSERACT_CMD`). If Tesseract is missing, ask for the top
+   and bottom depths of the page instead, or how to install it.
+   - **Fit:** at least 3 labels must agree on one straight line; misreads are ignored
+     and listed in the warnings.
+   - **Labels not found:** pass `--label-columns L R` (read the columns off
+     `page.png`), or fall back to `--depth`.
+   - **Never** fall back to pixel depths.
    - **Flat beds:** if the log has them (a blocky gamma ray), add `mask_kernel=1` in
      Python (`Settings(mask_kernel=1)`); the default cleaning erases near-vertical
      strokes.
@@ -59,7 +62,7 @@ Command line: `uv run pphys-digitize SCAN --curve GR --vmin 0 --vmax 150 [option
 6. **QC.** Read the outputs:
    - `curve_overlay.png`: the cyan trace on the track. It should follow the curve, with no jumps to grid lines or other curves.
    - `track_mask.png`.
-   - For OCR, `depth_labels.png`: the labels read and the fit. Several labels should be read, and the fitted top and base depths should be plausible.
+   - For OCR, `depth_labels.png`: each label boxed, green when on the line and red when ignored, with the depth the fit gives it. The summary's `depth labels: N of M on the line, RMS r rows` should show most labels on the line and an RMS under about 1 row; a "stretched" warning means the scan's depth scale isn't uniform.
    - The summary's warnings, and `qc.json`.
 7. **Result.** Load the LAS with `pphys.read` and run `pphys.LasView(...)` `summary()`
    and `quality()`. Plot the digitized curve next to the scan's track (scratchpad

@@ -344,21 +344,26 @@ def test_a_real_gamma_ray_shape_digitizes_within_the_target(tmp_path):
     assert score(result, page).passed, str(score(result, page))
 
 
-def test_ocr_reads_some_labels_when_tesseract_is_installed(tmp_path):
+def test_ocr_reads_every_label_when_tesseract_is_installed(tmp_path):
     try:
         find_tesseract()
     except DigitizeError:
         pytest.skip("Tesseract not found")
     page = synthetic_scan(tmp_path / "page.pdf")
-    try:
-        result = digitize(
-            tmp_path / "page.pdf",
-            curve="GR",
-            vmin=0,
-            vmax=150,
-            track_edges=page.track_edges("GR"),
-        )
-    except DigitizeError:
-        return  # too few labels is today's known gap (scenario ocr_depth)
-    assert result.qc.depth_source == "ocr"
-    assert result.qc.depth_labels
+    result = digitize(tmp_path / "page.pdf", curve="GR", vmin=0, vmax=150, track="left")
+    qc = result.qc
+    assert qc.depth_source == "ocr"
+    assert [d for _, d in qc.depth_labels] == [1000.0 + 10 * i for i in range(11)]
+    assert all(qc.depth_inliers)
+    assert qc.depth_rms < 1.0
+    left, right = qc.label_columns
+    assert (
+        page.track_columns[0][1] <= left + 1 and right <= page.track_columns[1][0] + 1
+    )
+    # Labels are snapped onto their grid lines, so depth is exact to a fraction of a row.
+    for (row, depth), true_row in zip(
+        qc.depth_labels, page.row_of([d for _, d in qc.depth_labels])
+    ):
+        assert row == pytest.approx(true_row, abs=0.6)
+    assert score(result, page).passed
+    assert "depth_labels" in result.images

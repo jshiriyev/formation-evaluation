@@ -91,21 +91,15 @@ class Settings:
     frame_tolerance : float
         Lines at least this fraction as dark (against the paper) as the
         darkest line are track frames; lighter ones are grid lines.
-    depth_strip_half_width : int
-        Half width of the strip, centred between the first and last track,
-        that holds the depth labels.
-    label_skip : float
-        Left fraction of the depth strip that OCR ignores (the labels sit on
-        its right).
-    ocr_chunk_height, ocr_chunk_overlap : int
-        The depth strip is read in chunks of this height and overlap.
-    ocr_target_height : int
-        Each chunk is shrunk to this height before OCR.
+    min_label_height, max_label_height : int
+        Height range of a depth label's text, in pixels.
     ocr_min_confidence : float
         Tesseract confidence (0-100) below which a label is ignored.
-    fit_tolerance : float
-        Smallest residual, in depth units, that the depth fit treats as an
-        outlier.
+    label_tolerance : float
+        Largest distance, in rows, between a label and the fitted depth line
+        for the label to count; farther ones are treated as misreads.
+    min_labels : int
+        Labels that must agree on the fitted line for OCR depth to be used.
     null_value : float
         LAS null value.
     tesseract : str, optional
@@ -121,13 +115,11 @@ class Settings:
     ink_contrast: int = 40
     min_line_fraction: float = 0.5
     frame_tolerance: float = 0.5
-    depth_strip_half_width: int = 120
-    label_skip: float = 0.25
-    ocr_chunk_height: int = 4000
-    ocr_chunk_overlap: int = 300
-    ocr_target_height: int = 1400
-    ocr_min_confidence: float = 35.0
-    fit_tolerance: float = 5.0
+    min_label_height: int = 6
+    max_label_height: int = 60
+    ocr_min_confidence: float = 30.0
+    label_tolerance: float = 3.0
+    min_labels: int = 3
     null_value: float = -999.25
     tesseract: str | None = None
 
@@ -136,10 +128,8 @@ class Settings:
             "render_scale",
             "mask_kernel",
             "min_track_width",
-            "depth_strip_half_width",
-            "ocr_chunk_height",
-            "ocr_target_height",
-            "fit_tolerance",
+            "min_label_height",
+            "label_tolerance",
         )
         for name in positive:
             if not getattr(self, name) > 0:
@@ -158,12 +148,10 @@ class Settings:
             raise ValueError(
                 f"frame_tolerance must be in (0, 1), not {self.frame_tolerance!r}."
             )
-        if not 0 <= self.ocr_chunk_overlap < self.ocr_chunk_height:
-            raise ValueError(
-                "ocr_chunk_overlap must be at least 0 and less than ocr_chunk_height."
-            )
-        if not 0 <= self.label_skip < 1:
-            raise ValueError(f"label_skip must be in [0, 1), not {self.label_skip!r}.")
+        if self.max_label_height < self.min_label_height:
+            raise ValueError("max_label_height must be at least min_label_height.")
+        if self.min_labels < 2:
+            raise ValueError(f"min_labels must be at least 2, not {self.min_labels!r}.")
         for name in ("min_saturation", "min_value"):
             if not 0 <= getattr(self, name) <= 255:
                 raise ValueError(
@@ -210,6 +198,22 @@ class Track:
 
 
 @dataclass
+class Label:
+    """A depth label read on the page.
+
+    ``row`` is the centre row of its text, ``box`` its ``(x0, y0, x1, y1)``
+    on the page, ``depth`` the number read (None when it is not a number),
+    ``text`` what OCR returned and ``confidence`` its confidence (0-100).
+    """
+
+    row: float
+    depth: float | None
+    text: str
+    confidence: float
+    box: tuple[int, int, int, int]
+
+
+@dataclass
 class QC:
     """What :func:`digitize` found, for checking the result.
 
@@ -243,8 +247,15 @@ class QC:
         Column ranges of the curve-coloured pixels, left to right.
     depth_labels : list of (float, float)
         ``(row, depth)`` of the labels read by OCR (empty for manual depths).
-    depth_strip : (int, int) or None
-        Column range of the strip the labels were read from.
+    depth_inliers : list of bool
+        Whether each label agrees with the fitted line (False: a misread,
+        ignored).
+    depth_residuals : list of float
+        Rows between each label and the fitted line.
+    depth_rms : float or None
+        RMS of the agreeing labels' residuals, in rows.
+    label_columns : (float, float) or None
+        Column range the labels were read from.
     coverage : float
         Percent of the resampled depths that have a value.
     warnings : list of str
@@ -263,7 +274,10 @@ class QC:
     grid: str | None = None
     curve_clusters: list[tuple[int, int]] = field(default_factory=list)
     depth_labels: list[tuple[float, float]] = field(default_factory=list)
-    depth_strip: tuple[int, int] | None = None
+    depth_inliers: list[bool] = field(default_factory=list)
+    depth_residuals: list[float] = field(default_factory=list)
+    depth_rms: float | None = None
+    label_columns: tuple[float, float] | None = None
     coverage: float = 0.0
     warnings: list[str] = field(default_factory=list)
 
@@ -278,7 +292,11 @@ class QC:
             f"depth: {self.depth_source}, depth = {a:.6g} * row + {b:.6g}",
         ]
         if self.depth_source == "ocr":
-            lines.append(f"depth labels read: {len(self.depth_labels)}")
+            used = sum(self.depth_inliers)
+            lines.append(
+                f"depth labels: {used} of {len(self.depth_labels)} on the line, "
+                f"RMS {self.depth_rms:.2f} rows"
+            )
         lines.append(f"coverage: {self.coverage:.1f}%")
         lines += [f"warning: {w}" for w in self.warnings]
         return "\n".join(lines)
@@ -298,7 +316,7 @@ class DigitizeResult:
         The settings used.
     images : dict of str to numpy.ndarray
         QC images by name: "page", "mask", "track", "track_mask",
-        "curve_overlay", and for OCR "depth_strip" and "depth_labels".
+        "curve_overlay", and for OCR "depth_labels".
     depth, value : numpy.ndarray
         The curve as read, one sample per page row that holds it, before
         resampling.
@@ -353,6 +371,7 @@ def digitize(
     page: int = 0,
     track: str | int = "auto",
     track_edges: tuple[float, float] | None = None,
+    label_columns: tuple[float, float] | None = None,
     well: str | None = None,
     settings: Settings | None = None,
 ) -> DigitizeResult:
@@ -377,7 +396,9 @@ def digitize(
         depths at the first and last row of the rendered page; two or more
         ``(row, depth)`` pairs (rows of the rendered page, see the "page" QC
         image) are fitted with a straight line. Without it, the depth labels
-        between the first and last track are read with Tesseract.
+        are found and read with Tesseract (see :func:`find_depth_labels`):
+        at least ``Settings.min_labels`` must agree on one straight line, and
+        the others are ignored as misreads.
     depth_unit : {"m", "ft"}
         Unit of the depths.
     step : float, optional
@@ -392,6 +413,9 @@ def digitize(
         Columns of the rendered page at the track's left and right edges,
         where the values are ``vmin`` and ``vmax``; overrides the detection
         and ``track``.
+    label_columns : (float, float), optional
+        Columns of the rendered page between which the depth labels are;
+        by default every band outside the tracks is searched.
     well : str, optional
         Well name for the LAS header; the scan's file name by default.
     settings : Settings, optional
@@ -406,8 +430,8 @@ def digitize(
     Raises
     ------
     DepthCalibrationError
-        If depth cannot be calibrated: too few labels read, or OCR is
-        needed but only one track was found.
+        If depth cannot be calibrated: no labels found, or fewer than
+        ``Settings.min_labels`` of them on one line.
     DigitizeError
         If no curve is found, no track frames are found (pass
         ``track_edges``), the track does not exist, or Tesseract is needed
@@ -488,40 +512,67 @@ def digitize(
     roi = page_bgr[:, c0 : c1 + 1].copy()
     images["track"] = roi
 
-    labels: list[tuple[float, float]] = []
-    strip_columns = None
+    labels: list[Label] = []
+    inliers: list[bool] = []
+    residuals: list[float] = []
+    depth_rms = None
+    columns = None
     if manual is not None:
         a, b = _manual_fit(manual, height)
         source = "manual"
     else:
-        ordered = sorted(clusters, key=lambda c: c.x0)
-        if len(ordered) < 2:
-            raise DepthCalibrationError(
-                "Reading the depth labels needs two tracks (the labels sit between "
-                "them), but only one was found; pass depth=(top, base) instead.",
-                images,
-            )
-        strip, (sx0, _, sx1, _) = build_depth_strip_roi(
-            page_bgr, ordered[0], ordered[-1], settings.depth_strip_half_width
+        known = tracks or [Track(x0, x1)]
+        columns, labels = find_depth_labels(page_bgr, known, settings, label_columns)
+        numbers = [lb for lb in labels if lb.depth is not None]
+        fit = fit_depth(
+            [(lb.row, lb.depth) for lb in numbers], settings.label_tolerance
         )
-        strip_columns = (sx0, sx1)
-        images["depth_strip"] = strip
-        labels = ocr_depth_points(strip, settings)
-        fit = fit_depth_transform(labels, settings.fit_tolerance)
-        images["depth_labels"] = depth_labels_overlay(strip, labels, fit)
-        if fit is None:
+        if columns is not None:
+            band = page_bgr[
+                :, max(0, math.floor(columns[0])) : math.ceil(columns[1]) + 1
+            ]
+            images["depth_labels"] = depth_labels_overlay(
+                band, columns[0], numbers, fit
+            )
+        used = 0 if fit is None else int(np.count_nonzero(fit[2]))
+        if used < settings.min_labels:
+            read = (
+                ", ".join(f"'{lb.text}' at row {lb.row:.0f}" for lb in labels[:12])
+                or "none"
+            )
             raise DepthCalibrationError(
-                f"Read {len(labels)} usable depth label(s); at least two are needed "
-                "to calibrate depth. Check the 'depth_labels' image in the error's "
-                "images, or pass depth=(top, base) instead.",
+                f"Found {len(labels)} depth label(s) ({read}); {used} agree on one "
+                f"line, but {settings.min_labels} are needed. Check the "
+                "'depth_labels' image in the error's images, pass label_columns=, "
+                "or pass depth=(top, base) instead.",
                 images,
             )
-        a, b = fit
+        a, b, keep = fit
         source = "ocr"
-        if len(labels) < 4:
+        labels = numbers
+        inliers = [bool(k) for k in keep]
+        residuals = [float((lb.depth - b) / a - lb.row) for lb in labels]
+        depth_rms = float(
+            np.sqrt(np.mean([r * r for r, k in zip(residuals, inliers) if k]))
+        )
+        misread = [
+            f"'{lb.text}' at row {lb.row:.0f}"
+            for lb, k in zip(labels, inliers)
+            if not k
+        ]
+        if misread:
             warnings.append(
-                f"Depth is calibrated from only {len(labels)} labels; check the "
-                "depth_labels QC image."
+                f"{len(misread)} depth label(s) disagree with the others and were "
+                f"ignored as misreads: {', '.join(misread)}."
+            )
+        if used < 4:
+            warnings.append(
+                f"Depth rests on only {used} labels; check the depth_labels QC image."
+            )
+        if depth_rms > 1.5:
+            warnings.append(
+                f"The depth labels scatter {depth_rms:.1f} rows (RMS) about a straight "
+                "line; the scan may be stretched."
             )
 
     track_mask = curve_mask(roi, settings)
@@ -548,7 +599,7 @@ def digitize(
     note = f"Digitized with pphys.digitize from {path.name}, page {page}. Depth " + (
         "from manual calibration."
         if source == "manual"
-        else f"from {len(labels)} OCR depth labels (linear fit)."
+        else f"from {sum(inliers)} OCR depth labels (linear fit)."
     )
     las = _build_las(
         out_depth,
@@ -573,8 +624,11 @@ def digitize(
         depth_fit=(float(a), float(b)),
         grid=grid,
         curve_clusters=[(c.x0, c.x1) for c in sorted(clusters, key=lambda c: c.x0)],
-        depth_labels=labels,
-        depth_strip=strip_columns,
+        depth_labels=[(lb.row, lb.depth) for lb in labels],
+        depth_inliers=inliers,
+        depth_residuals=residuals,
+        depth_rms=depth_rms,
+        label_columns=columns,
         coverage=coverage,
         warnings=warnings,
     )
@@ -750,124 +804,132 @@ def grid_kind(track: Track) -> str | None:
     return None
 
 
-def build_depth_strip_roi(
-    img: np.ndarray, left: Cluster, right: Cluster, half_width: int = 110
-) -> tuple[np.ndarray, tuple[int, int, int, int]]:
-    """The full-height strip centred between two tracks, where the depth labels are."""
-    height, width = img.shape[:2]
-    x_center = int((left.x1 + right.x0) / 2)
-    x0 = max(0, x_center - half_width)
-    x1 = min(width - 1, x_center + half_width)
-    roi = img[:, x0 : x1 + 1].copy()
-    return roi, (x0, 0, x1, height - 1)
-
-
-def ocr_depth_points(
-    depth_strip_bgr: np.ndarray, settings: Settings | None = None
+def label_bands(
+    tracks: list[Track], width: int, columns: tuple[float, float] | None = None
 ) -> list[tuple[float, float]]:
-    """Read the depth labels of a strip: ``(row, depth)`` pairs, top to bottom.
+    """Column bands that may hold the depth labels: ``columns`` when given,
+    otherwise every band between the tracks and in the margins."""
+    if columns is not None:
+        x0, x1 = sorted(float(c) for c in columns)
+        return [(max(0.0, x0), min(width - 1.0, x1))]
+    bands, left = [], 0.0
+    for x0, x1 in sorted((t.x0, t.x1) for t in tracks):
+        if x0 - left >= 8:
+            bands.append((left, x0))
+        left = max(left, x1)
+    if width - 1 - left >= 8:
+        bands.append((left, width - 1.0))
+    return bands
 
-    The tall strip is read in overlapping chunks. CLAHE, a black-hat filter
-    and an Otsu threshold bring out the digits; Tesseract reads each chunk
-    once, and whole-number tokens are kept. A value read several times gets
-    its median row, and values that would make depth decrease downward are
-    dropped.
+
+def find_depth_labels(
+    page_bgr: np.ndarray,
+    tracks: list[Track],
+    settings: Settings | None = None,
+    columns: tuple[float, float] | None = None,
+) -> tuple[tuple[float, float] | None, list[Label]]:
+    """Find and read the depth labels.
+
+    Every band of :func:`label_bands` is read with :func:`read_labels`; the
+    band whose numbers best agree on one straight line wins. A label's row
+    is snapped onto the horizontal grid line it marks when one runs across a
+    track within half its text height (labels sit on, above or beside their
+    line). Returns that band's columns (None if no band holds text) and its
+    labels, top to bottom.
     """
     settings = Settings() if settings is None else settings
-    import pytesseract
+    grid = _grid_rows(page_bgr, tracks, settings)
+    best_band, best_labels, best_key = None, [], (-1, -1)
+    for band in label_bands(tracks, page_bgr.shape[1], columns):
+        labels = _snap_labels(read_labels(page_bgr, band, settings), grid)
+        if not labels:
+            continue
+        points = [(lb.row, lb.depth) for lb in labels if lb.depth is not None]
+        fit = fit_depth(points, settings.label_tolerance)
+        key = (0 if fit is None else int(np.count_nonzero(fit[2])), len(labels))
+        if key > best_key:
+            best_band, best_labels, best_key = band, labels, key
+    return best_band, best_labels
 
-    pytesseract.pytesseract.tesseract_cmd = find_tesseract(settings.tesseract)
 
-    gray_full = cv2.cvtColor(depth_strip_bgr, cv2.COLOR_BGR2GRAY)
-    gray_full = gray_full[:, int(gray_full.shape[1] * settings.label_skip) :]
-    height = gray_full.shape[0]
-    config = "--psm 6 -c tessedit_char_whitelist=0123456789"
+def read_labels(
+    page_bgr: np.ndarray, band: tuple[float, float], settings: Settings | None = None
+) -> list[Label]:
+    """Read the numbers printed in a column band, top to bottom.
 
-    pts: list[tuple[float, float]] = []
-    y0 = 0
-    while y0 < height:
-        y1 = min(height, y0 + settings.ocr_chunk_height)
-        chunk = gray_full[y0:y1, :]
-
-        scale = settings.ocr_target_height / max(1, chunk.shape[0])
-        if scale < 1.0:
-            chunk_s = cv2.resize(
-                chunk, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA
+    Text blobs are found as connected ink (lines across the band removed,
+    characters merged sideways), enlarged to about 32 pixels high, stacked
+    into one sheet and read by Tesseract in a single call, allowing digits,
+    '.' and '-'. Blobs read with less than ``Settings.ocr_min_confidence``
+    are dropped.
+    """
+    settings = Settings() if settings is None else settings
+    c0 = max(0, math.ceil(band[0]) + 2)
+    c1 = min(page_bgr.shape[1], math.floor(band[1]) - 1)
+    if c1 - c0 < 4:
+        return []
+    gray = cv2.cvtColor(page_bgr[:, c0:c1], cv2.COLOR_BGR2GRAY)
+    paper = float(np.median(gray))
+    ink = (gray < paper - settings.ink_contrast).astype(np.uint8)
+    ink[ink.mean(axis=1) > 0.6] = 0  # lines across the band are not text
+    boxes = _text_boxes(ink, settings)
+    if not boxes:
+        return []
+    labels = []
+    for (x, y, w, h), (text, conf) in zip(boxes, _ocr_boxes(gray, boxes, settings)):
+        if not text or conf < settings.ocr_min_confidence:
+            continue
+        labels.append(
+            Label(
+                row=y + (h - 1) / 2.0,
+                depth=_parse_number(text),
+                text=text,
+                confidence=conf,
+                box=(c0 + x, y, c0 + x + w - 1, y + h - 1),
             )
-        else:
-            chunk_s = chunk
-            scale = 1.0
-
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-        c = clahe.apply(chunk_s)
-        bh = cv2.morphologyEx(
-            c, cv2.MORPH_BLACKHAT, cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15))
         )
-        _, bw = cv2.threshold(bh, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        inv = 255 - bw  # black text on white
-
-        data = pytesseract.image_to_data(
-            inv, output_type=pytesseract.Output.DICT, config=config
-        )
-        for i in range(len(data.get("text", []))):
-            txt = re.sub(r"\s+", "", data["text"][i] or "")
-            if not re.fullmatch(r"\d{2,6}", txt):
-                continue
-            conf = float(data["conf"][i]) if data["conf"][i] != "-1" else -1.0
-            if conf < settings.ocr_min_confidence:
-                continue
-            y_center_small = data["top"][i] + data["height"][i] / 2.0
-            pts.append((float(y0 + y_center_small / scale), float(txt)))
-
-        if y1 >= height:
-            break
-        y0 = y1 - settings.ocr_chunk_overlap
-
-    # One row per depth value: the median of its readings.
-    by_depth: dict[float, list[float]] = {}
-    for y, d in pts:
-        by_depth.setdefault(d, []).append(y)
-    merged = sorted(
-        ((float(np.median(ys)), d) for d, ys in by_depth.items()), key=lambda t: t[0]
-    )
-
-    # Keep depth increasing downward.
-    filtered: list[tuple[float, float]] = []
-    last_d = None
-    for y, d in merged:
-        if last_d is None or d >= last_d:
-            filtered.append((y, d))
-            last_d = d
-    return filtered
+    return labels
 
 
-def fit_depth_transform(
-    points: Sequence[tuple[float, float]], tolerance: float = 5.0
-) -> tuple[float, float] | None:
-    """Fit ``depth = a * row + b`` to ``(row, depth)`` points, dropping outliers.
+def fit_depth(
+    points: Sequence[tuple[float, float]], tolerance: float = 3.0
+) -> tuple[float, float, np.ndarray] | None:
+    """Fit ``depth = a * row + b`` to ``(row, depth)`` points, ignoring misreads.
 
-    Three rounds of fitting drop points whose residual exceeds
-    ``max(tolerance, 3 * median residual)``. Returns ``(a, b)``, or None
-    with fewer than two points left.
+    Every pair of points proposes a line with depth increasing downward
+    (``a > 0``); the line that the most points lie within ``tolerance`` rows
+    of wins and is refitted to them by least squares. Returns ``(a, b,
+    inliers)``, or None without two usable points.
     """
     if len(points) < 2:
         return None
-    y = np.array([p[0] for p in points], dtype=float)
-    d = np.array([p[1] for p in points], dtype=float)
-
-    keep = np.ones_like(y, dtype=bool)
-    for _ in range(3):
-        if keep.sum() < 2:
-            break
-        a, b = np.polyfit(y[keep], d[keep], 1)
-        resid = np.abs(a * y + b - d)
-        tol = max(tolerance, 3.0 * np.median(resid[keep]))
-        keep = resid < tol
-
-    if keep.sum() < 2:
+    rows = np.array([p[0] for p in points], dtype=float)
+    depths = np.array([p[1] for p in points], dtype=float)
+    best_key, best = None, None
+    for i in range(len(rows)):
+        for j in range(i + 1, len(rows)):
+            dr, dd = rows[j] - rows[i], depths[j] - depths[i]
+            if dr == 0 or dd / dr <= 0:
+                continue
+            a = dd / dr
+            b = depths[i] - a * rows[i]
+            residual = np.abs((depths - b) / a - rows)
+            keep = residual <= tolerance
+            key = (int(keep.sum()), -float(residual[keep].sum()))
+            if best_key is None or key > best_key:
+                best_key, best = key, keep
+    if best is None:
         return None
-    a, b = np.polyfit(y[keep], d[keep], 1)
-    return float(a), float(b)
+    for _ in range(2):
+        a, b = np.polyfit(rows[best], depths[best], 1)
+        if a <= 0:
+            return None
+        refit = np.abs((depths - b) / a - rows) <= tolerance
+        if refit.sum() < 2 or np.array_equal(refit, best):
+            break
+        best = refit
+    a, b = np.polyfit(rows[best], depths[best], 1)
+    return float(a), float(b), best
 
 
 def extract_curve_x_by_row(curve_mask: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -932,32 +994,38 @@ def curve_overlay(roi_bgr: np.ndarray, xs: np.ndarray) -> np.ndarray:
 
 
 def depth_labels_overlay(
-    depth_strip_bgr: np.ndarray,
-    points: Sequence[tuple[float, float]],
-    fit: tuple[float, float] | None,
+    band_bgr: np.ndarray,
+    x_offset: float,
+    labels: Sequence[Label],
+    fit: tuple[float, float, np.ndarray] | None,
 ) -> np.ndarray:
-    """The depth strip with the labels read and the fitted top/base depths."""
-    overlay = depth_strip_bgr.copy()
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    for y, d in points:
-        cv2.circle(overlay, (10, int(y)), 3, (0, 255, 0), -1)
-        cv2.putText(overlay, str(int(d)), (20, int(y)), font, 0.6, (0, 255, 0), 2)
+    """The label band, widened, with each label boxed and annotated: green
+    when on the fitted line, red when ignored, and the depth the line gives
+    at the label's row."""
+    height, width = band_bgr.shape[:2]
+    canvas = np.full((height, width + 150, 3), 255, dtype=np.uint8)
+    canvas[:, :width] = band_bgr
+    font, off = cv2.FONT_HERSHEY_SIMPLEX, math.floor(x_offset)
+    keep = fit[2] if fit is not None else [True] * len(labels)
+    for label, inlier in zip(labels, keep):
+        x0, y0, x1, y1 = label.box
+        color = (0, 160, 0) if inlier else (0, 0, 220)
+        cv2.rectangle(canvas, (x0 - off - 1, y0 - 1), (x1 - off + 1, y1 + 1), color, 1)
+        note = label.text
+        if fit is not None:
+            note += f" -> {fit[0] * label.row + fit[1]:.2f}"
+        cv2.putText(canvas, note, (width + 4, int(label.row) + 4), font, 0.4, color, 1)
     if fit is not None:
-        a, b = fit
-        bottom = a * (overlay.shape[0] - 1) + b
         cv2.putText(
-            overlay, f"fit: d={a:.5f}*y+{b:.2f}", (5, 30), font, 0.7, (255, 0, 0), 2
-        )
-        cv2.putText(
-            overlay,
-            f"top~{b:.1f}  bottom~{bottom:.1f}",
-            (5, 60),
+            canvas,
+            f"d={fit[0]:.5f}*row+{fit[1]:.2f}",
+            (4, 14),
             font,
-            0.7,
-            (255, 0, 0),
-            2,
+            0.4,
+            (200, 0, 0),
+            1,
         )
-    return overlay
+    return canvas
 
 
 def _pick_track(
@@ -1058,6 +1126,100 @@ def _tracks_by_crossing(
         for g in groups
         if len(g) >= 2 and g[-1] - g[0] >= settings.min_track_width
     ]
+
+
+def _text_boxes(ink: np.ndarray, settings: Settings) -> list[tuple[int, int, int, int]]:
+    """``(x, y, w, h)`` of text blobs in an ink mask, top to bottom: characters
+    merged sideways, then kept when their height fits a label."""
+    reach = max(1, settings.min_label_height // 2)
+    merged = cv2.dilate(ink, np.ones((1, 2 * reach + 1), np.uint8))
+    _, _, stats, _ = cv2.connectedComponentsWithStats(merged, connectivity=8)
+    boxes = []
+    for x, y, w, h, _area in stats[1:]:
+        x, w = x + reach, w - 2 * reach  # undo the sideways merge
+        if settings.min_label_height <= h <= settings.max_label_height and w >= 0.4 * h:
+            boxes.append((int(x), int(y), int(w), int(h)))
+    return sorted(boxes, key=lambda b: b[1])
+
+
+def _ocr_boxes(gray: np.ndarray, boxes, settings: Settings) -> list[tuple[str, float]]:
+    """Read each box with one Tesseract call: the boxes, enlarged and
+    binarized, are stacked on a white sheet and the words mapped back."""
+    import pytesseract
+
+    pytesseract.pytesseract.tesseract_cmd = find_tesseract(settings.tesseract)
+    gap, pieces, spans, y = 24, [], [], 24
+    for x, yb, w, h in boxes:
+        pad = max(2, h // 4)
+        crop = gray[max(0, yb - pad) : yb + h + pad, max(0, x - pad) : x + w + pad]
+        zoom = min(6.0, max(1.0, 32.0 / h))
+        big = cv2.resize(crop, None, fx=zoom, fy=zoom, interpolation=cv2.INTER_CUBIC)
+        _, bw = cv2.threshold(big, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        pieces.append(bw)
+        spans.append((y, y + bw.shape[0]))
+        y += bw.shape[0] + gap
+    sheet = np.full((y, max(p.shape[1] for p in pieces) + 2 * gap), 255, dtype=np.uint8)
+    for piece, (y0, y1) in zip(pieces, spans):
+        sheet[y0:y1, gap : gap + piece.shape[1]] = piece
+
+    config = "--psm 6 -c tessedit_char_whitelist=0123456789.-"
+    data = pytesseract.image_to_data(
+        sheet, output_type=pytesseract.Output.DICT, config=config
+    )
+    words = [[] for _ in boxes]
+    for i, text in enumerate(data["text"]):
+        text = (text or "").strip()
+        if not text:
+            continue
+        centre = data["top"][i] + data["height"][i] / 2.0
+        for k, (y0, y1) in enumerate(spans):
+            if y0 <= centre < y1:
+                words[k].append((data["left"][i], text, float(data["conf"][i])))
+                break
+    out = []
+    for found in words:
+        found.sort()
+        out.append(
+            ("".join(t for _, t, _ in found), min((c for *_, c in found), default=-1.0))
+        )
+    return out
+
+
+def _parse_number(text: str) -> float | None:
+    """The number a label reads, or None ("12-5", "." and the like)."""
+    return float(text) if re.fullmatch(r"-?\d+(\.\d+)?", text) else None
+
+
+def _grid_rows(
+    page_bgr: np.ndarray, tracks: list[Track], settings: Settings
+) -> np.ndarray:
+    """Centre rows of the horizontal lines that run across a track (its depth grid)."""
+    gray = cv2.cvtColor(page_bgr, cv2.COLOR_BGR2GRAY)
+    # Half the usual contrast: a row must also cover 80 % of the track to count,
+    # so faint (faded) grid lines are found without picking up noise.
+    ink = gray < float(np.median(gray)) - settings.ink_contrast / 2.0
+    rows: list[float] = []
+    for track in tracks:
+        c0, c1 = math.ceil(track.x0) + 2, math.floor(track.x1) - 1
+        if c1 - c0 < 5:
+            continue
+        full = ink[:, c0:c1].mean(axis=1) >= 0.8
+        rows += [(start + stop - 1) / 2.0 for start, stop in _runs(full)]
+    return np.unique(np.round(rows, 1))
+
+
+def _snap_labels(labels: list[Label], grid: np.ndarray) -> list[Label]:
+    """Move each label's row onto the grid line it marks: the nearest line
+    within half its text height plus a pixel; others keep their text centre."""
+    if grid.size == 0:
+        return labels
+    out = []
+    for label in labels:
+        reach = (label.box[3] - label.box[1] + 1) / 2.0 + 1.0
+        nearest = grid[np.abs(grid - label.row).argmin()]
+        row = float(nearest) if abs(nearest - label.row) <= reach else label.row
+        out.append(Label(row, label.depth, label.text, label.confidence, label.box))
+    return out
 
 
 def _parse_depth(depth) -> tuple[str, list]:

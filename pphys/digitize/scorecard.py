@@ -137,7 +137,38 @@ SCENARIOS: tuple[Scenario, ...] = (
         "ocr_depth",
         "depth from OCR of the printed labels instead of given depths",
         manual_depth=False,
-        gap="step 4: OCR reads 2 of 11 labels on a clean page, and misreads those",
+    ),
+    Scenario(
+        "ocr_feet",
+        "OCR depth with labels in feet every 50 ft",
+        page={
+            "depth": (3300.0, 3600.0),
+            "depth_unit": "ft",
+            "step": 0.5,
+            "label_every": 50.0,
+            "grid_every": 10.0,
+        },
+        manual_depth=False,
+    ),
+    Scenario(
+        "ocr_decimal",
+        "OCR depth with decimal labels (every 2.5 m)",
+        page={"depth": (1000.0, 1025.0), "label_every": 2.5, "grid_every": 0.5},
+        manual_depth=False,
+    ),
+    Scenario(
+        "ocr_left_column",
+        "OCR depth with the depth column left of all tracks",
+        page={"depth_column": 0},
+        manual_depth=False,
+    ),
+    Scenario(
+        "ocr_poor_scan",
+        "OCR depth on a noisy, blurred, JPEG'd scan of faded, yellowed paper",
+        page={
+            "defects": Defects(tint="#f1e4c4", fade=0.4, noise=10.0, blur=0.8, jpeg=50)
+        },
+        manual_depth=False,
     ),
     Scenario(
         "feet",
