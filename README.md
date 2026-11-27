@@ -115,7 +115,7 @@ The project is managed with [uv](https://docs.astral.sh/uv/).
 
 ```bash
 uv sync          # create the environment, with every optional feature
-uv run pytest    # run the tests
+uv run python -m pytest    # run the tests
 ```
 
 [`CLAUDE.md`](CLAUDE.md) describes the architecture and conventions.

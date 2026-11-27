@@ -75,7 +75,7 @@ def main() -> None:
         if state.get("status") == "failed":
             emit(
                 {
-                    "systemMessage": "pytest is still failing (nothing changed since the last run). Run `uv run pytest` to see it."
+                    "systemMessage": "pytest is still failing (nothing changed since the last run). Run `uv run python -m pytest` to see it."
                 }
             )
         return
@@ -102,7 +102,7 @@ def main() -> None:
     if rounds > MAX_ROUNDS:
         emit(
             {
-                "systemMessage": f"pytest still fails after {MAX_ROUNDS} rounds of fixes: {summary}. Stopping here; run `uv run pytest` to see it."
+                "systemMessage": f"pytest still fails after {MAX_ROUNDS} rounds of fixes: {summary}. Stopping here; run `uv run python -m pytest` to see it."
             }
         )
     emit(
