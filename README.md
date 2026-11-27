@@ -1,75 +1,125 @@
-# PPhys
+# Formation Evaluation
 
-It is a Python package designed for the interpretation of well log data and modeling of the borehole environment. It includes a collection of modules for petrophysical analysis, along with tools for data streaming and interactive visualization, with a primary focus on petrophysical workflows.
+**An open, end-to-end well-log workflow for practicing petrophysicists.** Take a well from a raw LAS file or a paper scan, through quality control and interpretation, to report-ready one-page plots.
 
-The project is managed with [uv](https://docs.astral.sh/uv/). Create the environment with `uv sync`, and run the tests with `uv run pytest`.
+It has two interfaces:
 
-**LasView**
+- **Python:** the `pphys` package, scriptable and reproducible, and the engine behind everything here.
+- **Browser:** no-code [apps on GitHub Pages](https://jshiriyev.github.io/formation-evaluation/) for the same workflow, without installing Python.
 
-`pphys.LasView` summarizes and checks a single LAS file: header and curve inventory, data coverage and gaps, statistics, file- and curve-level quality control, zone averages from formation tops, quick-look log, histogram, crossplot and correlation plots, and a one-call PDF report. See [`doc/lasview.md`](doc/lasview.md) and the worked example in [`notebooks/lasview_real_field_data.ipynb`](notebooks/lasview_real_field_data.ipynb).
+## The workflow
 
-**Stream Module**
+| Step | Tool | Status |
+|---|---|---|
+| Load LAS files | `pphys.read`, `pphys.load` return a `WellLog` (a lasio `LASFile` with `crop`, `resample`, `copy`), with optional caching | ✅ Ready |
+| Check the data | `pphys.LasView`: inventory, coverage and gaps, statistics, QC flags, zone averages, quick-look plots and a PDF report | ✅ Ready |
+| Plot one well | `pphys.onepage.WellView`: a one-page display like a logging-company print, with tracks, fills, lithology patterns, tops, casing and perforations | ✅ Ready |
+| Interpret | `pphys.insight`: Rw, porosity, shale volume, Archie and shaly-sand saturation, permeability | 🚧 Being restored ([milestone 1](ROADMAP.md#1-working-interpretation)) |
+| Digitize paper logs | `pphys.digitize`: a scanned PDF to LAS, with OCR of the depth labels | 🧪 Prototype: one red curve per run ([milestone 2](ROADMAP.md#2-robust-digitizing)) |
+| Do it in the browser | [GitHub Pages apps](https://jshiriyev.github.io/formation-evaluation/) | 🧪 WellView configurator; plotting needs the hosted service ([milestone 3](ROADMAP.md#3-backend-for-the-apps)) |
+| Correlate wells | `pphys.onepage.CrossView`: several wells along a profile | 🚧 Needs a class for each well's tops ([milestone 4](ROADMAP.md#4-multi-well-crossview)) |
 
-The `pphys.stream` module provides tools for rapid, interactive visualization of LAS files using Bokeh. It is designed to offer a lightweight and efficient way to explore well log data directly in the browser, enabling users to quickly assess data quality, identify key log responses, and interact with depth tracks and curves in real time. This module is particularly useful for petrophysicists and geoscientists who need an immediate visual overview of log datasets without the overhead of full-scale interpretation software.
+The [roadmap](ROADMAP.md) lists what "done" means for each open step.
 
-**OnePage Module**
+## Install
 
-The `pphys.onepage.WellView` module is designed to generate a compact, one-page summary of well log data that integrates key subsurface information. It visually honors formation tops, casing and liner depths, as well as perforation intervals, providing a comprehensive and structured overview of the wellbore in a single figure. This module is ideal for quick-look evaluations, reporting, and presentation purposes, and can be easily customized to suit project-specific visualization standards. An example output is shown below.
+`pphys` is installed from GitHub; it is not published on PyPI. It needs Python 3.10 or newer.
+
+```bash
+pip install "pphys @ git+https://github.com/jshiriyev/formation-evaluation"
+# with the digitizer (also install the Tesseract OCR program separately):
+pip install "pphys[digitize] @ git+https://github.com/jshiriyev/formation-evaluation"
+```
+
+With [uv](https://docs.astral.sh/uv/): `uv add "pphys @ git+https://github.com/jshiriyev/formation-evaluation"`.
+
+## Quick start
+
+Check a LAS file and draw a quick-look one-pager. The log is one of the samples in [`notebooks/`](notebooks/).
+
+```python
+from matplotlib import pyplot as plt
+
+from pphys import LasView, read
+from pphys.onepage import Lithology, WellView
+
+las = read("notebooks/tutorial_3_graph_2.LAS")
+
+qc = LasView(las)
+print(qc.summary())
+print(qc.quality())  # per curve: plausible limits, spikes, flat lines, gaps
+
+view = WellView(las, ntrail=3, ncycle=2, depth={"limit": (1682, 1742)})
+view.set(1, limit=(0, 150))  # gamma ray
+view.set(2, limit=(0.2, 2000), scale="log10")  # resistivity
+
+view(plt.figure(figsize=(6, 10)))
+view.add_depths(0)
+view.add_cut(1, "GAMMA", 60, left=Lithology.sandstone, right=Lithology.shale, color="green")
+view.add_curve(2, "LLD", color="black")
+view.add_curve(2, "MSFL", color="red", linestyle="--")
+view.save("quicklook.png", dpi=150, bbox_inches="tight")
+```
+
+More:
+- [`doc/wellview.md`](doc/wellview.md) is the WellView reference: tracks, scales, header rows, fills, tops, perforations, casing, MD/TVD and multi-page PDFs.
+- [`doc/lasview.md`](doc/lasview.md) is the LasView reference.
+- Worked notebooks:
+  - [`wellview_onepager.ipynb`](notebooks/wellview_onepager.ipynb) builds a 12-track one-pager.
+  - [`fill_styles.ipynb`](notebooks/fill_styles.ipynb) covers lithology, mineral and pore-space patterns.
+  - [`lasview_real_field_data.ipynb`](notebooks/lasview_real_field_data.ipynb) checks a real cased-hole run.
+
+## One-page displays
+
+`WellView` puts a well's logs on one page with a shared depth axis. Its header lists every curve with its scale. It shows formation tops, casing and liner shoes, and perforation intervals, and its fill styles follow the standard graphic lithology key.
 
 <img src="img/onepage_well_view.png">
 
-*Figure 1: Example output from `WellView` showing log data, formation tops, casing, and perforation intervals.*
+*Figure 1: The one-page display WellView targets. [`notebooks/wellview_onepager.ipynb`](notebooks/wellview_onepager.ipynb) builds one with the current version.*
 
-The `pphys.onepage.CrossView` module generates a one-page cross-sectional summary that displays multiple wells aligned along a chosen profile. It enables side-by-side comparison of log responses, formation tops, casing details, and perforation intervals across wells, facilitating structural and stratigraphic interpretation. This visualization is especially useful for reservoir correlation, well planning, and presenting subsurface continuity in a concise, publication-ready format. An example output is shown below.
+`CrossView` lines up several wells along a profile, with their logs, tops, casing and perforations, for structural and stratigraphic correlation.
 
 <img src="img/onepage_cross_view.png">
 
-*Figure 2: Example output from `CrossView` showing a cross-sectional view of multiple wells with formation tops, casing depths, and perforation intervals aligned along a shared profile.*
+*Figure 2: A cross-section made with an earlier version of CrossView. Restoring it is [milestone 4](ROADMAP.md#4-multi-well-crossview).*
 
+## Interpretation in shaly sands
 
-**Insight Module**
+The interpretation models are being brought back into working order ([milestone 1](ROADMAP.md#1-working-interpretation)). The figures below show what they are for.
 
-The implementation of `pphys.insight` module is shown for a well in a shaly sand formation. The figure below, demonstrated a comparison of porosity measurements by various methods for this case.
+Shale affects the log readings according to how much shale there is, what its properties are, and how it is distributed in the rock. A shaly formation can have a high total porosity but a low effective porosity.
 
 <img src="img/insight_shaly_sand_porosity_measurement.png">
 
-*Figure 3: A comparison of porosity measurements by various methods for a shaly sand (Cosentino, 2001)*
+*Figure 3: Porosity of a shaly sand measured by various methods (Cosentino, 2001).*
 
-The way shaliness affects a log reading depends on the amount of shale and its physical properties. It may also depend on the way the shale is distributed in the formation. A shale or shaly formation may exhibit a high total porosity yet a low effective porosity as a potential hydrocarbon reservoir.
-
-Since the Archie water saturation equation, which relates rock resistivity to water saturation, assumes that the formation water is the only electrically conductive material in the formation, the presence of another conductive material (i.e., shale) requires either that the Archie equation be modified to accommodate the existence of another conductive material or that a new model be developed to relate rock resistivity to water saturation in shaly formations.
-
-Over the years, many models relating resistivity and fluid saturations have been proposed (see the table below). All the models reduce to the Archie water saturation equation when the fraction of shale is zero; for relatively small amounts of shaliness, most models and methods yield quite similar results.
-
-Other models are based on Percolation Theory (Herrick and Kennedy 2009) and Connectivity Theory (Montaron 2009 and Lee 2011).
+Archie's equation assumes that the formation water is the only conductor in the rock. Shale is a second conductor, so shaly formations need a modified equation or a different model. Many have been proposed. All of them reduce to Archie when the shale fraction is zero, and for small amounts of shale most give similar results. Others build on percolation theory (Herrick and Kennedy, 2009) and connectivity theory (Montaron, 2009; Lee, 2011).
 
 <div align="center">
  <img src="img/insight_shaly_sand_resistivity_models.png" width="30%">
 </div>
 
-*Figure 4: Resistivity models for shaly sand formations, available at `pphys.insight` module.*
+*Figure 4: Resistivity models for shaly sands that `pphys.insight` covers.*
 
-Following graph shows implementation of the Insight Module to a gas well from which most of the logging measurements were available.
-
-The neutron log is calibrated with respect to limestone, and the overlay is displayed based on limestone characteristics.
-
-The logged interval was not found to be productive, and the NMR results shows almost zero saturation for the gas.
-
-A good agreement is obtained between the total neutron-density and NMR porosities in terms of trend, but the sonic log porosity does not follow them which is expected based on the available literature.
-
-The saturation interpretation is given on the fifth column, total shale model, which agrees with NMR saturation values. All the values calculated are above water saturation cut, 0.35, indicating no hydrocarbon.
+Figure 5 shows the workflow on a gas well from the South Caspian Basin with a nearly complete log suite:
+- **Porosity:** the neutron log is calibrated to limestone, and the overlay uses limestone properties. Total neutron–density porosity follows the NMR porosity in trend; the sonic porosity does not, as the literature leads one to expect.
+- **Saturation:** the total-shale model (fifth track) agrees with the NMR saturation. Every value is above the 0.35 water-saturation cut-off, so the interval holds no hydrocarbon. This matches the test result (not productive) and the near-zero NMR gas saturation.
 
 <img src="img/insight_shaly_sand_results.png">
 
-*Figure 5: Open Hole Log Interpretation of a Well from South Caspian Basin.*
+*Figure 5: Open-hole log interpretation of a well in the South Caspian Basin.*
 
+## Development
 
-**MaxWRes Module**
+The project is managed with [uv](https://docs.astral.sh/uv/).
 
-The `pphys.maxwres` module provides a modeling toolbox for simulating induction tool responses based on specified formation conductivity profiles. It is particularly useful for reconstructing mud invasion profiles after drilling, enabling more accurate estimates of saturation from induction log measurements.
+```bash
+uv sync          # create the environment, with every optional feature
+uv run pytest    # run the tests
+```
 
-The underlying computation is based on solving a series of 2D problems derived from a Fourier series expansion. An axial hybrid method is employed, in which the radial component is solved analytically using normalized Bessel and Hankel functions, while the axial (z-axis) direction is treated numerically. Amplitude and slope basis functions are defined along the discretized wellbore axis, allowing the use of a coarse grid even in complex zones such as fractures, eliminating the need for local grid refinement. This approach leads to both computational efficiency and accurate modeling of borehole-conductivity effects. The method is detailed in Wang et al. (2009).
+[`CLAUDE.md`](CLAUDE.md) describes the architecture and conventions.
 
-<img src="img/maxwres_axial_hybrid_method.png">
+## License
 
-*Figure 6: Simulated induction tool response for a layered formation with mud invasion, generated using the `maxwres` module. The model captures radial and axial conductivity variations using a hybrid analytical-numerical approach.*
+[MIT](LICENSE) © 2022–2026 Javid Shiriyev

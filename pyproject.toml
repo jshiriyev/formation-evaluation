@@ -1,8 +1,20 @@
 [project]
 name = "pphys"
 version = "0.0.9"
-description = "Well-log visualization, digitization and petrophysical interpretation."
+description = "Formation Evaluation: an end-to-end well-log workflow for petrophysicists, from LAS files or paper scans through QC and interpretation to one-page plots."
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Javid Shiriyev" }]
+keywords = ["petrophysics", "formation evaluation", "well logs", "LAS", "log interpretation", "log digitizing"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Visualization",
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
 requires-python = ">=3.10"
 dependencies = [
     "lasio>=0.31",
@@ -11,6 +23,12 @@ dependencies = [
     "pandas>=2.0",
     "scipy>=1.10",
 ]
+
+[project.urls]
+Homepage = "https://jshiriyev.github.io/formation-evaluation/"
+Repository = "https://github.com/jshiriyev/formation-evaluation"
+Documentation = "https://github.com/jshiriyev/formation-evaluation/tree/main/doc"
+Roadmap = "https://github.com/jshiriyev/formation-evaluation/blob/main/ROADMAP.md"
 
 [project.optional-dependencies]
 # pphys.digitize also needs the Tesseract OCR program installed separately.

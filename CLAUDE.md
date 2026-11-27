@@ -2,6 +2,20 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Objective and priorities
+
+Formation Evaluation (package `pphys`) gives **practicing petrophysicists** an end-to-end, open workflow: take a well from raw LAS or a paper scan, through QC and interpretation, to report-ready one-page plots.
+- **Two interfaces with equal goals:** the Python package (the engine) and no-code browser apps on GitHub Pages. The apps will be computed by a hosted `pphys` service, so uploaded files leave the browser.
+- **Milestones, in order** (`ROADMAP.md` has the done-when lists):
+  1. working interpretation (`pphys.insight` imports, is tested and reproduces the shaly-sand workflow);
+  2. robust digitizing (multi-curve, any colour, image input, Python API);
+  3. a backend for the apps;
+  4. multi-well CrossView.
+
+  Prefer work that advances the current milestone, and tick its items in `ROADMAP.md` when they are done.
+- **Out of scope:** a Bokeh streaming viewer (the former `pphys.stream`), induction-tool modelling (the former `pphys.maxwres`), and PyPI. Install is from GitHub only.
+- **License:** MIT (`LICENSE`). The README leads with the "Formation Evaluation" name; `pphys` is the import name. Keep the README's status column honest.
+
 ## What this is
 
 `pphys` is a petrophysics package with three features:
@@ -18,8 +32,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `wellview_onepager.ipynb` builds a 12-track WellView one-pager and then shows each feature on its own. It uses `tutorial_3_graph_1` and `tutorial_3_graph_2` merged (same depths); its tops, survey, casing and perforations are illustrative. `doc/wellview.md` is the WellView reference.
 - `tutorial_*.LAS` are digitized textbook logs.
 - The `.py` scripts there are **stale**. They import the pre-rename API (`pphys.visualization`, `Formation`, `Correlation`, `Weaver`, `lasview`).
-
-The README still documents `pphys.stream` (Bokeh) and `pphys.maxwres`, but both have been removed.
 
 ## Setup & commands
 
