@@ -181,5 +181,6 @@ def main(argv: list[str] | None = None) -> int:
     las_path = result.save(out)
     print(result.qc.summary())
     print(f"LAS: {las_path}")
+    print(f"QC figure: {', '.join(str(out / name) for name in result.qc_names())}")
     print(f"QC images and qc.json: {out}")
     return 0

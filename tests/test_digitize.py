@@ -7,6 +7,9 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from matplotlib.collections import PathCollection
+from matplotlib.colors import to_rgb
+from matplotlib.patches import Rectangle
 
 cv2 = pytest.importorskip("cv2")
 pytest.importorskip("pypdfium2")
@@ -23,7 +26,7 @@ from pphys.digitize import (  # noqa: E402
     find_tesseract,
     load_pages,
 )
-from pphys.digitize import _digitize  # noqa: E402
+from pphys.digitize import _digitize, _qcplot  # noqa: E402
 from pphys.digitize._cli import main  # noqa: E402
 
 WIDTH, HEIGHT = 400, 600
@@ -403,6 +406,8 @@ def test_curve_colours_are_matched_by_hue_or_darkness():
         "black": (10, 10, 10),
         "grey grid": (153, 153, 153),
         "tinted paper": (241, 228, 196),
+        "noisy black": (34, 18, 44),  # HSV saturation 150, chroma only 26
+        "dark blue": (0, 0, 120),
     }
     img = np.full((20, 20 * len(patches), 3), 255, np.uint8)
     for i, rgb in enumerate(patches.values()):
@@ -414,8 +419,8 @@ def test_curve_colours_are_matched_by_hue_or_darkness():
 
     # The light red grid matches too; it is removed by its shape (clean_track_mask).
     assert matched("red") == {"red", "faded red", "light red grid"}
-    assert matched("blue") == {"blue"}
-    assert matched("black") == {"black"}
+    assert matched("blue") == {"blue", "dark blue"}
+    assert matched("black") == {"black", "noisy black"}
 
 
 def test_clean_track_mask_removes_grids_and_frames_but_keeps_a_lone_line():
@@ -531,6 +536,7 @@ def test_long_gaps_stay_empty(tmp_path):
     assert np.isnan(las["GR"][hole]).all()
     assert np.isfinite(las["GR"][las.index < 30]).all()
     assert result.qc.coverage < 75
+    assert any(w.startswith("GR: found over only") for w in result.qc.warnings)
 
 
 def test_same_colour_curves_are_flagged(tmp_path):
@@ -582,6 +588,9 @@ def test_ocr_labels_calibrate_depth(two_tracks, monkeypatch):
     assert qc.depth_rms == pytest.approx(0, abs=1e-9)
     assert not any("label" in w for w in qc.warnings)
     assert "5 of 5 on the line" in qc.summary()
+    page = qc.pages[0]
+    assert page.depth_label_text == ["1000", "1010", "1020", "1030", "1040"]
+    assert page.depth_label_boxes[1] == (180, 96, 220, 104)
 
 
 def test_misread_labels_are_ignored_and_listed(two_tracks, monkeypatch):
@@ -591,6 +600,7 @@ def test_misread_labels_are_ignored_and_listed(two_tracks, monkeypatch):
     assert result.qc.depth_inliers == [True, True, False, True, True, True]
     assert any("'1610' at row 150" in w for w in result.qc.warnings)
     assert "depth_labels" in result.images
+    assert not any("were misreads" in w for w in result.qc.warnings)  # 1 of 6
 
 
 def test_few_ocr_labels_are_flagged(two_tracks, monkeypatch):
@@ -665,6 +675,116 @@ def test_find_tesseract_reads_the_environment(tmp_path, no_tesseract, monkeypatc
 def test_find_tesseract_explains_the_alternatives(no_tesseract):
     with pytest.raises(DigitizeError, match=r"depth=\(top, base\)"):
         find_tesseract()
+
+
+def test_a_narrow_label_span_is_flagged(two_tracks, monkeypatch):
+    stub_labels(monkeypatch, labels(0, 50, 100, 150))
+    warnings = ocr(two_tracks).qc.warnings
+    assert any("span only 25% of the page" in w for w in warnings)
+    assert not any("only 4 labels" in w for w in warnings)
+
+
+def test_many_misreads_are_flagged(two_tracks, monkeypatch):
+    bad = [(50.0, 1610.0), (150.0, 2000.0), (250.0, 1.0)]
+    stub_labels(monkeypatch, labels(0, 100, 200, 300, 400, misread=bad))
+    qc = ocr(two_tracks).qc
+    assert qc.depth_fit == pytest.approx((0.1, 1000))
+    assert any("3 of 8 depth labels were misreads" in w for w in qc.warnings)
+
+
+# QC figure
+
+
+def boxes_of(axis, colour):
+    return [
+        p
+        for p in axis.patches
+        if isinstance(p, Rectangle)
+        and p.get_edgecolor()[:3] == pytest.approx(to_rgb(colour))
+    ]
+
+
+def test_qc_figure_shows_the_scan_the_fit_and_the_curves(two_tracks, monkeypatch):
+    stub_labels(monkeypatch, labels(0, 100, 200, 300, 400, misread=[(150.0, 1610.0)]))
+    result = ocr(two_tracks)
+    fig = result.plot_qc()
+    scan, resid, gr = fig.axes
+    a, b = result.qc.depth_fit
+
+    assert len(scan.images) == 1
+    assert scan.get_ylim() == pytest.approx((a * (HEIGHT - 0.5) + b, b - 0.5 * a))
+    trace = result.traces[0]["GR"]
+    (line,) = [ln for ln in scan.lines if len(ln.get_xdata()) == HEIGHT]
+    drawn, ok = np.asarray(line.get_xdata(), dtype=float), ~trace.bridged
+    np.testing.assert_allclose(drawn[trace.row[ok]], trace.column[ok])
+    assert len(boxes_of(scan, _qcplot.INLIER)) == 5
+    assert len(boxes_of(scan, _qcplot.MISREAD)) == 1
+
+    scatters = [c for c in resid.collections if isinstance(c, PathCollection)]
+    assert [len(c.get_offsets()) for c in scatters] == [5, 1]
+    x_misread = scatters[1].get_offsets()[0][0]
+    assert (
+        resid.get_xlim()[0] < x_misread < resid.get_xlim()[1]
+    )  # clipped onto the panel
+    assert "1610" in [t.get_text() for t in resid.texts]
+    assert "5 of 6 labels" in resid.get_title()
+
+    assert gr.get_title() == "GR" and gr.get_xlim() == (0, 1)
+    assert "depth from 5 of 6 labels" in fig.texts[0].get_text()
+    assert "'1610'" in fig.texts[-1].get_text()  # the warnings, below the panels
+
+
+def test_qc_figure_of_manual_depths_and_a_log_track(framed_ramp):
+    result = digitize(
+        framed_ramp,
+        curve="RT",
+        vmin=0.2,
+        vmax=2000,
+        scale="log10",
+        unit="ohm.m",
+        depth=(1000, 1060),
+        settings=ONE,
+    )
+    scan, resid, rt = result.plot_qc().axes
+    assert "manual" in resid.get_title() and not resid.collections
+    assert rt.get_xscale() == "log" and rt.get_xlim() == pytest.approx((0.2, 2000))
+    assert rt.get_title() == "RT\n(ohm.m)"
+    assert len(boxes_of(scan, _qcplot.INLIER)) == 0
+    with pytest.raises(IndexError, match="1 page"):
+        result.plot_qc(1)
+
+
+def test_traces_hold_the_columns_read(ramp):
+    result = ramp_result(ramp)
+    trace, reading = result.traces[0]["GR"], result.raw["GR"]
+    a, b = result.qc.depth_fit
+    np.testing.assert_allclose(a * trace.row + b, reading.depth)
+    np.testing.assert_allclose(150 * (trace.column - 50) / 300, reading.value)
+    assert (result.qc.curves[0].vmin, result.qc.curves[0].vmax) == (0, 150)
+
+
+def test_each_page_has_a_qc_figure_with_its_own_warnings(tmp_path):
+    result = ramp_result(
+        two_pages(tmp_path), pages="all", depth=[(1000, 1060), (1050, 1110)]
+    )
+    assert result.qc_names() == ["p1_qc.png", "p2_qc.png"]
+    fig = result.plot_qc(1)
+    assert fig.axes[0].get_ylim()[1] == pytest.approx(1050, abs=0.1)  # page 2's top
+    assert "two.pdf #1 (page 2 of 2)" in fig.texts[0].get_text()
+    assert "overlaps earlier pages" in fig.texts[-1].get_text()
+    assert "No warnings." in result.plot_qc(0).texts[-1].get_text()
+    result.save(tmp_path / "out")
+    assert (tmp_path / "out" / "p2_qc.png").stat().st_size > 0
+    assert not (tmp_path / "out" / "qc.png").exists()
+
+
+def test_page_warnings_pick_their_page():
+    found = ["page 1 (a.pdf #0): x", "page 2: y", "page 10: z", "No page covers 5-6 m"]
+    pick = _qcplot._page_warnings
+    assert pick(found, 1, 10) == ["page 2: y", "No page covers 5-6 m"]
+    assert pick(found, 0, 10) == ["page 1 (a.pdf #0): x", "No page covers 5-6 m"]
+    assert pick(found, 9, 10) == ["page 10: z", "No page covers 5-6 m"]
+    assert pick(found, 0, 1) == found
 
 
 # Inputs
@@ -888,6 +1008,7 @@ def test_save_writes_las_csv_images_and_qc(ramp, tmp_path):
     assert lines[1].startswith("GR,")
     for name in result.images:
         assert (tmp_path / "out" / f"{name}.png").stat().st_size > 0
+    assert (tmp_path / "out" / "qc.png").stat().st_size > 0
     report = json.loads((tmp_path / "out" / "qc.json").read_text(encoding="utf-8"))
     assert report["qc"]["curves"][0]["track"] == [50, 350]
     assert report["qc"]["curves"][0]["color"] == "red"
@@ -933,7 +1054,8 @@ def test_cli_writes_the_outputs(ramp, tmp_path, capsys):
     ]
     assert main(args) == 0
     assert pphys.read(out / "ramp.las").curves[1].unit == "gAPI"
-    assert "LAS:" in capsys.readouterr().out
+    printed = capsys.readouterr().out
+    assert "LAS:" in printed and f"QC figure: {out / 'qc.png'}" in printed
 
 
 def test_cli_reports_errors_without_a_traceback(tmp_path, capsys):

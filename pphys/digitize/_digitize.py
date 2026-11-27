@@ -18,6 +18,9 @@ The pipeline:
 6. Stitch each curve over the pages by depth (where pages overlap, the
    earlier page wins), resample onto one depth grid keeping long gaps empty
    (:func:`resample`), and build the WellLog. Steps 2-5 run per page.
+7. QC: warnings, per-page and per-curve findings (:class:`QC`), QC images,
+   and one QC figure per page (:meth:`DigitizeResult.plot_qc`): the scan with
+   the trace and the labels, the depth-fit residuals and the curves.
 
 Known limits: curves of one colour in one track are not told apart (a QC
 warning flags them); rotated pages are not deskewed.
@@ -86,7 +89,9 @@ class Settings:
     min_saturation, min_value : int
         Lower HSV saturation and value (0-255) of a coloured curve's pixel.
     gray_saturation : int
-        Upper HSV saturation (0-255) of a black or grey curve's pixel.
+        Upper chroma (0-255: the spread between a pixel's largest and smallest
+        channel) of a black or grey curve's pixel. Chroma, not HSV saturation,
+        which grows without bound on dark pixels with a little colour noise.
     gray_tolerance : int
         How much brighter (HSV value, 0-255) than its colour a black or grey
         curve's pixel may be.
@@ -337,6 +342,8 @@ class CurveQC:
     coverage : float
         Percent of the resampled depths, between its first and last reading,
         that have a value.
+    vmin, vmax : float or None
+        The values at the left and right track edge, as given.
     """
 
     name: str
@@ -349,6 +356,8 @@ class CurveQC:
     rows_bridged: int = 0
     rows_ambiguous: int = 0
     coverage: float = 0.0
+    vmin: float | None = None
+    vmax: float | None = None
 
 
 @dataclass
@@ -378,6 +387,10 @@ class PageQC:
         What was found for each curve on this page.
     depth_labels : list of (float, float)
         ``(row, depth)`` of the labels read by OCR (empty for manual depths).
+    depth_label_text : list of str
+        What OCR read for each label.
+    depth_label_boxes : list of (int, int, int, int)
+        Each label's ``(x0, y0, x1, y1)`` on the working page.
     depth_inliers : list of bool
         Whether each label agrees with the fitted line (False: a misread,
         ignored).
@@ -402,6 +415,8 @@ class PageQC:
     depth_fit: tuple[float, float]
     curves: list[CurveQC] = field(default_factory=list)
     depth_labels: list[tuple[float, float]] = field(default_factory=list)
+    depth_label_text: list[str] = field(default_factory=list)
+    depth_label_boxes: list[tuple[int, int, int, int]] = field(default_factory=list)
     depth_inliers: list[bool] = field(default_factory=list)
     depth_residuals: list[float] = field(default_factory=list)
     depth_rms: float | None = None
@@ -503,6 +518,16 @@ class Reading(NamedTuple):
     bridged: np.ndarray
 
 
+class Trace(NamedTuple):
+    """A curve as followed on one page: the working-page ``column`` read in
+    each ``row`` that holds it; ``bridged`` marks rows interpolated across a
+    short gap."""
+
+    row: np.ndarray
+    column: np.ndarray
+    bridged: np.ndarray
+
+
 @dataclass
 class DigitizeResult:
     """The outcome of :func:`digitize`.
@@ -524,6 +549,9 @@ class DigitizeResult:
         Each curve as read on all pages (stitched, in depth order), before
         resampling. ``depth`` and ``value`` are shortcuts to the first
         curve's.
+    traces : list of dict of str to Trace
+        Per page (as ``qc.pages``), each curve's column in every row where
+        it was followed, overlaps with earlier pages included.
     """
 
     las: WellLog
@@ -531,6 +559,7 @@ class DigitizeResult:
     settings: Settings
     images: dict[str, np.ndarray]
     raw: dict[str, Reading]
+    traces: list[dict[str, Trace]] = field(default_factory=list)
 
     @property
     def depth(self) -> np.ndarray:
@@ -540,13 +569,36 @@ class DigitizeResult:
     def value(self) -> np.ndarray:
         return next(iter(self.raw.values())).value
 
+    def plot_qc(self, page: int = 0):
+        """The QC figure of one page (an index into ``qc.pages``).
+
+        Three panels share the depth axis: the scan with the tracks, each
+        curve's trace (cyan, magenta where bridged) and the depth labels
+        (green on the fitted line, red ignored); each label's residual from
+        the depth fit, with the tolerance band and RMS; and the digitized
+        curves on their own scales. The page's warnings are listed below.
+
+        Returns a :class:`matplotlib.figure.Figure` (not shown; no pyplot).
+        """
+        from ._qcplot import qc_figure
+
+        return qc_figure(self, page)
+
+    def qc_names(self) -> list[str]:
+        """File names of the QC figures :meth:`save` writes, one per page."""
+        if len(self.qc.pages) == 1:
+            return ["qc.png"]
+        return [f"p{k}_qc.png" for k in range(1, len(self.qc.pages) + 1)]
+
     def save(self, outdir: str | os.PathLike, name: str | None = None) -> Path:
-        """Write the LAS file, the raw readings, the QC images and ``qc.json``.
+        """Write the LAS file, the raw readings, the QC images and figures, and ``qc.json``.
 
         Files: ``<name>.las``; ``<name>.csv`` with the readings before
         resampling (columns curve, depth, value, bridged); ``<image>.png``
-        for every QC image; and ``qc.json`` (QC and settings). ``name``
-        defaults to the scan's file name. Returns the LAS path.
+        for every QC image; ``qc.png`` (``p<k>_qc.png`` per page with
+        several pages), the figure of :meth:`plot_qc`; and ``qc.json`` (QC
+        and settings). ``name`` defaults to the scan's file name. Returns
+        the LAS path.
         """
         out = Path(outdir)
         out.mkdir(parents=True, exist_ok=True)
@@ -563,6 +615,8 @@ class DigitizeResult:
         (out / f"{name}.csv").write_text("\n".join(lines) + "\n", encoding="utf-8")
         for key, image in self.images.items():
             _write_image(out / f"{key}.png", image)
+        for page, qc_name in enumerate(self.qc_names()):
+            self.plot_qc(page).savefig(out / qc_name, dpi=110)
         report = {"qc": asdict(self.qc), "settings": asdict(self.settings)}
         (out / "qc.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
         return las_path
@@ -667,13 +721,14 @@ def digitize(
     warnings: list[str] = []
     page_qcs: list[PageQC] = []
     page_raws: list[dict[str, Reading]] = []
+    traces: list[dict[str, Trace]] = []
     for k, (page, by_hand) in enumerate(zip(loaded, manual), 1):
         tag = f"page {k} ({Path(page.source).name} #{page.index}): " if multi else ""
         prefix = f"p{k}_" if multi else ""
         if page.note:
             warnings.append(tag + page.note)
         try:
-            pq, raw, page_images, page_warnings = _digitize_page(
+            pq, raw, page_traces, page_images, page_warnings = _digitize_page(
                 page, curves, by_hand, settings, label_columns
             )
         except DigitizeError as exc:
@@ -683,6 +738,7 @@ def digitize(
         warnings += [tag + w for w in page_warnings]
         page_qcs.append(pq)
         page_raws.append(raw)
+        traces.append(page_traces)
 
     merged: dict[str, Reading] = {}
     for c in curves:
@@ -741,8 +797,16 @@ def digitize(
                 100.0 * float(np.isfinite(values[inside]).mean())
                 if inside.any()
                 else 0.0,
+                vmin=float(c.vmin),
+                vmax=float(c.vmax),
             )
         )
+        if curve_qcs[-1].coverage < MIN_COVERAGE:
+            warnings.append(
+                f"{c.name}: found over only {curve_qcs[-1].coverage:.0f}% of its depth "
+                f"range ({curve_qcs[-1].rows_found} rows); check its color= and track, "
+                f"the track_mask_{c.name} image and the QC figure."
+            )
         outputs.append((c, values))
 
     sources = list(dict.fromkeys(Path(p.source).name for p in loaded))
@@ -765,13 +829,13 @@ def digitize(
         note=note,
     )
     qc = QC(scan=loaded[0].source, pages=page_qcs, curves=curve_qcs, warnings=warnings)
-    return DigitizeResult(las, qc, settings, images, merged)
+    return DigitizeResult(las, qc, settings, images, merged, traces)
 
 
 def _digitize_page(page, curves, manual, settings, label_columns):
     """Tracks, depth calibration and readings of every curve on one page.
 
-    Returns ``(PageQC, {curve: Reading}, images, warnings)``.
+    Returns ``(PageQC, {curve: Reading}, {curve: Trace}, images, warnings)``.
     """
     page_bgr = page.image
     height, width = page_bgr.shape[:2]
@@ -870,7 +934,22 @@ def _digitize_page(page, curves, manual, settings, label_columns):
             )
         if used < 4:
             warnings.append(
-                f"Depth rests on only {used} labels; check the depth_labels QC image."
+                f"Depth rests on only {used} labels; check the depth fit in the QC "
+                "figure (plot_qc, qc.png) and the depth_labels image."
+            )
+        on_line = [lb.row for lb, k in zip(labels, inliers) if k]
+        span = (max(on_line) - min(on_line)) / max(1, height - 1)
+        if span < MIN_LABEL_SPAN:
+            warnings.append(
+                f"The agreeing depth labels span only {100 * span:.0f}% of the page "
+                f"(rows {min(on_line):.0f}-{max(on_line):.0f}); depths beyond them "
+                "are extrapolated."
+            )
+        if len(misread) > MAX_MISREAD_FRACTION * len(labels):
+            warnings.append(
+                f"{len(misread)} of {len(labels)} depth labels were misreads; the "
+                "label band may be wrong or the scan poor. Check the depth_labels "
+                "image, or pass label_columns= or depth=."
             )
         if depth_rms > 1.5:
             warnings.append(
@@ -880,6 +959,7 @@ def _digitize_page(page, curves, manual, settings, label_columns):
 
     depths = a * np.arange(height, dtype=float) + b
     raw: dict[str, Reading] = {}
+    traces: dict[str, Trace] = {}
     curve_qcs = []
     for c in curves:
         x0, x1, track_source, grid = picks[c.name]
@@ -903,6 +983,8 @@ def _digitize_page(page, curves, manual, settings, label_columns):
                 images,
             )
         raw[c.name] = Reading(depths[ok], values[ok], bridged[ok])
+        rows = np.flatnonzero(np.isfinite(xs))
+        traces[c.name] = Trace(rows, xs[rows] + c0, bridged[rows])
         if ambiguous > 0.1 * max(1, found):
             warnings.append(
                 f"{c.name}: {ambiguous} rows hold two or more separate runs of {c.color}; "
@@ -920,6 +1002,8 @@ def _digitize_page(page, curves, manual, settings, label_columns):
                 found,
                 int(bridged.sum()),
                 int(ambiguous),
+                vmin=float(c.vmin),
+                vmax=float(c.vmax),
             )
         )
 
@@ -934,15 +1018,20 @@ def _digitize_page(page, curves, manual, settings, label_columns):
         depth_fit=(float(a), float(b)),
         curves=curve_qcs,
         depth_labels=[(lb.row, lb.depth) for lb in labels],
+        depth_label_text=[lb.text for lb in labels],
+        depth_label_boxes=[tuple(int(v) for v in lb.box) for lb in labels],
         depth_inliers=inliers,
         depth_residuals=residuals,
         depth_rms=depth_rms,
         label_columns=columns,
     )
-    return pq, raw, images, warnings
+    return pq, raw, traces, images, warnings
 
 
 SEAM_ROWS = 2  # rows two abutting pages may both hold without a warning
+MIN_LABEL_SPAN = 0.5  # of the page height, covered by the agreeing labels
+MAX_MISREAD_FRACTION = 1 / 3  # of the labels read, before a warning
+MIN_COVERAGE = 80.0  # percent of a curve's depth range with a value, before a warning
 
 
 def _page_gaps(page_qcs: list[PageQC], depth_unit: str) -> list[str]:
@@ -1238,15 +1327,16 @@ def curve_mask(
 
     Coloured curves are matched by hue (within ``Settings.hue_tolerance``,
     with enough saturation and brightness), so faded ink still counts; black
-    and greys by darkness (low saturation, at most ``gray_tolerance``
-    brighter than the colour). Specks smaller than ``Settings.min_blob``
+    and greys by darkness (low chroma, at most ``gray_tolerance`` brighter
+    than the colour). Specks smaller than ``Settings.min_blob``
     pixels are dropped.
     """
     settings = Settings() if settings is None else settings
     hue, saturation, value = _hsv_of(color)
     hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
     if saturation < GRAY_SATURATION:
-        mask = (hsv[..., 1] <= settings.gray_saturation) & (
+        chroma = bgr.max(axis=2).astype(np.int16) - bgr.min(axis=2)
+        mask = (chroma <= settings.gray_saturation) & (
             hsv[..., 2] <= min(255, value + settings.gray_tolerance)
         )
     else:

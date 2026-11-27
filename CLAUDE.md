@@ -9,7 +9,7 @@ Formation Evaluation (package `pphys`) gives **practicing petrophysicists** an e
 - **Milestones, in order** (`ROADMAP.md` has the done-when lists):
   1. working interpretation (`pphys.insight` imports, is tested and reproduces the shaly-sand workflow);
   2. multi-well CrossView (a class for each well's tops; reproduces `img/onepage_cross_view.png`);
-  3. robust digitizing (multi-curve, any colour, image input, Python API);
+  3. robust digitizing (multi-curve, any colour, image input, Python API, QC figure; done);
   4. a backend for the apps.
 
   Prefer work that advances the current milestone, and tick its items in `ROADMAP.md` when they are done.
@@ -21,7 +21,7 @@ Formation Evaluation (package `pphys`) gives **practicing petrophysicists** an e
 `pphys` is a petrophysics package with three features:
 
 1. **onepage**: one-page matplotlib log plots from LAS files. `WellView` draws a single well and `CrossView` a multi-well correlation. Target output: `img/onepage_well_view.png`, `img/onepage_cross_view.png`.
-2. **digitize**: scanned log (PDF or image, one page or several) → `WellLog`/LAS. `pphys.digitize.digitize()` reads several curves of any colour in one call; `pphys-digitize` reads one. Milestone 3 has the QC plots left.
+2. **digitize**: scanned log (PDF or image, one page or several) → `WellLog`/LAS. `pphys.digitize.digitize()` reads several curves of any colour in one call; `pphys-digitize` reads one. Milestone 3 is done; rotated scans and two curves of one colour in one track are not planned.
 3. **insight**: log interpretation models, covering water analysis, lithology/porosity/shale volume, saturation (Archie + shaly-sand) and permeability. Target workflow: `img/insight_shaly_sand_results.png`. The resistivity models it should support are listed in `img/insight_shaly_sand_resistivity_models.png`.
 
 `img/` holds the reference figures the package is expected to reproduce. `index.html` and `pages/` are browser apps published on GitHub Pages (see "Web apps" below).
@@ -173,15 +173,22 @@ Standalone model classes with lowercase names (`archie`, `gammaray`, `simandoux`
 - `.qc` (`QC`): `scan`, `warnings` (per-curve ones prefixed `NAME:`, per-page ones `page k (file #i):` when there are several pages), and `.qc.pages`, one `PageQC` per page:
   - `source`, `index` (the page or TIFF frame), `dpi`, `zoom`, `page_size`;
   - detected `tracks`, depth source and fit;
-  - `depth_labels` with `depth_inliers`/`depth_residuals`/`depth_rms`, `label_columns`;
+  - `depth_labels` with `depth_label_text`/`depth_label_boxes`, `depth_inliers`/`depth_residuals`/`depth_rms`, `label_columns`;
   - `curves` (that page's `CurveQC`s) and `overlap` (per curve, the depth length dropped because earlier pages covered it).
 
   `qc.page`/`page_size`/`tracks`/`depth_source`/`depth_fit`/`depth_labels`/... are shortcuts to the first page.
-- `.qc.curves`: one `CurveQC` per curve over all pages (the first page's track edges and source; scale, grid; rows found/bridged/ambiguous summed; coverage of the stitched curve). `qc.track`/`track_source`/`scale`/`grid`/`coverage` are shortcuts to the first curve.
+- `.qc.curves`: one `CurveQC` per curve over all pages (the first page's track edges and source; scale, `vmin`/`vmax`, grid; rows found/bridged/ambiguous summed; coverage of the stitched curve). `qc.track`/`track_source`/`scale`/`grid`/`coverage` are shortcuts to the first curve.
 - `.images`: "page", "depth_labels", and per curve `mask_`/`track_`/`track_mask_`/`curve_overlay_<NAME>`; with several pages each name starts with `p<k>_`.
 - `.raw`: `{name: Reading(depth, value, bridged)}`, stitched over the pages, before resampling. `.depth`/`.value` are the first curve's.
+- `.traces`: per page, `{name: Trace(row, column, bridged)}`, the working-page column followed in each row (overlaps included), for the QC figure.
+- `.plot_qc(page=0)` (`_qcplot.py`): a plain matplotlib `Figure` (no pyplot) of one page with three panels sharing the depth axis:
+  - the scan, faded so the overlays stand out, with the track edges (solid for the curves' tracks, dashed for the others), each curve's trace in its own colour (cyan first, magenta where bridged) and the label boxes (green on the fit, red ignored, with what OCR read);
+  - each label's residual in rows against its depth, with the ± `label_tolerance` band and the RMS. Misreads are clipped to the panel edge and annotated; manual depths show a note;
+  - the digitized curves, each on its own scale (log x for log10).
 
-`.save(dir)` writes `<name>.las`, `<name>.csv` (long format: curve, depth, value, bridged), one PNG per image and `qc.json`. The pipeline:
+  The page's warnings (`_page_warnings`: its own and those about no page) are listed below. `qc_names()` gives the file names `save` uses.
+
+`.save(dir)` writes `<name>.las`, `<name>.csv` (long format: curve, depth, value, bridged), one PNG per image, the QC figure as `qc.png` (`p<k>_qc.png` per page with several pages) and `qc.json`. The pipeline:
 1. Load the pages (`load_pages(scan, pages, settings, dpi)` → `Page`s). All pixel positions (`track_edges`, `(row, depth)` pairs, `QC`) are on this working page.
    - **PDF** pages are rendered with pypdfium2 at `Settings.render_scale`.
    - **Images** are read with Pillow; every TIFF frame is a page, and 16-bit or float greys are rescaled to 8 bits. They are resampled with OpenCV to the same working resolution, 72 × `render_scale` dpi, from the DPI the file stores; `dpi=` overrides it. An image with neither is used as is, with a warning.
@@ -190,7 +197,7 @@ Standalone model classes with lowercase names (`archie`, `gammaray`, `simandoux`
    Steps 2–5 run on each page (`_digitize_page`). An error there is re-raised with a `page k (file #i): ` prefix and keeps the QC images made so far.
 2. Mask each curve's colour (`curve_mask(bgr, color)`):
    - **Coloured curves** match by hue (`hue_tolerance`, with `min_saturation`/`min_value`), so faded ink still counts.
-   - **Black and grey** (saturation below `GRAY_SATURATION`, `Curve.dark`) match by darkness (`gray_saturation`, `gray_tolerance`).
+   - **Black and grey** (saturation below `GRAY_SATURATION`, `Curve.dark`) match by darkness: chroma (largest minus smallest channel) at most `gray_saturation`, and value at most `gray_tolerance` above the colour's. Chroma, not HSV saturation: on dark pixels a little colour noise drove the saturation over the limit and lost a noisy black curve (`noisy_black_log_track`).
    - **Specks** under `min_blob` pixels are dropped by connected-component area. There is no morphological opening: it erased thin vertical strokes.
    - **Mistakable colours:** a light red grid matches red too, and is removed later by its shape. Colours too light to tell from the paper are rejected.
 3. Find the tracks (`find_tracks(page, curve=all masks, exclude=coloured masks)`):
@@ -208,7 +215,7 @@ Standalone model classes with lowercase names (`archie`, `gammaray`, `simandoux`
    - **OCR, how:** `read_labels` finds text blobs: ink with full-width lines removed, characters merged sideways, height within `min_label_height`–`max_label_height`. It enlarges each to about 32 px and reads them all in **one** Tesseract call on a stacked sheet (psm 6, whitelist `0-9.-`), parsed by `_parse_number`.
    - **Snapping:** each label's row is snapped onto the horizontal grid line it marks (`_grid_rows`, half the ink contrast, ≥ 80 % of a track's width), when one is within half its text height. Text centres sit about 2 px off their line, and snapping removed a 0.14 % depth error.
    - **Fit:** `fit_depth` is a robust fit. Every pair of labels proposes a line with `a > 0`; the line with the most labels within `label_tolerance` rows wins and is refitted by least squares. At least `min_labels` (3) must agree.
-   - **Warnings:** misreads are listed; also fewer than 4 labels, or label RMS above 1.5 rows (a stretched scan).
+   - **Warnings:** misreads are listed; also fewer than 4 agreeing labels, agreeing labels spanning less than `MIN_LABEL_SPAN` (half) of the page height (depths beyond are extrapolated), misreads in more than `MAX_MISREAD_FRACTION` (a third) of the labels, or label RMS above 1.5 rows (a stretched scan).
 
    A failed calibration raises `DepthCalibrationError`, whose `.images` holds the QC images made so far, including `depth_labels` (boxes green or red, with each label's fitted depth). It never falls back to pixel depths. `find_tesseract` checks `Settings.tesseract`, `TESSERACT_CMD`, the PATH, then the Windows install folders.
 5. For each curve, in its track crop:
@@ -218,7 +225,7 @@ Standalone model classes with lowercase names (`archie`, `gammaray`, `simandoux`
    - **Map** (`map_x_to_value`): columns to values across the exact edges, linear or log10; vmin > vmax flips the track.
 6. Stitch and resample:
    - **Stitch:** each curve's readings are joined over the pages by depth. Readings inside an earlier page's depth range are dropped, so the earlier page wins. The dropped length goes to `PageQC.overlap`, with a warning when it is more than the `SEAM_ROWS` (2) rows that abutting pages share. A depth interval no page covers is warned about (`_page_gaps`) and stays empty.
-   - **Resample** all curves onto one regular depth grid (`resample`, step 0.1524 m / 0.5 ft) from the first reading to the last, leaving NaN where neighbouring readings are more than `max_gap + 1.5` rows (of the coarsest page) apart, and build the `WellLog` through lasio.
+   - **Resample** all curves onto one regular depth grid (`resample`, step 0.1524 m / 0.5 ft) from the first reading to the last, leaving NaN where neighbouring readings are more than `max_gap + 1.5` rows (of the coarsest page) apart, and build the `WellLog` through lasio. A curve with a value over less than `MIN_COVERAGE` (80 %) of its depth range warns.
 
 `_cli.py` is the thin `pphys-digitize` / `python -m pphys.digitize` wrapper: one or more scans, `--pages` (indices or `all`), `--dpi`, and `--depth TOP BASE` given once per page. `utils.resample` is a separate, unused smoothing-spline resampler.
 
@@ -231,7 +238,7 @@ Standalone model classes with lowercase names (`archie`, `gammaray`, `simandoux`
 - `score(result, scan or [scans in page order])` returns RMS/max value error in percent of the track width (in log space on log10 tracks), coverage, and the largest depth error in percent of the span (the worst page's). Coverage is the percent of page rows, over all pages, where the curve was found (bridged rows included), from `result.raw[name]`, before resampling. `TARGET` is the agreed threshold: 1 / 3 / 98 / 0.5.
 - `scorecard.SCENARIOS` lists the pages. `more_pages`, `fmt` (pdf, png, jpg, tif), `files` (one file per page) and `dpi_tag` set up the image and multi-page scenarios. `gap` names the roadmap step expected to fix a failing one; the tests mark those as `xfail(strict=True)`, so a fix fails until its `gap` is removed. Run `uv run python -m pphys.digitize.scorecard [--keep DIR] [NAME ...]`.
 
-Known prototype weaknesses (roadmap milestone 3), each shown by a scenario:
+Known limits, each shown by a scenario or check:
 - Tracks can't be found on a rotated page (`rotated`; deskewing isn't planned).
 - On noisy or faded pages the grid lines fall below `ink_contrast`, so the grid check stays silent; the frames are still found.
 - OCR assumes one straight depth line per page; real scans with paper stretch show up only as label scatter (a warning), not as corrected depths. Tesseract 5.4 is installed in `C:\Program Files\Tesseract-OCR`.

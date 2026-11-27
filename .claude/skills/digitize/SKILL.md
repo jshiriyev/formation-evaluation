@@ -26,7 +26,8 @@ Python: `digitize(scan, curves=[Curve("GR", 0, 150, color="red"), Curve("RT", 0.
 scale="log10", color="black", track=1)], ...)` reads several curves in one call.
 `curve=, vmin=, vmax=, color=` is the shorthand for one. The result has `.las` (one
 column per curve), `.qc` (with `.qc.curves`, and `.qc.pages`: one `PageQC` per
-page), `.raw` and `.images`; `.save(dir)` writes them all. `pages=` and `dpi=` work
+page), `.raw`, `.traces` and `.images`; `.plot_qc(page)` returns the QC figure;
+`.save(dir)` writes them all, the figure as `qc.png` (`p<k>_qc.png` per page). `pages=` and `dpi=` work
 as on the command line. The command line reads one curve per run.
 
 Command line: `uv run pphys-digitize SCAN [SCAN ...] --curve GR --vmin 0 --vmax 150 [options]`.
@@ -79,12 +80,20 @@ Several files are read in order and stitched into one log.
      with `score(...)` before running on the real scan.
 5. **Run.** Use an output folder in the scratchpad unless the user names one.
    With several pages, every QC image name starts with `p<k>_` (`p2_page.png`).
-6. **QC.** Read the outputs:
+6. **QC.** Read `qc.png` first (`p<k>_qc.png` per page), then the details:
+   - `qc.png`, left to right: the scan with each curve's trace (its own colour,
+     magenta where bridged) and the label boxes; the depth-fit residual of each
+     label (inside the grey band, misreads clipped to the edge in red); the
+     digitized curves on their scales. The trace should sit on the ink, and the
+     curves should look like the scan at the same depth. The page's warnings are
+     printed below the panels.
    - `curve_overlay_<NAME>.png`: the trace on the track, cyan where found and magenta where a short gap was bridged. It should follow the curve, with no jumps to grid lines or other curves.
    - `track_mask_<NAME>.png`: what was taken as the curve.
    - The summary's per-curve line: rows found and bridged, and coverage.
    - For OCR, `depth_labels.png`: each label boxed, green when on the line and red when ignored, with the depth the fit gives it. The summary's `depth labels: N of M on the line, RMS r rows` should show most labels on the line and an RMS under about 1 row; a "stretched" warning means the scan's depth scale isn't uniform.
-   - The summary's warnings, and `qc.json`.
+   - The summary's warnings, and `qc.json`. Warnings about a narrow label span
+     (depths extrapolated), many misreads, or a curve found over less than 80 %
+     of its range each point at a likely wrong band, track or colour.
 7. **Result.** Load the LAS with `pphys.read` and run `pphys.LasView(...)` `summary()`
    and `quality()`. Plot the digitized curve next to the scan's track (scratchpad
    PNG) and Read it to compare.

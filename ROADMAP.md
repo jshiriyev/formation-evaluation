@@ -5,13 +5,13 @@
 - **Python:** the `pphys` package, the engine of every step.
 - **Browser:** no-code apps on [GitHub Pages](https://jshiriyev.github.io/formation-evaluation/) for the same workflow, computed by a hosted `pphys` service.
 
-Today, loading, QC and single-well plots work. The milestones below close the remaining gaps, in this order.
+Today, loading, QC, single-well plots and digitizing work. The milestones below close the remaining gaps, in this order.
 
 | # | Milestone | Workflow step | State today |
 |---|---|---|---|
 | 1 | [Working interpretation](#1-working-interpretation) | Interpret | Models written, but most modules do not import |
 | 2 | [Multi-well CrossView](#2-multi-well-crossview) | Plot several wells | Drawing code exists; no class holds a well's tops |
-| 3 | [Robust digitizing](#3-robust-digitizing) | Digitize paper logs | PDF and image scans, several pages, several curves of any colour; edges and depth found; QC plots left |
+| 3 | [Robust digitizing](#3-robust-digitizing) | Digitize paper logs | Done: PDF and image scans, several pages, several curves of any colour, edges and depth found, a QC figure per page |
 | 4 | [Backend for the apps](#4-backend-for-the-apps) | Every step, in the browser | Configurator only; nothing is computed |
 
 ## 1. Working interpretation
@@ -41,7 +41,7 @@ Today, loading, QC and single-well plots work. The milestones below close the re
 
 **Goal.** Paper logs enter the workflow as reliably as LAS files.
 
-**Today.** `pphys.digitize.digitize()` digitizes several curves in one call (`curves=[Curve(...)]`) into a `WellLog`, with QC images and a `qc.json`. It reads PDFs and image scans (PNG, JPG, TIFF, BMP), one page or several. The `pphys-digitize` command does the same for one curve. Depth comes from manual depths, or from OCR of the depth labels.
+**Today.** `pphys.digitize.digitize()` digitizes several curves in one call (`curves=[Curve(...)]`) into a `WellLog`, with a QC figure per page, QC images and a `qc.json`. It reads PDFs and image scans (PNG, JPG, TIFF, BMP), one page or several. The `pphys-digitize` command does the same for one curve. Depth comes from manual depths, or from OCR of the depth labels.
 - **Inputs:** images are resampled from the DPI they store to the working 144 dpi. `dpi=` overrides a missing or wrong DPI; an image with neither is used as is, with a warning.
 - **Several pages** (the pages of a PDF, the frames of a TIFF, or a list of files) each get their own tracks and depth calibration and are stitched by depth. Where pages overlap, the earlier page wins and the overlap is reported; a depth gap between pages is left empty and flagged.
 - **Curves** are picked by any colour: coloured ones by hue, so faded ink counts, and black or grey ones by darkness. Each is followed row by row to the run nearest its path. Grid lines in its colour, frames and specks are removed. Short gaps (dashes, crossings) are bridged and long ones stay empty. Curves of one colour in one track are not told apart; a warning flags them.
@@ -49,9 +49,10 @@ Today, loading, QC and single-well plots work. The milestones below close the re
 - **Depth fit:** a robust straight-line fit ignores misreads and needs at least 3 agreeing labels. The QC reports each label's residual and warns on misreads, few labels or scatter.
 - **Track edges** are found from the frame lines, to a fraction of a pixel. That works with tracks sharing a frame and with grids as dark as the frames, and `track_edges` can override it.
 - **Values** are mapped across the edges on a linear or log10 scale. A QC warning flags a grid that looks like the other kind.
+- **QC figure** (`result.plot_qc()`, saved as `qc.png`): the scan with the tracks, each curve's trace and the depth labels; each label's residual from the depth fit; and the digitized curves, all on one depth axis, with the page's warnings below. Warnings also flag a fit on fewer than 4 labels, labels spanning less than half the page, misreads in more than a third of the labels, and a curve found over less than 80 % of its range.
 
-`pphys.digitize.synthetic_scan()` draws pages of known values, with optional scan defects, and `score()` measures a result against them. `python -m pphys.digitize.scorecard` runs 33 scenarios:
-- **Pass today (31):** every scenario that is planned, within the target. That includes black curves (on grey and on black grids), coloured grids, crossing curves, flat beds, dashed curves, three curves in one call, PNG and JPG scans at 200–300 dpi or without a DPI, and two- and three-page PDFs, TIFFs and file lists, overlapping pages included. Value errors are 0.1–0.6 % RMS.
+`pphys.digitize.synthetic_scan()` draws pages of known values, with optional scan defects, and `score()` measures a result against them. `python -m pphys.digitize.scorecard` runs 34 scenarios:
+- **Pass today (32):** every scenario that is planned, within the target. That includes black curves (on grey and on black grids, and on a noisy log10 track), coloured grids, crossing curves, flat beds, dashed curves, three curves in one call, PNG and JPG scans at 200–300 dpi or without a DPI, and two- and three-page PDFs, TIFFs and file lists, overlapping pages included. Value errors are 0.1–0.6 % RMS.
 - **Not planned (2):** same-colour curves in one track, and rotated pages.
 
 **Done when:**
@@ -61,7 +62,7 @@ Today, loading, QC and single-well plots work. The milestones below close the re
 - [x] Image scans (PNG, JPG, TIFF) and multi-page PDFs are accepted directly.
 - [x] A Python API returns a `pphys.WellLog` (`digitize(...).las`); the command line is a thin wrapper around it.
 - [x] LAS files are written through lasio / `WellLog`, not by hand.
-- [ ] QC output shows the trace overlay and the depth-fit residuals, and warns when the fit uses too few labels.
+- [x] QC output shows the trace overlay and the depth-fit residuals, and warns when the fit uses too few labels.
 - [x] Tests run on synthetic scans and need no Tesseract.
 - [x] Every planned scorecard scenario (all but rotation and same-colour curves) meets the target: value error RMS ≤ 1 % and max ≤ 3 % of the track width, the curve found in ≥ 98 % of the page rows, and depth error ≤ 0.5 % of the depth span.
 
