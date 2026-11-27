@@ -16,6 +16,7 @@ from pphys.digitize import (  # noqa: E402
     Defects,
     DigitizeError,
     DigitizeResult,
+    PageQC,
     Settings,
     SyntheticCurve,
     SyntheticTrack,
@@ -23,6 +24,7 @@ from pphys.digitize import (  # noqa: E402
     find_tesseract,
     score,
     synthetic_scan,
+    write_pages,
 )
 from pphys.digitize import scorecard  # noqa: E402
 from pphys.digitize._digitize import Reading, curve_mask, render_pdf_page  # noqa: E402
@@ -117,6 +119,38 @@ def test_image_pages_and_unknown_formats(page, tmp_path):
     assert path.stat().st_size > 0 and page.path == path
     with pytest.raises(ValueError, match="Unknown page format"):
         page.save(tmp_path / "page.bmpx")
+
+
+def test_write_pages_holds_several_pages_in_a_pdf_or_tiff(page, tmp_path):
+    import pypdfium2 as pdfium
+    from PIL import Image
+
+    other = synthetic_scan(depth=(1100.0, 1200.0), seed=1)
+    pdf = write_pages(tmp_path / "two.pdf", [page, other])
+    assert len(pdfium.PdfDocument(str(pdf))) == 2
+    assert np.array_equal(render_pdf_page(pdf, 1, 2.0), other.image)
+    assert page.path == other.path == pdf
+
+    tif = write_pages(tmp_path / "two.tif", [page, other])
+    with Image.open(tif) as img:
+        assert img.n_frames == 2
+        assert img.info["dpi"] == pytest.approx((page.dpi, page.dpi))
+        img.seek(1)
+        assert np.array_equal(np.asarray(img)[..., ::-1], other.image)  # lossless
+
+
+def test_write_pages_refuses_what_a_format_cannot_hold(page, tmp_path):
+    from PIL import Image
+
+    with pytest.raises(ValueError, match="holds one page"):
+        write_pages(tmp_path / "two.png", [page, page])
+    with pytest.raises(ValueError, match="one DPI"):
+        write_pages(tmp_path / "two.pdf", [page, synthetic_scan(dpi=200)])
+    with pytest.raises(ValueError, match="No pages"):
+        write_pages(tmp_path / "none.pdf", [])
+    bare = write_pages(tmp_path / "bare.png", [page], dpi_tag=False)
+    with Image.open(bare) as img:
+        assert "dpi" not in img.info
 
 
 def test_values_from_arrays_and_functions():
@@ -235,15 +269,19 @@ def fake_result(scan, name, values, depth_fit=None):
     raw_depth = scan.depth_of(np.arange(np.ceil(r0), np.floor(r1) + 1))
     raw_value = np.interp(raw_depth, scan.depth, values)
     found = np.isfinite(raw_value)
-    qc = QC(
-        scan="fake.pdf",
-        page=0,
+    curves = [CurveQC(name, "red", "linear", (0.0, 1.0), "manual")]
+    page = PageQC(
+        source="fake.pdf",
+        index=0,
+        dpi=None,
+        zoom=2.0,
         page_size=scan.image.shape[1::-1],
         tracks=[],
         depth_source="manual",
         depth_fit=scan.depth_fit if depth_fit is None else depth_fit,
-        curves=[CurveQC(name, "red", "linear", (0.0, 1.0), "manual")],
+        curves=curves,
     )
+    qc = QC(scan="fake.pdf", pages=[page], curves=curves)
     found_rows = raw_depth[found]
     reading = Reading(
         found_rows, raw_value[found], np.zeros(found_rows.size, dtype=bool)

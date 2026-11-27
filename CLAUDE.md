@@ -21,7 +21,7 @@ Formation Evaluation (package `pphys`) gives **practicing petrophysicists** an e
 `pphys` is a petrophysics package with three features:
 
 1. **onepage**: one-page matplotlib log plots from LAS files. `WellView` draws a single well and `CrossView` a multi-well correlation. Target output: `img/onepage_well_view.png`, `img/onepage_cross_view.png`.
-2. **digitize**: scanned log (PDF) → `WellLog`/LAS. `pphys.digitize.digitize()` reads several curves of any colour in one call; `pphys-digitize` reads one. Milestone 3 has image input and the QC plots left.
+2. **digitize**: scanned log (PDF or image, one page or several) → `WellLog`/LAS. `pphys.digitize.digitize()` reads several curves of any colour in one call; `pphys-digitize` reads one. Milestone 3 has the QC plots left.
 3. **insight**: log interpretation models, covering water analysis, lithology/porosity/shale volume, saturation (Archie + shaly-sand) and permeability. Target workflow: `img/insight_shaly_sand_results.png`. The resistivity models it should support are listed in `img/insight_shaly_sand_resistivity_models.png`.
 
 `img/` holds the reference figures the package is expected to reproduce. `index.html` and `pages/` are browser apps published on GitHub Pages (see "Web apps" below).
@@ -42,7 +42,7 @@ uv sync                                              # create/update .venv from 
 uv run pytest                                        # all tests
 uv run pytest tests/test_welllog.py::test_copy_window  # one test
 uv run ruff check pphys --no-cache --select F821     # quickest way to find broken code (undefined names)
-uv run pphys-digitize scan.pdf --curve GR --vmin 0 --vmax 150 [--color black] [--scale log10] [--depth TOP BASE | --label-columns L R] [--track auto] [--out DIR]
+uv run pphys-digitize scan.pdf [scan2.png ...] --curve GR --vmin 0 --vmax 150 [--color black] [--scale log10] [--depth TOP BASE (once per page) | --label-columns L R] [--pages all|N ...] [--dpi D] [--track auto] [--out DIR]
 uv add <pkg>        # runtime dependency (use --optional digitize or --dev for the others)
 uv build            # wheel + sdist into dist/
 ```
@@ -54,7 +54,7 @@ uv build            # wheel + sdist into dist/
   - Don't edit `uv.lock` by hand; commit it.
 - **Build backend:** `uv_build`, with `module-root = ""` because this is a flat layout (`./pphys`, not `./src/pphys`). It packages every file under `pphys/`, including `_lithology.json` and subfolders without an `__init__.py`.
 
-Tests use pytest, and uv installs `pphys` in editable mode, so tests import the working tree. Tests cover the top-level modules (`WellLog`, `read`, `load`, `Temperature`, `LasView`, the curve families), the onepage fills (`test_motifs`, `test_templix`, `test_pigment`), the wellview layout chain (`test_layout`), its rounding helpers (`test_unary`), WellView itself (`test_wellview`) the digitizer on synthetic PDF pages with OCR stubbed (`test_digitize`), and the synthetic-page generator, the score and every scorecard scenario (`test_digitize_synthetic`; known gaps are strict xfails); insight has none yet. `tests/conftest.py` does the following:
+Tests use pytest, and uv installs `pphys` in editable mode, so tests import the working tree. Tests cover the top-level modules (`WellLog`, `read`, `load`, `Temperature`, `LasView`, the curve families), the onepage fills (`test_motifs`, `test_templix`, `test_pigment`), the wellview layout chain (`test_layout`), its rounding helpers (`test_unary`), WellView itself (`test_wellview`) the digitizer on synthetic PDF and image pages, single and multi-page, with OCR stubbed (`test_digitize`), and the synthetic-page generator, the score and every scorecard scenario (`test_digitize_synthetic`; known gaps are strict xfails); insight has none yet. `tests/conftest.py` does the following:
 - switches matplotlib to the Agg backend and closes figures after each test;
 - provides the fixtures `write_las`, `age` (moves a file's modification time back so cache tests don't depend on timestamp resolution), `parses` (counts LAS parses to prove cache hits) and `cache`.
 
@@ -168,18 +168,26 @@ Standalone model classes with lowercase names (`archie`, `gammaray`, `simandoux`
 
 ### digitize
 
-`digitize(scan, curves=[Curve(name, vmin, vmax, unit=, scale=, color=, track=, track_edges=), ...], ...)` (`_digitize.py`) digitizes several curves in one call; `curve=, vmin=, vmax=, color=, ...` is the one-curve shorthand (`_curve_list`). It returns a `DigitizeResult`:
+`digitize(scan, curves=[Curve(name, vmin, vmax, unit=, scale=, color=, track=, track_edges=), ...], pages=, dpi=, ...)` (`_digitize.py`) digitizes several curves in one call; `curve=, vmin=, vmax=, color=, ...` is the one-curve shorthand (`_curve_list`). `scan` is a PDF or an image (PNG, JPG, TIFF, BMP), or a list of them read in order. It returns a `DigitizeResult`:
 - `.las`: a `WellLog` with DEPT and one column per curve. Each curve's description records its colour and scale.
-- `.qc` (`QC`), page-level fields:
+- `.qc` (`QC`): `scan`, `warnings` (per-curve ones prefixed `NAME:`, per-page ones `page k (file #i):` when there are several pages), and `.qc.pages`, one `PageQC` per page:
+  - `source`, `index` (the page or TIFF frame), `dpi`, `zoom`, `page_size`;
   - detected `tracks`, depth source and fit;
   - `depth_labels` with `depth_inliers`/`depth_residuals`/`depth_rms`, `label_columns`;
-  - `warnings`, per-curve ones prefixed `NAME:`.
-- `.qc.curves`: one `CurveQC` per curve (track edges and source, scale, grid, rows found/bridged/ambiguous, coverage). `qc.track`/`track_source`/`scale`/`grid`/`coverage` are shortcuts to the first curve.
-- `.images`: "page", "depth_labels", and per curve `mask_`/`track_`/`track_mask_`/`curve_overlay_<NAME>`.
-- `.raw`: `{name: Reading(depth, value, bridged)}` before resampling. `.depth`/`.value` are the first curve's.
+  - `curves` (that page's `CurveQC`s) and `overlap` (per curve, the depth length dropped because earlier pages covered it).
+
+  `qc.page`/`page_size`/`tracks`/`depth_source`/`depth_fit`/`depth_labels`/... are shortcuts to the first page.
+- `.qc.curves`: one `CurveQC` per curve over all pages (the first page's track edges and source; scale, grid; rows found/bridged/ambiguous summed; coverage of the stitched curve). `qc.track`/`track_source`/`scale`/`grid`/`coverage` are shortcuts to the first curve.
+- `.images`: "page", "depth_labels", and per curve `mask_`/`track_`/`track_mask_`/`curve_overlay_<NAME>`; with several pages each name starts with `p<k>_`.
+- `.raw`: `{name: Reading(depth, value, bridged)}`, stitched over the pages, before resampling. `.depth`/`.value` are the first curve's.
 
 `.save(dir)` writes `<name>.las`, `<name>.csv` (long format: curve, depth, value, bridged), one PNG per image and `qc.json`. The pipeline:
-1. Render the PDF page with pypdfium2 at `Settings.render_scale`. All pixel positions (`track_edges`, `(row, depth)` pairs, `QC`) are on this rendered page.
+1. Load the pages (`load_pages(scan, pages, settings, dpi)` → `Page`s). All pixel positions (`track_edges`, `(row, depth)` pairs, `QC`) are on this working page.
+   - **PDF** pages are rendered with pypdfium2 at `Settings.render_scale`.
+   - **Images** are read with Pillow; every TIFF frame is a page, and 16-bit or float greys are rescaled to 8 bits. They are resampled with OpenCV to the same working resolution, 72 × `render_scale` dpi, from the DPI the file stores; `dpi=` overrides it. An image with neither is used as is, with a warning.
+   - **Which pages:** `pages` counts over all files in order: an index, a list, or `"all"`. By default it is the first page of one file, or every page of a list of files. Unknown suffixes, unreadable images and missing pages raise `DigitizeError`.
+
+   Steps 2–5 run on each page (`_digitize_page`). An error there is re-raised with a `page k (file #i): ` prefix and keeps the QC images made so far.
 2. Mask each curve's colour (`curve_mask(bgr, color)`):
    - **Coloured curves** match by hue (`hue_tolerance`, with `min_saturation`/`min_value`), so faded ink still counts.
    - **Black and grey** (saturation below `GRAY_SATURATION`, `Curve.dark`) match by darkness (`gray_saturation`, `gray_tolerance`).
@@ -194,8 +202,8 @@ Standalone model classes with lowercase names (`archie`, `gammaray`, `simandoux`
    - **Choosing:** each curve's `track` picks one: "auto" (default; most pixels of its colour between the frames, with a warning when two tracks are close), "left", "right" or an index. Its `track_edges` override all of this.
    - **No tracks found** raises `DigitizeError`; there is no fallback.
    - **Grid check:** `grid_kind` reads the grid as linear (even spacing) or log10 (spacing shrinking within each decade). A mismatch with `scale` adds a warning; the grid never changes the values.
-4. Calibrate depth, either manually or by OCR:
-   - **Manual:** `depth=(top, base)` (the first and last page rows) or two or more `(row, depth)` pairs.
+4. Calibrate depth on each page, either manually or by OCR:
+   - **Manual:** `depth=(top, base)` (the first and last page rows) or two or more `(row, depth)` pairs. With several pages, `depth` is a list with one entry per page (`None` reads that page by OCR); anything else raises `ValueError`.
    - **OCR, where:** `find_depth_labels` reads every `label_bands` band (gaps between tracks and the margins, or `label_columns`) and keeps the band whose numbers best agree.
    - **OCR, how:** `read_labels` finds text blobs: ink with full-width lines removed, characters merged sideways, height within `min_label_height`–`max_label_height`. It enlarges each to about 32 px and reads them all in **one** Tesseract call on a stacked sheet (psm 6, whitelist `0-9.-`), parsed by `_parse_number`.
    - **Snapping:** each label's row is snapped onto the horizontal grid line it marks (`_grid_rows`, half the ink contrast, ≥ 80 % of a track's width), when one is within half its text height. Text centres sit about 2 px off their line, and snapping removed a 0.14 % depth error.
@@ -208,17 +216,20 @@ Standalone model classes with lowercase names (`archie`, `gammaray`, `simandoux`
    - **Follow** (`trace_curve`): in each row, join runs closer than 3 px. One run is taken as is; with several, the run nearest the neighbouring rows' column wins (forward then backward pass). Rows with several runs are counted, and more than 10 % warns that a same-colour curve may be mixed in. That is out of scope.
    - **Bridge** (`bridge_gaps`): gaps up to `max_gap` rows (dashes, another curve drawn on top) are interpolated and marked `bridged`; longer gaps stay empty.
    - **Map** (`map_x_to_value`): columns to values across the exact edges, linear or log10; vmin > vmax flips the track.
-6. Resample all curves onto one regular depth grid (`resample`, step 0.1524 m / 0.5 ft), leaving NaN where neighbouring readings are more than `max_gap + 1.5` rows apart, and build the `WellLog` through lasio.
+6. Stitch and resample:
+   - **Stitch:** each curve's readings are joined over the pages by depth. Readings inside an earlier page's depth range are dropped, so the earlier page wins. The dropped length goes to `PageQC.overlap`, with a warning when it is more than the `SEAM_ROWS` (2) rows that abutting pages share. A depth interval no page covers is warned about (`_page_gaps`) and stays empty.
+   - **Resample** all curves onto one regular depth grid (`resample`, step 0.1524 m / 0.5 ft) from the first reading to the last, leaving NaN where neighbouring readings are more than `max_gap + 1.5` rows (of the coarsest page) apart, and build the `WellLog` through lasio.
 
-`_cli.py` is the thin `pphys-digitize` / `python -m pphys.digitize` wrapper. `utils.resample` is a separate, unused smoothing-spline resampler.
+`_cli.py` is the thin `pphys-digitize` / `python -m pphys.digitize` wrapper: one or more scans, `--pages` (indices or `all`), `--dpi`, and `--depth TOP BASE` given once per page. `utils.resample` is a separate, unused smoothing-spline resampler.
 
 **Measuring accuracy** (`_synthetic.py`, `scorecard.py`):
 - `synthetic_scan(path, tracks=, depth=, defects=, ...)` draws a page with matplotlib (Agg, no pyplot): `SyntheticTrack`s holding `SyntheticCurve`s (linear or log10, any colour, values as an array, a function of depth, or random smooth), a depth column with labels, a grid, and optional `Defects` (fade, tint, rotation, blur, noise, JPEG). It returns a `SyntheticScan` with the truth:
   - `values`, `track_columns`, `depth_fit`;
   - helpers `track_edges(curve, render_scale)` and `depth_pairs(render_scale)` that feed `digitize`.
-- Pages are drawn at 144 dpi and saved as a **lossless** PDF through pypdfium2 (Pillow would JPEG-compress them), so `render_scale=2.0` reproduces the drawn pixels exactly. Truth positions are pixel indices (pixel i covers [i, i+1)).
-- `score(result, scan)` returns RMS/max value error in percent of the track width (in log space on log10 tracks), coverage, and the largest depth error in percent of the span. Coverage is the percent of page rows where the curve was found (bridged rows included), from `result.raw[name]`, before resampling. `TARGET` is the agreed threshold: 1 / 3 / 98 / 0.5.
-- `scorecard.SCENARIOS` lists the pages. `gap` names the roadmap step expected to fix a failing one; the tests mark those as `xfail(strict=True)`, so a fix fails until its `gap` is removed. Run `uv run python -m pphys.digitize.scorecard [--keep DIR] [NAME ...]`.
+- Pages are drawn at 144 dpi (or `dpi=`) and saved as a **lossless** PDF through pypdfium2 (Pillow would JPEG-compress them), so `render_scale=2.0` reproduces the drawn pixels exactly. Truth positions are pixel indices (pixel i covers [i, i+1)).
+- `write_pages(path, scans, dpi_tag=True)` writes several pages into one PDF (lossless) or TIFF (deflate), or one page into a PNG, JPG (quality 92) or BMP; `SyntheticScan.save` uses it. Images store the DPI unless `dpi_tag=False`.
+- `score(result, scan or [scans in page order])` returns RMS/max value error in percent of the track width (in log space on log10 tracks), coverage, and the largest depth error in percent of the span (the worst page's). Coverage is the percent of page rows, over all pages, where the curve was found (bridged rows included), from `result.raw[name]`, before resampling. `TARGET` is the agreed threshold: 1 / 3 / 98 / 0.5.
+- `scorecard.SCENARIOS` lists the pages. `more_pages`, `fmt` (pdf, png, jpg, tif), `files` (one file per page) and `dpi_tag` set up the image and multi-page scenarios. `gap` names the roadmap step expected to fix a failing one; the tests mark those as `xfail(strict=True)`, so a fix fails until its `gap` is removed. Run `uv run python -m pphys.digitize.scorecard [--keep DIR] [NAME ...]`.
 
 Known prototype weaknesses (roadmap milestone 3), each shown by a scenario:
 - Tracks can't be found on a rotated page (`rotated`; deskewing isn't planned).

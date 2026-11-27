@@ -1,24 +1,26 @@
-"""Digitize the curves of a scanned log page (PDF) into a :class:`pphys.WellLog`.
+"""Digitize the curves of scanned log pages (PDF or image) into a :class:`pphys.WellLog`.
 
 The pipeline:
 
-1. Render a PDF page (pypdfium2).
+1. Load the pages (:func:`load_pages`): PDF pages rendered (pypdfium2), images
+   resampled from their DPI to the same working resolution (Pillow).
 2. Mask each curve's colour: by hue for coloured curves, by darkness for
    black and grey ones (:func:`curve_mask`).
 3. Find the tracks from their frame lines (:func:`find_tracks`) and pick
    each curve's track.
-4. Calibrate depth once: from the depths given, or from the depth labels,
+4. Calibrate depth per page: from the depths given, or from the depth labels,
    found and read with Tesseract and fitted with a robust straight line
    (:func:`find_depth_labels`, :func:`fit_depth`).
 5. For each curve: clean its mask in the track (grid lines, frames, specks;
    :func:`clean_track_mask`), follow it row by row (:func:`trace_curve`),
    bridge short gaps (:func:`bridge_gaps`) and map columns to values across
    the track edges on a linear or log10 scale (:func:`map_x_to_value`).
-6. Resample all curves onto one depth grid, keeping long gaps empty
-   (:func:`resample`), and build the WellLog.
+6. Stitch each curve over the pages by depth (where pages overlap, the
+   earlier page wins), resample onto one depth grid keeping long gaps empty
+   (:func:`resample`), and build the WellLog. Steps 2-5 run per page.
 
 Known limits: curves of one colour in one track are not told apart (a QC
-warning flags them); rotated pages are not deskewed; PDF input only.
+warning flags them); rotated pages are not deskewed.
 """
 
 from __future__ import annotations
@@ -350,19 +352,22 @@ class CurveQC:
 
 
 @dataclass
-class QC:
-    """What :func:`digitize` found, for checking the result.
-
-    Pixel positions are on the rendered page.
+class PageQC:
+    """What :func:`digitize` found on one page.
 
     Parameters
     ----------
-    scan : str
-        The scan file.
-    page : int
-        The page digitized (0-based).
+    source : str
+        The file the page came from.
+    index : int
+        The page (or TIFF frame) within the file, 0-based.
+    dpi : float or None
+        The image file's resolution, as stored or given (None for a PDF or
+        an image without one).
+    zoom : float
+        Working pixels per pixel of the image file (per point for a PDF).
     page_size : (int, int)
-        Width and height of the rendered page.
+        Width and height of the working page.
     tracks : list of (float, float)
         Frame columns of every track found, left to right.
     depth_source : str
@@ -370,8 +375,7 @@ class QC:
     depth_fit : (float, float)
         ``(a, b)`` of ``depth = a * row + b``.
     curves : list of CurveQC
-        One per curve, in order. ``track``, ``track_source``, ``scale``,
-        ``grid`` and ``coverage`` are shortcuts to the first.
+        What was found for each curve on this page.
     depth_labels : list of (float, float)
         ``(row, depth)`` of the labels read by OCR (empty for manual depths).
     depth_inliers : list of bool
@@ -383,12 +387,15 @@ class QC:
         RMS of the agreeing labels' residuals, in rows.
     label_columns : (float, float) or None
         Column range the labels were read from.
-    warnings : list of str
-        Things to check before trusting the result.
+    overlap : dict of str to float
+        Per curve, the depth length dropped because earlier pages already
+        covered it.
     """
 
-    scan: str
-    page: int
+    source: str
+    index: int
+    dpi: float | None
+    zoom: float
     page_size: tuple[int, int]
     tracks: list[tuple[float, float]]
     depth_source: str
@@ -399,42 +406,82 @@ class QC:
     depth_residuals: list[float] = field(default_factory=list)
     depth_rms: float | None = None
     label_columns: tuple[float, float] | None = None
-    warnings: list[str] = field(default_factory=list)
-
-    @property
-    def track(self) -> tuple[float, float]:
-        return self.curves[0].track
-
-    @property
-    def track_source(self) -> str:
-        return self.curves[0].track_source
-
-    @property
-    def scale(self) -> str:
-        return self.curves[0].scale
-
-    @property
-    def grid(self) -> str | None:
-        return self.curves[0].grid
-
-    @property
-    def coverage(self) -> float:
-        return self.curves[0].coverage
+    overlap: dict[str, float] = field(default_factory=dict)
 
     def summary(self) -> str:
-        """A few lines for the console."""
         a, b = self.depth_fit
+        where = f"{Path(self.source).name} #{self.index}"
+        if self.dpi is not None:
+            where += f", {self.dpi:g} dpi"
         lines = [
-            f"scan: {self.scan} (page {self.page}, {self.page_size[0]} x {self.page_size[1]} px), "
+            f"{where} ({self.page_size[0]} x {self.page_size[1]} px), "
             f"{len(self.tracks)} track(s) found",
             f"depth: {self.depth_source}, depth = {a:.6g} * row + {b:.6g}",
         ]
         if self.depth_source == "ocr":
-            used = sum(self.depth_inliers)
             lines.append(
-                f"depth labels: {used} of {len(self.depth_labels)} on the line, "
-                f"RMS {self.depth_rms:.2f} rows"
+                f"depth labels: {sum(self.depth_inliers)} of {len(self.depth_labels)} on "
+                f"the line, RMS {self.depth_rms:.2f} rows"
             )
+        return "\n".join(lines)
+
+
+@dataclass
+class QC:
+    """What :func:`digitize` found, for checking the result.
+
+    Pixel positions are on the working page (the PDF rendered at
+    ``Settings.render_scale``, or the image resampled to the same
+    resolution).
+
+    Parameters
+    ----------
+    scan : str
+        The (first) scan file.
+    pages : list of PageQC
+        One per page, in order: tracks, depth calibration and per-curve
+        findings. ``page``, ``page_size``, ``tracks``, ``depth_source``,
+        ``depth_fit``, ``depth_labels``, ``depth_inliers``,
+        ``depth_residuals``, ``depth_rms`` and ``label_columns`` are
+        shortcuts to the first page.
+    curves : list of CurveQC
+        One per curve over all pages: the first page's track, rows summed,
+        coverage of the stitched curve. ``track``, ``track_source``,
+        ``scale``, ``grid`` and ``coverage`` are shortcuts to the first curve.
+    warnings : list of str
+        Things to check before trusting the result.
+    """
+
+    scan: str
+    pages: list[PageQC]
+    curves: list[CurveQC] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+
+    page = property(lambda self: self.pages[0].index)
+    page_size = property(lambda self: self.pages[0].page_size)
+    tracks = property(lambda self: self.pages[0].tracks)
+    depth_source = property(lambda self: self.pages[0].depth_source)
+    depth_fit = property(lambda self: self.pages[0].depth_fit)
+    depth_labels = property(lambda self: self.pages[0].depth_labels)
+    depth_inliers = property(lambda self: self.pages[0].depth_inliers)
+    depth_residuals = property(lambda self: self.pages[0].depth_residuals)
+    depth_rms = property(lambda self: self.pages[0].depth_rms)
+    label_columns = property(lambda self: self.pages[0].label_columns)
+    track = property(lambda self: self.curves[0].track)
+    track_source = property(lambda self: self.curves[0].track_source)
+    scale = property(lambda self: self.curves[0].scale)
+    grid = property(lambda self: self.curves[0].grid)
+    coverage = property(lambda self: self.curves[0].coverage)
+
+    def summary(self) -> str:
+        """A few lines for the console."""
+        lines = [f"scan: {self.scan}, {len(self.pages)} page(s)"]
+        for k, page in enumerate(self.pages, 1):
+            text = page.summary()
+            lines += [
+                f"page {k}: {line}" if len(self.pages) > 1 else line
+                for line in text.splitlines()
+            ]
         for c in self.curves:
             lines.append(
                 f"{c.name} ({c.color}): track columns {c.track[0]:.1f}-{c.track[1]:.1f} "
@@ -471,10 +518,12 @@ class DigitizeResult:
     images : dict of str to numpy.ndarray
         QC images by name: "page", and per curve ``mask_<name>``,
         ``track_<name>``, ``track_mask_<name>`` and ``curve_overlay_<name>``;
-        for OCR also "depth_labels".
+        for OCR also "depth_labels". With several pages each name starts with
+        ``p<k>_`` (``p1_page``, ...).
     raw : dict of str to Reading
-        Each curve as read, before resampling. ``depth`` and ``value`` are
-        shortcuts to the first curve's.
+        Each curve as read on all pages (stitched, in depth order), before
+        resampling. ``depth`` and ``value`` are shortcuts to the first
+        curve's.
     """
 
     las: WellLog
@@ -520,7 +569,7 @@ class DigitizeResult:
 
 
 def digitize(
-    scan: str | os.PathLike,
+    scan: str | os.PathLike | Sequence[str | os.PathLike],
     *,
     curves: Sequence[Curve] | None = None,
     curve: str | None = None,
@@ -531,75 +580,77 @@ def digitize(
     color: str = "red",
     track: str | int = "auto",
     track_edges: tuple[float, float] | None = None,
-    depth: Sequence[float] | Sequence[tuple[float, float]] | None = None,
+    depth=None,
     depth_unit: str = "m",
     step: float | None = None,
-    page: int = 0,
+    pages: int | Sequence[int] | str | None = None,
+    dpi: float | None = None,
     label_columns: tuple[float, float] | None = None,
     well: str | None = None,
     settings: Settings | None = None,
 ) -> DigitizeResult:
-    """Digitize curves of a scanned log page into a WellLog.
+    """Digitize curves of scanned log pages into one WellLog.
 
     Give the curves as ``curves=[Curve(...), ...]``, or one curve with the
     shorthand ``curve``, ``vmin``, ``vmax``, ``unit``, ``scale``, ``color``,
-    ``track`` and ``track_edges`` (the fields of :class:`Curve`). The tracks
-    and the depth calibration are found once for all curves.
+    ``track`` and ``track_edges`` (the fields of :class:`Curve`). Each page
+    gets its own tracks and depth calibration; the curves of all pages are
+    stitched by depth, and where pages overlap the earlier page wins.
 
     Parameters
     ----------
-    scan : str or path
-        A PDF file.
+    scan : str or path, or a sequence of them
+        A PDF or an image (PNG, JPG, TIFF, BMP), or several, read in order.
     curves : sequence of Curve, optional
         The curves, each with its scale, colour and track.
     curve, vmin, vmax, unit, scale, color, track, track_edges
         One curve, when ``curves`` is not given; see :class:`Curve`.
-    depth : (top, base) or sequence of (row, depth), optional
-        Manual depth calibration, which skips OCR. ``(top, base)`` are the
-        depths at the first and last row of the rendered page; two or more
-        ``(row, depth)`` pairs (rows of the rendered page, see the "page" QC
-        image) are fitted with a straight line. Without it, the depth labels
-        are found and read with Tesseract (see :func:`find_depth_labels`):
-        at least ``Settings.min_labels`` must agree on one straight line, and
-        the others are ignored as misreads.
+    depth : optional
+        Manual depth calibration, which skips OCR. For one page,
+        ``(top, base)`` (the depths at its first and last row) or two or more
+        ``(row, depth)`` pairs fitted with a straight line, in rows of the
+        working page (see the "page" QC image). For several pages, a list
+        with one of those (or None, for OCR) per page. Without it, the depth
+        labels are found and read with Tesseract (see
+        :func:`find_depth_labels`): at least ``Settings.min_labels`` must
+        agree on one straight line, and the others are ignored as misreads.
     depth_unit : {"m", "ft"}
         Unit of the depths.
     step : float, optional
         Depth step of the output; 0.1524 (m) or 0.5 (ft) by default.
-    page : int
-        Page of the PDF to digitize, 0-based.
+    pages : int, sequence of int or "all", optional
+        Pages to read, 0-based, counted over all files in order. By default
+        the first page of a single file, or every page of a list of files.
+    dpi : float, optional
+        Resolution of image scans, when the files store none or a wrong one.
+        Images are resampled to the working resolution, 72 x
+        ``Settings.render_scale`` dpi.
     label_columns : (float, float), optional
-        Columns of the rendered page between which the depth labels are;
+        Columns of the working page between which the depth labels are;
         by default every band outside the tracks is searched.
     well : str, optional
-        Well name for the LAS header; the scan's file name by default.
+        Well name for the LAS header; the (first) scan's file name by default.
     settings : Settings, optional
         Pipeline tuning.
 
     Returns
     -------
     DigitizeResult
-        ``.las`` (the WellLog, one column per curve), ``.qc``, ``.raw`` and
-        the QC images; ``.save(dir)`` writes them.
+        ``.las`` (the WellLog, one column per curve), ``.qc`` (with a
+        ``PageQC`` per page), ``.raw`` and the QC images; ``.save(dir)``
+        writes them.
 
     Raises
     ------
     DepthCalibrationError
-        If depth cannot be calibrated: no labels found, or fewer than
-        ``Settings.min_labels`` of them on one line.
+        If a page's depth cannot be calibrated: no labels found, or fewer
+        than ``Settings.min_labels`` of them on one line.
     DigitizeError
-        If a curve's colour is not found, no track frames are found (pass
-        ``track_edges``), a track does not exist, or Tesseract is needed but
-        missing.
+        If a file cannot be read, a curve's colour is not found, no track
+        frames are found (pass ``track_edges``), a track does not exist, or
+        Tesseract is needed but missing.
     """
     settings = Settings() if settings is None else settings
-    path = Path(scan)
-    if not path.is_file():
-        raise FileNotFoundError(f"No such scan: {path}")
-    if path.suffix.lower() != ".pdf":
-        raise DigitizeError(
-            f"{path.name}: only PDF scans are read for now; convert an image to PDF first."
-        )
     curves = _curve_list(
         curves, curve, vmin, vmax, unit, scale, color, track, track_edges
     )
@@ -608,9 +659,121 @@ def digitize(
     step = DEFAULT_STEP[depth_unit] if step is None else float(step)
     if step <= 0:
         raise ValueError(f"step must be positive, not {step!r}.")
-    manual = None if depth is None else _parse_depth(depth)
+    loaded = load_pages(scan, pages, settings, dpi)
+    manual = _page_depths(depth, len(loaded))
+    multi = len(loaded) > 1
 
-    page_bgr = render_pdf_page(path, page, settings.render_scale)
+    images: dict[str, np.ndarray] = {}
+    warnings: list[str] = []
+    page_qcs: list[PageQC] = []
+    page_raws: list[dict[str, Reading]] = []
+    for k, (page, by_hand) in enumerate(zip(loaded, manual), 1):
+        tag = f"page {k} ({Path(page.source).name} #{page.index}): " if multi else ""
+        prefix = f"p{k}_" if multi else ""
+        if page.note:
+            warnings.append(tag + page.note)
+        try:
+            pq, raw, page_images, page_warnings = _digitize_page(
+                page, curves, by_hand, settings, label_columns
+            )
+        except DigitizeError as exc:
+            seen = {prefix + name: image for name, image in exc.images.items()}
+            raise type(exc)(tag + str(exc), {**images, **seen}) from None
+        images.update({prefix + name: image for name, image in page_images.items()})
+        warnings += [tag + w for w in page_warnings]
+        page_qcs.append(pq)
+        page_raws.append(raw)
+
+    merged: dict[str, Reading] = {}
+    for c in curves:
+        parts, covered = [], []
+        for k, (pq, raw) in enumerate(zip(page_qcs, page_raws), 1):
+            reading = raw[c.name]
+            keep = np.ones(len(reading.depth), dtype=bool)
+            for lo, hi in covered:
+                keep &= (reading.depth < lo) | (reading.depth > hi)
+            dropped = int((~keep).sum())
+            if dropped:
+                length = float(dropped * abs(pq.depth_fit[0]))
+                pq.overlap[c.name] = length
+                if dropped > SEAM_ROWS:  # more than the rows a shared seam repeats
+                    warnings.append(
+                        f"page {k}: {c.name} overlaps earlier pages over {length:.2f} "
+                        f"{depth_unit}; the earlier page's readings were kept."
+                    )
+            if len(reading.depth):
+                covered.append((float(reading.depth.min()), float(reading.depth.max())))
+            parts.append(
+                Reading(reading.depth[keep], reading.value[keep], reading.bridged[keep])
+            )
+        d = np.concatenate([p.depth for p in parts])
+        order = np.argsort(d, kind="stable")
+        merged[c.name] = Reading(
+            d[order],
+            np.concatenate([p.value for p in parts])[order],
+            np.concatenate([p.bridged for p in parts])[order],
+        )
+
+    if multi:
+        warnings += _page_gaps(page_qcs, depth_unit)
+    spacing = (settings.max_gap + 1.5) * max(abs(pq.depth_fit[0]) for pq in page_qcs)
+    top = min(float(r.depth.min()) for r in merged.values())
+    base = max(float(r.depth.max()) for r in merged.values())
+    # Stop at the last reading, so the log does not end on an empty row.
+    out_depth = top + step * np.arange(int(np.floor((base - top) / step + 1e-9)) + 1)
+    outputs, curve_qcs = [], []
+    for i, c in enumerate(curves):
+        reading = merged[c.name]
+        values = resample(out_depth, reading.depth, reading.value, spacing)
+        inside = (out_depth >= reading.depth.min()) & (out_depth <= reading.depth.max())
+        first = page_qcs[0].curves[i]
+        curve_qcs.append(
+            CurveQC(
+                c.name,
+                c.color,
+                c.scale,
+                first.track,
+                first.track_source,
+                first.grid,
+                sum(pq.curves[i].rows_found for pq in page_qcs),
+                sum(pq.curves[i].rows_bridged for pq in page_qcs),
+                sum(pq.curves[i].rows_ambiguous for pq in page_qcs),
+                100.0 * float(np.isfinite(values[inside]).mean())
+                if inside.any()
+                else 0.0,
+            )
+        )
+        outputs.append((c, values))
+
+    sources = list(dict.fromkeys(Path(p.source).name for p in loaded))
+    depth_notes = [
+        "manual"
+        if pq.depth_source == "manual"
+        else f"{sum(pq.depth_inliers)} OCR labels"
+        for pq in page_qcs
+    ]
+    note = (
+        f"Digitized with pphys.digitize from {', '.join(sources)}, {len(loaded)} page(s). "
+        f"Depth from {'; '.join(depth_notes)}."
+    )
+    las = _build_las(
+        out_depth,
+        outputs,
+        depth_unit=depth_unit,
+        well=Path(loaded[0].source).stem if well is None else well,
+        null_value=settings.null_value,
+        note=note,
+    )
+    qc = QC(scan=loaded[0].source, pages=page_qcs, curves=curve_qcs, warnings=warnings)
+    return DigitizeResult(las, qc, settings, images, merged)
+
+
+def _digitize_page(page, curves, manual, settings, label_columns):
+    """Tracks, depth calibration and readings of every curve on one page.
+
+    Returns ``(PageQC, {curve: Reading}, images, warnings)``.
+    """
+    page_bgr = page.image
     height, width = page_bgr.shape[:2]
     images: dict[str, np.ndarray] = {"page": page_bgr}
     masks = {}
@@ -659,7 +822,7 @@ def digitize(
     columns = None
     if manual is not None:
         a, b = _manual_fit(manual, height)
-        source = "manual"
+        depth_source = "manual"
     else:
         known = tracks or [Track(p[0], p[1]) for p in picks.values()]
         columns, labels = find_depth_labels(page_bgr, known, settings, label_columns)
@@ -688,7 +851,7 @@ def digitize(
                 images,
             )
         a, b, keep = fit
-        source = "ocr"
+        depth_source = "ocr"
         labels = numbers
         inliers = [bool(k) for k in keep]
         residuals = [float((lb.depth - b) / a - lb.row) for lb in labels]
@@ -760,39 +923,14 @@ def digitize(
             )
         )
 
-    spacing = (settings.max_gap + 1.5) * abs(a)
-    top = min(float(r.depth.min()) for r in raw.values())
-    base = max(float(r.depth.max()) for r in raw.values())
-    out_depth = np.arange(top, base + 0.5 * step, step)
-    outputs = []
-    for c, cq in zip(curves, curve_qcs):
-        reading = raw[c.name]
-        values = resample(out_depth, reading.depth, reading.value, spacing)
-        inside = (out_depth >= reading.depth.min()) & (out_depth <= reading.depth.max())
-        cq.coverage = (
-            100.0 * float(np.isfinite(values[inside]).mean()) if inside.any() else 0.0
-        )
-        outputs.append((c, values))
-
-    note = f"Digitized with pphys.digitize from {path.name}, page {page}. Depth " + (
-        "from manual calibration."
-        if source == "manual"
-        else f"from {sum(inliers)} OCR depth labels (linear fit)."
-    )
-    las = _build_las(
-        out_depth,
-        outputs,
-        depth_unit=depth_unit,
-        well=path.stem if well is None else well,
-        null_value=settings.null_value,
-        note=note,
-    )
-    qc = QC(
-        scan=str(path),
-        page=page,
+    pq = PageQC(
+        source=page.source,
+        index=page.index,
+        dpi=page.dpi,
+        zoom=page.zoom,
         page_size=(width, height),
         tracks=[(t.x0, t.x1) for t in tracks],
-        depth_source=source,
+        depth_source=depth_source,
         depth_fit=(float(a), float(b)),
         curves=curve_qcs,
         depth_labels=[(lb.row, lb.depth) for lb in labels],
@@ -800,9 +938,186 @@ def digitize(
         depth_residuals=residuals,
         depth_rms=depth_rms,
         label_columns=columns,
-        warnings=warnings,
     )
-    return DigitizeResult(las, qc, settings, images, raw)
+    return pq, raw, images, warnings
+
+
+SEAM_ROWS = 2  # rows two abutting pages may both hold without a warning
+
+
+def _page_gaps(page_qcs: list[PageQC], depth_unit: str) -> list[str]:
+    """Warnings for depth intervals that no page covers."""
+    spans = []
+    for pq in page_qcs:
+        a, b = pq.depth_fit
+        ends = (b, a * (pq.page_size[1] - 1) + b)
+        spans.append((min(ends), max(ends), abs(a)))
+    spans.sort()
+    warnings, reach, row = [], spans[0][1], spans[0][2]
+    for lo, hi, a in spans[1:]:
+        if lo - reach > (SEAM_ROWS + 0.5) * max(row, a):
+            warnings.append(
+                f"No page covers {reach:.2f}-{lo:.2f} {depth_unit}; the log is "
+                "empty there."
+            )
+        if hi > reach:
+            reach, row = hi, a
+    return warnings
+
+
+def _page_depths(depth, count: int) -> list:
+    """Manual depth calibration per page (None: OCR)."""
+    if depth is None:
+        return [None] * count
+    if count == 1:
+        return [_parse_depth(depth)]
+    entries = list(depth)
+    if len(entries) != count or any(
+        isinstance(e, (int, float, np.number)) for e in entries
+    ):
+        raise ValueError(
+            f"With {count} pages, depth needs a list of one entry per page "
+            f"((top, base), (row, depth) pairs, or None for OCR), not {depth!r}."
+        )
+    return [None if entry is None else _parse_depth(entry) for entry in entries]
+
+
+IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp")
+
+
+@dataclass
+class Page:
+    """A page to digitize, at the working resolution.
+
+    ``source`` and ``index`` say where it came from (the page or TIFF frame,
+    0-based), ``dpi`` the image file's resolution (None for a PDF or when
+    unknown), ``zoom`` the working pixels per file pixel (per point for a
+    PDF), and ``note`` how it was loaded, when worth a warning.
+    """
+
+    image: np.ndarray
+    source: str
+    index: int
+    dpi: float | None
+    zoom: float
+    note: str | None = None
+
+
+def load_pages(
+    scan: str | os.PathLike | Sequence[str | os.PathLike],
+    pages: int | Sequence[int] | str | None = None,
+    settings: Settings | None = None,
+    dpi: float | None = None,
+) -> list[Page]:
+    """Load pages of one or more scans at the working resolution.
+
+    PDFs are rendered at ``Settings.render_scale``; images are resampled to
+    the same resolution, 72 x ``render_scale`` dpi, from the DPI the file
+    stores (or ``dpi``). An image without either is used as is, with a note.
+    ``pages`` counts pages over all files in order (see :func:`digitize`).
+    """
+    settings = Settings() if settings is None else settings
+    paths = (
+        [Path(scan)]
+        if isinstance(scan, (str, os.PathLike))
+        else [Path(p) for p in scan]
+    )
+    if not paths:
+        raise ValueError("No scan given.")
+    if dpi is not None and not dpi > 0:
+        raise ValueError(f"dpi must be positive, not {dpi!r}.")
+    entries = []
+    for path in paths:
+        if not path.is_file():
+            raise FileNotFoundError(f"No such scan: {path}")
+        suffix = path.suffix.lower()
+        if suffix != ".pdf" and suffix not in IMAGE_SUFFIXES:
+            raise DigitizeError(
+                f"{path.name}: unsupported file type; use a PDF or a PNG, JPG, TIFF or BMP image."
+            )
+        entries += [(path, i) for i in range(_page_count(path))]
+
+    if pages is None:
+        chosen = entries[:1] if len(paths) == 1 else entries
+    elif isinstance(pages, str):
+        if pages != "all":
+            raise ValueError(
+                f"pages must be an index, a list of indices or 'all', not {pages!r}."
+            )
+        chosen = entries
+    else:
+        wanted = [pages] if isinstance(pages, (int, np.integer)) else list(pages)
+        if not wanted or len(set(wanted)) != len(wanted):
+            raise ValueError(f"pages must be distinct page indices, not {pages!r}.")
+        for i in wanted:
+            if not 0 <= i < len(entries):
+                where = f"{paths[0].name} has" if len(paths) == 1 else "the scans have"
+                raise DigitizeError(
+                    f"{where} {len(entries)} page(s) in all; page {i} does not exist "
+                    "(pages count from 0)."
+                )
+        chosen = [entries[i] for i in wanted]
+    return [_load_page(path, index, settings, dpi) for path, index in chosen]
+
+
+def _page_count(path: Path) -> int:
+    if path.suffix.lower() == ".pdf":
+        pdf = pdfium.PdfDocument(str(path))
+        try:
+            return len(pdf)
+        finally:
+            pdf.close()
+    from PIL import Image
+
+    try:
+        with Image.open(path) as img:
+            return int(getattr(img, "n_frames", 1))
+    except OSError as exc:
+        raise DigitizeError(
+            f"{path.name} could not be read as an image: {exc}"
+        ) from None
+
+
+def _load_page(path: Path, index: int, settings: Settings, dpi: float | None) -> Page:
+    if path.suffix.lower() == ".pdf":
+        image = render_pdf_page(path, index, settings.render_scale)
+        return Page(image, str(path), index, None, settings.render_scale)
+    from PIL import Image
+
+    with Image.open(path) as img:
+        img.seek(index)
+        stored = img.info.get("dpi")
+        rgb = _to_rgb(img)
+    file_dpi = (
+        dpi
+        if dpi is not None
+        else (float(stored[0]) if stored and stored[0] > 0 else None)
+    )
+    bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+    work = 72.0 * settings.render_scale
+    if file_dpi is None:
+        note = (
+            f"the image stores no DPI, so it was used as is; pass dpi= to have it "
+            f"resampled to the working {work:g} dpi."
+        )
+        return Page(bgr, str(path), index, None, 1.0, note)
+    zoom = work / file_dpi
+    if abs(zoom - 1.0) > 1e-3:
+        size = (max(1, round(bgr.shape[1] * zoom)), max(1, round(bgr.shape[0] * zoom)))
+        method = cv2.INTER_AREA if zoom < 1 else cv2.INTER_CUBIC
+        bgr = cv2.resize(bgr, size, interpolation=method)
+    return Page(bgr, str(path), index, file_dpi, zoom)
+
+
+def _to_rgb(img) -> np.ndarray:
+    """An 8-bit RGB array of a PIL image of any mode (16-bit greys rescaled)."""
+    if img.mode.startswith("I") or img.mode == "F":
+        a = np.asarray(img, dtype=float)
+        lo, hi = float(np.nanmin(a)), float(np.nanmax(a))
+        a = np.zeros_like(a) if hi == lo else (a - lo) / (hi - lo) * 255.0
+        gray = a.astype(np.uint8)
+        return np.dstack([gray] * 3)
+    return np.asarray(img.convert("RGB"))
 
 
 def _curve_list(
@@ -1531,7 +1846,12 @@ def _parse_depth(depth) -> tuple[str, list]:
         if len(values) != 2 or values[0] == values[1]:
             raise ValueError("depth=(top, base) needs two different depths.")
         return "page", values
-    pairs = [(float(row), float(d)) for row, d in depth]
+    try:
+        pairs = [(float(row), float(d)) for row, d in depth]
+    except (TypeError, ValueError):
+        raise ValueError(
+            f"depth must be (top, base) or (row, depth) pairs, not {depth!r}."
+        ) from None
     if len(pairs) < 2 or len({row for row, _ in pairs}) < 2:
         raise ValueError(
             "depth as (row, depth) pairs needs at least two different rows."

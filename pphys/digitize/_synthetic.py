@@ -283,23 +283,11 @@ class SyntheticScan:
         rows = self.row_of([top, base], render_scale)
         return [(float(rows[0]), top), (float(rows[1]), base)]
 
-    def save(self, path: str | os.PathLike) -> Path:
-        """Write the page: a lossless PDF (".pdf") or an image (".png", ".jpg", ".tif")."""
-        path = Path(path)
-        suffix = path.suffix.lower()
-        if suffix == ".pdf":
-            _write_pdf(path, self.image, self.dpi)
-        elif suffix in (".png", ".jpg", ".jpeg", ".tif", ".tiff"):
-            ok, buffer = cv2.imencode(suffix, self.image)
-            if not ok:
-                raise ValueError(f"Could not encode {path.name}.")
-            path.write_bytes(buffer.tobytes())
-        else:
-            raise ValueError(
-                f"Unknown page format {suffix!r}; use .pdf, .png, .jpg or .tif."
-            )
-        self.path = path
-        return path
+    def save(self, path: str | os.PathLike, dpi_tag: bool = True) -> Path:
+        """Write the page: a lossless PDF (".pdf") or an image (".png", ".jpg",
+        ".tif", ".bmp") that stores its DPI unless ``dpi_tag`` is False.
+        See :func:`write_pages` for several pages in one file."""
+        return write_pages(path, [self], dpi_tag=dpi_tag)
 
 
 def synthetic_scan(
@@ -492,18 +480,20 @@ class Score:
 
 def score(
     result: DigitizeResult,
-    scan: SyntheticScan,
+    scan: SyntheticScan | Sequence[SyntheticScan],
     curve: str | None = None,
     target: dict | None = None,
 ) -> Score:
-    """Compare a digitized curve with the truth of its synthetic page.
+    """Compare a digitized curve with the truth of its synthetic page(s).
 
     Parameters
     ----------
     result : DigitizeResult
-        What :func:`~pphys.digitize.digitize` returned for the page.
-    scan : SyntheticScan
-        The page.
+        What :func:`~pphys.digitize.digitize` returned for the page(s).
+    scan : SyntheticScan or sequence of SyntheticScan
+        The page, or the pages in the order digitized (``result.qc.pages``).
+        Values are compared over every page's interval, coverage counts the
+        rows of all pages, and the depth error is the worst page's.
     curve : str, optional
         Name of the curve, both on the page and in the result; the first
         digitized curve by default.
@@ -516,42 +506,48 @@ def score(
         Errors are measured across the track, so a log10 track is scored in
         log space; a value on the wrong side of a log scale counts as far off.
     """
+    scans = [scan] if isinstance(scan, SyntheticScan) else list(scan)
     las = result.las
     name = las.curves[1].mnemonic if curve is None else curve
-    track, spec = scan.curve(name)
-    truth = scan.values[name]
-    top, base = float(scan.depth[0]), float(scan.depth[-1])
+    track, spec = scans[0].curve(name)
+    intervals = [(float(s.depth[0]), float(s.depth[-1])) for s in scans]
 
     depths = np.asarray(las.index, dtype=float)
     digitized = np.asarray(las[name], dtype=float)
-    inside = (depths >= top) & (depths <= base) & np.isfinite(digitized)
+    true_here = np.full(depths.shape, np.nan)
+    for s, (top, base) in zip(scans, intervals):
+        here = np.isnan(true_here) & (depths >= top) & (depths <= base)
+        true_here[here] = np.interp(depths[here], s.depth, s.values[name])
+    inside = np.isfinite(true_here) & np.isfinite(digitized)
     if inside.sum() == 0:
         nan = float("nan")
         return Score(name, nan, nan, 0.0, nan, 0, dict(target or TARGET))
-
-    true_here = np.interp(depths[inside], scan.depth, truth)
     error = 100 * np.abs(
-        track.fraction(digitized[inside], spec) - track.fraction(true_here, spec)
+        track.fraction(digitized[inside], spec)
+        - track.fraction(true_here[inside], spec)
     )
+
     render_scale = result.settings.render_scale
-    row_top, row_base = scan.row_of([top, base], render_scale)
-    rows_total = max(1, math.floor(row_base) - math.ceil(row_top) + 1)
     reading = result.raw[name] if name in getattr(result, "raw", {}) else result
     raw_depth = np.asarray(reading.depth, dtype=float)
     raw_found = np.isfinite(np.asarray(reading.value, dtype=float))
-    found = np.count_nonzero(raw_found & (raw_depth >= top) & (raw_depth <= base))
-    coverage = min(100.0, 100.0 * found / rows_total)
-
-    rows = np.linspace(row_top, row_base, 200)
-    a, b = result.qc.depth_fit
-    depth_error = np.abs(a * rows + b - scan.depth_of(rows, render_scale)).max()
+    pages = getattr(result.qc, "pages", None) or [result.qc]
+    rows_total, found, depth_error = 0, 0, 0.0
+    for k, (s, (top, base)) in enumerate(zip(scans, intervals)):
+        row_top, row_base = s.row_of([top, base], render_scale)
+        rows_total += max(1, math.floor(row_base) - math.ceil(row_top) + 1)
+        found += np.count_nonzero(raw_found & (raw_depth >= top) & (raw_depth <= base))
+        rows = np.linspace(row_top, row_base, 200)
+        a, b = pages[min(k, len(pages) - 1)].depth_fit
+        worst = np.abs(a * rows + b - s.depth_of(rows, render_scale)).max()
+        depth_error = max(depth_error, float(100 * worst / (base - top)))
 
     return Score(
         curve=name,
         rms=float(np.sqrt(np.mean(error**2))),
         max=float(error.max()),
-        coverage=coverage,
-        depth=float(100 * depth_error / (base - top)),
+        coverage=min(100.0, 100.0 * found / rows_total),
+        depth=depth_error,
         samples=int(inside.sum()),
         target=dict(target or TARGET),
     )
@@ -700,20 +696,69 @@ def _apply_defects(bgr: np.ndarray, defects: Defects, seed: int) -> np.ndarray:
     return out
 
 
-def _write_pdf(path: Path, bgr: np.ndarray, dpi: int) -> None:
-    """One page holding the image losslessly, sized so that 1 pixel is 72/dpi points."""
+def write_pages(
+    path: str | os.PathLike, scans: Sequence[SyntheticScan], dpi_tag: bool = True
+) -> Path:
+    """Write synthetic pages into one file.
+
+    A PDF (lossless) or TIFF (deflate) holds any number of pages; PNG, JPG
+    (quality 92) and BMP hold one. Images store the pages' DPI unless
+    ``dpi_tag`` is False. All pages must share one DPI.
+    """
     from PIL import Image
 
-    height, width = bgr.shape[:2]
-    w_pt, h_pt = width * 72.0 / dpi, height * 72.0 / dpi
+    path = Path(path)
+    suffix = path.suffix.lower()
+    scans = list(scans)
+    if not scans:
+        raise ValueError("No pages to write.")
+    dpis = {s.dpi for s in scans}
+    if len(dpis) != 1:
+        raise ValueError(f"All pages must share one DPI, not {sorted(dpis)}.")
+    dpi = dpis.pop()
+    pictures = [Image.fromarray(s.image[..., ::-1]) for s in scans]
+    meta = {"dpi": (dpi, dpi)} if dpi_tag else {}
+    if suffix == ".pdf":
+        _write_pdf(path, [s.image for s in scans], dpi)
+    elif suffix in (".tif", ".tiff"):
+        pictures[0].save(
+            path,
+            save_all=True,
+            append_images=pictures[1:],
+            compression="tiff_deflate",
+            **meta,
+        )
+    elif suffix in (".png", ".jpg", ".jpeg", ".bmp"):
+        if len(pictures) > 1:
+            raise ValueError(
+                f"A {suffix} file holds one page; use .pdf or .tif for several."
+            )
+        extra = {"quality": 92} if suffix in (".jpg", ".jpeg") else {}
+        pictures[0].save(path, **meta, **extra)
+    else:
+        raise ValueError(
+            f"Unknown page format {suffix!r}; use .pdf, .png, .jpg, .tif or .bmp."
+        )
+    for s in scans:
+        s.path = path
+    return path
+
+
+def _write_pdf(path: Path, images: Sequence[np.ndarray], dpi: int) -> None:
+    """One page per image, each held losslessly and sized so that 1 pixel is 72/dpi points."""
+    from PIL import Image
+
     pdf = pdfium.PdfDocument.new()
     try:
-        page = pdf.new_page(w_pt, h_pt)
-        image = pdfium.PdfImage.new(pdf)
-        image.set_bitmap(pdfium.PdfBitmap.from_pil(Image.fromarray(bgr[..., ::-1])))
-        image.set_matrix(pdfium.PdfMatrix().scale(w_pt, h_pt))
-        page.insert_obj(image)
-        page.gen_content()
+        for bgr in images:
+            height, width = bgr.shape[:2]
+            w_pt, h_pt = width * 72.0 / dpi, height * 72.0 / dpi
+            page = pdf.new_page(w_pt, h_pt)
+            image = pdfium.PdfImage.new(pdf)
+            image.set_bitmap(pdfium.PdfBitmap.from_pil(Image.fromarray(bgr[..., ::-1])))
+            image.set_matrix(pdfium.PdfMatrix().scale(w_pt, h_pt))
+            page.insert_obj(image)
+            page.gen_content()
         pdf.save(str(path))
     finally:
         pdf.close()

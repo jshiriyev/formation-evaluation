@@ -26,6 +26,7 @@ from ._synthetic import (
     SyntheticTrack,
     score,
     synthetic_scan,
+    write_pages,
 )
 
 
@@ -51,6 +52,15 @@ class Scenario:
         Pass the true depths; otherwise depth comes from OCR of the labels.
     settings : dict
         Keyword arguments of :class:`~pphys.digitize.Settings`.
+    more_pages : tuple of dict
+        Pages after the first, each as keyword arguments of
+        :func:`~pphys.digitize.synthetic_scan`; they are stitched by depth.
+    fmt : str
+        File type the pages are written as: "pdf", "png", "jpg", "tif".
+    files : bool
+        Write each page to its own file and pass the list of files.
+    dpi_tag : bool
+        Whether image files store their DPI.
     gap : str or None
         Why the scenario fails today and which roadmap step should fix it;
         None when it should pass.
@@ -64,6 +74,10 @@ class Scenario:
     edges: bool = False
     manual_depth: bool = True
     settings: dict = field(default_factory=dict)
+    more_pages: tuple[dict, ...] = ()
+    fmt: str = "pdf"
+    files: bool = False
+    dpi_tag: bool = True
     gap: str | None = None
 
     @property
@@ -258,6 +272,50 @@ SCENARIOS: tuple[Scenario, ...] = (
         page={"defects": Defects(tint="#f1e4c4", fade=0.5)},
     ),
     Scenario(
+        "png_300dpi",
+        "a PNG scan at 300 dpi, resampled to the working 144 dpi",
+        page={"dpi": 300},
+        fmt="png",
+    ),
+    Scenario(
+        "jpg_200dpi_ocr",
+        "a JPEG scan at 200 dpi, depth from OCR",
+        page={"dpi": 200},
+        fmt="jpg",
+        manual_depth=False,
+    ),
+    Scenario(
+        "png_without_dpi",
+        "a PNG that stores no DPI, used as is (with a warning)",
+        fmt="png",
+        dpi_tag=False,
+    ),
+    Scenario(
+        "pdf_two_pages_ocr",
+        "a two-page PDF stitched into one log, depth from OCR on each page",
+        page={"depth": (1000.0, 1100.0)},
+        more_pages=({"depth": (1100.0, 1200.0), "seed": 1},),
+        manual_depth=False,
+    ),
+    Scenario(
+        "tiff_pages_overlap",
+        "a three-frame 300 dpi TIFF whose pages overlap by 10 m",
+        page={"depth": (1000.0, 1100.0), "dpi": 300},
+        more_pages=(
+            {"depth": (1090.0, 1190.0), "dpi": 300, "seed": 1},
+            {"depth": (1180.0, 1280.0), "dpi": 300, "seed": 2},
+        ),
+        fmt="tif",
+    ),
+    Scenario(
+        "png_page_files",
+        "two pages as separate PNG files, stitched",
+        page={"depth": (1000.0, 1100.0)},
+        more_pages=({"depth": (1100.0, 1200.0), "seed": 1},),
+        fmt="png",
+        files=True,
+    ),
+    Scenario(
         "same_colour_track",
         "two red curves in one track; only one can be read by colour",
         page={
@@ -299,18 +357,31 @@ class Row:
 
 
 def run_scenario(scenario: Scenario, folder: str | Path) -> Row:
-    """Draw, digitize and score one scenario; the page is written to ``folder``."""
+    """Draw, digitize and score one scenario; the pages are written to ``folder``."""
     if scenario.needs_ocr:
         try:
             find_tesseract(scenario.settings.get("tesseract"))
         except DigitizeError:
             return Row(scenario, skipped="Tesseract not found")
-    path = Path(folder) / f"{scenario.name}.pdf"
-    scan = synthetic_scan(path, **scenario.page)
+    scans = [synthetic_scan(**kw) for kw in (scenario.page, *scenario.more_pages)]
+    folder = Path(folder)
+    if scenario.files:
+        paths = [
+            folder / f"{scenario.name}_{k}.{scenario.fmt}" for k in range(len(scans))
+        ]
+        for path, scan in zip(paths, scans):
+            write_pages(path, [scan], dpi_tag=scenario.dpi_tag)
+        source = paths
+    else:
+        source = write_pages(
+            folder / f"{scenario.name}.{scenario.fmt}", scans, dpi_tag=scenario.dpi_tag
+        )
+    multi = len(scans) > 1
     settings = Settings(**scenario.settings)
+    first = scans[0]
     curves = []
     for name in scenario.curves:
-        track, spec = scan.curve(name)
+        track, spec = first.curve(name)
         vmin, vmax = track.range_of(spec)
         curves.append(
             Curve(
@@ -321,26 +392,29 @@ def run_scenario(scenario: Scenario, folder: str | Path) -> Row:
                 scale=track.scale,
                 color=spec.color,
                 track=scenario.track_of(name),
-                track_edges=scan.track_edges(name, settings.render_scale)
+                track_edges=first.track_edges(name, settings.render_scale)
                 if scenario.edges
                 else None,
             )
         )
+    depth = None
+    if scenario.manual_depth:
+        pairs = [s.depth_pairs(settings.render_scale) for s in scans]
+        depth = pairs if multi else pairs[0]
     try:
         result = digitize(
-            path,
+            source,
             curves=curves,
-            depth=scan.depth_pairs(settings.render_scale)
-            if scenario.manual_depth
-            else None,
-            depth_unit=scan.depth_unit,
+            depth=depth,
+            depth_unit=first.depth_unit,
+            pages="all" if multi else None,
             settings=settings,
         )
     except DigitizeError as exc:
         return Row(scenario, error=str(exc))
     return Row(
         scenario,
-        scores=[score(result, scan, name) for name in scenario.curves],
+        scores=[score(result, scans, name) for name in scenario.curves],
         warnings=list(result.qc.warnings),
     )
 

@@ -3,6 +3,7 @@
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -20,6 +21,7 @@ from pphys.digitize import (  # noqa: E402
     Settings,
     digitize,
     find_tesseract,
+    load_pages,
 )
 from pphys.digitize import _digitize  # noqa: E402
 from pphys.digitize._cli import main  # noqa: E402
@@ -29,9 +31,9 @@ ONE = Settings(render_scale=1.0)  # rendered page pixels == drawing pixels
 ROWS = np.arange(HEIGHT)
 
 
-def write_scan(path, *curves, frames=()):
-    """A white PDF page with black track frames at ``frames`` (left, right
-    columns) and one red polyline per curve (x per row)."""
+def page_image(*curves, frames=()):
+    """A white page (RGB array) with black track frames at ``frames`` (left,
+    right columns) and one red polyline per curve (x per row)."""
     img = np.full((HEIGHT, WIDTH, 3), 255, np.uint8)
     for left, right in frames:
         img[:, left : left + 2] = 0
@@ -39,8 +41,35 @@ def write_scan(path, *curves, frames=()):
     for xs in curves:
         pts = np.column_stack([xs, ROWS]).round().astype(np.int32).reshape(-1, 1, 2)
         cv2.polylines(img, [pts], False, (0, 0, 230), 3)  # BGR red
-    Image.fromarray(img[..., ::-1]).save(path, "PDF", resolution=72)
+    return np.ascontiguousarray(img[..., ::-1])
+
+
+def write_scan(path, *curves, frames=()):
+    """``page_image`` as a one-page PDF at 72 dpi."""
+    return write_pdf(path, page_image(*curves, frames=frames))
+
+
+def write_pdf(path, *images):
+    """RGB arrays as the pages of one PDF at 72 dpi."""
+    first, *rest = [Image.fromarray(img) for img in images]
+    first.save(path, "PDF", resolution=72, save_all=True, append_images=rest)
     return path
+
+
+def write_image(path, rgb, dpi=None):
+    """An RGB array as an image file, storing ``dpi`` when given."""
+    Image.fromarray(rgb).save(path, **({} if dpi is None else {"dpi": (dpi, dpi)}))
+    return path
+
+
+RAMP_XS = 50 + 300 * ROWS / (HEIGHT - 1)  # the ramp: 0..150 across edges 50-350
+
+
+def doubled(rgb):
+    """The page drawn at twice the size, as a 144-dpi scan of it would be."""
+    return cv2.resize(
+        rgb, (2 * rgb.shape[1], 2 * rgb.shape[0]), interpolation=cv2.INTER_NEAREST
+    )
 
 
 def zigzag(center, half=40, period=40):
@@ -52,7 +81,7 @@ def zigzag(center, half=40, period=40):
 @pytest.fixture
 def ramp(tmp_path):
     """One curve from column 50 (top) to 350 (bottom): 0..150 across edges 50-350."""
-    return write_scan(tmp_path / "ramp.pdf", 50 + 300 * ROWS / (HEIGHT - 1))
+    return write_scan(tmp_path / "ramp.pdf", RAMP_XS)
 
 
 @pytest.fixture
@@ -641,18 +670,185 @@ def test_find_tesseract_explains_the_alternatives(no_tesseract):
 # Inputs
 
 
-def test_rejects_missing_files_and_non_pdf_scans(tmp_path):
+def test_rejects_missing_files_and_unsupported_scans(tmp_path):
     with pytest.raises(FileNotFoundError):
         digitize(tmp_path / "none.pdf", curve="GR", vmin=0, vmax=1)
-    image = tmp_path / "scan.png"
-    image.write_bytes(b"")
-    with pytest.raises(DigitizeError, match="only PDF"):
-        digitize(image, curve="GR", vmin=0, vmax=1)
+    (tmp_path / "scan.docx").write_bytes(b"PK")
+    with pytest.raises(DigitizeError, match="unsupported file type"):
+        digitize(tmp_path / "scan.docx", curve="GR", vmin=0, vmax=1)
+    (tmp_path / "scan.png").write_bytes(b"")
+    with pytest.raises(DigitizeError, match="could not be read as an image"):
+        digitize(tmp_path / "scan.png", curve="GR", vmin=0, vmax=1)
 
 
 def test_rejects_a_missing_page(ramp):
-    with pytest.raises(DigitizeError, match="page 3"):
-        ramp_result(ramp, page=3)
+    with pytest.raises(DigitizeError, match="ramp.pdf has 1 page.*page 3 does not"):
+        ramp_result(ramp, pages=3)
+
+
+@pytest.mark.parametrize("pages", ["first", [0, 0], []])
+def test_bad_pages_are_rejected(ramp, pages):
+    with pytest.raises(ValueError, match="pages"):
+        ramp_result(ramp, pages=pages)
+
+
+# Image scans
+
+
+@pytest.mark.parametrize("suffix", [".png", ".jpg", ".tif", ".bmp"])
+def test_an_image_at_the_working_dpi_reads_like_the_pdf(ramp, tmp_path, suffix):
+    pdf = ramp_result(ramp)
+    result = ramp_result(
+        write_image(tmp_path / f"ramp{suffix}", page_image(RAMP_XS), 72)
+    )
+    page = result.qc.pages[0]
+    assert page.page_size == (WIDTH, HEIGHT)
+    assert page.dpi == pytest.approx(72, abs=0.1)
+    assert page.zoom == pytest.approx(1, abs=1e-3)
+    np.testing.assert_allclose(result.las["GR"], pdf.las["GR"], atol=1.5)
+    assert result.qc.warnings == []
+
+
+def test_images_are_resampled_from_their_dpi(tmp_path):
+    stored = write_image(tmp_path / "stored.png", doubled(page_image(RAMP_XS)), 144)
+    bare = write_image(tmp_path / "bare.png", doubled(page_image(RAMP_XS)))
+    for scan, dpi in ((stored, None), (bare, 144)):
+        result = ramp_result(scan, dpi=dpi)
+        page = result.qc.pages[0]
+        assert page.page_size == (WIDTH, HEIGHT)
+        assert page.zoom == pytest.approx(0.5, abs=1e-3)
+        assert page.dpi == pytest.approx(144, abs=0.1)
+        depth = result.las.index
+        inner = (depth > 1001) & (depth < 1059)
+        np.testing.assert_allclose(
+            result.las["GR"][inner], 150 * (depth[inner] - 1000) / 60, atol=1.5
+        )
+    # dpi= overrides the stored one: told it is 72 dpi, the page is kept as is
+    assert load_pages(stored, settings=ONE, dpi=72)[0].image.shape[:2] == (
+        2 * HEIGHT,
+        2 * WIDTH,
+    )
+    with pytest.raises(ValueError, match="dpi"):
+        load_pages(stored, dpi=0)
+
+
+def test_an_image_without_dpi_is_used_as_is_with_a_warning(tmp_path):
+    result = ramp_result(write_image(tmp_path / "bare.png", page_image(RAMP_XS)))
+    page = result.qc.pages[0]
+    assert page.dpi is None and page.zoom == 1
+    assert page.page_size == (WIDTH, HEIGHT)
+    assert any("stores no DPI" in w and "dpi=" in w for w in result.qc.warnings)
+
+
+def test_greyscale_and_16_bit_images_load_as_colour(tmp_path):
+    grey = (np.arange(HEIGHT * WIDTH).reshape(HEIGHT, WIDTH) % 4096).astype(np.uint16)
+    Image.fromarray(grey).save(tmp_path / "grey16.png")
+    (page,) = load_pages(tmp_path / "grey16.png", settings=ONE)
+    assert page.image.shape == (HEIGHT, WIDTH, 3) and page.image.dtype == np.uint8
+    assert page.image.max() == 255 and page.image.min() == 0
+
+
+# Several pages
+
+
+def where(pages):
+    return [(Path(p.source).name, p.index) for p in pages]
+
+
+def test_load_pages_counts_pages_over_files(tmp_path):
+    pdf = write_pdf(tmp_path / "two.pdf", page_image(RAMP_XS), page_image(zigzag(200)))
+    tif = tmp_path / "three.tif"
+    frames = [Image.fromarray(page_image(zigzag(c))) for c in (100, 200, 300)]
+    frames[0].save(tif, save_all=True, append_images=frames[1:], dpi=(72, 72))
+
+    assert where(load_pages(tif, settings=ONE)) == [("three.tif", 0)]
+    assert where(load_pages(tif, "all", ONE)) == [("three.tif", i) for i in range(3)]
+    both = [pdf, tif]
+    assert len(load_pages(both, settings=ONE)) == 5  # every page of a list of files
+    assert where(load_pages(both, [4, 0], ONE)) == [("three.tif", 2), ("two.pdf", 0)]
+    with pytest.raises(DigitizeError, match="the scans have 5 page"):
+        load_pages(both, 5, ONE)
+    with pytest.raises(ValueError, match="No scan"):
+        load_pages([])
+
+
+DEPTHS = [(1000, 1060), (1060, 1120)]
+
+
+def two_pages(tmp_path, first=RAMP_XS, second=RAMP_XS):
+    images = [page_image(*([] if xs is None else [xs])) for xs in (first, second)]
+    return write_pdf(tmp_path / "two.pdf", *images)
+
+
+def test_pages_are_stitched_by_depth(tmp_path):
+    result = ramp_result(two_pages(tmp_path), pages="all", depth=DEPTHS)
+    qc, depth, gr = result.qc, result.las.index, result.las["GR"]
+
+    assert where(qc.pages) == [("two.pdf", 0), ("two.pdf", 1)]
+    assert [p.depth_fit[1] for p in qc.pages] == pytest.approx([1000, 1060])
+    assert depth[0] == pytest.approx(1000) and depth[-1] == pytest.approx(1120, abs=0.2)
+    away = (np.abs(depth - 1060) > 1) & (depth > 1001) & (depth < 1119)
+    expected = 150 * ((depth - 1000) % 60) / 60  # each page ramps 0..150
+    np.testing.assert_allclose(gr[away], expected[away], atol=1.5)
+    assert np.isfinite(gr).all()
+    assert qc.warnings == []  # abutting pages share one seam row: no warning
+    assert qc.pages[1].overlap["GR"] < 0.2
+    assert {"p1_page", "p2_page", "p2_curve_overlay_GR"} <= set(result.images)
+    assert np.all(np.diff(result.raw["GR"].depth) >= 0)
+    assert qc.curves[0].rows_found == sum(p.curves[0].rows_found for p in qc.pages)
+    assert qc.curves[0].coverage == pytest.approx(100)
+    assert "page 2: two.pdf #1" in qc.summary()
+    assert "2 page(s)" in result.las.other
+
+
+def test_overlapping_pages_keep_the_earlier_page(tmp_path):
+    flat = np.full(HEIGHT, 200.0)  # 75 gAPI
+    scan = two_pages(tmp_path, RAMP_XS, flat)
+    result = ramp_result(scan, pages="all", depth=[(1000, 1060), (1050, 1110)])
+    depth, gr = result.las.index, result.las["GR"]
+
+    inside = (depth > 1050.5) & (depth < 1059)
+    np.testing.assert_allclose(gr[inside], 150 * (depth[inside] - 1000) / 60, atol=1.5)
+    np.testing.assert_allclose(gr[depth > 1061], 75, atol=1.5)
+    assert result.qc.pages[1].overlap["GR"] == pytest.approx(10, abs=0.3)
+    assert any(
+        w.startswith("page 2: GR overlaps earlier pages over 10")
+        for w in result.qc.warnings
+    )
+
+
+def test_a_depth_gap_between_pages_stays_empty_and_is_flagged(tmp_path):
+    scan = two_pages(tmp_path)
+    result = ramp_result(scan, pages="all", depth=[(1000, 1060), (1080, 1140)])
+    depth, gr = result.las.index, result.las["GR"]
+    assert np.isnan(gr[(depth > 1061.5) & (depth < 1078.5)]).all()
+    assert any("No page covers 1060.00-1080.00 m" in w for w in result.qc.warnings)
+    assert result.qc.curves[0].coverage == pytest.approx(100 * 120 / 140, abs=2)
+
+
+@pytest.mark.parametrize(
+    "depth", [(1000, 1060), [(1000, 1060)], [(1000, 1060), (1060, 1120), None]]
+)
+def test_several_pages_need_one_depth_entry_each(tmp_path, depth):
+    with pytest.raises(ValueError, match="one entry per page"):
+        ramp_result(two_pages(tmp_path), pages="all", depth=depth)
+
+
+def test_none_in_the_depth_list_reads_that_page_by_ocr(tmp_path, monkeypatch):
+    stub_labels(monkeypatch, labels(0, 100, 200, 300, 400))
+    result = ramp_result(two_pages(tmp_path), pages="all", depth=[(940, 1000), None])
+    qc = result.qc
+    assert [p.depth_source for p in qc.pages] == ["manual", "ocr"]
+    assert qc.pages[1].depth_fit == pytest.approx((0.1, 1000))
+    assert qc.depth_source == "manual"  # the shortcuts follow the first page
+    assert "Depth from manual; 5 OCR labels" in result.las.other
+
+
+def test_errors_name_the_page_and_keep_the_images(tmp_path):
+    scan = two_pages(tmp_path, RAMP_XS, None)
+    with pytest.raises(DigitizeError, match=r"page 2 \(two.pdf #1\): No red") as info:
+        ramp_result(scan, pages="all", depth=DEPTHS)
+    assert {"p1_page", "p2_page", "p2_mask_GR"} <= set(info.value.images)
 
 
 def test_a_page_without_the_curve_colour_raises(tmp_path):
@@ -750,6 +946,46 @@ def test_cli_reports_errors_without_a_traceback(tmp_path, capsys):
     assert "pphys-digitize:" in capsys.readouterr().err
 
 
+CLI_RAMP = ["--curve", "GR", "--vmin", "0", "--vmax", "150"]
+CLI_RAMP += ["--track-edges", "50", "350", "--render-scale", "1"]
+
+
+def test_cli_reads_pages_and_images(tmp_path, capsys):
+    scan = two_pages(tmp_path)
+    out = tmp_path / "all"
+    args = [str(scan), *CLI_RAMP, "--pages", "all", "--depth", "1000", "1060"]
+    assert main([*args, "--depth", "1060", "1120", "--out", str(out)]) == 0
+    assert pphys.read(out / "two.las").index[-1] == pytest.approx(1120, abs=0.2)
+    assert (out / "p2_page.png").exists()
+
+    out = tmp_path / "second"
+    args = [str(scan), *CLI_RAMP, "--pages", "1", "--depth", "1060", "1120"]
+    assert main([*args, "--out", str(out)]) == 0
+    assert pphys.read(out / "two.las").index[0] == pytest.approx(1060)
+
+    image = write_image(tmp_path / "bare.png", doubled(page_image(RAMP_XS)))
+    args = [str(image), *CLI_RAMP, "--dpi", "144", "--depth", "1000", "1060"]
+    assert main(args) == 0
+    assert (tmp_path / "bare_digitized" / "bare.las").exists()
+    assert "144 dpi" in capsys.readouterr().out
+
+
+def test_cli_stitches_several_files_in_order(tmp_path):
+    first = write_scan(tmp_path / "a.pdf", RAMP_XS)
+    second = write_image(tmp_path / "b.png", page_image(RAMP_XS), 72)
+    args = [str(first), str(second), *CLI_RAMP]
+    assert main([*args, "--depth", "1000", "1060", "--depth", "1060", "1120"]) == 0
+    las = pphys.read(tmp_path / "a_digitized" / "a.las")
+    assert las.index[0] == pytest.approx(1000) and las.index[-1] > 1119
+    assert "a.pdf, b.png" in las.other
+
+
+def test_cli_rejects_mixed_page_arguments(ramp, capsys):
+    with pytest.raises(SystemExit):
+        main([str(ramp), *CLI_RAMP, "--pages", "all", "1"])
+    assert "--pages all takes no indices" in capsys.readouterr().err
+
+
 def test_module_runs_as_a_command():
     result = subprocess.run(
         [sys.executable, "-m", "pphys.digitize", "--help"],
@@ -768,9 +1004,11 @@ def test_package_exports():
         "DepthCalibrationError",
         "DigitizeError",
         "DigitizeResult",
+        "PageQC",
         "Settings",
         "digitize",
         "find_tesseract",
+        "load_pages",
         "TARGET",
         "Defects",
         "Score",
@@ -779,5 +1017,6 @@ def test_package_exports():
         "SyntheticTrack",
         "score",
         "synthetic_scan",
+        "write_pages",
     }
     assert all(hasattr(dz, name) for name in dz.__all__)
