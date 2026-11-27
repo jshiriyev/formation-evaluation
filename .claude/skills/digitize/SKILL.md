@@ -1,7 +1,7 @@
 ---
 name: digitize
 description: Digitize a scanned log (PDF or image) into LAS with pphys.digitize, then review the QC images and the resulting curve. Use when the user hands over a scanned log to convert.
-argument-hint: "<scan.pdf|scan.png> [--vmin V --vmax V --curve NAME --depth-top T --depth-bottom B]"
+argument-hint: "<scan.pdf|scan.png> [--curve NAME --vmin V --vmax V --depth TOP BASE --track-edges L R]"
 allowed-tools: Bash(uv run *), Bash(tesseract *), Read, Write, Glob
 ---
 
@@ -9,39 +9,52 @@ allowed-tools: Bash(uv run *), Bash(tesseract *), Read, Write, Glob
 
 Input: `$ARGUMENTS`.
 
-The pipeline (`pphys/digitize/digitize.py`, an MVP) handles **one red curve** per
-run: it renders the PDF page, finds the tracks from the red pixels, OCRs the depth
-labels between the tracks (Tesseract) and fits `depth = a*y + b`, then maps the
-per-row median x of the curve linearly onto `[vmin, vmax]`.
+`pphys.digitize` (still a prototype algorithm, roadmap milestone 3) reads **one red
+curve** per run:
+1. It renders the PDF page and finds the tracks from the red pixels.
+2. It calibrates depth from manual depths, or by OCR of the labels between the first
+   and last track (Tesseract), fitting `depth = a*row + b`.
+3. It maps the per-row median column of the curve linearly onto `[vmin, vmax]`.
 
-CLI flags: `--pdf` (required), `--outdir` (default `mvp_out`), `--page` (0),
-`--scale` (render scale, 2.0), `--curve` (mnemonic, default `QK`), `--vmin`/`--vmax`
-(track scale, default 0/8), `--step` (output spacing, 0.1524), and
-`--depth-top`/`--depth-bottom` (manual depths in m; override OCR when both are set).
+Python: `digitize(scan, curve=, vmin=, vmax=, ...)` returns a result with `.las`
+(a WellLog), `.qc` and `.images`; `.save(dir)` writes them all.
+
+Command line: `uv run pphys-digitize SCAN --curve GR --vmin 0 --vmax 150 [options]`.
+- **Required:** `--curve`, `--vmin`, `--vmax`.
+- **Options:**
+  - `--unit`, `--depth TOP BASE` (depths at the first and last page row; skips OCR), `--depth-unit m|ft`;
+  - `--step` (0.1524 m / 0.5 ft by default), `--page` (0-based);
+  - `--track left|right|N`, `--track-edges L R` (page columns of the track edges, giving an exact value scale);
+  - `--well`, `--scale` (render scale, 2.0), `--tesseract PATH`, `--out DIR` (default `<scan>_digitized`).
 
 ## Steps
 
-1. **Inputs.** The scale defaults are rarely right: ask for the track's left/right
-   scale values (`--vmin`/`--vmax`) and the curve mnemonic unless given. Look at the
-   scan first (Read it) to read the scale off the header if it is legible, and confirm.
-2. **Image input.** The CLI only reads PDFs. For a PNG/JPG, convert it in the
-   scratchpad: `uv run python -c "from PIL import Image; Image.open('in.png').convert('RGB').save('in.pdf')"`.
-3. **OCR.** Without `--depth-top/--depth-bottom`, Tesseract must be installed:
-   `tesseract --version`. If it is missing, ask for the top and bottom depths of the
-   page instead (or how to install Tesseract), rather than failing.
-4. **Run.** Use an output folder in the scratchpad unless the user names one:
-   `uv run python -m pphys.digitize.digitize --pdf <pdf> --outdir <out> --vmin .. --vmax .. --curve ..`
-5. **QC.** Read `debug_curve_overlay.jpg` (curve trace on the track),
-   `debug_depth_ocr.jpg` (OCR'd depth labels and the fit), and `track_red_mask.jpg`.
-   Check: the trace follows the curve (no jumps to grid lines or other curves),
-   the depth fit uses several labels and its top/bottom depths are plausible, and
-   values stay inside `[vmin, vmax]`.
-6. **Result.** Load the LAS with `pphys.read` and run `pphys.LasView(...)` `summary()`
-   and `quality()`; plot the digitized curve next to the scan's track (scratchpad
+1. **Inputs.** Ask for the curve mnemonic and the track's left/right scale values
+   unless given. Read the scan first: the scale is often legible in the header, so
+   propose it and confirm.
+2. **Image input.** Only PDFs are read for now. For a PNG/JPG, convert it in the
+   scratchpad: `uv run python -c "from PIL import Image; Image.open('in.png').convert('RGB').save('in.pdf', resolution=72)"`.
+3. **Track edges.** Without `--track-edges`, values are only approximate (scaled
+   across the curve's own columns) and the QC warns about it. Do a first run, Read
+   `page.png` (pixels of the rendered page, at `--scale`), find the columns of the track's
+   left and right borders, and re-run with `--track-edges L R`.
+4. **OCR.** Without `--depth`, Tesseract must be found (`tesseract --version`, or
+   `TESSERACT_CMD`). If it is missing, ask for the top and bottom depths of the page
+   instead, or how to install Tesseract. A failed OCR stops with an error; never
+   fall back to pixel depths.
+5. **Run.** Use an output folder in the scratchpad unless the user names one.
+6. **QC.** Read the outputs:
+   - `curve_overlay.png`: the cyan trace on the track. It should follow the curve, with no jumps to grid lines or other curves.
+   - `track_mask.png`.
+   - For OCR, `depth_labels.png`: the labels read and the fit. Several labels should be read, and the fitted top and base depths should be plausible.
+   - The summary's warnings, and `qc.json`.
+7. **Result.** Load the LAS with `pphys.read` and run `pphys.LasView(...)` `summary()`
+   and `quality()`. Plot the digitized curve next to the scan's track (scratchpad
    PNG) and Read it to compare.
 
 ## Report
 
-The LAS path, depth range and step, the depth-fit quality (labels used, residuals if
-shown), any QC problem with its likely cause (wrong scale, red grid lines, OCR misses)
-and the flag that would fix it.
+- The LAS path, depth range and step.
+- How depth was calibrated (manual, or OCR with N labels and the fit).
+- Each QC warning or problem, its likely cause (approximate scale, red grid lines,
+  OCR misses) and the option that would fix it.

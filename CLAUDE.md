@@ -21,7 +21,7 @@ Formation Evaluation (package `pphys`) gives **practicing petrophysicists** an e
 `pphys` is a petrophysics package with three features:
 
 1. **onepage**: one-page matplotlib log plots from LAS files. `WellView` draws a single well and `CrossView` a multi-well correlation. Target output: `img/onepage_well_view.png`, `img/onepage_cross_view.png`.
-2. **digitize**: scanned log (PDF/image) → LAS. See `pphys/digitize/digitize.py`, a CLI-style MVP.
+2. **digitize**: scanned log (PDF) → `WellLog`/LAS, one curve per call. `pphys.digitize.digitize()` plus the `pphys-digitize` command; still a prototype algorithm (roadmap milestone 3).
 3. **insight**: log interpretation models, covering water analysis, lithology/porosity/shale volume, saturation (Archie + shaly-sand) and permeability. Target workflow: `img/insight_shaly_sand_results.png`. The resistivity models it should support are listed in `img/insight_shaly_sand_resistivity_models.png`.
 
 `img/` holds the reference figures the package is expected to reproduce. `index.html` and `pages/` are browser apps published on GitHub Pages (see "Web apps" below).
@@ -42,7 +42,7 @@ uv sync                                              # create/update .venv from 
 uv run pytest                                        # all tests
 uv run pytest tests/test_welllog.py::test_copy_window  # one test
 uv run ruff check pphys --no-cache --select F821     # quickest way to find broken code (undefined names)
-uv run python -m pphys.digitize.digitize --pdf scan.pdf --outdir out --vmin 0 --vmax 150 [--depth-top T --depth-bottom B]
+uv run pphys-digitize scan.pdf --curve GR --vmin 0 --vmax 150 [--depth TOP BASE] [--track-edges L R] [--out DIR]
 uv add <pkg>        # runtime dependency (use --optional digitize or --dev for the others)
 uv build            # wheel + sdist into dist/
 ```
@@ -54,7 +54,7 @@ uv build            # wheel + sdist into dist/
   - Don't edit `uv.lock` by hand; commit it.
 - **Build backend:** `uv_build`, with `module-root = ""` because this is a flat layout (`./pphys`, not `./src/pphys`). It packages every file under `pphys/`, including `_lithology.json` and subfolders without an `__init__.py`.
 
-Tests use pytest, and uv installs `pphys` in editable mode, so tests import the working tree. Tests cover the top-level modules (`WellLog`, `read`, `load`, `Temperature`, `LasView`, the curve families), the onepage fills (`test_motifs`, `test_templix`, `test_pigment`), the wellview layout chain (`test_layout`), its rounding helpers (`test_unary`) and WellView itself (`test_wellview`); insight and digitize have none yet. `tests/conftest.py` does the following:
+Tests use pytest, and uv installs `pphys` in editable mode, so tests import the working tree. Tests cover the top-level modules (`WellLog`, `read`, `load`, `Temperature`, `LasView`, the curve families), the onepage fills (`test_motifs`, `test_templix`, `test_pigment`), the wellview layout chain (`test_layout`), its rounding helpers (`test_unary`), WellView itself (`test_wellview`) and the digitizer on synthetic PDF pages with OCR stubbed (`test_digitize`); insight has none yet. `tests/conftest.py` does the following:
 - switches matplotlib to the Agg backend and closes figures after each test;
 - provides the fixtures `write_las`, `age` (moves a file's modification time back so cache tests don't depend on timestamp resolution), `parses` (counts LAS parses to prove cache hits) and `cache`.
 
@@ -168,14 +168,23 @@ Standalone model classes with lowercase names (`archie`, `gammaray`, `simandoux`
 
 ### digitize
 
-`digitize.py:main()` runs a single-curve pipeline:
-1. Render the PDF page with pypdfium2.
-2. Build an HSV red-pixel mask and use its column clusters to locate the tracks.
-3. OCR the depth labels in the strip between the tracks with Tesseract, then fit `depth = a*y + b`. Alternatively, pass manual `--depth-top/--depth-bottom`.
-4. Take the per-row median x of the mask and map it linearly to `[vmin, vmax]`.
-5. Resample to `--step` and write LAS 2.0 by hand. QC images, a JSON preset and a CSV go to `--outdir`.
+`digitize(scan, curve=, vmin=, vmax=, ...)` (`_digitize.py`) returns a `DigitizeResult`: `.las` (a `WellLog`), `.qc` (`QC`: tracks, track columns, depth source and fit, labels read, coverage, `warnings`), `.images` (QC images by name), and the raw `.depth`/`.value`. `.save(dir)` writes `<name>.las`, `<name>.csv`, one PNG per image and `qc.json`. The pipeline:
+1. Render the PDF page with pypdfium2 at `Settings.render_scale`. All pixel positions (`track_edges`, `(row, depth)` pairs, `QC`) are on this rendered page.
+2. Mask the curve colour (`Settings.hue_bands`, red by default) and take column clusters of the mask as tracks. `track` picks one: "left" (default), "right", or an index.
+3. Calibrate depth:
+   - from `depth=(top, base)` (the first and last page rows) or two or more `(row, depth)` pairs;
+   - otherwise by Tesseract OCR of the labels in the strip between the first and last track, fitted as `depth = a*row + b`.
 
-`utils.resample` is a separate smoothing-spline resampler.
+   A failed calibration raises `DepthCalibrationError`, whose `.images` holds the QC images made so far; it never falls back to pixel depths. `find_tesseract` checks `Settings.tesseract`, `TESSERACT_CMD`, the PATH, then the Windows install folders.
+4. Take the per-row median column of the mask and map it linearly to `[vmin, vmax]` across `track_edges`. Without them, the scale spans the curve's columns ± `Settings.track_margin`, which is wrong unless the curve touches both edges, and a QC warning says so.
+5. Resample to `step` (0.1524 m / 0.5 ft) and build the `WellLog` through lasio.
+
+`_cli.py` is the thin `pphys-digitize` / `python -m pphys.digitize` wrapper. `utils.resample` is a separate, unused smoothing-spline resampler.
+
+Known prototype weaknesses (roadmap milestone 3):
+- Track detection splits a wandering curve into several "tracks".
+- OCR assumes the labels sit in the right three-quarters of the strip and reads whole numbers only.
+- Gaps are interpolated across.
 
 ### Web apps (GitHub Pages)
 

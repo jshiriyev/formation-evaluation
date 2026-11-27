@@ -41,14 +41,14 @@ Today, loading, QC and single-well plots work. The milestones below close the re
 
 **Goal.** Paper logs enter the workflow as reliably as LAS files.
 
-**Today.** `python -m pphys.digitize.digitize` digitizes one red curve from one PDF page. It reads the depth labels by OCR (Tesseract) or takes manual top and bottom depths, maps the curve linearly onto the track scale and writes LAS 2.0 by hand.
+**Today.** `pphys.digitize.digitize()` and the `pphys-digitize` command digitize one red curve from one PDF page into a `WellLog`, with QC images and a `qc.json`. Depth comes from manual depths, or from the depth labels read by OCR (Tesseract) and fitted with a straight line. Values are mapped linearly across the track edges when given; otherwise they are approximate, scaled across the curve's own columns plus a margin. Tests cover the pipeline on simple synthetic pages.
 
 **Done when:**
 - [ ] Several curves can be digitized per track and per page, picked by any colour, not only red.
 - [ ] Linear and logarithmic tracks (e.g. resistivity on a 0.2–2000 scale) are both supported.
 - [ ] Image scans (PNG, JPG, TIFF) and multi-page PDFs are accepted directly.
-- [ ] A Python API returns a `pphys.WellLog`; the command line becomes a thin wrapper around it.
-- [ ] LAS files are written through lasio / `WellLog`, not by hand.
+- [x] A Python API returns a `pphys.WellLog` (`digitize(...).las`); the command line is a thin wrapper around it.
+- [x] LAS files are written through lasio / `WellLog`, not by hand.
 - [ ] QC output shows the trace overlay and the depth-fit residuals, and warns when the fit uses too few labels.
 - [ ] Tests run on synthetic scans and need no Tesseract.
 

@@ -24,6 +24,9 @@ dependencies = [
     "scipy>=1.10",
 ]
 
+[project.scripts]
+pphys-digitize = "pphys.digitize._cli:main"  # needs the digitize extra
+
 [project.urls]
 Homepage = "https://jshiriyev.github.io/formation-evaluation/"
 Repository = "https://github.com/jshiriyev/formation-evaluation"

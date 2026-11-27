@@ -40,15 +40,17 @@ code or weakening the test.
 
 ## digitize
 
-- Avoid Tesseract and real scans: build a synthetic page with numpy/cv2 (white
-  background, black grid, a red polyline of known values), and test the pieces of
-  `pphys/digitize/digitize.py` (`hsv_red_mask`, `find_red_clusters`,
+- Extend `tests/test_digitize.py`. It draws synthetic PDF pages (`write_scan`,
+  `zigzag`), uses `Settings(render_scale=1.0)` so page pixels equal drawing pixels,
+  and replaces OCR with `monkeypatch.setattr(_digitize, "ocr_depth_points", ...)`.
+  The `no_tesseract` fixture hides any installed Tesseract.
+- Test through `digitize(...)` (manual `depth=`, `track_edges=`) and the pieces of
+  `pphys/digitize/_digitize.py`: `curve_mask`, `find_clusters`,
   `extract_curve_x_by_row`, `map_x_to_value`, `fit_depth_transform`,
-  `resample_to_step`, `write_las`) and `pphys/digitize/utils.py` (`resample`) with
-  manual depths. Skip OCR tests (`ocr_depth_points`) when `shutil.which("tesseract")`
-  is None.
-- Check the written LAS loads with `pphys.read` and the values round-trip within a
-  pixel's worth of tolerance.
+  `resample_to_step`, `find_tesseract`. Also test the `_cli.main(argv)` wrapper.
+  Run real OCR only when `shutil.which("tesseract")` finds it.
+- Check that `result.save(dir)` writes a LAS that `pphys.read` loads, and that values
+  round-trip within a pixel's worth of tolerance.
 
 ## Report
 
