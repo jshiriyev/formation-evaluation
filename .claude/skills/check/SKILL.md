@@ -26,7 +26,7 @@ steps in parallel. With `--fix` ($ARGUMENTS), fix what is safely mechanical
    A name is new when the current file has more hits for it than `main` had.
 3. **Format.** `uv run python .claude/hooks/fmt.py --check`. Never use bare
    `ruff format`; it would turn the tab-indented modules into spaces.
-4. **Tests.** `uv run pytest -q`.
+4. **Tests.** `uv run python -m pytest -q`.
 5. **Pages links.** `uv run python .claude/hooks/check_links.py` (the same check the
    Pages workflow runs on `index.html`, `pages/*.html`).
 6. **Families parity.** `uv run python .claude/hooks/families_sync.py`

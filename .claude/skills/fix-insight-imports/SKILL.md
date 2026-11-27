@@ -45,7 +45,7 @@ show the scope; `all` means do them one module at a time, smallest first).
    - vector input of several samples gives the same as one sample at a time.
    The **test-writer** agent can draft these; the **petrophysics-reviewer** agent
    can check the formulas.
-4. `uv run pytest tests/test_insight_<topic>.py -q`. A failing physics test means a
+4. `uv run python -m pytest tests/test_insight_<topic>.py -q`. A failing physics test means a
    bug in the model: report it with the expected and actual numbers, don't bend the
    test to pass.
 

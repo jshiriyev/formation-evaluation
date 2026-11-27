@@ -11,7 +11,7 @@ code or weakening the test.
 
 ## Conventions
 
-- Run tests with `uv run pytest tests/<file> -q` (never a bare `python`/`pytest`;
+- Run tests with `uv run python -m pytest tests/<file> -q` (never a bare `python`/`pytest`;
   the global Pythons on this machine are stale).
 - One file per topic: `tests/test_<module>.py`, e.g. `tests/test_insight_saturation.py`.
   4-space indentation in tests. `import numpy as np` is fine in tests.

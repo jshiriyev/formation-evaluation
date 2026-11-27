@@ -35,19 +35,20 @@ Formation Evaluation (package `pphys`) gives **practicing petrophysicists** an e
 
 ## Setup & commands
 
-The project is managed with **uv**. Always run tools through `uv run`, never a system Python: the machine's global Pythons differ (3.12 holds a stale non-editable `pphys`, and 3.14 has no lasio).
+The project is managed with **uv**. Always run tools through `uv run`, never a system Python: the machine's one global Python (3.15, from the Python install manager) has none of the dependencies.
 
 ```bash
 uv sync                                              # create/update .venv from uv.lock (prompt "pphys")
-uv run pytest                                        # all tests
-uv run pytest tests/test_welllog.py::test_copy_window  # one test
+uv run python -m pytest                              # all tests
+uv run python -m pytest tests/test_welllog.py::test_copy_window  # one test
 uv run ruff check pphys --no-cache --select F821     # quickest way to find broken code (undefined names)
 uv run pphys-digitize scan.pdf [scan2.png ...] --curve GR --vmin 0 --vmax 150 [--color black] [--scale log10] [--depth TOP BASE (once per page) | --label-columns L R] [--pages all|N ...] [--dpi D] [--track auto] [--out DIR]
 uv add <pkg>        # runtime dependency (use --optional digitize or --dev for the others)
 uv build            # wheel + sdist into dist/
 ```
 
-- **Python version:** `.python-version` pins Python 3.12 for the environment. `requires-python` stays `>=3.10` because the code uses `X | None` syntax.
+- **`python -m pytest`, not `pytest`:** Windows Smart App Control on this machine blocks some of the unsigned `.exe` launchers uv writes into `.venv\Scripts` (`pytest.exe` was blocked with "An Application Control policy has blocked this file"; `pphys-digitize.exe` runs). Modules started through `python -m` are unaffected, and the hooks already use them.
+- **Python version:** `.python-version` pins Python 3.15 for the environment (the full suite also passed on 3.12). `requires-python` stays `>=3.10` because the code uses `X | None` syntax.
 - **Dependencies:** runtime dependencies are in `[project] dependencies`.
   - The `digitize` extra holds opencv-python-headless, pypdfium2 and pytesseract; the Tesseract program must be installed separately.
   - The `dev` dependency group holds pytest and ruff, plus `pphys[digitize]`, so a bare `uv sync` installs every feature.
